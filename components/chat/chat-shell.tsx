@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import type { AgentConfig, Settings } from "@/lib/domain/types";
 import { newId } from "@/lib/domain/conversation";
+import { worthCompacting } from "@/lib/agent/compact";
 import { effortOptions, latestModels } from "@/lib/catalog/catalog";
 import { useCatalog } from "@/lib/catalog/use-catalog";
 import {
@@ -360,6 +361,17 @@ export function ChatShell({ settings }: Props) {
           )}
           {conversation && (
             <span className="chat-title">{conversation.title}</span>
+          )}
+          {conversation && worthCompacting(conversation.messages) && (
+            <button
+              type="button"
+              className="chat-compact"
+              onClick={() => send("/compact")}
+              disabled={busy}
+              title="Remplacer le fil par un résumé : l'agent garde ce qui compte, la conversation s'allège. Vous pouvez aussi taper /compact."
+            >
+              Compacter
+            </button>
           )}
           {agent && !acp && (
             <button

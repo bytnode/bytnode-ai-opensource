@@ -20,6 +20,17 @@ export type ProviderMessage =
 
 export function stepsToMessages(m: Message): ProviderMessage[] {
   if (m.role === "user") return [{ role: "user", content: m.content }];
+  /* Le resume d'un fil compacte n'est pas une reponse de l'agent : c'est du
+     contexte. Il est rejoue comme tel, pour que le modele s'appuie dessus
+     au lieu de croire qu'il vient de le dire. */
+  if (m.compaction) {
+    return [
+      {
+        role: "user",
+        content: `<resume_du_fil_precedent>\n${m.content}\n</resume_du_fil_precedent>\n\nLa conversation a été compactée : ce résumé remplace tout ce qui précède. Reprends à partir de là.`,
+      },
+    ];
+  }
   const steps = m.steps;
   if (!steps || steps.length === 0) return [{ role: "assistant", content: m.content }];
 

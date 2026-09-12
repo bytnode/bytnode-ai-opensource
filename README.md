@@ -38,6 +38,20 @@ npm run build      # next build
 `OPENROUTER_BASE_URL` (serveur) redirige les appels vers un autre hôte — un relais, ou un faux
 OpenRouter pour tester le flux sans clé.
 
+### Chez quel fournisseur part la requête
+
+Un même modèle est servi par plusieurs fournisseurs, et leurs latences n'ont rien à voir : par
+défaut OpenRouter répartit la charge, et le même tour peut répondre en 3 s ou en 34 s selon qui le
+reçoit (mesuré). Toutes nos requêtes portent donc `provider: { sort: "latency", ignore: ["parasail"] }`
+(`lib/server/provider-routing.ts`). Réglable par variables d'environnement :
+
+| Variable | Défaut | Effet |
+|---|---|---|
+| `OPENROUTER_PROVIDER_SORT` | `latency` | `latency`, `throughput` ou `price` |
+| `OPENROUTER_IGNORE_PROVIDERS` | `parasail` | liste à écarter ; vide = personne |
+| `OPENROUTER_PROVIDER_ORDER` | — | ordre explicite ; prime sur le tri |
+| `OPENROUTER_ALLOW_FALLBACKS` | `1` | `0` interdit tout autre fournisseur (risque d'échec) |
+
 ### Par abonnement (ACP)
 
 Cinq agents sont des dépendances npm (Claude Code, Codex, Gemini CLI, Copilot CLI, Grok Build) :
@@ -170,6 +184,17 @@ serveur** pour les sous-agents de Workflow (tout en direct). Un message d'assist
   à ce que vous avez écrit à la main, retire ce que le projet ne fournit plus). Sont aussi lus le
   dossier de travail de l'agent et `~/.agents/skills`. Tous sont listés dans le prompt et chargés
   par l'outil Skill.
+
+### Compacter une conversation
+
+`/compact` dans le champ de saisie (ou le bouton **Compacter** de l'en-tête, qui apparaît quand le
+fil est assez fourni) demande à l'agent un résumé structuré — demande, fait, décisions, en cours, à
+ne pas refaire — puis **remplace le fil par ce résumé** (`lib/agent/compact.ts`, pur et testé).
+`/compact garde les niveaux de prix` ajoute une consigne au résumé.
+
+Le même geste sert aux deux moteurs : un agent sur OpenRouter retrouve le résumé en tête de son
+historique (rejoué comme contexte, pas comme une de ses réponses) ; un agent par abonnement voit sa
+session fermée, et la suivante repart du résumé au lieu de l'historique complet.
 
 ### Les données
 

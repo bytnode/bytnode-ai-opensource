@@ -101,6 +101,10 @@ export type Message = {
   /** Les pas d'une reponse d'assistant qui a utilise des outils : texte et
       appels, dans l'ordre. Absent pour une reponse en texte seul. */
   steps?: Step[];
+  /** Ce message est le RESUME qui a remplace un fil compacte (`/compact`) :
+      le fil l'affiche comme tel, et l'historique le rejoue comme un rappel
+      de contexte plutot que comme une reponse. */
+  compaction?: boolean;
 };
 
 export type Conversation = {

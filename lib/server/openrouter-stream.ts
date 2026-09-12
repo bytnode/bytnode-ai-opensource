@@ -3,6 +3,7 @@ import { createSseParser, extractDelta } from "@/lib/llm/sse";
 import type { ProviderMessage } from "@/lib/agent/history";
 import type { ToolSpec } from "@/lib/agent/loop";
 import { OPENROUTER, openRouterHeaders } from "./openrouter";
+import { PROVIDER_ROUTING } from "./provider-routing";
 
 /* Un tour de modele chez OpenRouter, cote serveur : la requete telle que le
    relais `/api/chat` la construit, mais lue ici — c'est ce qu'un sous-agent
@@ -22,6 +23,9 @@ export function completionBody(p: Omit<StreamParams, "apiKey" | "signal">) {
     model: p.model,
     messages: p.messages,
     stream: true,
+    /* Chez le fournisseur le plus rapide, pas au hasard : voir
+       `provider-routing.ts`. */
+    provider: PROVIDER_ROUTING,
     ...(p.tools?.length ? { tools: p.tools, tool_choice: "auto" } : {}),
     ...(p.effort ? { reasoning: p.effort === "none" ? { enabled: false } : { effort: p.effort } } : {}),
   };

@@ -40,6 +40,8 @@ Environment (server-side, optional): `OPENROUTER_BASE_URL` (relay / fake OpenRou
 
 An assistant `Message` persists its `steps` (text / tool with status pending → running → done|failed|denied); `lib/agent/history.ts` (`stepsToMessages`) replays them in OpenRouter format, and `tool-calls.ts` reassembles streamed `tool_calls` fragments. Streaming text is smoothed in `use-chat.ts` (rAF reserve/reveal) and rendered per memoized block by `components/chat/markdown.tsx`.
 
+**Compaction.** `lib/agent/compact.ts` (pure, tested): `isCompactCommand` detects `/compact [consignes]` in `use-chat.ts` `send()`, which substitutes `buildCompactRequest(...)` for the typed text (the visible user message keeps `/compact`). When the turn ends cleanly the whole thread is replaced by one `Message` with `compaction: true` (`compactionMessage`), and for ACP agents the session is closed and `acpSessionId` cleared so the next turn starts fresh from the summary. `history.ts` replays a compaction message as a `user` message wrapped in `<resume_du_fil_precedent>`; `message.tsx` renders it as a quoted block. `transcriptOf` is shared with the ACP history fallback.
+
 **System prompt** = `buildSystemPrompt(profile, agent)` (`lib/agent/prompt.ts`: user bio + profession `PROMPT.md` + agent context) + `buildToolsPrompt(...)` (`tools-prompt.ts`: workspace, scope, default shell, BytNode status, skill list). Both are assembled client-side from what `GET /api/tools` returns.
 
 **Tools** (`lib/tools/`). One file per tool implementing `Tool { name, description, parameters, execute(args, ctx) }`; `registry.ts` assembles `baseTools({platform})` and `allTools({platform, bytnodeKey})` (base + dynamically discovered BytNode MCP tools). `names.ts` lists `GATED_TOOLS` (Bash, PowerShell, Monitor, Write, Edit, NotebookEdit, Workflow) — the ones that wait for permission in `ask` mode. `ToolContext` carries `workspace`, `scope`, `projectRoot`, `signal`, `emit`, `depth`, `llm`, `callId`, `professionSkills`, `bytnodeKey`.
@@ -57,6 +59,8 @@ An assistant `Message` persists its `steps` (text / tool with status pending →
 **BytNode MCP** (`lib/mcp/bytnode.ts`): StreamableHTTP client, `X-API-KEY` header, one cached session per key, `checkBytnodeKey` behind `GET /api/bytnode/key`.
 
 **State.** All persistence is `localStorage` via `useSyncExternalStore` stores in `lib/state/` (`agentchat:settings` v2 with `agents[]` + `activeAgentId`, `agentchat:conversations`, `agentchat:ui` for sidebar width/collapse). `lib/storage/repositories.ts` migrates v1 data lazily under `LEGACY_AGENT_ID = "agent-1"`; new agents get `id: ""` from `blankAgent()` and are stamped in `app/page.tsx` at creation.
+
+**Provider routing.** Every OpenRouter call carries `provider: PROVIDER_ROUTING` (`lib/server/provider-routing.ts`, pure + tested): `sort: "latency"` and `ignore: ["parasail"]` by default, overridable via `OPENROUTER_PROVIDER_SORT` / `OPENROUTER_IGNORE_PROVIDERS` / `OPENROUTER_PROVIDER_ORDER` / `OPENROUTER_ALLOW_FALLBACKS`. Without it OpenRouter load-balances and the same turn measured 3 s vs 34 s vs 98 s. Applied in `completionBody` (chat relay + Workflow sub-agents) and in `lib/tools/web/search.ts`.
 
 **Model catalog** (`lib/catalog/catalog.ts`): providers are derived from the id prefix; `:variant` ids and `~alias` ids are excluded from "latest" but remain searchable. Reasoning effort options come from OpenRouter's `reasoning.supported_efforts`; `effortOptions()` appends `none` unless reasoning is mandatory — always validate an effort through it.
 

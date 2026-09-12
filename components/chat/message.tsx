@@ -2,6 +2,7 @@
 
 import { memo } from "react";
 import type { Message as MessageT } from "@/lib/domain/types";
+import { COMPACT_LABEL } from "@/lib/agent/compact";
 import { Markdown } from "./markdown";
 import { ToolStepView } from "./tool-step";
 
@@ -28,6 +29,17 @@ export const Message = memo(function Message({ message, streaming, onRetry, onAn
     return (
       <article className="msg msg-user">
         <div className="msg-bubble">{message.content}</div>
+      </article>
+    );
+  }
+
+  if (message.compaction) {
+    return (
+      <article className="msg msg-compact">
+        <p className="msg-compact-head">{COMPACT_LABEL}</p>
+        <div className="md">
+          <Markdown text={message.content} />
+        </div>
       </article>
     );
   }

@@ -8,6 +8,12 @@ import type {
   Settings,
 } from "@/lib/domain/types";
 import { deriveTitle, newId } from "@/lib/domain/conversation";
+import {
+  buildCompactRequest,
+  compactionMessage,
+  isCompactCommand,
+  transcriptOf,
+} from "@/lib/agent/compact";
 import { buildSystemPrompt } from "@/lib/agent/prompt";
 import { buildToolsPrompt } from "@/lib/agent/tools-prompt";
 import type { AgentEvent, Step } from "@/lib/agent/events";
@@ -23,7 +29,12 @@ import {
   saveConversation,
 } from "@/lib/state/conversations";
 import { acpAgentOf, acpModelId } from "@/lib/acp/agents";
-import { AcpError, answerAcpPermission, runAcpTurn } from "@/lib/acp/client";
+import {
+  AcpError,
+  answerAcpPermission,
+  closeAcpConversation,
+  runAcpTurn,
+} from "@/lib/acp/client";
 import { buildAcpPrompt } from "@/lib/acp/prompt";
 import type { WireEvent } from "@/lib/acp/wire";
 
@@ -117,6 +128,14 @@ export function useChat({
     async (text: string) => {
       const content = text.trim();
       if (!content || !modelId || streamingId) return;
+
+      /* `/compact` : l'agent resume le fil, et ce resume le remplace a la
+         fin du tour. Ce qu'on lui envoie n'est pas ce que l'utilisateur a
+         tape — c'est la demande de resume. */
+      const compact = isCompactCommand(content);
+      const prompt = compact
+        ? buildCompactRequest(compact.instructions)
+        : content;
 
       const now = Date.now();
       const base: Conversation = conversationId
@@ -268,7 +287,12 @@ export function useChat({
       const acp = acpAgentOf(agent.providerId);
       try {
         const [toolset, memory] = await Promise.all([
-          fetchToolset(agent.id, agent.workspace ?? "", agent.profession, settings.keys.bytnode),
+          fetchToolset(
+            agent.id,
+            agent.workspace ?? "",
+            agent.profession,
+            settings.keys.bytnode,
+          ),
           fetchMemory(agent.id, agent.workspace ?? ""),
         ]);
         if (acp) {
@@ -347,7 +371,7 @@ export function useChat({
               workspace: agent.workspace ?? "",
               profession: agent.profession,
               system,
-              text: content,
+              text: prompt,
               modelId: acpModelId(modelId),
               effort,
               mode,
@@ -357,7 +381,7 @@ export function useChat({
               permissionMode: "ask",
               sessionId: base.acpSessionId ?? null,
               firstTurn: previous.length === 0,
-              history: previous.length > 0 ? transcript(previous) : undefined,
+              history: previous.length > 0 ? transcriptOf(previous) : undefined,
               bytnodeKey: settings.keys.bytnode,
             },
             onEvent,
@@ -385,6 +409,14 @@ export function useChat({
               .filter((m) => m.content.length > 0 || (m.steps?.length ?? 0) > 0)
               .flatMap(stepsToMessages),
           ];
+          /* Le message de l'utilisateur est deja dans `history` — sauf pour
+             `/compact`, ou l'on remplace ce qu'il a tape par la demande de
+             resume. */
+          if (compact) {
+            const dernier = history[history.length - 1];
+            if (dernier?.role === "user")
+              history[history.length - 1] = { role: "user", content: prompt };
+          }
           const client = new OpenRouterClient(settings.keys.openrouter);
           const exec = {
             apiKey: settings.keys.openrouter,
@@ -460,6 +492,19 @@ export function useChat({
             : s,
         ),
       });
+      /* Compactage reussi : le resume remplace tout le fil. Pour un agent
+         par abonnement, sa session est fermee — la suivante repartira du
+         resume au lieu de l'historique complet. */
+      if (compact && !error && !stopped && last.content.trim()) {
+        if (acp) void closeAcpConversation(conversation.id);
+        saveConversation({
+          ...finished,
+          updatedAt: Date.now(),
+          acpSessionId: undefined,
+          messages: [compactionMessage(last.content, newId(), Date.now())],
+        });
+        return;
+      }
       saveConversation({
         ...finished,
         updatedAt: Date.now(),
@@ -500,9 +545,14 @@ export function useChat({
 
 /* La memoire de l'agent, relue a chaque tour (elle change pendant la
    conversation). Sans serveur, pas de memoire — jamais bloquant. */
-async function fetchMemory(agentId: string, workspace: string): Promise<string> {
+async function fetchMemory(
+  agentId: string,
+  workspace: string,
+): Promise<string> {
   try {
-    const res = await fetch(`/api/memory?agentId=${encodeURIComponent(agentId)}&workspace=${encodeURIComponent(workspace)}`);
+    const res = await fetch(
+      `/api/memory?agentId=${encodeURIComponent(agentId)}&workspace=${encodeURIComponent(workspace)}`,
+    );
     const json = (await res.json()) as { prompt?: string };
     return res.ok ? (json.prompt ?? "") : "";
   } catch {
@@ -512,21 +562,6 @@ async function fetchMemory(agentId: string, workspace: string): Promise<string> 
 
 const textOf = (steps: Step[]) =>
   steps.map((s) => (s.type === "text" ? s.text : "")).join("");
-
-/* Le fil precedent en texte, pour un agent externe qui aurait perdu sa
-   session : borne, les derniers echanges d'abord. */
-const TRANSCRIPT_MAX = 8000;
-function transcript(messages: Message[]): string {
-  const lines = messages
-    .filter((m) => m.content.trim())
-    .map(
-      (m) =>
-        `${m.role === "user" ? "Utilisateur" : "Agent"} : ${m.content.trim()}`,
-    );
-  let out = lines.join("\n\n");
-  if (out.length > TRANSCRIPT_MAX) out = `[…]\n${out.slice(-TRANSCRIPT_MAX)}`;
-  return out;
-}
 
 const blank = (
   agentId: string,

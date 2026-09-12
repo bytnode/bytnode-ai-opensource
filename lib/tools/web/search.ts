@@ -1,4 +1,5 @@
 import type { Tool } from "../types";
+import { PROVIDER_ROUTING } from "@/lib/server/provider-routing";
 import { errorText, fail, ok } from "../types";
 
 /* ---------------------------------------------------------------------------
@@ -49,6 +50,7 @@ const openrouterProvider = (key: string): WebSearchProvider => ({
       headers: { "content-type": "application/json", Authorization: `Bearer ${key}` },
       body: JSON.stringify({
         model: SEARCH_MODEL,
+        provider: PROVIDER_ROUTING,
         plugins: [{ id: "web", max_results: maxResults }],
         messages: [{ role: "user", content: `Search the web for: ${query}
 Summarize the findings in a few sentences and cite the sources.` }],

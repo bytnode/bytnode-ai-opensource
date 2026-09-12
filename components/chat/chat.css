@@ -1386,3 +1386,48 @@ html[data-theme="light"] .md pre {
   width: 100%;
   height: auto;
 }
+
+/* --- Compacter : le bouton, et le resume dans le fil -------------------- */
+
+.chat-compact {
+  flex: none;
+  margin-left: auto;
+  padding: 5px 11px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--fg-muted);
+  font-size: 0.78rem;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.chat-compact:hover:not(:disabled) {
+  background: var(--matter);
+  color: var(--fg);
+}
+
+.chat-compact:disabled {
+  opacity: 0.4;
+}
+
+/* Le resume n'est pas une reponse : il est encadre a gauche par un trait,
+   et annonce par une ligne en petites capitales. */
+.msg-compact {
+  margin: 6px 0 18px;
+  padding: 2px 0 2px 16px;
+  border-left: 2px solid var(--matter-strong);
+  color: var(--fg-muted);
+}
+
+.msg-compact-head {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+
+.msg-compact .md {
+  font-size: 0.92rem;
+}

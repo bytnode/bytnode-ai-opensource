@@ -86,7 +86,7 @@ export function Composer({
         ref={area}
         className="composer-input"
         rows={1}
-        placeholder={disabled ? "Connectez un accès aux modèles pour écrire." : "Écrivez votre message…"}
+        placeholder={disabled ? "Connectez un accès aux modèles pour écrire." : "Écrivez votre message…  (/compact pour résumer le fil)"}
         value={text}
         disabled={disabled}
         onChange={(e) => {
