@@ -1,0 +1,65 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+@AGENTS.md
+
+## What this is
+
+BytNode-AI: a local Next.js 16 (App Router, Turbopack) + React 19 + TypeScript-strict app. Multi-agent finance chat on OpenRouter; each agent has a *profession* (prompt + skills loaded from `professions/`), a tool set (`lib/tools/`), and BytNode market data via a remote MCP server. UI text, comments and commit-style prose are in French; keep it that way. CSS is hand-written (no Tailwind) using the BytNode tokens (`--ink`, `--paper`, `--voile`) and fonts (Geist / Inter / IBM Plex Mono) — see `README.md` for the full layout.
+
+## Commands
+
+```bash
+npm run dev          # http://localhost:3777 — the user usually already runs this; do NOT start a second one
+npm run typecheck    # tsc --noEmit
+npm run lint         # eslint (next core-web-vitals + typescript, React Compiler rules)
+npm test             # vitest run — only lib/**/*.test.ts, node environment
+npx vitest run lib/tools/paths.test.ts        # single file
+npx vitest run -t "refuse un chemin"          # single test by name
+npm run build
+```
+
+Before reporting a change as done: `typecheck`, `lint`, `test` must all be clean.
+
+Environment (server-side, optional): `OPENROUTER_BASE_URL` (relay / fake OpenRouter), `OPENROUTER_SEARCH_MODEL`, `BYTNODE_MCP_URL`. The OpenRouter key is **not** read from env by the app — it lives in the browser's `localStorage` and travels per request in the `x-openrouter-key` header (`lib/server/openrouter.ts`); the BytNode key uses `x-bytnode-key`. `.env.local` holds a real key used only by ad-hoc test scripts: never print it. Real-model probes of the ACP path cost the user's subscription quota — keep them short (`haiku`, `effort: low`).
+
+## Constraints that are not obvious from the code
+
+- Next 16 refuses two `next dev` in the same directory, and port 3777 is the user's. Don't leave background servers running; kill anything you started.
+- Bash tool heredocs mangle backslashes on this machine — write files with the Write tool (or a python patch script in the scratchpad) rather than `cat <<EOF`.
+- ESLint runs the React Compiler rules: no `Date.now()`/random ids in render (stamp ids at creation), no `setState` inside effects (key the component instead), stable `useCallback` deps.
+- Packages with native binaries or runtime `require` (`@vscode/ripgrep`, `pdf-parse`, `turndown`, `fast-glob`, `@agentclientprotocol/sdk`, `@resvg/resvg-js`) must stay in `serverExternalPackages` in `next.config.ts`. `pdf-parse` v2 is class-based (`new PDFParse({data}).getText()`).
+- `bytnode_api/.mcp.json` (if present) contains a live key — never reuse it.
+
+## Architecture (what you need across several files)
+
+**Isomorphic agent loop.** `lib/agent/loop.ts` (`runAgentLoop(messages, deps)`) is the model → tools → model cycle, max 40 turns. It is dependency-injected and runs in two places:
+- *Browser*, for the main agent (`components/chat/use-chat.ts`): model via `POST /api/chat` (SSE relay, `lib/llm/client.ts` + `sse.ts`), tools via `POST /api/tools/execute` (NDJSON stream of lines / sub-agent events / result), permissions resolved by UI promises (`answer(callId, allow, always)`).
+- *Server*, for Workflow sub-agents (`lib/tools/agents/workflow.ts`), everything in-process.
+
+An assistant `Message` persists its `steps` (text / tool with status pending → running → done|failed|denied); `lib/agent/history.ts` (`stepsToMessages`) replays them in OpenRouter format, and `tool-calls.ts` reassembles streamed `tool_calls` fragments. Streaming text is smoothed in `use-chat.ts` (rAF reserve/reveal) and rendered per memoized block by `components/chat/markdown.tsx`.
+
+**System prompt** = `buildSystemPrompt(profile, agent)` (`lib/agent/prompt.ts`: user bio + profession `PROMPT.md` + agent context) + `buildToolsPrompt(...)` (`tools-prompt.ts`: workspace, scope, default shell, BytNode status, skill list). Both are assembled client-side from what `GET /api/tools` returns.
+
+**Tools** (`lib/tools/`). One file per tool implementing `Tool { name, description, parameters, execute(args, ctx) }`; `registry.ts` assembles `baseTools({platform})` and `allTools({platform, bytnodeKey})` (base + dynamically discovered BytNode MCP tools). `names.ts` lists `GATED_TOOLS` (Bash, PowerShell, Monitor, Write, Edit, NotebookEdit, Workflow) — the ones that wait for permission in `ask` mode. `ToolContext` carries `workspace`, `scope`, `projectRoot`, `signal`, `emit`, `depth`, `llm`, `callId`, `professionSkills`, `bytnodeKey`.
+
+**Finance tools** (`lib/tools/finance/`): `csv.ts` (pure table parsing / row discovery / column detection) and `svg.ts` (pure chart builder) are unit-tested; `data.ts` (SaveMarketData → CSV), `chart.ts` (SVG → PNG via `@resvg/resvg-js`, attachment carries `path` so the thread can show it through `/api/files`), `backtest.ts` (spawns `py/backtest.py`, needs Python + pandas; gated), `memory.ts` (`.bytnode-ai/memory.jsonl`, rendered into the prompt each turn via `/api/memory`). The same four tools are exposed to ACP agents by `lib/mcp/finance-server.ts` (stdio MCP run with `tsx`, env `BYTNODE_AI_WORKSPACE` / `BYTNODE_AI_BYTNODE_KEY`), added to `session/new` in `lib/acp/sessions.ts`; image blocks in their results become `images` on the tool step (`translate.ts`). Tool images: `ToolAttachment.path` + `AgentEvent.tool_result.images` (`file:<rel>` or data URL).
+
+**Scope / safety.** Each agent has a workspace (`workspaces/<id>` by default, `lib/server/workspace.ts`) and a `scope`: `workspace` (default) or `disk`. File tools go through `resolvePath(workspace, p, scope)` (`paths.ts`, throws `OutsideWorkspaceError`); shells go through `exec/guard.ts`, which refuses a command whose *text* references a path outside the workspace. Permission mode (`ask` | `skip`) is per agent and toggleable in the chat header. BytNode tools are read-only and never gated.
+
+**Skills.** Four roots, in order (`lib/tools/skills/skill.ts`): `<workspace>/.agents/skills`, `<workspace>/skills`, `<projectRoot>/skills` (the user's own — `skills/README.md` documents the format), `~/.agents/skills`; profession skills are passed in first and win on name collision. ACP agents can't read those roots, so `lib/acp/skills-sync.ts` copies profession + project skills into `.agents/skills/` and `.claude/skills/` of the workspace (marked with `.bytnode-ai`; hand-written skills are never overwritten, removed ones are pruned, unchanged ones aren't rewritten) — called from `/api/acp/prompt`.
+
+**Professions.** `professions/<id>/PROMPT.md` + `professions/<id>/skills/*/SKILL.md`, plus `professions/_commun/skills/` shared by all; ids and labels in `lib/professions/catalog.ts`, loading in `load.ts`. Adding a profession = a folder + an entry in `PROFESSIONS`. Skills are plain files with YAML front-matter (`name`, `description`); the `Skill` tool loads them on demand.
+
+**Subscription agents (ACP)** (`lib/acp/`). Provider ids `acp:<id>` (`agents.ts`: claude, openai, gemini, copilot, grok, mistral) route a conversation to an external agent spawned by `launch.ts` with API-key env vars stripped — npm-distributed ones (`@zed-industries/claude-agent-acp`, `@agentclientprotocol/codex-acp`, `@google/gemini-cli --acp`, `@github/copilot --acp`, `@xai-official/grok agent stdio`) or binaries downloaded from the ACP registry into `~/.bytnode-ai/agents/<id>/` by `install.ts` (Mistral Vibe). Adding an agent = an entry in `ACP_AGENTS` + a launch spec (+ a registry source if downloaded); auth/login/logout fall back to the generic protocol path (`auth.ts`: probe session, `authenticate` or terminal auth method) unless the agent has a dedicated CLI. `sessions.ts` keeps one ACP session per conversation (server memory, 15 min idle TTL, `session/load` on restart via `Conversation.acpSessionId`), passes BytNode as an HTTP MCP server, and relays `session/update` → `WireEvent` (`translate.ts`, pure and tested) over NDJSON (`/api/acp/prompt`); permissions come back through `/api/acp/permission`. `use-chat.ts` picks the engine from `acpAgentOf(agent.providerId)`. Models come from the agent's session config options (`models.ts`, cached) and are merged into the catalog store with `acp:` ids. Login state: `auth.ts` — a dedicated CLI for claude/openai/gemini, otherwise a probe session whose result is cached 90 s; the first read returns `checking: true` and fills in the background (the client store polls while any agent is `checking`), so the page never waits on a subprocess. `connection.ts` drops stray JSON-RPC responses with string ids before they reach the SDK — Grok Build pushes `skills-reload`/`workflows-reload` messages that would otherwise log "Got response to unknown request" on every session. Claude needs `.claude/settings.local.json` with a known `permissions.defaultMode` in the workspace (`prepare.ts`) — the adapter rejects unknown modes such as `auto` from the user's own settings.
+
+**BytNode MCP** (`lib/mcp/bytnode.ts`): StreamableHTTP client, `X-API-KEY` header, one cached session per key, `checkBytnodeKey` behind `GET /api/bytnode/key`.
+
+**State.** All persistence is `localStorage` via `useSyncExternalStore` stores in `lib/state/` (`agentchat:settings` v2 with `agents[]` + `activeAgentId`, `agentchat:conversations`, `agentchat:ui` for sidebar width/collapse). `lib/storage/repositories.ts` migrates v1 data lazily under `LEGACY_AGENT_ID = "agent-1"`; new agents get `id: ""` from `blankAgent()` and are stamped in `app/page.tsx` at creation.
+
+**Model catalog** (`lib/catalog/catalog.ts`): providers are derived from the id prefix; `:variant` ids and `~alias` ids are excluded from "latest" but remain searchable. Reasoning effort options come from OpenRouter's `reasoning.supported_efforts`; `effortOptions()` appends `none` unless reasoning is mandatory — always validate an effort through it.
+
+## Testing conventions
+
+Unit tests sit next to their module in `lib/` (Vitest, node env, no DOM). The agent loop, SSE parsing, path resolution, shell guard, edit/notebook logic, catalog, storage migration and profession loading are all covered — extend those files rather than adding UI tests. Real-model end-to-end checks are done with throwaway scripts in the scratchpad against a mock OpenRouter (`OPENROUTER_BASE_URL`), never committed.

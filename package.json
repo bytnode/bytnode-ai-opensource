@@ -1,0 +1,47 @@
+{
+  "name": "agent-chat",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3777",
+    "build": "next build",
+    "start": "next start --port 3777",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@agentclientprotocol/codex-acp": "^1.11.0",
+    "@agentclientprotocol/sdk": "^1.4.0",
+    "@github/copilot": "^1.0.83",
+    "@google/gemini-cli": "^0.59.0",
+    "@joplin/turndown-plugin-gfm": "^1.0.68",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@qwen-code/qwen-code": "^0.23.3",
+    "@resvg/resvg-js": "^2.6.2",
+    "@vscode/ripgrep": "^1.18.0",
+    "@xai-official/grok": "^1.0.25",
+    "@zed-industries/claude-agent-acp": "^0.23.1",
+    "fast-glob": "^3.3.3",
+    "next": "^16.2.6",
+    "pdf-parse": "^2.4.5",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "tsx": "^4.23.13",
+    "turndown": "^7.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.41",
+    "@types/pdf-parse": "^1.1.5",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "@types/turndown": "^5.0.6",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^16.2.6",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

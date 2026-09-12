@@ -1,0 +1,625 @@
+/* ---------------------------------------------------------------------------
+   L'assistant de configuration.
+
+   La feuille est un voile pose au centre du fond, pas une boite de dialogue :
+   les faisceaux passent a travers, assombris. Elle n'entre qu'une fois — un
+   leger fondu qui monte — et c'est le seul mouvement non sollicite de toute
+   l'application. Le passage d'une etape a l'autre est un fondu court, parce
+   que c'est une reponse a un clic.
+--------------------------------------------------------------------------- */
+
+.ob {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow-y: auto;
+  /* Le champ s'assombrit un peu sous la feuille pour qu'elle se detache — le
+     bleu de nuit, jamais du noir. */
+  background: rgba(var(--voile), 0.28);
+}
+
+/* En clair le voile est presque blanc : il faut le poser plus epais pour que
+   la feuille se detache du chat qu'elle recouvre. */
+html[data-theme="light"] .ob {
+  background: rgba(var(--voile), 0.55);
+}
+
+/* ⚠️ LA FEUILLE NE DEFILE PAS, C'EST L'OVERLAY QUI DEFILE. Un corps qui
+   defile est aussi un corps qui COUPE : le panneau des fournisseurs, pose en
+   absolu sous son champ, s'y retrouvait tronque et faisait glisser le
+   formulaire de cote pour rester visible. La feuille prend donc toute sa
+   hauteur, et quand elle depasse la fenetre, c'est `.ob` qui defile. */
+.ob-sheet {
+  width: min(720px, 100%);
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px;
+  background: var(--veil);
+  -webkit-backdrop-filter: blur(26px);
+  backdrop-filter: blur(26px);
+  box-shadow: 0 0 0 1px var(--line);
+  animation: ob-in 460ms var(--ease) both;
+}
+
+@keyframes ob-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* --- La tete : la marque, le theme -------------------------------------- */
+
+.ob-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 26px 40px 0;
+}
+
+.ob-brand {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 500;
+  font-size: 0.95rem;
+  letter-spacing: -0.02em;
+}
+
+.ob-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.theme-toggle,
+.ob-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fg-muted);
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.theme-toggle:hover,
+.ob-close:hover {
+  color: var(--fg);
+  background: var(--matter);
+}
+
+.theme-toggle svg,
+.ob-close svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* --- Les etapes -----------------------------------------------------------
+
+   Trois mots sur une ligne, et sous chacun un trait. C'est une vraie
+   sequence, donc la barre a le droit d'exister : elle dit ou l'on est et ce
+   qui reste. L'etape faite est en encre, la courante en encre pleine avec son
+   trait, celles a venir en encre attenuee. */
+
+.ob-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 26px 40px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ob-steps li {
+  position: relative;
+  padding-bottom: 10px;
+  font-size: 0.78rem;
+  color: var(--fg-faint);
+  transition: color 200ms ease;
+}
+
+.ob-steps li::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--line-strong);
+  transition: background-color 200ms ease;
+}
+
+.ob-steps li.is-done {
+  color: var(--fg-muted);
+}
+
+.ob-steps li.is-done::after,
+.ob-steps li.is-current::after {
+  background: var(--fg);
+}
+
+.ob-steps li.is-current {
+  color: var(--fg);
+}
+
+/* --- Le corps ------------------------------------------------------------- */
+
+.ob-body {
+  padding: 34px 40px 12px;
+  animation: ob-step 220ms var(--ease) both;
+}
+
+@keyframes ob-step {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ob-title {
+  margin: 0;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 400;
+  font-size: clamp(1.5rem, 2.2vw, 1.85rem);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.ob-lede {
+  margin: 10px 0 30px;
+  max-width: 36rem;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: var(--fg-muted);
+}
+
+.ob-link {
+  color: var(--fg);
+  text-decoration: underline;
+  text-decoration-color: var(--fg-faint);
+  text-underline-offset: 3px;
+}
+
+.ob-link:hover {
+  text-decoration-color: var(--fg);
+}
+
+.ob-form {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* Le texte de la feuille est un cran sous celui du chat : un formulaire se
+   parcourt, il ne se lit pas comme une reponse. */
+.ob-form .field-label {
+  font-size: 0.8rem;
+}
+
+.ob-form .field-input,
+.ob-form .picker-trigger.as-field {
+  font-size: 0.88rem;
+}
+
+.ob-form .field-hint,
+.ob-form .field-error {
+  font-size: 0.76rem;
+}
+
+.ob-form .cf-drop,
+.ob-form .cf-item {
+  font-size: 0.82rem;
+}
+
+.ob-foot .btn {
+  font-size: 0.88rem;
+}
+
+.ob-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 520px) {
+  .ob-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* La cle : le champ, l'oeil dedans, le bouton de verification a cote. */
+.ob-key {
+  position: relative;
+  display: flex;
+  gap: 8px;
+}
+
+.ob-key .field-input {
+  flex: 1;
+  padding-right: 40px;
+}
+
+.ob-key .field-input.mono {
+  font-size: 0.86rem;
+}
+
+.ob-key-eye {
+  position: absolute;
+  right: calc(var(--verify-w, 92px) + 8px + 4px);
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-faint);
+}
+
+.ob-key-eye:hover {
+  color: var(--fg);
+}
+
+.ob-key-eye svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ob-key .btn {
+  flex: none;
+  width: var(--verify-w, 92px);
+  height: 46px;
+}
+
+.ob-key .btn.is-ok {
+  background: var(--fg);
+  color: rgb(var(--ink-inv));
+}
+
+/* Le champ dossier : le chemin, et le bouton qui ouvre l'explorateur. */
+.folder-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.folder-field .ob-key .field-input {
+  padding-right: 16px;
+}
+
+.folder-browse {
+  --verify-w: auto;
+  flex: none;
+  width: auto;
+  height: 46px;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+
+.folder-browse svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* --- Les fichiers du contexte -------------------------------------------- */
+
+.cf {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cf-drop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 64px;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--matter);
+  color: var(--fg-muted);
+  font-size: 0.9rem;
+  text-align: center;
+  transition: background-color 140ms ease;
+}
+
+.cf-drop.is-over {
+  background: var(--matter-strong);
+  color: var(--fg);
+}
+
+.cf-browse {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  text-decoration: underline;
+  text-decoration-color: var(--fg-faint);
+  text-underline-offset: 3px;
+}
+
+.cf-browse:hover {
+  text-decoration-color: var(--fg);
+}
+
+.cf-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cf-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 6px 0 12px;
+  border-radius: var(--radius);
+  background: var(--matter);
+  font-size: 0.88rem;
+}
+
+.cf-item svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--fg-muted);
+}
+
+.cf-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cf-size {
+  color: var(--fg-faint);
+}
+
+.cf-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-faint);
+}
+
+.cf-remove:hover {
+  color: var(--fg);
+  background: var(--matter-hover);
+}
+
+.cf-remove svg {
+  width: 13px;
+  height: 13px;
+  color: inherit;
+}
+
+/* --- Le pied -------------------------------------------------------------- */
+
+.ob-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 26px 40px 32px;
+}
+
+@media (max-width: 600px) {
+  .ob-head,
+  .ob-body,
+  .ob-foot {
+    padding-left: 22px;
+    padding-right: 22px;
+  }
+
+  .ob-steps {
+    margin-left: 22px;
+    margin-right: 22px;
+  }
+}
+
+/* --- Un choix a deux reponses -------------------------------------------- */
+
+.ob-choice {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.ob-choice-4 {
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 520px) {
+  .ob-choice {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ob-choice-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--matter);
+  color: var(--fg-muted);
+  text-align: left;
+  transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.ob-choice-btn:hover {
+  background: var(--matter-hover);
+}
+
+.ob-choice-btn.is-on {
+  color: var(--fg);
+  box-shadow: inset 0 0 0 1.5px var(--fg);
+}
+
+.ob-choice-title {
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.ob-choice-desc {
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+/* --- Une sous-section du formulaire -------------------------------------- */
+
+.ob-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 8px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.ob-sub-title {
+  margin: 0;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 500;
+  font-size: 1rem;
+  letter-spacing: -0.015em;
+}
+
+.ob-sub-lede {
+  margin: -8px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--fg-muted);
+}
+
+/* --- Authentification : deux onglets ------------------------------------- */
+
+.ob-tabs {
+  display: flex;
+  gap: 4px;
+  width: fit-content;
+  margin: 0 0 22px;
+  padding: 3px;
+  border-radius: calc(var(--radius) + 3px);
+  background: var(--matter);
+}
+
+.ob-tab {
+  padding: 7px 16px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.86rem;
+  font-weight: 500;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.ob-tab:hover {
+  color: var(--fg);
+}
+
+.ob-tab.is-on {
+  background: var(--matter-strong);
+  color: var(--fg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+
+/* Les abonnements : une ligne par editeur, l'etat a gauche, l'action a
+   droite. Un compte connecte porte un trait a gauche. */
+
+.subs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sub {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--matter);
+  box-shadow: inset 3px 0 0 transparent;
+  transition: box-shadow 120ms ease;
+}
+
+.sub.is-on {
+  box-shadow: inset 3px 0 0 var(--fg);
+}
+
+.sub-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.sub-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.sub-desc {
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+}
+
+.sub .btn {
+  flex-shrink: 0;
+}
+
+@media (max-width: 520px) {
+  .sub {
+    flex-wrap: wrap;
+  }
+}
