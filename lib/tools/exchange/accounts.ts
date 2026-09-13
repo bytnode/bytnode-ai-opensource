@@ -27,13 +27,29 @@ export function parseAccounts(value: unknown): ExchangeAccount[] {
   return out;
 }
 
-/** L'en-tete tel qu'il arrive : JSON, ou rien. */
+/** L'en-tete a envoyer : du JSON encode en URI, parce qu'un en-tete HTTP
+    n'accepte que du Latin-1 et qu'un label peut porter « € » ou un emoji. */
+export const encodeAccountsHeader = (accounts: ExchangeAccount[]): string => encodeURIComponent(JSON.stringify(accounts));
+
+/** L'en-tete tel qu'il arrive : JSON encode (ou brut, pour l'env du
+    serveur MCP), ou rien. */
 export function parseAccountsHeader(raw: string | null | undefined): ExchangeAccount[] {
   if (!raw) return [];
+  for (const text of [raw, safeDecode(raw)]) {
+    try {
+      return parseAccounts(JSON.parse(text));
+    } catch {
+      /* forme suivante */
+    }
+  }
+  return [];
+}
+
+function safeDecode(raw: string): string {
   try {
-    return parseAccounts(JSON.parse(raw));
+    return decodeURIComponent(raw);
   } catch {
-    return [];
+    return raw;
   }
 }
 

@@ -1,7 +1,7 @@
 import type { Position, Ticker } from "ccxt";
 import type { Tool } from "../types";
 import { fail, ok } from "../types";
-import { ACCOUNT_PROP, MARKET_PROP, SYMBOL_PROP, resolve, symbolOn, type BaseArgs } from "./common";
+import { ACCOUNT_PROP, MARKET_PROP, SYMBOL_PROP, resolve, symbolOn, type BaseArgs, type Resolved } from "./common";
 import { describeExchangeError } from "./errors";
 import { liquidationDistance, n8 } from "./format";
 import { holds, parseUntil, type Condition, type Sample } from "./watch-until";
@@ -131,5 +131,3 @@ function sleep(ms: number, signal: AbortSignal): Promise<boolean> {
     signal.addEventListener("abort", onAbort, { once: true });
   });
 }
-
-type Resolved = Awaited<ReturnType<typeof resolve>> extends infer R ? Extract<R, { ex: unknown }> : never;

@@ -4,6 +4,7 @@ import type { ToolCall } from "@/lib/agent/tool-calls";
 import type { SkillInfo } from "./skills/skill";
 import type { ToolResult } from "./types";
 import type { ExchangeAccount } from "@/lib/domain/types";
+import { encodeAccountsHeader } from "./exchange/accounts";
 
 /* ---------------------------------------------------------------------------
    Les outils, vus du navigateur : leurs specifications d'un cote, leur
@@ -56,7 +57,7 @@ export type ExecuteParams = {
 
 /** Les comptes exchange de l'agent, en en-tete — rien si aucun. */
 const exchangeHeader = (accounts: ExchangeAccount[]): Record<string, string> =>
-  accounts.length ? { "x-exchange-accounts": JSON.stringify(accounts) } : {};
+  accounts.length ? { "x-exchange-accounts": encodeAccountsHeader(accounts) } : {};
 
 /** Execute un outil sur le serveur et relaie ce qu'il raconte en chemin. */
 export async function executeTool(call: ToolCall, p: ExecuteParams, signal: AbortSignal, emit: (e: AgentEvent) => void): Promise<ToolResult> {

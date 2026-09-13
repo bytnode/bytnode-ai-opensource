@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alwaysAsks, isAlwaysAskTitle, isExchangeTool, isGated, summarizeCall } from "./names";
+import { allowedForSubagent, alwaysAsks, isAlwaysAskTitle, isExchangeTool, isGated, summarizeCall } from "./names";
 
 describe("outils exchange : qui demande", () => {
   it("les cinq outils d'ecriture sont gated ; trois demandent toujours", () => {
@@ -12,6 +12,10 @@ describe("outils exchange : qui demande", () => {
   it("reconnait un titre d'agent externe", () => {
     expect(isAlwaysAskTitle("mcp__bytnode-ai__PlaceOrder")).toBe(true);
     expect(isAlwaysAskTitle("Read file")).toBe(false);
+  });
+  it("un sous-agent ne recoit jamais un outil qui engage des fonds", () => {
+    for (const n of ["PlaceOrder", "CancelOrder", "ClosePosition", "Transfer", "SetLeverage", "Workflow"]) expect(allowedForSubagent(n)).toBe(false);
+    for (const n of ["ExchangeBalance", "ExchangeTicker", "Bash", "Write"]) expect(allowedForSubagent(n)).toBe(true);
   });
   it("reconnait les outils exchange pour le badge", () => {
     expect(isExchangeTool("ExchangeTicker")).toBe(true);

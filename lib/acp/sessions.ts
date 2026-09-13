@@ -54,7 +54,12 @@ export type TurnInput = {
   history?: string;
 };
 
-type Pending = { options: PermissionOption[]; resolve: (optionId: string | null) => void };
+type Pending = {
+  options: PermissionOption[];
+  resolve: (optionId: string | null) => void;
+  /** Le titre de l'appel : un outil qui engage des fonds n'accepte pas « toujours ». */
+  title: string;
+};
 
 type Live = {
   agent: AcpAgentId;
@@ -332,7 +337,7 @@ export async function runTurn(input: TurnInput, emit: (e: WireEvent) => void, si
         return optionId ? { outcome: { outcome: "selected", optionId } } : { outcome: { outcome: "cancelled" } };
       }
       const optionId = await new Promise<string | null>((resolve) => {
-        l.pending.set(id, { options: req.options, resolve });
+        l.pending.set(id, { options: req.options, resolve, title: req.toolCall.title ?? "" });
         emit({ type: "permission", id, title: req.toolCall.title ?? "", options: req.options });
       });
       l.pending.delete(id);
@@ -360,7 +365,7 @@ export function answerPermission(conversationId: string, callId: string, allow: 
   const l = live.get(conversationId);
   const p = l?.pending.get(callId);
   if (!p) return false;
-  p.resolve(pickPermissionOption(p.options, allow, always));
+  p.resolve(pickPermissionOption(p.options, allow, always && !isAlwaysAskTitle(p.title)));
   return true;
 }
 

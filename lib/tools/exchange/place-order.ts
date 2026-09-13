@@ -87,17 +87,18 @@ export const placeOrderTool: Tool<Args> = {
       if (args.postOnly) params.postOnly = true;
       if (args.timeInForce) params.timeInForce = args.timeInForce;
       const price = args.price !== undefined ? Number(r.ex.priceToPrecision(symbol, args.price)) : undefined;
+      const stop = args.stopPrice !== undefined ? Number(r.ex.priceToPrecision(symbol, args.stopPrice)) : undefined;
       let type: "market" | "limit" = "market";
       let limit: number | undefined;
       if (args.type === "limit") {
         type = "limit";
         limit = price;
-      } else if (args.type === "stop") params.triggerPrice = args.stopPrice;
+      } else if (args.type === "stop") params.triggerPrice = stop;
       else if (args.type === "stop_limit") {
         type = "limit";
         limit = price;
-        params.triggerPrice = args.stopPrice;
-      } else if (args.type === "take_profit") params.takeProfitPrice = args.stopPrice;
+        params.triggerPrice = stop;
+      } else if (args.type === "take_profit") params.takeProfitPrice = stop;
 
       const o = (await r.ex.createOrder(symbol, type, args.side, amount, limit, params)) as Order;
       const parts = [`Ordre #${o.id} ${o.status ?? "envoyé"}`, `${args.side.toUpperCase()} ${n8(o.amount ?? amount)} ${symbol} ${args.type}${limit ? ` @ ${n8(limit)}` : ""}`];

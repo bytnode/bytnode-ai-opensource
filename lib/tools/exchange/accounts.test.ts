@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { allowedAccounts, describeAccounts, parseAccounts, parseAccountsHeader, pickAccount } from "./accounts";
+import { allowedAccounts, describeAccounts, encodeAccountsHeader, parseAccounts, parseAccountsHeader, pickAccount } from "./accounts";
 import type { ExchangeAccount } from "@/lib/domain/types";
 
 const main: ExchangeAccount = { id: "x1", exchange: "binance", label: "Binance-main", apiKey: "a", secret: "b", password: "", testnet: false };
@@ -15,6 +15,12 @@ describe("parseAccounts", () => {
     expect(parseAccountsHeader("{oops")).toEqual([]);
     expect(parseAccountsHeader(null)).toEqual([]);
     expect(parseAccountsHeader("")).toEqual([]);
+  });
+  test("aller-retour par l'en-tete encode, meme avec un label hors Latin-1", () => {
+    const euro = { ...main, label: "Binance €/🚀" };
+    const header = encodeAccountsHeader([euro, test1]);
+    expect(/^[\x00-\x7f]*$/.test(header)).toBe(true);
+    expect(parseAccountsHeader(header)).toEqual([euro, test1]);
   });
 });
 

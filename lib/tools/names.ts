@@ -8,6 +8,9 @@ export const GATED_TOOLS = new Set(["Bash", "PowerShell", "Monitor", "Write", "E
 
 export const isGated = (name: string) => GATED_TOOLS.has(name);
 
+/** Les outils exchange qui agissent (les cinq gated). */
+const GATED_EXCHANGE = new Set(["PlaceOrder", "CancelOrder", "ClosePosition", "Transfer", "SetLeverage"]);
+
 /** ⚠️ Les outils qui engagent des fonds : ils demandent TOUJOURS, quel que
     soit le mode de l'agent, sans « Toujours » ni regle possible. */
 export const ALWAYS_ASK = new Set(["PlaceOrder", "ClosePosition", "Transfer"]);
@@ -18,9 +21,12 @@ export const alwaysAsks = (name: string) => ALWAYS_ASK.has(name);
     designe-t-il un de ces outils ? */
 export const isAlwaysAskTitle = (title: string) => [...ALWAYS_ASK].some((n) => title.includes(n));
 
+/** ⚠️ Un sous-agent (Workflow) n'a personne a qui demander : il ne recoit
+    jamais un outil qui engage des fonds, ni Workflow lui-meme. */
+export const allowedForSubagent = (name: string) => name !== "Workflow" && !GATED_EXCHANGE.has(name);
+
 /** Les outils exchange, pour le badge RÉEL / TESTNET. */
 export const isExchangeTool = (name: string) => name.startsWith("Exchange") || GATED_EXCHANGE.has(name);
-const GATED_EXCHANGE = new Set(["PlaceOrder", "CancelOrder", "ClosePosition", "Transfer", "SetLeverage"]);
 
 /** L'argument qui resume un appel : le chemin, la commande, le motif… */
 export function summarizeCall(name: string, args: Record<string, unknown>): string {

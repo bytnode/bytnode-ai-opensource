@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Step } from "@/lib/agent/events";
-import { alwaysAsks, isExchangeTool, summarizeCall } from "@/lib/tools/names";
+import { alwaysAsks, isAlwaysAskTitle, isExchangeTool, summarizeCall } from "@/lib/tools/names";
 import { isDangerous, ruleFor, ruleLabel } from "@/lib/tools/permissions";
 import { pickAccount } from "@/lib/tools/exchange/accounts";
 import { useSettings } from "@/lib/state/settings";
@@ -82,12 +82,12 @@ export function ToolStepView({ step, onAnswer, fileUrl }: Props) {
 function Ask({ step, onAnswer }: { step: ToolStep; onAnswer: (allow: boolean, always?: boolean) => void }) {
   const dangereux = isDangerous(step.name, step.args);
   /* Un ordre, une fermeture, un transfert : jamais de « Toujours ». */
-  const fonds = alwaysAsks(step.name);
+  const fonds = alwaysAsks(step.name) || isAlwaysAskTitle(step.name);
   const rule = dangereux || fonds ? null : ruleFor(step.name, step.args);
   return (
     <div className={`ts-ask${dangereux || fonds ? " is-danger" : ""}`}>
       <span className="ts-ask-text">
-        {isExchangeTool(step.name) && <ExchangeBadge account={typeof step.args.account === "string" ? step.args.account : undefined} />}
+        {(isExchangeTool(step.name) || fonds) && <ExchangeBadge account={typeof step.args.account === "string" ? step.args.account : undefined} />}
         {fonds
           ? "Cette action engage des fonds. À autoriser une fois, en connaissance de cause."
           : dangereux

@@ -33,8 +33,10 @@ export async function clientFor(account: ExchangeAccount, market: Market): Promi
 type Ctor = new (config: Record<string, unknown>) => Exchange;
 
 async function open(account: ExchangeAccount, market: Market): Promise<Exchange> {
-  const Klass = (ccxt as unknown as Record<string, Ctor | undefined>)[account.exchange];
-  if (typeof Klass !== "function") throw Object.assign(new Error(`Exchange inconnu de ccxt : ${account.exchange}`), { name: "NotSupported" });
+  /* Seuls les ids publies par ccxt : jamais une propriete quelconque de
+     l'objet (`constructor`, `Exchange`…) prise pour un exchange. */
+  if (!ccxt.exchanges.includes(account.exchange)) throw Object.assign(new Error(`Exchange inconnu de ccxt : ${account.exchange}`), { name: "NotSupported" });
+  const Klass = (ccxt as unknown as Record<string, Ctor>)[account.exchange];
   const ex = new Klass({
     apiKey: account.apiKey,
     secret: account.secret,

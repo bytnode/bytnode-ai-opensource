@@ -36,7 +36,10 @@ export const tickerTool: Tool<Args> = {
       let funding: FundingRate | undefined;
       if (depth > 0) {
         try {
-          book = (await r.ex.fetchOrderBook(s.symbol, depth)) as OrderBook;
+          /* Certains exchanges n'acceptent que des profondeurs fixes (5, 10,
+             20…) : on demande au moins 5 et on garde `depth` niveaux. */
+          const raw = (await r.ex.fetchOrderBook(s.symbol, Math.max(5, depth))) as OrderBook;
+          book = { ...raw, bids: raw.bids.slice(0, depth), asks: raw.asks.slice(0, depth) };
         } catch {
           /* le prix suffit */
         }
@@ -50,8 +53,8 @@ export const tickerTool: Tool<Args> = {
       }
       /* Certains tickers futures n'ont pas de bid/ask : le carnet les a. */
       if (book) {
-        if (ticker.bid === undefined && book.bids[0]) ticker.bid = Number(book.bids[0][0]);
-        if (ticker.ask === undefined && book.asks[0]) ticker.ask = Number(book.asks[0][0]);
+        if (ticker.bid == null && book.bids[0]) ticker.bid = Number(book.bids[0][0]);
+        if (ticker.ask == null && book.asks[0]) ticker.ask = Number(book.asks[0][0]);
       }
       return ok(formatTicker(ticker, book, funding));
     });
