@@ -15,6 +15,7 @@ npm run dev          # http://localhost:3777 — the user usually already runs t
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint (next core-web-vitals + typescript, React Compiler rules)
 npm test             # vitest run — only lib/**/*.test.ts, node environment
+npm run test:watch   # vitest en mode watch
 npx vitest run lib/tools/paths.test.ts        # single file
 npx vitest run -t "refuse un chemin"          # single test by name
 npm run build
@@ -58,7 +59,7 @@ An assistant `Message` persists its `steps` (text / tool with status pending →
 
 **Finance tools** (`lib/tools/finance/`): `csv.ts` (pure table parsing / row discovery / column detection) and `svg.ts` (pure chart builder) are unit-tested; `data.ts` (SaveMarketData → CSV), `chart.ts` (SVG → PNG via `@resvg/resvg-js`, attachment carries `path` so the thread can show it through `/api/files`), `backtest.ts` (spawns `py/backtest.py`, needs Python + pandas; gated), `memory.ts` (`.bytnode-ai/memory.jsonl`, rendered into the prompt each turn via `/api/memory`). The same four tools are exposed to ACP agents by `lib/mcp/finance-server.ts` (stdio MCP run with `tsx`, env `BYTNODE_AI_WORKSPACE` / `BYTNODE_AI_BYTNODE_KEY`), added to `session/new` in `lib/acp/sessions.ts`; image blocks in their results become `images` on the tool step (`translate.ts`). Tool images: `ToolAttachment.path` + `AgentEvent.tool_result.images` (`file:<rel>` or data URL).
 
-**Scope / safety.** Each agent has a workspace (`workspaces/<id>` by default, `lib/server/workspace.ts`) and a `scope`: `workspace` (default) or `disk`. File tools go through `resolvePath(workspace, p, scope)` (`paths.ts`, throws `OutsideWorkspaceError`); shells go through `exec/guard.ts`, which refuses a command whose *text* references a path outside the workspace. Permission mode (`ask` | `skip`) is per agent and toggleable in the chat header. BytNode tools are read-only and never gated.
+**Scope / safety.** Each agent has a workspace (`workspaces/<id>` by default, `lib/server/workspace.ts`; a legacy `sandboxes/<id>` is reused if it still exists — both dirs are git-ignored and hold real user data, never wipe them) and a `scope`: `workspace` (default) or `disk`. File tools go through `resolvePath(workspace, p, scope)` (`paths.ts`, throws `OutsideWorkspaceError`); shells go through `exec/guard.ts`, which refuses a command whose *text* references a path outside the workspace. Permission mode (`ask` | `skip`) is per agent and toggleable in the chat header. BytNode tools are read-only and never gated.
 
 **Skills.** Four roots, in order (`lib/tools/skills/skill.ts`): `<workspace>/.agents/skills`, `<workspace>/skills`, `<projectRoot>/skills` (the user's own — `skills/README.md` documents the format), `~/.agents/skills`; profession skills are passed in first and win on name collision. ACP agents can't read those roots, so `lib/acp/skills-sync.ts` copies profession + project skills into `.agents/skills/` and `.claude/skills/` of the workspace (marked with `.bytnode-ai`; hand-written skills are never overwritten, removed ones are pruned, unchanged ones aren't rewritten) — called from `/api/acp/prompt`.
 
