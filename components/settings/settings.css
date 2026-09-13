@@ -11,6 +11,8 @@
 
 .st-veil {
   padding: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--ink), 0.22) transparent;
 }
 
 .st {
@@ -91,6 +93,17 @@
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
+  /* L'ascenseur du systeme (gris, avec ses fleches) jurait contre le bord
+     arrondi : un curseur fin, dans l'encre, sur une piste invisible. La
+     gouttiere reste reservee pour que le contenu ne saute pas d'un onglet
+     court a un onglet long. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--ink), 0.22) transparent;
+  scrollbar-gutter: stable;
+}
+
+.st-main:hover {
+  scrollbar-color: rgba(var(--ink), 0.36) transparent;
 }
 
 .st-close {
