@@ -193,6 +193,19 @@ serveur** pour les sous-agents de Workflow (tout en direct). Un message d'assist
   dossier de travail de l'agent et `~/.agents/skills`. Tous sont listés dans le prompt et chargés
   par l'outil Skill.
 
+### Trader sur un exchange
+
+Dans **Authentification**, la section « Comptes exchange » accepte autant de comptes que vous voulez parmi Binance, Bybit, OKX, Coinbase, Kraken, Bitget, KuCoin, Gate.io, HTX et MEXC : un nom (celui que l'agent emploiera, « Binance-main »), la clé API, le secret, une passphrase pour ceux qui en demandent, et « réseau de test » quand l'exchange en a un. « Tester » ouvre la connexion et lit le solde. Les clés restent dans votre navigateur, comme les autres, et voyagent avec chaque requête d'outil. Créez-les côté exchange avec les droits que vous voulez accorder — l'application n'a de toute façon aucun outil de retrait.
+
+Chaque agent choisit ensuite, dans sa configuration, **quels comptes il peut piloter**. Sans compte rattaché, il n'a aucun outil exchange. Avec, il dispose de :
+
+- **lecture, sans permission** : `ExchangeBalance` (soldes, estimation USD), `ExchangePositions` (positions futures, PnL, liquidation), `ExchangeOrders` (ordres ouverts ou historique avec frais), `ExchangeTicker` (prix, carnet, funding sur *cet* exchange), `ExchangeWatch` (un relevé toutes les N secondes pendant 10 minutes au plus, arrêt sur `price>=…`, `pnl<…`, `liq<3%` ou `closed`) ;
+- **action, avec permission** : `PlaceOrder` (market, limit, stop, stop-limit, take-profit ; quantité en actif ou en devise de cotation ; `reduceOnly`, levier), `CancelOrder`, `ClosePosition` (tout ou une fraction), `Transfer` (spot ↔ futures d'un même compte), `SetLeverage`.
+
+Un ordre, une fermeture de position ou un transfert **vous est toujours demandé** — même quand l'agent est en « Exécution directe », et sans bouton « Toujours ». Le badge **RÉEL** (rouge) ou **TESTNET** dans l'en-tête de la conversation et sur chaque demande dit sur quel argent porte l'action. Les futures sont gérés en one-way (une position par paire) ; un compte en hedge mode est refusé avec un message. Les agents par abonnement (Claude Code, Codex…) reçoivent les mêmes outils par le serveur MCP `bytnode-ai`.
+
+Deux compétences communes guident les agents : `trading-execution` (solde → prix → taille → ordre → confirmation) et `trade-review` (revue de positions et d'historique, seuils d'alerte).
+
 ### Le « + » du bloc de saisie
 
 Trois actions, et ce qu'elles font vraiment :
