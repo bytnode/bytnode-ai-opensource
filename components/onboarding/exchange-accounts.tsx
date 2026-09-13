@@ -115,6 +115,8 @@ function AddForm({ existing, onAdd, onCancel }: { existing: ExchangeAccount[]; o
   const [testnet, setTestnet] = useState(false);
   const [shown, setShown] = useState(false);
   const info = exchangeInfo(exchange);
+  /* Le nom propose suit l'exchange choisi : « Bybit-main » pour Bybit. */
+  const suggested = `${info?.label ?? exchange}-main`;
   const cleanLabel = label.trim();
   const duplicate = existing.some((a) => a.label.toLowerCase() === cleanLabel.toLowerCase());
   const valid = cleanLabel && !duplicate && apiKey.trim() && secret.trim() && (!info?.password || password.trim());
@@ -143,8 +145,8 @@ function AddForm({ existing, onAdd, onCancel }: { existing: ExchangeAccount[]; o
           }}
         />
       </Field>
-      <Field id="xch-label" label="Nom du compte" hint="Celui que l'agent emploiera : « Binance-main »." error={duplicate ? "Un compte porte déjà ce nom." : undefined}>
-        <input id="xch-label" className="field-input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Binance-main" />
+      <Field id="xch-label" label="Nom du compte" hint={`Celui que l'agent emploiera : « ${suggested} ».`} error={duplicate ? "Un compte porte déjà ce nom." : undefined}>
+        <input id="xch-label" className="field-input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={suggested} />
       </Field>
       <Field id="xch-key" label="Clé API">
         <div className="ob-key">
