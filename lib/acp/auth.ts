@@ -129,6 +129,10 @@ const STATUS: Partial<Record<AcpAgentId, () => Promise<Partial_>>> = {
 /* --- Par le protocole ----------------------------------------------------- */
 
 const PROBE_TTL = 90_000;
+/* Un agent qui ne repond pas a `session/new` (il attend une connexion
+   interactive, il est bloque) ne doit pas laisser l'etat a « vérification »
+   pour toujours. */
+const PROBE_TIMEOUT = 45_000;
 const probeCache = new Map<AcpAgentId, { at: number; result: Partial_ }>();
 const probeInflight = new Map<AcpAgentId, Promise<Partial_>>();
 
@@ -164,7 +168,10 @@ function probe(agent: AcpAgentId): Promise<Partial_> {
       await prepareWorkspace(agent, cwd);
       const conn = await AcpConnection.open(agent, cwd);
       try {
-        await conn.newSession(cwd, []);
+        await Promise.race([
+          conn.newSession(cwd, []),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("L'agent ne répond pas.")), PROBE_TIMEOUT).unref()),
+        ]);
         result = { loggedIn: true, account: acpAgentInfo(agent).plan };
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);

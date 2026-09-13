@@ -29,8 +29,12 @@ describe("ToolCallAccumulator", () => {
     acc.add([{ index: 1, id: "c2", name: "Read", args: "{broken" }]);
     const [a, b] = acc.calls();
     expect(a.args).toEqual({});
+    expect(a.argsError).toBeUndefined();
     expect(b.args).toEqual({});
     expect(b.rawArgs).toBe("{broken");
+    /* Le modele doit savoir que c'est le JSON qui est en cause, pas un
+       argument manquant. */
+    expect(b.argsError).toMatch(/JSON/);
   });
 
   test("invents an id when the provider sends none", () => {

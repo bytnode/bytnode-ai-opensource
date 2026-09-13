@@ -32,6 +32,10 @@ export type RunResult = {
 };
 
 const DEFAULT_MAX = 200_000;
+/* Une « ligne » sans retour a la ligne (un binaire, un JSON d'un bloc) ne
+   doit pas grossir sans fin en memoire : au-dela, elle est livree telle
+   quelle et le tampon repart. */
+const MAX_LINE = 1_000_000;
 
 export function run(command: string, args: string[], opts: RunOptions): Promise<RunResult> {
   return new Promise((resolve) => {
@@ -75,6 +79,10 @@ export function run(command: string, args: string[], opts: RunOptions): Promise<
         rest += text;
         const lines = rest.split(/\r?\n/);
         rest = lines.pop() ?? "";
+        if (rest.length > MAX_LINE) {
+          lines.push(rest);
+          rest = "";
+        }
         for (const line of lines) {
           opts.onLine?.(line, stream);
           if (opts.until && !matched && opts.until.test(line)) {

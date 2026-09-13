@@ -118,7 +118,6 @@ function armReaper() {
    modification des outils recree la session, et l'agent relance le serveur
    avec le code a jour au lieu de garder l'ancien processus. */
 function toolsVersion(): string {
-  const dir = path.join(PROJECT_ROOT, "lib", "tools", "finance");
   let latest = 0;
   const visit = (d: string) => {
     for (const f of fs.readdirSync(d, { withFileTypes: true })) {
@@ -128,8 +127,10 @@ function toolsVersion(): string {
     }
   };
   try {
-    visit(dir);
-    latest = Math.max(latest, fs.statSync(path.join(PROJECT_ROOT, "lib", "mcp", "finance-server.ts")).mtimeMs);
+    /* Tout ce que le serveur MCP embarque : les outils (finance, exchange,
+       leur tronc commun) et le serveur lui-meme. */
+    visit(path.join(PROJECT_ROOT, "lib", "tools"));
+    visit(path.join(PROJECT_ROOT, "lib", "mcp"));
   } catch {
     /* pas grave : la cle ne bougera pas */
   }

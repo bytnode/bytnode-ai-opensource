@@ -49,6 +49,7 @@ export type LoopDeps = {
   signal: AbortSignal;
 };
 
+/** `finishReason` : celle du modele, ou `max_turns` si la boucle a coupe. */
 export type LoopResult = { text: string; turns: number; finishReason: string };
 
 const DEFAULT_MAX_TURNS = 40;
@@ -118,6 +119,12 @@ export async function runAgentLoop(messages: ProviderMessage[], deps: LoopDeps):
       deps.emit({ type: "done", finishReason: finish });
       return { text: finalText, turns: turn, finishReason: finish };
     }
+    /* Le dernier tour n'avait plus d'outils : un modele qui en appelle
+       quand meme n'aura pas un tour de plus. */
+    if (last) {
+      deps.emit({ type: "done", finishReason: "max_turns" });
+      return { text: finalText, turns: turn, finishReason: "max_turns" };
+    }
 
     history.push({
       role: "assistant",
@@ -175,6 +182,7 @@ export async function runAgentLoop(messages: ProviderMessage[], deps: LoopDeps):
 /** La phrase a rendre au modele si l'appel ne respecte pas le schema de
     l'outil ; `null` sinon (ou si l'outil est inconnu : l'execution dira). */
 function invalidArgs(tools: ToolSpec[], call: ToolCall): string | null {
+  if (call.argsError) return `Arguments illisibles pour ${call.name} : ${call.argsError}. Renvoie l'appel avec un objet JSON valide.`;
   const spec = tools.find((t) => t.function.name === call.name)?.function.parameters;
   if (!isSchema(spec)) return null;
   const problem = validateArgs(spec, call.args);

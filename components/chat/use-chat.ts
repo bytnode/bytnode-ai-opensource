@@ -723,7 +723,7 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
     const question = c.messages[c.messages.length - 2];
     if (!last?.error || question?.role !== "user") return;
     saveConversation({ ...c, messages: c.messages.slice(0, -2) });
-    void send(question.content);
+    void send(question.content, { attachments: question.attachments, research: question.research });
   }, [conversationId, streamingId, send]);
 
   return { send, stop, retry, answer, streamingId, usage: live.usage, rate: live.rate, produced: live.produced };

@@ -123,3 +123,48 @@ describe("runAgentLoop", () => {
     expect(res && res.type === "tool_result" && !res.ok && res.output).toBe("Arguments invalides pour Read : `file_path` requis (string). Corrige l'appel.");
   });
 });
+
+describe("runAgentLoop : garde-fous", () => {
+  test("des arguments JSON illisibles reviennent au modele comme tels, sans execution", async () => {
+    let ran = false;
+    const complete = scripted([
+      [{ text: "", toolCalls: [{ index: 0, id: "c1", name: "Glob", args: '{"pattern": ' }], finish: "tool_calls" }],
+      [{ text: "Ok.", finish: "stop" }],
+    ]);
+    const events: AgentEvent[] = [];
+    await runAgentLoop([{ role: "user", content: "x" }], {
+      complete: () => complete(),
+      execute: async () => {
+        ran = true;
+        return { ok: true, output: "" };
+      },
+      emit: (e) => events.push(e),
+      tools: [{ type: "function", function: { name: "Glob", description: "", parameters: { type: "object", properties: { pattern: { type: "string" } }, required: ["pattern"] } } }],
+      signal: new AbortController().signal,
+    });
+    expect(ran).toBe(false);
+    const result = events.find((e) => e.type === "tool_result") as { ok: boolean; output: string };
+    expect(result.ok).toBe(false);
+    expect(result.output).toMatch(/JSON/);
+    expect(result.output).not.toMatch(/requis/);
+  });
+
+  test("le dernier tour ne relance pas d'outils, meme si le modele en demande", async () => {
+    let executions = 0;
+    const complete = scripted([[{ text: "encore", toolCalls: [{ index: 0, id: "c", name: "Glob", args: "{}" }], finish: "tool_calls" }]]);
+    const out = await runAgentLoop([{ role: "user", content: "x" }], {
+      complete: () => complete(),
+      execute: async () => {
+        executions++;
+        return { ok: true, output: "r" };
+      },
+      emit: () => {},
+      tools,
+      maxTurns: 2,
+      signal: new AbortController().signal,
+    });
+    expect(out.turns).toBe(2);
+    expect(executions).toBe(1);
+    expect(out.finishReason).toBe("max_turns");
+  });
+});

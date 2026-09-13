@@ -1,4 +1,4 @@
-import type { UsageInfo } from "./events";
+import type { Step, UsageInfo } from "./events";
 
 /* ---------------------------------------------------------------------------
    Ce qu'un tour a consomme, et ou en est la fenetre de contexte.
@@ -34,8 +34,15 @@ export const PROMPT_OVERHEAD = 8_500;
 /** Le contexte estime : ce que pese le fil, plus l'ossature. Sert tant
     qu'aucun decompte exact n'est arrive, et pendant qu'une reponse
     s'ecrit. */
-export function contextEstimate(messages: Array<{ content: string }>, overhead = PROMPT_OVERHEAD): number {
-  return overhead + messages.reduce((n, m) => n + estimateTokens(m.content), 0);
+export function contextEstimate(messages: Array<{ content: string; steps?: Step[] }>, overhead = PROMPT_OVERHEAD): number {
+  return overhead + messages.reduce((n, m) => n + estimateTokens(replayedText(m)), 0);
+}
+
+/** Ce qui repart au modele d'un message : son texte, et les sorties de ses
+    outils (rejouees par `history.ts`) — pas le raisonnement ni le plan. */
+function replayedText(m: { content: string; steps?: Step[] }): string {
+  if (!m.steps?.length) return m.content;
+  return m.steps.map((s) => (s.type === "tool" ? `${JSON.stringify(s.args)}${s.output ?? ""}` : s.type === "text" ? s.text : "")).join("");
 }
 
 export type UsageState = {

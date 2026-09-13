@@ -8,7 +8,15 @@ import type { ToolCallFragment } from "@/lib/llm/sse";
    recolle par index, et on n'interprete le JSON qu'a la fin.
 --------------------------------------------------------------------------- */
 
-export type ToolCall = { id: string; name: string; args: Record<string, unknown>; rawArgs: string };
+export type ToolCall = {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+  rawArgs: string;
+  /** Les arguments recus n'etaient pas du JSON lisible : `args` est vide
+      par defaut, et le modele doit l'apprendre tel quel. */
+  argsError?: string;
+};
 
 export class ToolCallAccumulator {
   private parts = new Map<number, { id?: string; name?: string; args: string }>();
@@ -36,21 +44,26 @@ export class ToolCallAccumulator {
   calls(): ToolCall[] {
     return [...this.parts.entries()]
       .sort(([a], [b]) => a - b)
-      .map(([i, p]) => ({
-        id: p.id ?? `call_${i}_${Math.random().toString(36).slice(2, 8)}`,
-        name: p.name ?? "",
-        args: parseArgs(p.args),
-        rawArgs: p.args,
-      }));
+      .map(([i, p]) => {
+        const parsed = parseArgs(p.args);
+        return {
+          id: p.id ?? `call_${i}_${Math.random().toString(36).slice(2, 8)}`,
+          name: p.name ?? "",
+          args: parsed.args,
+          rawArgs: p.args,
+          ...(parsed.error ? { argsError: parsed.error } : {}),
+        };
+      });
   }
 }
 
-function parseArgs(raw: string): Record<string, unknown> {
-  if (!raw.trim()) return {};
+function parseArgs(raw: string): { args: Record<string, unknown>; error?: string } {
+  if (!raw.trim()) return { args: {} };
   try {
     const v: unknown = JSON.parse(raw);
-    return typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
-  } catch {
-    return {};
+    if (typeof v === "object" && v !== null && !Array.isArray(v)) return { args: v as Record<string, unknown> };
+    return { args: {}, error: "les arguments doivent être un objet JSON" };
+  } catch (e) {
+    return { args: {}, error: `JSON illisible (${e instanceof Error ? e.message : String(e)})` };
   }
 }

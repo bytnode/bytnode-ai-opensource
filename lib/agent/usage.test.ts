@@ -56,6 +56,14 @@ describe("contextEstimate", () => {
     expect(contextEstimate([])).toBe(PROMPT_OVERHEAD);
     expect(contextEstimate([{ content: "a".repeat(360) }])).toBe(PROMPT_OVERHEAD + 100);
   });
+  it("compte les sorties d'outils rejouees au modele, pas le raisonnement", () => {
+    const steps = [
+      { type: "tool" as const, id: "c", name: "Read", args: {}, status: "done" as const, output: "o".repeat(3600) },
+      { type: "thought" as const, text: "t".repeat(3600) },
+    ];
+    /* Les arguments (`{}`) et la sortie repartent au modele ; la reflexion non. */
+    expect(contextEstimate([{ content: "", steps }])).toBe(PROMPT_OVERHEAD + estimateTokens("{}" + "o".repeat(3600)));
+  });
 });
 
 describe("usageState avec estimation", () => {

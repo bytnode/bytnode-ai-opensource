@@ -26,6 +26,9 @@ const IMAGE_TYPES: Record<string, string> = {
 };
 
 const MAX_IMAGE = 5 * 1024 * 1024;
+/** Au-dela, un fichier texte n'est pas charge d'un bloc : Grep, un `head`
+    en shell, ou pandas pour un CSV. */
+export const MAX_TEXT_BYTES = 50 * 1024 * 1024;
 const DEFAULT_LIMIT = 2000;
 
 export function numberLines(text: string, offset = 1, limit = DEFAULT_LIMIT): { body: string; total: number; shown: [number, number] } {
@@ -93,6 +96,12 @@ export const readTool: Tool<Args> = {
       return ok(`${shown} est un dossier :\n${entries.map((e) => (e.isDirectory() ? `${e.name}/` : e.name)).join("\n")}`);
     }
     const ext = path.extname(target).toLowerCase();
+
+    if (!IMAGE_TYPES[ext] && stat.size > MAX_TEXT_BYTES) {
+      return fail(
+        `${shown} fait ${Math.round(stat.size / 1024 / 1024)} Mo : trop gros pour être lu d'un bloc (limite ${Math.round(MAX_TEXT_BYTES / 1024 / 1024)} Mo). Cherche dedans avec Grep, lis-en le début par un \`head\` en shell, ou charge-le avec pandas.`,
+      );
+    }
 
     if (IMAGE_TYPES[ext]) {
       if (stat.size > MAX_IMAGE) return fail(`${shown} fait ${Math.round(stat.size / 1024 / 1024)} Mo ; les images sont limitées à 5 Mo.`);

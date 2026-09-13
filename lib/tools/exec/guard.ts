@@ -20,7 +20,17 @@ import { isInside } from "../paths";
 const WIN_ABS = /(?:"([A-Za-z]:[\\/][^"]*)"|'([A-Za-z]:[\\/][^']*)'|([A-Za-z]:[\\/][^\s"'|&;<>()]*))/g;
 const UNIX_ABS = /(?:^|[\s"'=(|&;<>])(\/[^\s"'|&;<>()]*)/g;
 const RELATIVE_UP = /(?:^|[\s"'=(|&;<>])((?:\.\.[\\/])[^\s"'|&;<>()]*|\.\.)(?=$|[\s"'|&;<>()])/g;
-const HOME = /(?:^|[\s"'=(|&;<>])((?:~|\$HOME|\$\{HOME\}|\$env:(?:USERPROFILE|HOMEPATH|APPDATA|LOCALAPPDATA|TEMP|TMP)|%(?:USERPROFILE|HOMEPATH|APPDATA|LOCALAPPDATA|TEMP|TMP)%|\$PSScriptRoot)(?:[\\/][^\s"'|&;<>()]*)?)(?=$|[\s"'|&;<>()])/g;
+/* Les variables d'environnement qui designent un emplacement : le compte,
+   les dossiers systeme et programmes, les temporaires. Sous leurs trois
+   formes : `$env:X`, `${env:X}`, `%X%`. */
+const PLACES = "USERPROFILE|HOMEPATH|HOMEDRIVE|HOME|APPDATA|LOCALAPPDATA|PROGRAMDATA|ALLUSERSPROFILE|PUBLIC|ONEDRIVE|TEMP|TMP|SYSTEMROOT|SYSTEMDRIVE|WINDIR|PROGRAMFILES|PROGRAMFILES\(X86\)|PROGRAMW6432|COMMONPROGRAMFILES";
+const HOME = new RegExp(
+  `(?:^|[\\s"'=(|&;<>])((?:~|\\$HOME|\\$\\{HOME\\}|\\$env:(?:${PLACES})|\\$\\{env:(?:${PLACES})\\}|%(?:${PLACES})%|\\$PSScriptRoot)(?:[\\\\/][^\\s"'|&;<>()]*)?)(?=$|[\\s"'|&;<>()])`,
+  "gi",
+);
+/* Un chemin qui part de la racine du lecteur courant (`\Windows`) ou un
+   partage reseau (`\\serveur\part`) : hors du dossier par construction. */
+const WIN_ROOT = /(?:^|[\s"'=(|&;<>])(\\{1,2}[^\s"'|&;<>()]*)/g;
 
 const ALLOWED_UNIX = new Set(["/dev/null", "/dev/stdin", "/dev/stdout", "/dev/stderr"]);
 
@@ -54,6 +64,9 @@ export function findOutsideReferences(command: string, workspace: string): strin
     if (p && !isInside(workspace, path.resolve(workspace, p))) push(p);
   }
   for (const m of command.matchAll(HOME)) {
+    if (m[1]) push(m[1]);
+  }
+  for (const m of command.matchAll(WIN_ROOT)) {
     if (m[1]) push(m[1]);
   }
   return out;

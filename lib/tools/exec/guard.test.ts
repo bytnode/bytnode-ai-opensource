@@ -34,6 +34,15 @@ describe("findOutsideReferences", () => {
     expect(findOutsideReferences("ls $HOME/.ssh", ws)).toEqual(["$HOME/.ssh"]);
   });
 
+  test("flags drive-root and UNC paths written with backslashes, and PowerShell ${env:} forms", () => {
+    expect(findOutsideReferences("cd \\", ws)).toEqual(["\\"]);
+    expect(findOutsideReferences("Get-Content \\Windows\\win.ini", ws)).toEqual(["\\Windows\\win.ini"]);
+    expect(findOutsideReferences("dir \\\\serveur\\partage", ws)).toEqual(["\\\\serveur\\partage"]);
+    expect(findOutsideReferences("Get-Content ${env:USERPROFILE}\\x", ws)).toEqual(["${env:USERPROFILE}\\x"]);
+    expect(findOutsideReferences("ls $env:ProgramFiles", ws)).toEqual(["$env:ProgramFiles"]);
+    expect(findOutsideReferences("type %SystemRoot%\\win.ini", ws)).toEqual(["%SystemRoot%\\win.ini"]);
+  });
+
   test("leaves ordinary commands alone", () => {
     expect(findOutsideReferences("git status && npm test -- --watch=false", ws)).toEqual([]);
     expect(findOutsideReferences("Get-ChildItem -Recurse -Filter *.md | Select-Object Name", ws)).toEqual([]);

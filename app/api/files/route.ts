@@ -32,7 +32,17 @@ export async function GET(req: Request) {
   if (!type) return new Response("type non servi", { status: 415 });
   try {
     const buf = await fs.readFile(target);
-    return new Response(new Uint8Array(buf), { headers: { "content-type": type, "cache-control": "no-cache" } });
+    /* Servi depuis l'origine de l'application, ou vivent les cles : un SVG
+       (ou un fichier deguise) ecrit par un agent ne doit pas pouvoir y
+       executer de script s'il est ouvert dans un onglet. */
+    return new Response(new Uint8Array(buf), {
+      headers: {
+        "content-type": type,
+        "cache-control": "no-cache",
+        "x-content-type-options": "nosniff",
+        "content-security-policy": "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'",
+      },
+    });
   } catch {
     return new Response("introuvable", { status: 404 });
   }
