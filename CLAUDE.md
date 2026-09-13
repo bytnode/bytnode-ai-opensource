@@ -18,10 +18,13 @@ npm test             # vitest run — only lib/**/*.test.ts, node environment
 npm run test:watch   # vitest en mode watch
 npx vitest run lib/tools/paths.test.ts        # single file
 npx vitest run -t "refuse un chemin"          # single test by name
+npx vitest run lib/tools/exchange             # one folder
 npm run build
 ```
 
 Before reporting a change as done: `typecheck`, `lint`, `test` must all be clean.
+
+Commit subjects follow the history: French, `<domaine> : <résumé>` (`exchange : …`, `securite : …`, `doc : …`), written without accents. Design specs and implementation plans live in `docs/superpowers/specs/` and `docs/superpowers/plans/` (`YYYY-MM-DD-<sujet>.md`); read the matching spec before touching a feature that has one.
 
 Environment (server-side, optional): `OPENROUTER_BASE_URL` (relay / fake OpenRouter), `OPENROUTER_SEARCH_MODEL`, `BYTNODE_MCP_URL`. The OpenRouter key is **not** read from env by the app — it lives in the browser's `localStorage` and travels per request in the `x-openrouter-key` header (`lib/server/openrouter.ts`); the BytNode key uses `x-bytnode-key`. `.env.local` holds a real key used only by ad-hoc test scripts: never print it. Real-model probes of the ACP path cost the user's subscription quota — keep them short (`haiku`, `effort: low`).
 
@@ -30,7 +33,7 @@ Environment (server-side, optional): `OPENROUTER_BASE_URL` (relay / fake OpenRou
 - Next 16 refuses two `next dev` in the same directory, and port 3777 is the user's. Don't leave background servers running; kill anything you started.
 - Bash tool heredocs mangle backslashes on this machine — write files with the Write tool (or a python patch script in the scratchpad) rather than `cat <<EOF`.
 - ESLint runs the React Compiler rules: no `Date.now()`/random ids in render (stamp ids at creation), no `setState` inside effects (key the component instead), stable `useCallback` deps.
-- Packages with native binaries or runtime `require` (`@vscode/ripgrep`, `pdf-parse`, `turndown`, `fast-glob`, `@agentclientprotocol/sdk`, `@resvg/resvg-js`) must stay in `serverExternalPackages` in `next.config.ts`. `pdf-parse` v2 is class-based (`new PDFParse({data}).getText()`).
+- Packages with native binaries or runtime `require` (`@vscode/ripgrep`, `pdf-parse`, `turndown`, `@joplin/turndown-plugin-gfm`, `fast-glob`, `@agentclientprotocol/sdk`, `@resvg/resvg-js`, `ccxt`) must stay in `serverExternalPackages` in `next.config.ts`. `pdf-parse` v2 is class-based (`new PDFParse({data}).getText()`).
 - `bytnode_api/.mcp.json` (if present) contains a live key — never reuse it.
 
 ## Architecture (what you need across several files)
