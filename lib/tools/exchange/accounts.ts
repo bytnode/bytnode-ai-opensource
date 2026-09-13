@@ -1,0 +1,64 @@
+import type { ExchangeAccount } from "@/lib/domain/types";
+
+/* ---------------------------------------------------------------------------
+   Les comptes d'exchange, vus des outils.
+
+   Ils arrivent du navigateur (en-tete `x-exchange-accounts`, ou corps de
+   la requete ACP, ou env du serveur MCP), deja filtres : ce sont ceux que
+   L'AGENT a le droit de piloter. Ici on les lit sans confiance, on en
+   choisit un par son label, et on les decrit pour le prompt. Pur.
+--------------------------------------------------------------------------- */
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
+const str = (v: unknown) => (typeof v === "string" ? v : "");
+
+/** Ne garde que les comptes complets : id, exchange, label. */
+export function parseAccounts(value: unknown): ExchangeAccount[] {
+  if (!Array.isArray(value)) return [];
+  const out: ExchangeAccount[] = [];
+  for (const raw of value) {
+    if (!isRecord(raw)) continue;
+    const id = str(raw.id);
+    const exchange = str(raw.exchange);
+    const label = str(raw.label);
+    if (!id || !exchange || !label) continue;
+    out.push({ id, exchange, label, apiKey: str(raw.apiKey), secret: str(raw.secret), password: str(raw.password), testnet: raw.testnet === true });
+  }
+  return out;
+}
+
+/** L'en-tete tel qu'il arrive : JSON, ou rien. */
+export function parseAccountsHeader(raw: string | null | undefined): ExchangeAccount[] {
+  if (!raw) return [];
+  try {
+    return parseAccounts(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
+
+/** Les comptes qu'un agent peut piloter, dans l'ordre des reglages. */
+export const allowedAccounts = (all: ExchangeAccount[], ids: string[] | undefined): ExchangeAccount[] =>
+  ids?.length ? all.filter((a) => ids.includes(a.id)) : [];
+
+const labels = (accounts: ExchangeAccount[]) => accounts.map((a) => a.label).join(", ");
+
+/** Le compte vise par un appel : implicite s'il n'y en a qu'un, sinon par
+    label (sans la casse) ou par id. */
+export function pickAccount(accounts: ExchangeAccount[], name: string | undefined): { account: ExchangeAccount } | { error: string } {
+  if (accounts.length === 0) return { error: "Aucun compte exchange n'est rattaché à cet agent." };
+  if (!name?.trim()) {
+    if (accounts.length === 1) return { account: accounts[0] };
+    return { error: `Plusieurs comptes : précise \`account\` parmi ${labels(accounts)}.` };
+  }
+  const wanted = name.trim().toLowerCase();
+  const found = accounts.find((a) => a.label.toLowerCase() === wanted || a.id === name.trim());
+  return found ? { account: found } : { error: `Compte inconnu : « ${name.trim()} ». Comptes disponibles : ${labels(accounts)}.` };
+}
+
+/** Pour le prompt : « Binance-main (binance, RÉEL), Bybit-test (bybit, testnet) ». */
+export const describeAccounts = (accounts: ExchangeAccount[]): string =>
+  accounts.map((a) => `${a.label} (${a.exchange}, ${a.testnet ? "testnet" : "RÉEL"})`).join(", ");
+
+/** Un compte au moins engage de l'argent reel ? */
+export const anyLive = (accounts: ExchangeAccount[]): boolean => accounts.some((a) => !a.testnet);
