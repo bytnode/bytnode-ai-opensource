@@ -48,6 +48,11 @@ export const tickerTool: Tool<Args> = {
           /* idem */
         }
       }
+      /* Certains tickers futures n'ont pas de bid/ask : le carnet les a. */
+      if (book) {
+        if (ticker.bid === undefined && book.bids[0]) ticker.bid = Number(book.bids[0][0]);
+        if (ticker.ask === undefined && book.asks[0]) ticker.ask = Number(book.asks[0][0]);
+      }
       return ok(formatTicker(ticker, book, funding));
     });
   },
