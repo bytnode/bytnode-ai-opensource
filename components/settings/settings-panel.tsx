@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { AgentConfig, Profile, Settings, Theme } from "@/lib/domain/types";
 import { ACP_AGENTS, acpAgentOf } from "@/lib/acp/agents";
 import { useAcpAuth } from "@/lib/acp/use-auth";
@@ -62,9 +62,26 @@ export function SettingsPanel({ settings, target, onUpdate, onSaveAgent, onRemov
     if (next !== "agents") setView({ kind: "list" });
   };
 
+  /* Echap ferme, comme la croix. */
+  useEffect(() => {
+    if (!onClose) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
-    <div className="ob st-veil" role="dialog" aria-modal="true" aria-labelledby="st-title">
+    <div className="ob st-veil" role="dialog" aria-modal="true" aria-labelledby="st-title" onClick={(e) => e.target === e.currentTarget && onClose?.()}>
       <div className="st">
+        {/* La croix est posee sur le panneau, pas dans la zone qui defile :
+            elle reste en place et au-dessus quoi qu'on fasse defiler. */}
+        {onClose && (
+          <button type="button" className="st-close" onClick={onClose} aria-label="Fermer les réglages">
+            <Close />
+          </button>
+        )}
         <nav className="st-nav" aria-label="Sections des réglages">
           <span className="st-nav-title">Réglages</span>
           {TABS.map((t) => (
@@ -75,11 +92,6 @@ export function SettingsPanel({ settings, target, onUpdate, onSaveAgent, onRemov
         </nav>
 
         <div className="st-main">
-          {onClose && (
-            <button type="button" className="st-close" onClick={onClose} aria-label="Fermer les réglages">
-              <Close />
-            </button>
-          )}
           <div className="st-content" key={`${tab}:${view.kind}`}>
             {tab === "general" && <General settings={settings} onUpdate={onUpdate} />}
             {tab === "auth" && <Auth settings={settings} onUpdate={onUpdate} />}

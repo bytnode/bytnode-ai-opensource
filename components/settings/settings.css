@@ -14,14 +14,20 @@
 }
 
 .st {
+  position: relative;
   width: min(1040px, 100%);
   height: min(720px, 100vh - 32px);
   margin: auto;
   display: grid;
   grid-template-columns: 220px 1fr;
+  /* ⚠️ `minmax(0, 1fr)` et non `auto` : une piste `auto` grandit a la
+     hauteur du contenu et deborde du panneau — la colonne ne defilait pas,
+     le bas etait coupe. Bornee, c'est `.st-main` qui defile. */
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
   border-radius: 18px;
-  background: var(--veil-strong);
+  /* Opaque : on regle, on ne regarde pas le chat a travers. */
+  background: rgb(var(--voile));
   border: 1px solid var(--line-strong);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
   animation: ob-step 220ms var(--ease) both;
@@ -82,13 +88,14 @@
 /* --- Contenu ---------------------------------------------------------------- */
 
 .st-main {
-  position: relative;
   min-width: 0;
+  min-height: 0;
   overflow-y: auto;
 }
 
 .st-close {
   position: absolute;
+  z-index: 2;
   top: 14px;
   right: 14px;
   display: grid;
@@ -375,9 +382,13 @@
 
 @media (max-width: 720px) {
   .st {
-    height: min(100vh - 32px, 100%);
+    height: calc(100vh - 32px);
     grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .st-nav {
+    padding-right: 56px;
   }
 
   .st-nav {
