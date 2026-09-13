@@ -27,6 +27,12 @@ export class ToolCallAccumulator {
     return this.parts.size;
   }
 
+  /** Oublier ce qui a ete recolle : un tour relance apres une erreur
+      transitoire repart de zero, sinon les fragments se melangeraient. */
+  reset() {
+    this.parts.clear();
+  }
+
   calls(): ToolCall[] {
     return [...this.parts.entries()]
       .sort(([a], [b]) => a - b)

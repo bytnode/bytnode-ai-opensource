@@ -23,6 +23,7 @@ export type AcpTurnInput = {
   permissionMode: "ask" | "skip";
   sessionId: string | null;
   firstTurn: boolean;
+  images?: string[];
   history?: string;
   bytnodeKey: string;
 };

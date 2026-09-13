@@ -14,6 +14,10 @@ import {
   isCompactCommand,
   transcriptOf,
 } from "@/lib/agent/compact";
+import { estimateTokens, mergeUsage, rate } from "@/lib/agent/usage";
+import { withDirectives, type Attachment } from "@/lib/agent/attachments";
+import type { UsageInfo } from "@/lib/agent/events";
+import { matchesRule, ruleFor } from "@/lib/tools/permissions";
 import { buildSystemPrompt } from "@/lib/agent/prompt";
 import { buildToolsPrompt } from "@/lib/agent/tools-prompt";
 import type { AgentEvent, Step } from "@/lib/agent/events";
@@ -79,10 +83,15 @@ type Options = {
   /** Le mode de l'agent externe (abonnements) pour ce tour. */
   mode: string | null;
   onConversationCreated: (id: string) => void;
-  onAlwaysAllow: () => void;
+  /** Memoriser une regle d'autorisation pour cet agent (« Toujours »). */
+  onAllowRule: (rule: string) => void;
 };
 
 type ToolStep = Extract<Step, { type: "tool" }>;
+
+/** Ce qui accompagne un message : pieces jointes deposees, et la demande de
+    recherche approfondie. */
+export type SendOptions = { attachments?: Attachment[]; research?: boolean };
 
 const STORED_OUTPUT = 12_000;
 const STORED_LINES = 200;
@@ -95,7 +104,7 @@ export function useChat({
   effort,
   mode,
   onConversationCreated,
-  onAlwaysAllow,
+  onAllowRule,
 }: Options) {
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
@@ -103,6 +112,9 @@ export function useChat({
     new Map<string, (allow: boolean, always: boolean) => void>(),
   );
   const skipAll = useRef(false);
+  /* Ce que le tour consomme, pour la jauge du fil : le dernier decompte
+     connu et le debit mesure. Remplace par image, jamais mute. */
+  const [live, setLive] = useState<{ usage?: UsageInfo; rate: number | null; produced: number }>({ rate: null, produced: 0 });
 
   const stop = useCallback(() => {
     for (const resolve of waiting.current.values()) resolve(false, false);
@@ -110,32 +122,41 @@ export function useChat({
     abort.current?.abort();
   }, []);
 
-  const answer = useCallback(
-    (callId: string, allow: boolean, always = false) => {
-      /* « Toujours » bascule NOTRE mode — sans objet pour un agent par
-         abonnement, dont c'est l'agent lui-meme qui retient la regle. */
-      if (always && !acpAgentOf(agent.providerId)) {
-        skipAll.current = true;
-        onAlwaysAllow();
-      }
-      waiting.current.get(callId)?.(allow, always);
-      waiting.current.delete(callId);
+  const answer = useCallback((callId: string, allow: boolean, always = false) => {
+    /* « Toujours » ne bascule plus l'agent en execution directe : la regle
+       memorisee est celle de CET appel (voir `lib/tools/permissions.ts`), et
+       c'est la fonction d'attente qui l'enregistre. */
+    waiting.current.get(callId)?.(allow, always);
+    waiting.current.delete(callId);
+  }, []);
+
+  /* Enregistrer une regle « Toujours » : l'outil, ou le debut de la
+     commande pour un shell. Une commande dangereuse ne produit pas de
+     regle — `ruleFor` la refuse en amont. */
+  const rememberRule = useCallback(
+    (name: string, args: Record<string, unknown>) => {
+      const rule = ruleFor(name, args);
+      if (rule) onAllowRule(rule);
     },
-    [agent.providerId, onAlwaysAllow],
+    [onAllowRule],
   );
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, opts: SendOptions = {}) => {
+      const joints = opts.attachments ?? [];
       const content = text.trim();
-      if (!content || !modelId || streamingId) return;
+      if ((!content && joints.length === 0) || !modelId || streamingId) return;
 
       /* `/compact` : l'agent resume le fil, et ce resume le remplace a la
          fin du tour. Ce qu'on lui envoie n'est pas ce que l'utilisateur a
          tape — c'est la demande de resume. */
       const compact = isCompactCommand(content);
+      /* Ce que le modele recoit : la consigne de recherche approfondie, le
+         message, puis la note des pieces jointes (chemins dans le dossier de
+         travail). Ce que le fil affiche reste ce que l'utilisateur a tape. */
       const prompt = compact
         ? buildCompactRequest(compact.instructions)
-        : content;
+        : withDirectives(content, joints, opts.research === true);
 
       const now = Date.now();
       const base: Conversation = conversationId
@@ -144,8 +165,10 @@ export function useChat({
       const user: Message = {
         id: newId(),
         role: "user",
-        content,
+        content: content || (joints.length ? "Regarde ce que je te joins." : ""),
         createdAt: now,
+        ...(joints.length ? { attachments: joints } : {}),
+        ...(opts.research ? { research: true } : {}),
       };
       const reply: Message = {
         id: newId(),
@@ -225,9 +248,48 @@ export function useChat({
       const tool = (id: string) =>
         steps.find((s): s is ToolStep => s.type === "tool" && s.id === id);
 
+      /* Le decompte du tour, et le debit : jetons produits depuis le
+         premier caractere, mesures a chaque image. */
+      let usage: UsageInfo | undefined;
+      let produced = 0;
+      let firstAt = 0;
+      const pushLive = () => {
+        const r = firstAt ? rate(produced, Date.now() - firstAt) : null;
+        setLive({ usage, rate: r, produced });
+      };
+
       const emit = (e: AgentEvent) => {
         switch (e.type) {
+          case "usage":
+            usage = mergeUsage(usage, e.usage);
+            pushLive();
+            break;
+          case "retry":
+            reserve += `
+
+_${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
+
+`;
+            if (!frame) frame = requestAnimationFrame(flush);
+            break;
+          case "thought": {
+            const last = steps[steps.length - 1];
+            if (last?.type === "thought") last.text += e.text;
+            else steps.push({ type: "thought", text: e.text });
+            mark();
+            break;
+          }
+          case "plan": {
+            const i = steps.findIndex((x) => x.type === "plan");
+            if (i >= 0) steps[i] = { type: "plan", entries: e.entries };
+            else steps.push({ type: "plan", entries: e.entries });
+            mark(true);
+            break;
+          }
           case "text":
+            if (!firstAt) firstAt = Date.now();
+            produced += estimateTokens(e.text);
+            pushLive();
             reserve += e.text;
             if (!frame) frame = requestAnimationFrame(flush);
             break;
@@ -349,6 +411,7 @@ export function useChat({
                 waiting.current.set(e.id, (allow, always) => {
                   const step = tool(e.id);
                   if (step) step.status = allow ? "running" : "denied";
+                  if (allow && always && step) rememberRule(step.name, step.args);
                   mark(true);
                   void answerAcpPermission(
                     conversation.id,
@@ -372,6 +435,7 @@ export function useChat({
               profession: agent.profession,
               system,
               text: prompt,
+              images: joints.filter((a) => a.kind === "image" && a.dataUrl).map((a) => a.dataUrl as string),
               modelId: acpModelId(modelId),
               effort,
               mode,
@@ -412,10 +476,20 @@ export function useChat({
           /* Le message de l'utilisateur est deja dans `history` — sauf pour
              `/compact`, ou l'on remplace ce qu'il a tape par la demande de
              resume. */
-          if (compact) {
+          /* Ce que le modele lit n'est pas toujours ce que l'utilisateur a
+             tape : `/compact` devient une demande de resume, et un message
+             avec pieces jointes ou recherche approfondie porte en plus la
+             note des chemins et la consigne. Les images, elles, restent. */
+          if (prompt !== content) {
             const dernier = history[history.length - 1];
-            if (dernier?.role === "user")
-              history[history.length - 1] = { role: "user", content: prompt };
+            if (dernier?.role === "user") {
+              history[history.length - 1] = Array.isArray(dernier.content)
+                ? {
+                    role: "user",
+                    content: dernier.content.map((part) => (part.type === "text" ? { type: "text" as const, text: prompt } : part)),
+                  }
+                : { role: "user", content: prompt };
+            }
           }
           const client = new OpenRouterClient(settings.keys.openrouter);
           const exec = {
@@ -438,16 +512,24 @@ export function useChat({
                 signal,
               }),
             execute: (call, signal, em) => executeTool(call, exec, signal, em),
+            /* Un outil qui agit passe par l'accord de l'utilisateur — sauf
+               en execution directe, ou si une regle deja memorisee le
+               couvre (`Write`, `Bash(git status *)`…). */
             gated: (name) => !skipAll.current && isGated(name),
             permission: (call: ToolCall) =>
               new Promise<boolean>((resolve) => {
+                if (matchesRule(agent.allowRules, call.name, call.args)) {
+                  resolve(true);
+                  return;
+                }
                 const t = tool(call.id);
                 if (t) t.status = "pending";
                 mark(true);
-                waiting.current.set(call.id, (allow) => {
+                waiting.current.set(call.id, (allow, always) => {
                   const step = tool(call.id);
                   if (step) step.status = allow ? "running" : "denied";
                   mark(true);
+                  if (allow && always) rememberRule(call.name, call.args);
                   resolve(allow);
                 });
               }),
@@ -485,6 +567,7 @@ export function useChat({
       const closed = (m: Message): Message => ({
         ...m,
         error,
+        ...(usage ? { usage } : {}),
         steps: m.steps?.map((s) =>
           s.type === "tool" &&
           (s.status === "running" || s.status === "pending")
@@ -524,6 +607,7 @@ export function useChat({
       mode,
       streamingId,
       onConversationCreated,
+      rememberRule,
     ],
   );
 
@@ -540,7 +624,7 @@ export function useChat({
     void send(question.content);
   }, [conversationId, streamingId, send]);
 
-  return { send, stop, retry, answer, streamingId };
+  return { send, stop, retry, answer, streamingId, usage: live.usage, rate: live.rate, produced: live.produced };
 }
 
 /* La memoire de l'agent, relue a chaque tour (elle change pendant la

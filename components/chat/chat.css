@@ -1122,6 +1122,9 @@ html[data-theme="light"] .md pre {
   height: 16px;
 }
 
+/* Le pied de page : la mention au centre, la jauge dans le coin droit. Le
+   bloc reserve la hauteur des trois lignes pour que rien ne chevauche le
+   bloc de saisie. */
 .chat-foot {
   margin: 8px 0 0;
   text-align: center;
@@ -1430,4 +1433,379 @@ html[data-theme="light"] .md pre {
 
 .msg-compact .md {
   font-size: 0.92rem;
+}
+
+/* --- Le plan de l'agent -------------------------------------------------- */
+
+.plan {
+  margin: 10px 0 14px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--matter);
+}
+
+.plan-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+
+.plan-count {
+  letter-spacing: 0;
+  text-transform: none;
+  font-family: var(--font-mono), monospace;
+}
+
+.plan ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.plan li {
+  display: flex;
+  gap: 8px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--fg-muted);
+}
+
+.plan-mark {
+  flex: none;
+  width: 12px;
+  text-align: center;
+  color: var(--fg-faint);
+}
+
+.plan-in_progress {
+  color: var(--fg);
+}
+
+.plan-completed {
+  color: var(--fg-faint);
+  text-decoration: line-through;
+  text-decoration-color: var(--matter-strong);
+}
+
+/* --- La reflexion, repliee ---------------------------------------------- */
+
+.thought {
+  margin: 6px 0 12px;
+}
+
+.thought-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px 4px 6px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fg-faint);
+  font-size: 0.78rem;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.thought-head:hover {
+  background: var(--matter);
+  color: var(--fg-muted);
+}
+
+.thought-chevron {
+  width: 13px;
+  height: 13px;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transition: transform 160ms var(--ease);
+}
+
+.thought.is-open .thought-chevron {
+  transform: none;
+}
+
+.thought-size {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.72rem;
+  opacity: 0.7;
+}
+
+.thought-body {
+  margin: 6px 0 0 12px;
+  padding-left: 12px;
+  border-left: 1px solid var(--matter-strong);
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: var(--fg-faint);
+}
+
+/* --- La jauge : contexte, débit, coût ----------------------------------- */
+
+/* Tout en bas de la page, dans le coin droit : une seule ligne, en chiffres
+   monospace, separee par des points medians. */
+.usage {
+  /* Dans le coin de la PAGE, par-dessus tout : ni le fil ni le bloc de
+     saisie ne lui font de place, elle ne bouge jamais. */
+  position: fixed;
+  right: 14px;
+  bottom: 10px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  pointer-events: none;
+  color: var(--fg-faint);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  text-align: right;
+  pointer-events: auto;
+  transition: color 200ms ease;
+}
+
+.usage-ctx {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.usage-bar {
+  display: inline-block;
+  width: 30px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--matter-strong);
+  overflow: hidden;
+}
+
+.usage-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: currentColor;
+  transition: width 300ms ease;
+}
+
+.usage.is-live .usage-rate {
+  color: var(--fg-muted);
+}
+
+/* Les separateurs entre les trois informations. */
+.usage > * + *::before {
+  content: "·";
+  margin-right: 8px;
+  color: var(--fg-faint);
+  opacity: 0.6;
+}
+
+@media (max-width: 900px) {
+  .usage {
+    right: 10px;
+    bottom: 6px;
+  }
+}
+
+.usage-warn {
+  color: #e3b341;
+}
+
+.usage-full {
+  color: #f85149;
+}
+
+/* Une demande qui porte sur une commande irréversible se voit. */
+.ts-ask.is-danger {
+  box-shadow: inset 2px 0 0 #f85149;
+}
+
+.ts-ask.is-danger .ts-ask-text {
+  color: #f85149;
+}
+
+/* --- Ce que le « + » permet de joindre ---------------------------------- */
+
+.composer-joints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 12px 0;
+}
+
+.joint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  padding: 4px 4px 4px 8px;
+  border-radius: 999px;
+  background: var(--matter);
+  color: var(--fg-muted);
+  font-size: 0.76rem;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.joint > svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  stroke-width: 1.6;
+  color: var(--fg-faint);
+}
+
+.joint-vignette {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.joint > button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--fg-faint);
+}
+
+.joint > button:hover {
+  background: var(--matter-strong);
+  color: var(--fg);
+}
+
+.joint > button svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 2;
+}
+
+.joint-research {
+  color: var(--fg);
+  box-shadow: inset 0 0 0 1px var(--matter-strong);
+}
+
+.joint-error {
+  color: #f85149;
+  background: transparent;
+  white-space: normal;
+  max-width: none;
+}
+
+/* Le menu du « + » : trois actions, chacune avec sa précision. */
+.composer-menu {
+  position: absolute;
+  z-index: 8;
+  left: 8px;
+  bottom: calc(100% + 6px);
+  min-width: 268px;
+  padding: 5px;
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--line-strong), 0 16px 40px rgba(0, 0, 0, 0.4);
+  animation: sb-unfold 120ms var(--ease) both;
+}
+
+.composer-menu button {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--fg);
+  font-size: 0.86rem;
+  text-align: left;
+}
+
+.composer-menu button:hover,
+.composer-menu button:focus-visible {
+  background: var(--matter);
+  outline: none;
+}
+
+.composer-menu button.is-on {
+  color: var(--fg);
+  background: var(--matter-hover);
+}
+
+.composer-menu svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--fg-muted);
+}
+
+.composer-menu small {
+  display: block;
+  margin-top: 1px;
+  font-size: 0.74rem;
+  color: var(--fg-faint);
+}
+
+.composer-plus.is-open {
+  background: var(--matter);
+  color: var(--fg);
+}
+
+/* Dans le fil : les pièces jointes au-dessus de la bulle. */
+.msg-joints {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.msg-joint img {
+  display: block;
+  max-width: 260px;
+  max-height: 180px;
+  border-radius: var(--radius);
+  box-shadow: 0 0 0 1px var(--matter-strong);
+}
+
+.msg-joint-name {
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--matter);
+  color: var(--fg-muted);
+  font-size: 0.74rem;
+}
+
+.msg-research {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.68rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
 }

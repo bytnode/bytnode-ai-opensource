@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Step } from "@/lib/agent/events";
 import { summarizeCall } from "@/lib/tools/names";
+import { isDangerous, ruleFor, ruleLabel } from "@/lib/tools/permissions";
 import { Check, ChevronDown, Close, Spinner } from "@/components/ui/icons";
 
 type ToolStep = Extract<Step, { type: "tool" }>;
@@ -36,20 +37,7 @@ export function ToolStepView({ step, onAnswer, fileUrl }: Props) {
         <ChevronDown className="ts-chevron" />
       </button>
 
-      {pending && onAnswer && (
-        <div className="ts-ask">
-          <span className="ts-ask-text">L&apos;agent veut exécuter cet outil.</span>
-          <button type="button" className="btn btn-sm btn-primary" onClick={() => onAnswer(true)}>
-            Autoriser
-          </button>
-          <button type="button" className="btn btn-sm" onClick={() => onAnswer(true, true)}>
-            Toujours pour cet agent
-          </button>
-          <button type="button" className="btn btn-sm btn-ghost" onClick={() => onAnswer(false)}>
-            Refuser
-          </button>
-        </div>
-      )}
+      {pending && onAnswer && <Ask step={step} onAnswer={onAnswer} />}
 
       {step.lines && step.lines.length > 0 && (
         <pre className="ts-lines mono">{step.lines.join("\n")}</pre>
@@ -76,6 +64,38 @@ export function ToolStepView({ step, onAnswer, fileUrl }: Props) {
           {step.output !== undefined && <pre className="ts-output mono">{step.output}</pre>}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+   La demande d'accord.
+
+   ⚠️ « TOUJOURS » N'OUVRE PLUS TOUT. Il memorise une regle : cet outil, ou
+   ce debut de commande (`git status …`). Le bouton le dit, pour qu'on sache
+   ce qu'on accorde. Et une commande irreversible — effacement recursif,
+   formatage, poussee forcee — n'a pas de « Toujours » du tout : elle
+   redemandera a chaque fois.
+--------------------------------------------------------------------------- */
+function Ask({ step, onAnswer }: { step: ToolStep; onAnswer: (allow: boolean, always?: boolean) => void }) {
+  const dangereux = isDangerous(step.name, step.args);
+  const rule = dangereux ? null : ruleFor(step.name, step.args);
+  return (
+    <div className={`ts-ask${dangereux ? " is-danger" : ""}`}>
+      <span className="ts-ask-text">
+        {dangereux ? "Cette commande est irréversible. À autoriser une fois, en connaissance de cause." : "L’agent veut exécuter cet outil."}
+      </span>
+      <button type="button" className="btn btn-sm btn-primary" onClick={() => onAnswer(true)}>
+        Autoriser
+      </button>
+      {rule && (
+        <button type="button" className="btn btn-sm" onClick={() => onAnswer(true, true)} title={`Cet accord sera mémorisé pour cet agent : ${rule}`}>
+          {ruleLabel(rule)}
+        </button>
+      )}
+      <button type="button" className="btn btn-sm btn-ghost" onClick={() => onAnswer(false)}>
+        Refuser
+      </button>
     </div>
   );
 }

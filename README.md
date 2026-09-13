@@ -185,6 +185,51 @@ serveur** pour les sous-agents de Workflow (tout en direct). Un message d'assist
   dossier de travail de l'agent et `~/.agents/skills`. Tous sont listés dans le prompt et chargés
   par l'outil Skill.
 
+### Le « + » du bloc de saisie
+
+Trois actions, et ce qu'elles font vraiment :
+
+- **Ajouter des fichiers** — les fichiers choisis sont **déposés dans `entrees/` du dossier de
+  travail** de l'agent (`/api/files/upload`), et le message envoyé au modèle porte leurs chemins :
+  l'agent les lit avec ses outils. Rien n'est collé dans le prompt, donc un CSV de milliers de
+  lignes reste exploitable (`Read`, pandas, `Chart`, `Backtest`). Les **images** sont en plus
+  montrées au modèle : réduites côté navigateur (JPEG, 1 600 px de grand côté) pour ne pas gonfler
+  le fil, qui vit dans `localStorage`.
+- **Prendre une capture d'écran** — par l'API de partage d'écran du **navigateur**
+  (`lib/agent/capture.ts`) : c'est vous qui choisissez l'écran ou la fenêtre, une seule image est
+  prise, le flux est refermé aussitôt. Elle est réduite, déposée dans `entrees/` et montrée au
+  modèle. *Pourquoi pas côté serveur : capturer l'écran en PowerShell (`CopyFromScreen`) est le
+  motif exact des voleurs de données — l'antivirus de Windows bloque le script
+  (« ScriptContainedMaliciousContent »).*
+- **Recherche approfondie** — arme la consigne pour le message suivant : l'agent suit la compétence
+  `recherche-approfondie` (découper, chercher plusieurs fois autrement, remonter aux sources,
+  recouper deux sources indépendantes, garder les désaccords, tout dater).
+
+Ce qui est joint s'affiche en pastilles au-dessus du champ (retirables) puis au-dessus du message
+dans le fil.
+
+### La jauge, le filet et les permissions
+
+En bas à droite du fil : **contexte occupé / fenêtre du modèle**, **jetons par seconde** pendant la
+réponse, et **coût du tour**. L'infobulle détaille entrée, sortie, prix et fournisseur. La jauge
+passe à l'ambre à 70 % de la fenêtre, au rouge à 90 % — c'est le signal pour `/compact`. Les
+données viennent du décompte qu'OpenRouter met dans le dernier morceau du flux (`usage: { include: true }`)
+et des `usage_update` des agents par abonnement (`lib/agent/usage.ts`, pur et testé).
+
+La boucle a un filet (`lib/agent/resilience.ts`) : une erreur transitoire (429, 502, connexion
+coupée) est **relancée** jusqu'à trois fois avec attente croissante, tant que rien n'a encore été
+affiché ; et le même appel d'outil avec les mêmes arguments trois fois de suite n'est pas exécuté une
+quatrième — l'agent reçoit un refus qui lui dit de changer de voie.
+
+Les agents publient aussi leur **plan** et leur **raisonnement** : le plan s'affiche en liste cochée,
+la réflexion dans un bloc replié. Ni l'un ni l'autre n'est rejoué au modèle (`history.ts`).
+
+**« Toujours » ne bascule plus l'agent en exécution directe.** Il mémorise une règle : l'outil
+(`Write`) ou le début de la commande (`Bash(git status *)`) — le bouton dit ce qu'il accorde, et la
+règle est gardée dans l'agent (`allowRules`). Une commande irréversible (effacement récursif,
+formatage, `git push --force`, tuyau vers un interpréteur…) n'a pas de bouton « Toujours » et
+redemande à chaque fois (`lib/tools/permissions.ts`).
+
 ### Compacter une conversation
 
 `/compact` dans le champ de saisie (ou le bouton **Compacter** de l'en-tête, qui apparaît quand le

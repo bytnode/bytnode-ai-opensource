@@ -184,8 +184,17 @@ export class AcpConnection {
     });
   }
 
-  prompt(sessionId: string, text: string): Promise<PromptResponse> {
-    return this.conn.prompt({ sessionId, prompt: [{ type: "text", text }] });
+  /** Un tour : le texte, et les images jointes en blocs de contenu (les
+      agents qui annoncent `promptCapabilities.image` les acceptent). */
+  prompt(sessionId: string, text: string, images: string[] = []): Promise<PromptResponse> {
+    const blocs: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = [{ type: "text", text }];
+    if (this.capabilities.promptCapabilities?.image) {
+      for (const dataUrl of images) {
+        const m = /^data:([^;]+);base64,(.*)$/s.exec(dataUrl);
+        if (m) blocs.push({ type: "image", data: m[2], mimeType: m[1] });
+      }
+    }
+    return this.conn.prompt({ sessionId, prompt: blocs });
   }
 
   cancel(sessionId: string) {

@@ -19,7 +19,22 @@ export type ProviderMessage =
   | { role: "tool"; tool_call_id: string; content: string };
 
 export function stepsToMessages(m: Message): ProviderMessage[] {
-  if (m.role === "user") return [{ role: "user", content: m.content }];
+  if (m.role === "user") {
+    /* Les images jointes accompagnent le texte : le modele doit les voir
+       pour en parler. Les autres fichiers sont sur le disque, et le texte
+       en donne les chemins. */
+    const images = (m.attachments ?? []).filter((a) => a.kind === "image" && a.dataUrl);
+    if (images.length === 0) return [{ role: "user", content: m.content }];
+    return [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: m.content },
+          ...images.map((a) => ({ type: "image_url" as const, image_url: { url: a.dataUrl as string } })),
+        ],
+      },
+    ];
+  }
   /* Le resume d'un fil compacte n'est pas une reponse de l'agent : c'est du
      contexte. Il est rejoue comme tel, pour que le modele s'appuie dessus
      au lieu de croire qu'il vient de le dire. */
@@ -60,6 +75,9 @@ export function stepsToMessages(m: Message): ProviderMessage[] {
   };
 
   for (const s of steps) {
+    /* Ni le plan ni le raisonnement ne repartent au modele : ils sont la
+       pour l'utilisateur, et les rejouer brouillerait le contexte. */
+    if (s.type === "plan" || s.type === "thought") continue;
     if (s.type === "text") {
       if (pendingCalls.length > 0) flushCalls();
       text += s.text;

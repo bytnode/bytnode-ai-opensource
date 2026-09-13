@@ -16,17 +16,31 @@ import { listProviders } from "./catalog";
    connectes (quelques modeles chacun, ids `acp:<agent>/…`). La seconde
    est relue quand un abonnement se connecte. */
 
-type Base = { models: Model[]; providers: Provider[]; /** Les modes publies par chaque agent par abonnement. */ acpModes: Record<string, AgentModes> };
+type Base = {
+  models: Model[];
+  providers: Provider[];
+  /** Les modes publies par chaque agent par abonnement. */
+  acpModes: Record<string, AgentModes>;
+  /** Une lecture des modeles d'abonnement est en vol ou reste a rejouer :
+      un fournisseur `acp:` sans modele n'est pas encore « sans modele ». */
+  acpLoading: boolean;
+};
 
 export type Catalog =
   | ({ status: "idle" | "loading" } & Base)
   | ({ status: "ready" } & Base)
   | ({ status: "error"; message: string } & Base);
 
-const store = createStore<Catalog>({ status: "idle", models: [], providers: [], acpModes: {} });
+const store = createStore<Catalog>({ status: "idle", models: [], providers: [], acpModes: {}, acpLoading: false });
+
+/** Le catalogue tel qu'il est, hors rendu. */
+export const getCatalog = (): Catalog => store.get();
 
 let inflight: Promise<void> | null = null;
 let acpInflight: Promise<void> | null = null;
+/* La relecture a rejouer apres celle en vol, et si elle doit forcer. */
+let acpQueued: Promise<void> | null = null;
+let acpQueuedForce = false;
 
 const merge = (openrouter: Model[], acp: Model[]) => [...acp, ...openrouter];
 
@@ -54,9 +68,28 @@ export function loadCatalog(force = false): Promise<void> {
   return inflight;
 }
 
-/** Les modeles des abonnements connectes, fondus dans le catalogue. */
+/** Les modeles des abonnements connectes, fondus dans le catalogue.
+
+    ⚠️ UN APPEL PENDANT QU'UNE LECTURE EST EN VOL N'EST PAS PERDU. La reponse
+    en vol a ete calculee AVANT ce qui motive l'appel — typiquement un agent
+    interroge par le protocole (Grok, Copilot, Mistral) qui vient de passer
+    a « connecté » pendant que la premiere lecture, longue au demarrage,
+    fait publier leurs modeles aux autres. Le rendre tel quel laisserait
+    l'agent connecte sans aucun modele jusqu'au prochain rechargement. On
+    rejoue donc une lecture des que la premiere se termine (une seule,
+    quel que soit le nombre d'appels entre-temps). */
 export function loadAcpModels(force = false): Promise<void> {
-  if (acpInflight) return acpInflight;
+  if (acpInflight) {
+    acpQueuedForce ||= force;
+    acpQueued ??= acpInflight.then(() => {
+      const again = acpQueuedForce;
+      acpQueued = null;
+      acpQueuedForce = false;
+      return loadAcpModels(again);
+    });
+    return acpQueued;
+  }
+  setAcpLoading(true);
   acpInflight = (async () => {
     try {
       const res = await fetch(`/api/acp/models${force ? "?force=1" : ""}`);
@@ -70,9 +103,15 @@ export function loadAcpModels(force = false): Promise<void> {
       /* sans abonnement connecte, rien a ajouter */
     } finally {
       acpInflight = null;
+      setAcpLoading(acpQueued !== null);
     }
   })();
   return acpInflight;
+}
+
+function setAcpLoading(acpLoading: boolean) {
+  const current = store.get();
+  if (current.acpLoading !== acpLoading) store.set({ ...current, acpLoading });
 }
 
 let watching = false;

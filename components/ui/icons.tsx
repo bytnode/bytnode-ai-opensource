@@ -87,6 +87,13 @@ export const Trash = (p: P) => (
   </svg>
 );
 
+export const Camera = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M4 8.5h3l1.5-2h7L17 8.5h3v10H4z" />
+    <circle cx="12" cy="13" r="3" />
+  </svg>
+);
+
 export const Dots = (p: P) => (
   <svg {...base(p)}>
     <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />

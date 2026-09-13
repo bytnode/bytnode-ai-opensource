@@ -3,6 +3,7 @@ import type { Delta } from "@/lib/llm/sse";
 import type { AgentEvent } from "./events";
 import type { ProviderMessage } from "./history";
 import { ToolCallAccumulator, type ToolCall } from "./tool-calls";
+import { MAX_ATTEMPTS, RepetitionGuard, backoffDelay, isTransient } from "./resilience";
 
 /* ---------------------------------------------------------------------------
    La boucle de l'agent : modele → outils → modele, jusqu'a une reponse.
@@ -17,6 +18,13 @@ import { ToolCallAccumulator, type ToolCall } from "./tool-calls";
    ⚠️ LA BOUCLE EST BORNEE. Un modele qui appelle un outil a chaque tour sans
    jamais conclure tournerait sans fin : au-dela de `maxTurns`, on lui
    retire les outils pour le dernier tour et on le laisse conclure.
+
+   ⚠️ ELLE A UN FILET (voir `resilience.ts`). Une erreur transitoire — 429,
+   502, connexion coupee — est relancee tant que RIEN n'a encore ete emis :
+   un tour ne se perd pas pour une surcharge passagere. Et le meme appel
+   d'outil, avec les memes arguments, trois fois de suite, n'est pas
+   execute une quatrieme : l'agent recoit un refus qui lui dit de changer
+   de voie.
 --------------------------------------------------------------------------- */
 
 export type ToolSpec = { type: "function"; function: { name: string; description: string; parameters: unknown } };
@@ -43,6 +51,7 @@ const DEFAULT_MAX_TURNS = 40;
 export async function runAgentLoop(messages: ProviderMessage[], deps: LoopDeps): Promise<LoopResult> {
   const history = messages.slice();
   const maxTurns = deps.maxTurns ?? DEFAULT_MAX_TURNS;
+  const guard = new RepetitionGuard();
   let finalText = "";
 
   for (let turn = 1; ; turn++) {
@@ -52,14 +61,50 @@ export async function runAgentLoop(messages: ProviderMessage[], deps: LoopDeps):
     let text = "";
     let finish = "stop";
     const acc = new ToolCallAccumulator();
-    for await (const d of deps.complete(history, tools, deps.signal)) {
-      if (d.error) throw new Error(d.error);
-      if (d.text) {
-        text += d.text;
-        deps.emit({ type: "text", text: d.text });
+    /* Ce qui suit peut etre relance : on ne relance que si le flux n'a rien
+       produit, sinon on dupliquerait du texte deja affiche. */
+    for (let attempt = 0; ; attempt++) {
+      let emitted = false;
+      try {
+        for await (const d of deps.complete(history, tools, deps.signal)) {
+          if (d.error) throw new Error(d.error);
+          if (d.usage || d.provider) {
+            deps.emit({
+              type: "usage",
+              usage: { ...(d.usage ?? {}), ...(d.provider ? { provider: d.provider } : {}) },
+            });
+          }
+          if (d.thought) {
+            emitted = true;
+            deps.emit({ type: "thought", text: d.thought });
+          }
+          if (d.text) {
+            emitted = true;
+            text += d.text;
+            deps.emit({ type: "text", text: d.text });
+          }
+          if (d.toolCalls) {
+            emitted = true;
+            acc.add(d.toolCalls);
+          }
+          if (d.finish) finish = d.finish;
+        }
+        break;
+      } catch (e) {
+        if (deps.signal.aborted) throw e;
+        if (emitted || attempt + 1 >= MAX_ATTEMPTS || !isTransient(e)) throw e;
+        const attente = backoffDelay(attempt);
+        deps.emit({
+          type: "retry",
+          attempt: attempt + 1,
+          of: MAX_ATTEMPTS,
+          delayMs: attente,
+          reason: e instanceof Error ? e.message : String(e),
+        });
+        await new Promise((r) => setTimeout(r, attente));
+        text = "";
+        acc.reset();
       }
-      if (d.toolCalls) acc.add(d.toolCalls);
-      if (d.finish) finish = d.finish;
     }
     finalText += text;
 
@@ -82,7 +127,10 @@ export async function runAgentLoop(messages: ProviderMessage[], deps: LoopDeps):
       if (deps.signal.aborted) throw new DOMException("Interrompu", "AbortError");
       deps.emit({ type: "tool_call", id: call.id, name: call.name, args: call.args });
       let result: ToolResult;
-      if (deps.permission && deps.gated?.(call.name) && !(await deps.permission(call))) {
+      const enBoucle = guard.check(call);
+      if (enBoucle) {
+        result = { ok: false, output: enBoucle };
+      } else if (deps.permission && deps.gated?.(call.name) && !(await deps.permission(call))) {
         result = { ok: false, output: "Refusé par l'utilisateur. N'insistez pas : proposez une autre approche ou demandez ce qu'il souhaite." };
       } else {
         try {
@@ -96,6 +144,7 @@ export async function runAgentLoop(messages: ProviderMessage[], deps: LoopDeps):
       const shown = (result.attachments ?? [])
         .filter((a) => a.type === "image")
         .map((a) => ({ name: a.name, src: a.path && !a.name.includes(":") ? `file:${a.name}` : a.dataUrl }));
+      if (result.ok) guard.succeeded(call);
       deps.emit({ type: "tool_result", id: call.id, ok: result.ok, output: result.output, ...(shown.length ? { images: shown } : {}) });
       history.push({ role: "tool", tool_call_id: call.id, content: result.output });
       for (const a of result.attachments ?? []) if (a.type === "image") images.push({ name: a.name, dataUrl: a.dataUrl });

@@ -39,6 +39,7 @@ export function blankAgent(): AgentConfig {
     workspace: "",
     permissionMode: "ask",
     scope: "workspace",
+    allowRules: [],
     contextText: "",
     contextFiles: [],
   };
@@ -65,6 +66,7 @@ function normalizeAgent(raw: unknown, fallbackId: string): AgentConfig | null {
     workspace: str(raw.workspace),
     permissionMode: raw.permissionMode === "skip" ? "skip" : "ask",
     scope: raw.scope === "disk" ? "disk" : "workspace",
+    allowRules: Array.isArray(raw.allowRules) ? raw.allowRules.filter((r): r is string => typeof r === "string") : [],
     contextText: str(raw.contextText),
     contextFiles: files
       .filter(isRecord)

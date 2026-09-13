@@ -172,6 +172,11 @@ export function ModelPicker({
         >
           {catalog.status === "loading" || catalog.status === "idle" ? (
             <SearchPanel.Empty>Lecture du catalogue…</SearchPanel.Empty>
+          ) : acp && catalog.acpLoading && results.length === 0 ? (
+            /* L'agent publie ses modeles a l'ouverture d'une session : quelques
+               secondes au premier appel, pendant lesquelles « aucun modele »
+               serait un mensonge. */
+            <SearchPanel.Empty>Lecture des modèles de votre abonnement {acp.label}…</SearchPanel.Empty>
           ) : catalog.status === "error" ? (
             <SearchPanel.Empty>
               {catalog.message}

@@ -3,7 +3,8 @@
    ni d'OpenRouter : ce sont les formes que tout le reste manipule.
 --------------------------------------------------------------------------- */
 
-import type { Step } from "@/lib/agent/events";
+import type { Step, UsageInfo } from "@/lib/agent/events";
+import type { Attachment } from "@/lib/agent/attachments";
 import type { ProfessionId } from "@/lib/professions/catalog";
 
 export type Profile = {
@@ -60,6 +61,11 @@ export type AgentConfig = {
   /** `workspace` : les outils fichiers ne sortent pas du dossier de travail.
       `disk` : tout le disque. */
   scope?: "workspace" | "disk";
+  /** Les autorisations memorisees par « Toujours » : un nom d'outil
+      (`Write`) ou un debut de commande (`Bash(git status *)`). Elles
+      remplacent l'ancien « tout autoriser » — voir
+      `lib/tools/permissions.ts`. */
+  allowRules?: string[];
 };
 
 export type Theme = "dark" | "light";
@@ -101,6 +107,12 @@ export type Message = {
   /** Les pas d'une reponse d'assistant qui a utilise des outils : texte et
       appels, dans l'ordre. Absent pour une reponse en texte seul. */
   steps?: Step[];
+  /** Ce qu'a coute la reponse : jetons, prix, fournisseur. */
+  usage?: UsageInfo;
+  /** Les fichiers et captures joints par l'utilisateur a ce message. */
+  attachments?: Attachment[];
+  /** Ce message demandait une recherche approfondie. */
+  research?: boolean;
   /** Ce message est le RESUME qui a remplace un fil compacte (`/compact`) :
       le fil l'affiche comme tel, et l'historique le rejoue comme un rappel
       de contexte plutot que comme une reponse. */

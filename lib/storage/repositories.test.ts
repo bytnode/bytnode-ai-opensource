@@ -64,8 +64,8 @@ describe("SettingsRepository", () => {
     const s = {
       ...defaultSettings(),
       agents: [
-        { id: "a", name: "A", profession: "standard" as const, providerId: "openai", defaultModelId: null, defaultEffort: null, workspace: "", permissionMode: "ask" as const, scope: "workspace" as const, contextText: "", contextFiles: [], createdAt: 1 },
-        { id: "b", name: "B", profession: "quantitatif" as const, providerId: "google", defaultModelId: null, defaultEffort: "high", workspace: "C:/proj", permissionMode: "skip" as const, scope: "disk" as const, contextText: "", contextFiles: [], createdAt: 2 },
+        { id: "a", name: "A", profession: "standard" as const, providerId: "openai", defaultModelId: null, defaultEffort: null, workspace: "", permissionMode: "ask" as const, scope: "workspace" as const, allowRules: [], contextText: "", contextFiles: [], createdAt: 1 },
+        { id: "b", name: "B", profession: "quantitatif" as const, providerId: "google", defaultModelId: null, defaultEffort: "high", workspace: "C:/proj", permissionMode: "skip" as const, scope: "disk" as const, allowRules: ["Write", "Bash(git status *)"], contextText: "", contextFiles: [], createdAt: 2 },
       ],
       activeAgentId: "b",
     };

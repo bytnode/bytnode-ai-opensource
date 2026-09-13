@@ -1,9 +1,11 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState } from "react";
 import type { Message as MessageT } from "@/lib/domain/types";
+import type { PlanEntry } from "@/lib/agent/events";
 import { COMPACT_LABEL } from "@/lib/agent/compact";
 import { Markdown } from "./markdown";
+import { ChevronDown } from "@/components/ui/icons";
 import { ToolStepView } from "./tool-step";
 
 type Props = {
@@ -26,9 +28,27 @@ type Props = {
 --------------------------------------------------------------------------- */
 export const Message = memo(function Message({ message, streaming, onRetry, onAnswer, fileUrl }: Props) {
   if (message.role === "user") {
+    const joints = message.attachments ?? [];
     return (
       <article className="msg msg-user">
-        <div className="msg-bubble">{message.content}</div>
+        {joints.length > 0 && (
+          <div className="msg-joints">
+            {joints.map((a) => (
+              <span key={a.path} className="msg-joint" title={a.path}>
+                {a.dataUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={a.dataUrl} alt={a.name} />
+                ) : (
+                  <span className="msg-joint-name mono">{a.name}</span>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="msg-bubble">
+          {message.research && <span className="msg-research">Recherche approfondie</span>}
+          {message.content}
+        </div>
       </article>
     );
   }
@@ -61,6 +81,10 @@ export const Message = memo(function Message({ message, streaming, onRetry, onAn
             <div className="md" key={i}>
               <Markdown text={s.text} />
             </div>
+          ) : s.type === "thought" ? (
+            <ThoughtView key={i} text={s.text} />
+          ) : s.type === "plan" ? (
+            <PlanView key={i} entries={s.entries} />
           ) : (
             <ToolStepView key={s.id} step={s} fileUrl={fileUrl} onAnswer={onAnswer ? (allow, always) => onAnswer(s.id, allow, always) : undefined} />
           ),
@@ -94,5 +118,50 @@ export const Message = memo(function Message({ message, streaming, onRetry, onAn
         </p>
       )}
     </article>
+  );
+});
+
+/* ---------------------------------------------------------------------------
+   Le plan que l'agent s'est donne, et son raisonnement.
+
+   Les deux arrivent dans le flux (les agents par abonnement les publient,
+   les modeles a effort exposent leurs jetons de reflexion) et n'etaient pas
+   montres. Le plan se lit d'un coup d'oeil ; la reflexion est repliee — on
+   l'ouvre quand une reponse surprend.
+--------------------------------------------------------------------------- */
+
+const PlanView = memo(function PlanView({ entries }: { entries: PlanEntry[] }) {
+  const faits = entries.filter((e) => e.status === "completed").length;
+  return (
+    <div className="plan">
+      <p className="plan-head">
+        Plan <span className="plan-count">{faits}/{entries.length}</span>
+      </p>
+      <ul>
+        {entries.map((e, i) => (
+          <li key={i} className={`plan-${e.status}`}>
+            <span className="plan-mark" aria-hidden="true">
+              {e.status === "completed" ? "✓" : e.status === "in_progress" ? "▸" : "·"}
+            </span>
+            {e.content}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+});
+
+const ThoughtView = memo(function ThoughtView({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const lignes = text.trim().split("\n").filter(Boolean);
+  return (
+    <div className={`thought${open ? " is-open" : ""}`}>
+      <button type="button" className="thought-head" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <ChevronDown className="thought-chevron" />
+        Réflexion
+        <span className="thought-size">{lignes.length} ligne{lignes.length > 1 ? "s" : ""}</span>
+      </button>
+      {open && <div className="thought-body">{text.trim()}</div>}
+    </div>
   );
 });

@@ -44,6 +44,8 @@ export type TurnInput = {
   sessionId: string | null;
   /** Vrai au premier message de la conversation. */
   firstTurn: boolean;
+  /** Les images jointes au message, en URL de donnees. */
+  images?: string[];
   /** Le fil precedent en texte, pour un agent qui ne sait pas recharger. */
   history?: string;
 };
@@ -332,7 +334,7 @@ export async function runTurn(input: TurnInput, emit: (e: WireEvent) => void, si
   );
 
   try {
-    const res = await l.conn.prompt(l.sessionId, text);
+    const res = await l.conn.prompt(l.sessionId, text, input.images ?? []);
     emit({ type: "done", finishReason: res.stopReason });
   } catch (e) {
     if (!signal.aborted) throw describe(e, l.conn);

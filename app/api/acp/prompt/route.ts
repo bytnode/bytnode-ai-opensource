@@ -29,6 +29,7 @@ type Body = {
   permissionMode?: "ask" | "skip";
   sessionId?: string | null;
   firstTurn?: boolean;
+  images?: string[];
   history?: string;
 };
 
@@ -78,6 +79,7 @@ export async function POST(req: Request) {
             permissionMode: body.permissionMode === "skip" ? "skip" : "ask",
             sessionId: body.sessionId ?? null,
             firstTurn: body.firstTurn === true,
+            images: Array.isArray(body.images) ? body.images.filter((x): x is string => typeof x === "string") : [],
             history: body.history,
           },
           send,

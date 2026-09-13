@@ -8,9 +8,34 @@ describe("eventsOfUpdate", () => {
     expect(eventsOfUpdate(u)).toEqual([{ type: "text", text: "Bonjour" }]);
   });
 
-  it("ignore les pensees et les messages utilisateur rejoues", () => {
-    expect(eventsOfUpdate({ sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "hmm" } })).toEqual([]);
+  it("traduit le raisonnement, et ignore les messages utilisateur rejoues", () => {
+    expect(eventsOfUpdate({ sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "hmm" } })).toEqual([
+      { type: "thought", text: "hmm" },
+    ]);
     expect(eventsOfUpdate({ sessionUpdate: "user_message_chunk", content: { type: "text", text: "salut" } })).toEqual([]);
+  });
+
+  it("traduit le plan et le decompte d'usage", () => {
+    expect(
+      eventsOfUpdate({
+        sessionUpdate: "plan",
+        entries: [
+          { content: "lire les données", status: "completed", priority: "high" },
+          { content: "backtester", status: "pending", priority: "medium" },
+        ],
+      }),
+    ).toEqual([
+      {
+        type: "plan",
+        entries: [
+          { content: "lire les données", status: "completed" },
+          { content: "backtester", status: "pending" },
+        ],
+      },
+    ]);
+    expect(eventsOfUpdate({ sessionUpdate: "usage_update", used: 33_502, size: 1_000_000, cost: { amount: 0.2487, currency: "USD" } })).toEqual([
+      { type: "usage", usage: { context: 33_502, window: 1_000_000, cost: 0.2487 } },
+    ]);
   });
 
   it("ouvre un appel d'outil avec son titre et ses arguments bruts", () => {

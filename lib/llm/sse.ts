@@ -41,7 +41,23 @@ export function createSseParser(): SseParser {
 
 export type ToolCallFragment = { index: number; id?: string; name?: string; args?: string };
 
-export type Delta = { text: string; error?: string; toolCalls?: ToolCallFragment[]; finish?: string };
+/** Ce qu'un tour a coute : jetons d'entree et de sortie, prix si le
+    fournisseur le donne. OpenRouter l'envoie dans le dernier morceau du
+    flux quand on le demande (`usage: { include: true }`). */
+export type Usage = { input?: number; output?: number; cost?: number };
+
+export type Delta = {
+  text: string;
+  /** Les jetons de raisonnement, quand le modele les expose (effort). */
+  thought?: string;
+  error?: string;
+  toolCalls?: ToolCallFragment[];
+  finish?: string;
+  usage?: Usage;
+  /** Le fournisseur qui a servi la reponse — utile quand une latence
+      surprend (voir `lib/server/provider-routing.ts`). */
+  provider?: string;
+};
 
 /** Lit un morceau de completion OpenRouter (format OpenAI) : le texte ajoute,
     les fragments d'appels d'outils, la raison de fin, ou l'erreur que le
@@ -56,10 +72,17 @@ export function extractDelta(payload: string): Delta {
   if (typeof json !== "object" || json === null) return { text: "" };
   const obj = json as {
     choices?: Array<{
-      delta?: { content?: unknown; tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }> };
+      delta?: {
+        content?: unknown;
+        reasoning?: unknown;
+        reasoning_content?: unknown;
+        tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }>;
+      };
       finish_reason?: string | null;
     }>;
     error?: { message?: unknown };
+    provider?: unknown;
+    usage?: { prompt_tokens?: unknown; completion_tokens?: unknown; cost?: unknown };
   };
   if (obj.error) {
     const message = typeof obj.error.message === "string" ? obj.error.message : "Erreur du fournisseur";
@@ -76,6 +99,16 @@ export function extractDelta(payload: string): Delta {
       ...(typeof t.function?.arguments === "string" ? { args: t.function.arguments } : {}),
     }));
   }
+  const thought = choice?.delta?.reasoning ?? choice?.delta?.reasoning_content;
+  if (typeof thought === "string" && thought) out.thought = thought;
   if (typeof choice?.finish_reason === "string") out.finish = choice.finish_reason;
+  if (typeof obj.provider === "string") out.provider = obj.provider;
+  if (obj.usage) {
+    const u: Usage = {};
+    if (typeof obj.usage.prompt_tokens === "number") u.input = obj.usage.prompt_tokens;
+    if (typeof obj.usage.completion_tokens === "number") u.output = obj.usage.completion_tokens;
+    if (typeof obj.usage.cost === "number") u.cost = obj.usage.cost;
+    if (Object.keys(u).length) out.usage = u;
+  }
   return out;
 }

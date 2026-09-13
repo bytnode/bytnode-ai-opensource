@@ -26,6 +26,10 @@ export function completionBody(p: Omit<StreamParams, "apiKey" | "signal">) {
     /* Chez le fournisseur le plus rapide, pas au hasard : voir
        `provider-routing.ts`. */
     provider: PROVIDER_ROUTING,
+    /* Le decompte de jetons et le prix, dans le dernier morceau du flux :
+       c'est ce qui alimente la jauge de contexte et le coût affiché. */
+    usage: { include: true },
+    stream_options: { include_usage: true },
     ...(p.tools?.length ? { tools: p.tools, tool_choice: "auto" } : {}),
     ...(p.effort ? { reasoning: p.effort === "none" ? { enabled: false } : { effort: p.effort } } : {}),
   };

@@ -4,6 +4,8 @@ import { useCallback, useState } from "react";
 import type { AgentConfig, Settings } from "@/lib/domain/types";
 import { newId } from "@/lib/domain/conversation";
 import { worthCompacting } from "@/lib/agent/compact";
+import { contextEstimate } from "@/lib/agent/usage";
+import { attachFiles, attachScreenshot } from "@/lib/agent/attach-client";
 import { effortOptions, latestModels } from "@/lib/catalog/catalog";
 import { useCatalog } from "@/lib/catalog/use-catalog";
 import {
@@ -16,6 +18,7 @@ import {
 import { updateSettings } from "@/lib/state/settings";
 import { clampWidth, updateUiPrefs, useUiPrefs } from "@/lib/state/ui";
 import { blankAgent } from "@/lib/storage/repositories";
+import { addRule } from "@/lib/tools/permissions";
 import {
   DEFAULT_PROFESSION,
   PROFESSIONS,
@@ -29,6 +32,7 @@ import { Wizard, type WizardDraft } from "@/components/onboarding/wizard";
 import { Composer } from "./composer";
 import { Sidebar } from "./sidebar";
 import { Thread } from "./thread";
+import { UsageMeter } from "./usage-meter";
 import { useChat } from "./use-chat";
 import "./chat.css";
 
@@ -121,16 +125,21 @@ export function ChatShell({ settings }: Props) {
     setPendingMode(null);
   }, []);
 
-  const onAlwaysAllow = useCallback(() => {
-    const id = settings.activeAgentId;
-    if (id)
-      updateSettings((s) => ({
-        ...s,
-        agents: s.agents.map((a) =>
-          a.id === id ? { ...a, permissionMode: "skip" } : a,
-        ),
-      }));
-  }, [settings.activeAgentId]);
+  /* « Toujours » memorise UNE regle pour cet agent — plus de bascule en
+     execution directe (voir `lib/tools/permissions.ts`). */
+  const onAllowRule = useCallback(
+    (rule: string) => {
+      const id = settings.activeAgentId;
+      if (id)
+        updateSettings((s) => ({
+          ...s,
+          agents: s.agents.map((a) =>
+            a.id === id ? { ...a, allowRules: addRule(a.allowRules, rule) } : a,
+          ),
+        }));
+    },
+    [settings.activeAgentId],
+  );
 
   /* Le mode : ceux que l'agent externe publie pour un abonnement, nos deux
      modes de permission sinon. Le choix vit dans la conversation (ou en
@@ -146,16 +155,29 @@ export function ChatShell({ settings }: Props) {
       null)
     : (agent?.permissionMode ?? "ask");
 
-  const { send, stop, retry, answer, streamingId } = useChat({
-    settings,
-    agent: agent ?? blankAgent(),
-    conversationId: active,
-    modelId,
-    effort,
-    mode: acp ? mode : null,
-    onConversationCreated,
-    onAlwaysAllow,
-  });
+  const { send, stop, retry, answer, streamingId, usage, rate, produced } =
+    useChat({
+      settings,
+      agent: agent ?? blankAgent(),
+      conversationId: active,
+      modelId,
+      effort,
+      mode: acp ? mode : null,
+      onConversationCreated,
+      onAllowRule,
+    });
+
+  /* La jauge est toujours affichee : tant qu'aucun decompte exact n'est
+     arrive, elle montre une estimation du fil, qui grandit en direct
+     pendant que la reponse s'ecrit. Le dernier decompte exact est garde sur
+     le message, donc il survit au rechargement. */
+  const lastUsage = conversation
+    ? [...conversation.messages].reverse().find((m) => m.usage)?.usage
+    : undefined;
+  const contextNow = contextEstimate(conversation?.messages ?? []) + produced;
+
+  /* Ou vont les pieces jointes : le dossier de travail de l'agent ouvert. */
+  const cible = { agentId: agent?.id ?? "", workspace: agent?.workspace ?? "" };
 
   const togglePermission = () => {
     if (!agent) return;
@@ -424,6 +446,7 @@ export function ChatShell({ settings }: Props) {
 
         <div className="chat-composer">
           <Composer
+            key={`${agent?.id ?? ""}:${active ?? "new"}`}
             providerId={providerId}
             modelId={modelId}
             effort={effort}
@@ -439,6 +462,8 @@ export function ChatShell({ settings }: Props) {
             disabled={!hasKey || !agent}
             onSend={send}
             onStop={stop}
+            onAttachFiles={(files) => attachFiles(cible, files)}
+            onScreenshot={() => attachScreenshot(cible)}
             focusKey={`${agent?.id ?? ""}:${active ?? "new"}`}
           />
           <p className="chat-foot">
@@ -446,6 +471,14 @@ export function ChatShell({ settings }: Props) {
           </p>
         </div>
       </main>
+
+      <UsageMeter
+        usage={usage ?? lastUsage}
+        rate={rate}
+        estimate={contextNow}
+        window={currentModel?.contextLength ?? null}
+        streaming={busy}
+      />
 
       {deleting && (
         <ConfirmDialog

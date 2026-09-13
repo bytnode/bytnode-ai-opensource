@@ -9,6 +9,7 @@ import type {
 } from "@agentclientprotocol/sdk";
 import type { Model } from "@/lib/domain/types";
 import { ACP_PREFIX, type AcpAgentId } from "./agents";
+import type { PlanEntry, UsageInfo } from "@/lib/agent/events";
 import type { WireEvent } from "./wire";
 
 /* ---------------------------------------------------------------------------
@@ -53,6 +54,27 @@ export function eventsOfUpdate(update: SessionUpdate): WireEvent[] {
   switch (update.sessionUpdate) {
     case "agent_message_chunk":
       return update.content.type === "text" ? [{ type: "text", text: update.content.text }] : [];
+    case "agent_thought_chunk":
+      return update.content.type === "text" ? [{ type: "thought", text: update.content.text }] : [];
+    case "plan":
+    case "plan_update": {
+      const entries = (update as { entries?: Array<{ content?: string; status?: string }> }).entries ?? [];
+      const plan: PlanEntry[] = entries
+        .filter((e) => typeof e.content === "string" && e.content.trim())
+        .map((e) => ({
+          content: e.content as string,
+          status: e.status === "completed" ? "completed" : e.status === "in_progress" ? "in_progress" : "pending",
+        }));
+      return plan.length ? [{ type: "plan", entries: plan }] : [];
+    }
+    case "usage_update": {
+      const u = update as { used?: number; size?: number; cost?: { amount?: number } };
+      const usage: UsageInfo = {};
+      if (typeof u.used === "number") usage.context = u.used;
+      if (typeof u.size === "number") usage.window = u.size;
+      if (typeof u.cost?.amount === "number") usage.cost = u.cost.amount;
+      return Object.keys(usage).length ? [{ type: "usage", usage }] : [];
+    }
     case "tool_call": {
       const name = toolName(update) ?? KIND_LABELS.other;
       const events: WireEvent[] = [{ type: "tool_call", id: update.toolCallId, name, args: argsOf(update) ?? {} }];
