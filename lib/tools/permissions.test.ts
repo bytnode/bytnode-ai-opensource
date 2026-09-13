@@ -25,6 +25,19 @@ describe("ruleFor", () => {
   });
 });
 
+describe("les outils qui engagent des fonds", () => {
+  it("n'ont jamais de regle « Toujours »", () => {
+    expect(ruleFor("PlaceOrder", { symbol: "BTC/USDT" })).toBeNull();
+    expect(ruleFor("Transfer", {})).toBeNull();
+    expect(ruleFor("CancelOrder", {})).toBe("CancelOrder");
+  });
+  it("ne sont couverts par aucune regle memorisee", () => {
+    expect(matchesRule(["PlaceOrder"], "PlaceOrder", {})).toBe(false);
+    expect(matchesRule(["ClosePosition"], "ClosePosition", {})).toBe(false);
+    expect(matchesRule(["CancelOrder"], "CancelOrder", {})).toBe(true);
+  });
+});
+
 describe("matchesRule", () => {
   it("reconnait un outil autorise", () => {
     expect(matchesRule(["Write"], "Write", { file_path: "x" })).toBe(true);

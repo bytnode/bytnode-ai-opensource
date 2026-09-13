@@ -28,7 +28,7 @@ import { runAgentLoop } from "@/lib/agent/loop";
 import type { ToolCall } from "@/lib/agent/tool-calls";
 import { LlmError, OpenRouterClient } from "@/lib/llm/client";
 import { executeTool, fetchToolset } from "@/lib/tools/client";
-import { isGated } from "@/lib/tools/names";
+import { alwaysAsks, isGated } from "@/lib/tools/names";
 import {
   getConversation,
   patchLastMessage,
@@ -562,7 +562,7 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
               /* Un outil qui agit passe par l'accord de l'utilisateur — sauf
                  en execution directe, ou si une regle deja memorisee le
                  couvre (`Write`, `Bash(git status *)`…). */
-              gated: (name) => !skipAll.current && isGated(name),
+              gated: (name) => alwaysAsks(name) || (!skipAll.current && isGated(name)),
               permission: (call: ToolCall) =>
                 new Promise<boolean>((resolve) => {
                   if (matchesRule(agent.allowRules, call.name, call.args)) {

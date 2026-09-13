@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import type { Step } from "@/lib/agent/events";
-import { summarizeCall } from "@/lib/tools/names";
+import { alwaysAsks, isExchangeTool, summarizeCall } from "@/lib/tools/names";
 import { isDangerous, ruleFor, ruleLabel } from "@/lib/tools/permissions";
+import { pickAccount } from "@/lib/tools/exchange/accounts";
+import { useSettings } from "@/lib/state/settings";
 import { Check, ChevronDown, Close, Spinner } from "@/components/ui/icons";
 
 type ToolStep = Extract<Step, { type: "tool" }>;
@@ -79,11 +81,18 @@ export function ToolStepView({ step, onAnswer, fileUrl }: Props) {
 --------------------------------------------------------------------------- */
 function Ask({ step, onAnswer }: { step: ToolStep; onAnswer: (allow: boolean, always?: boolean) => void }) {
   const dangereux = isDangerous(step.name, step.args);
-  const rule = dangereux ? null : ruleFor(step.name, step.args);
+  /* Un ordre, une fermeture, un transfert : jamais de « Toujours ». */
+  const fonds = alwaysAsks(step.name);
+  const rule = dangereux || fonds ? null : ruleFor(step.name, step.args);
   return (
-    <div className={`ts-ask${dangereux ? " is-danger" : ""}`}>
+    <div className={`ts-ask${dangereux || fonds ? " is-danger" : ""}`}>
       <span className="ts-ask-text">
-        {dangereux ? "Cette commande est irréversible. À autoriser une fois, en connaissance de cause." : "L’agent veut exécuter cet outil."}
+        {isExchangeTool(step.name) && <ExchangeBadge account={typeof step.args.account === "string" ? step.args.account : undefined} />}
+        {fonds
+          ? "Cette action engage des fonds. À autoriser une fois, en connaissance de cause."
+          : dangereux
+            ? "Cette commande est irréversible. À autoriser une fois, en connaissance de cause."
+            : "L’agent veut exécuter cet outil."}
       </span>
       <button type="button" className="btn btn-sm btn-primary" onClick={() => onAnswer(true)}>
         Autoriser
@@ -98,4 +107,13 @@ function Ask({ step, onAnswer }: { step: ToolStep; onAnswer: (allow: boolean, al
       </button>
     </div>
   );
+}
+
+/** RÉEL ou TESTNET, d'apres le compte vise. Un compte ambigu (plusieurs
+    comptes, aucun nomme) vaut RÉEL : on se trompe du cote prudent. */
+export function ExchangeBadge({ account }: { account?: string }) {
+  const { settings } = useSettings();
+  const picked = pickAccount(settings.keys.exchanges, account);
+  const live = !("account" in picked) || !picked.account.testnet;
+  return <span className={`xch-badge${live ? " is-live" : ""}`}>{live ? "RÉEL" : "TESTNET"}</span>;
 }

@@ -15,6 +15,8 @@
    Pur : partage navigateur / serveur, teste.
 --------------------------------------------------------------------------- */
 
+import { alwaysAsks } from "./names";
+
 /** Les outils dont le premier mot de la commande fait la regle. */
 const SHELLS = new Set(["Bash", "PowerShell", "Monitor"]);
 
@@ -59,6 +61,7 @@ export function isDangerous(name: string, args: Record<string, unknown>): boolea
 /** La regle qu'un « Toujours » memoriserait pour cet appel, ou `null` si
     l'appel ne s'y prete pas. */
 export function ruleFor(name: string, args: Record<string, unknown>): string | null {
+  if (alwaysAsks(name)) return null;
   if (!SHELLS.has(name)) return name;
   const cmd = commande(args);
   if (!cmd) return null;
@@ -71,7 +74,7 @@ export function ruleFor(name: string, args: Record<string, unknown>): string | n
 /** Cet appel est-il couvert par une regle deja memorisee ? */
 export function matchesRule(rules: string[] | undefined, name: string, args: Record<string, unknown>): boolean {
   if (!rules?.length) return false;
-  if (isDangerous(name, args)) return false;
+  if (alwaysAsks(name) || isDangerous(name, args)) return false;
   if (rules.includes(name)) return true;
   const r = ruleFor(name, args);
   return r !== null && rules.includes(r);

@@ -1637,6 +1637,26 @@ html[data-theme="light"] .md pre {
   color: #f85149;
 }
 
+/* Le compte engage-t-il de l'argent réel ? Le badge le dit avant le clic. */
+.xch-badge {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  color: var(--fg-muted);
+  vertical-align: middle;
+}
+
+.xch-badge.is-live {
+  background: #b3261e;
+  border-color: #b3261e;
+  color: #fff;
+}
+
 /* --- Ce que le « + » permet de joindre ---------------------------------- */
 
 .composer-joints {
