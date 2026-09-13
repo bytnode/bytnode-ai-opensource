@@ -59,11 +59,6 @@ html[data-theme="light"] {
   box-sizing: border-box;
 }
 
-select.field-input option {
-  background: rgb(var(--voile));
-  color: var(--fg);
-}
-
 html,
 body {
   height: 100%;

@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ExchangeAccount } from "@/lib/domain/types";
 import { EXCHANGES, exchangeInfo } from "@/lib/tools/exchange/catalog";
 import { Field } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 import { Check, Eye, EyeOff, Spinner } from "@/components/ui/icons";
 
 /* ---------------------------------------------------------------------------
@@ -127,21 +128,20 @@ function AddForm({ existing, onAdd, onCancel }: { existing: ExchangeAccount[]; o
   return (
     <div className="xch-form">
       <Field id="xch-exchange" label="Exchange">
-        <select
+        <Select
           id="xch-exchange"
-          className="field-input"
+          label="Exchanges"
           value={exchange}
-          onChange={(e) => {
-            setExchange(e.target.value);
-            if (!exchangeInfo(e.target.value)?.testnet) setTestnet(false);
+          options={EXCHANGES.map((e) => ({
+            value: e.id,
+            label: e.label,
+            meta: [e.testnet ? "testnet disponible" : null, e.password ? "passphrase requise" : null].filter(Boolean).join(" · ") || undefined,
+          }))}
+          onChange={(id) => {
+            setExchange(id);
+            if (!exchangeInfo(id)?.testnet) setTestnet(false);
           }}
-        >
-          {EXCHANGES.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.label}
-            </option>
-          ))}
-        </select>
+        />
       </Field>
       <Field id="xch-label" label="Nom du compte" hint="Celui que l'agent emploiera : « Binance-main »." error={duplicate ? "Un compte porte déjà ce nom." : undefined}>
         <input id="xch-label" className="field-input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Binance-main" />

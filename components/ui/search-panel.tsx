@@ -29,7 +29,7 @@ type Props = {
   /** Ou le panneau s'accroche : sous le declencheur (par defaut) ou au-dessus. */
   side?: "bottom" | "top";
   align?: "start" | "end";
-  width?: number;
+  width?: number | string;
   /** Des lignes serrees, pour une liste courte de choix simples. */
   dense?: boolean;
   label: string;
