@@ -47,25 +47,17 @@ export function StepAuth({ mode, keys, errors, onMode, onKeys }: Props) {
       </div>
 
       <div className="ob-form" role="tabpanel">
-        {mode === "subscription" ? <Subscriptions error={errors.subscription} /> : <Keys keys={keys} errors={errors} onKeys={onKeys} />}
+        {mode === "subscription" ? (
+          <div className="field">
+            <span className="field-label">Votre abonnement</span>
+            <Subscriptions error={errors.subscription} />
+          </div>
+        ) : (
+          <OpenRouterKey value={keys.openrouter} error={errors.openrouter} onChange={(openrouter) => onKeys({ ...keys, openrouter })} />
+        )}
 
         <div className="ob-sub">
-          <KeyField
-            id="bytnode"
-            label="Clé BytNode"
-            optional
-            value={keys.bytnode}
-            placeholderHint="Commence par mk_. Depuis votre console BytNode, page Clés. Sans elle, les agents n'ont pas de données de marché."
-            verify={async (key) => {
-              const res = await fetch("/api/bytnode/key", { headers: { "x-bytnode-key": key } });
-              const json = (await res.json()) as { ok?: boolean; tools?: string[]; error?: { message?: string } };
-              const n = json.tools?.length ?? 0;
-              return res.ok && json.ok
-                ? { ok: true, label: `${n} outil${n > 1 ? "s" : ""} de données` }
-                : { ok: false, message: json.error?.message ?? "Clé refusée." };
-            }}
-            onChange={(bytnode) => onKeys({ ...keys, bytnode })}
-          />
+          <BytnodeKey value={keys.bytnode} onChange={(bytnode) => onKeys({ ...keys, bytnode })} />
         </div>
 
         <div className="ob-sub">
@@ -78,7 +70,7 @@ export function StepAuth({ mode, keys, errors, onMode, onKeys }: Props) {
 
 /* --- Abonnements ---------------------------------------------------------- */
 
-function Subscriptions({ error }: { error?: string }) {
+export function Subscriptions({ error }: { error?: string }) {
   const auth = useAcpAuth();
   const [busy, setBusy] = useState<AcpAgentId | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -106,8 +98,7 @@ function Subscriptions({ error }: { error?: string }) {
   };
 
   return (
-    <div className="field">
-      <span className="field-label">Votre abonnement</span>
+    <>
       <div className="subs">
         {ACP_AGENTS.map((a) => {
           const s = status(a.id);
@@ -158,26 +149,49 @@ function Subscriptions({ error }: { error?: string }) {
         Aucune clé n&apos;est créée : c&apos;est votre abonnement qui est utilisé, avec ses limites habituelles. Mistral est
         téléchargé au premier clic.
       </p>
-    </div>
+    </>
   );
 }
 
 /* --- Cles ----------------------------------------------------------------- */
 
-function Keys({ keys, errors, onKeys }: { keys: ApiKeys; errors: StepErrors; onKeys: (k: ApiKeys) => void }) {
+type KeyProps = { value: string; error?: string; onChange: (value: string) => void };
+
+export function OpenRouterKey({ value, error, onChange }: KeyProps) {
   return (
     <KeyField
       id="openrouter"
       label="Clé OpenRouter"
-      value={keys.openrouter}
-      error={errors.openrouter}
+      value={value}
+      error={error}
       placeholderHint="Commence par sk-or-. Créez-la sur openrouter.ai/keys. Donne accès à tous les éditeurs, facturé à l'usage."
       verify={async (key) => {
         const res = await fetch("/api/openrouter/key", { headers: { "x-openrouter-key": key } });
         const json = (await res.json()) as { ok?: boolean; label?: string | null; error?: { message?: string } };
         return res.ok && json.ok ? { ok: true, label: json.label ?? null } : { ok: false, message: json.error?.message ?? "Clé refusée." };
       }}
-      onChange={(openrouter) => onKeys({ ...keys, openrouter })}
+      onChange={onChange}
+    />
+  );
+}
+
+export function BytnodeKey({ value, onChange }: KeyProps) {
+  return (
+    <KeyField
+      id="bytnode"
+      label="Clé BytNode"
+      optional
+      value={value}
+      placeholderHint="Commence par mk_. Depuis votre console BytNode, page Clés. Sans elle, les agents n'ont pas de données de marché."
+      verify={async (key) => {
+        const res = await fetch("/api/bytnode/key", { headers: { "x-bytnode-key": key } });
+        const json = (await res.json()) as { ok?: boolean; tools?: string[]; error?: { message?: string } };
+        const n = json.tools?.length ?? 0;
+        return res.ok && json.ok
+          ? { ok: true, label: `${n} outil${n > 1 ? "s" : ""} de données` }
+          : { ok: false, message: json.error?.message ?? "Clé refusée." };
+      }}
+      onChange={onChange}
     />
   );
 }
@@ -195,7 +209,7 @@ type KeyFieldProps = {
   onChange: (value: string) => void;
 };
 
-function KeyField({ id, label, optional, value, error, placeholderHint, verify, onChange }: KeyFieldProps) {
+export function KeyField({ id, label, optional, value, error, placeholderHint, verify, onChange }: KeyFieldProps) {
   const [shown, setShown] = useState(false);
   const [check, setCheck] = useState<Check>({ state: "idle" });
 

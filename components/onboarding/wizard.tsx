@@ -13,10 +13,9 @@ import "./onboarding.css";
 /* ---------------------------------------------------------------------------
    L'assistant de configuration : une feuille posee au centre du fond.
 
-   Il sert trois fois, avec les memes etapes assemblees autrement :
-     - a la premiere ouverture : profil, cle, puis un premier agent ;
-     - depuis l'engrenage : profil et cle seulement (le compte) ;
-     - depuis « Nouvel agent » ou le crayon d'un agent : l'agent seul.
+   Il ne sert plus qu'a la premiere ouverture : profil, acces aux modeles,
+   puis un premier agent. Ensuite, tout passe par le panneau de reglages
+   (`components/settings/settings-panel.tsx`), qui reprend ses briques.
    La feuille travaille sur un BROUILLON et ne rend la main qu'a la fin —
    quitter en cours de route ne laisse rien a moitie rempli.
 --------------------------------------------------------------------------- */

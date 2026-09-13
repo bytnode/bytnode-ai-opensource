@@ -1,0 +1,423 @@
+/* ---------------------------------------------------------------------------
+   Le panneau de reglages.
+
+   Un bloc pose sur le voile (`.ob`, partage avec l'assistant) : une colonne
+   de navigation a gauche, le contenu a droite, qui defile seul. Chaque
+   reglage est une LIGNE — le libelle et son aide a gauche, le controle a
+   droite — separee de la suivante par un filet ; le titre de section
+   regroupe. Aucune carte : la structure est portee par les filets, pas par
+   des boites.
+--------------------------------------------------------------------------- */
+
+.st-veil {
+  padding: 16px;
+}
+
+.st {
+  width: min(1040px, 100%);
+  height: min(720px, 100vh - 32px);
+  margin: auto;
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  overflow: hidden;
+  border-radius: 18px;
+  background: var(--veil-strong);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+  animation: ob-step 220ms var(--ease) both;
+}
+
+/* --- Navigation ------------------------------------------------------------- */
+
+.st-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 22px 12px;
+  border-right: 1px solid var(--line);
+  background: rgba(var(--ink), 0.025);
+}
+
+.st-nav-title {
+  padding: 0 12px 12px;
+  font-size: 0.74rem;
+  color: var(--fg-faint);
+}
+
+.st-nav-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 0.86rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.st-nav-item:hover {
+  background: var(--matter);
+  color: var(--fg);
+}
+
+.st-nav-item.is-on {
+  background: var(--matter-strong);
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.st-nav-item:focus-visible,
+.st-close:focus-visible,
+.st-seg-btn:focus-visible,
+.st-icon:focus-visible,
+.st-back:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+/* --- Contenu ---------------------------------------------------------------- */
+
+.st-main {
+  position: relative;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.st-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.st-close:hover {
+  background: var(--matter);
+  color: var(--fg);
+}
+
+.st-close svg {
+  width: 16px;
+  height: 16px;
+}
+
+.st-content {
+  padding: 30px 44px 40px;
+  animation: ob-step 160ms var(--ease) both;
+}
+
+.st-title {
+  margin: 0 0 6px;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 400;
+  font-size: 1.45rem;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+
+.st-lede {
+  margin: 0 0 8px;
+  max-width: 40rem;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: var(--fg-muted);
+}
+
+.st-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-right: 44px;
+}
+
+.st-head .st-title {
+  margin: 0;
+}
+
+.st-section {
+  margin-top: 30px;
+}
+
+.st-section-title {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.st-row {
+  display: grid;
+  grid-template-columns: 1fr minmax(200px, 320px);
+  align-items: center;
+  gap: 24px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.st-row.is-stack {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.st-row-text {
+  min-width: 0;
+}
+
+.st-row-label {
+  display: block;
+  font-size: 0.88rem;
+  color: var(--fg);
+}
+
+.st-row-hint {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--fg-muted);
+}
+
+.st-row-control {
+  min-width: 0;
+}
+
+.st-row-control .field-input {
+  font-size: 0.86rem;
+}
+
+.st-row.is-stack textarea.field-input {
+  min-height: 110px;
+}
+
+/* Les formulaires repris de l'onboarding (cles, exchanges, agent) gardent
+   leur grammaire, sous un titre de section. */
+.st-form {
+  padding-top: 14px;
+}
+
+/* Deux positions, clair / sombre. */
+.st-seg {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: var(--radius);
+  background: var(--matter);
+  justify-self: end;
+}
+
+.st-seg-btn {
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.st-seg-btn.is-on {
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* --- Agents ----------------------------------------------------------------- */
+
+.st-empty {
+  margin: 24px 0 0;
+  padding: 28px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  font-size: 0.86rem;
+  color: var(--fg-muted);
+}
+
+.st-agents {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+}
+
+.st-agent {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.st-agent-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.st-agent-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+
+.st-agent-meta {
+  font-size: 0.78rem;
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.st-agent-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.st-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.st-icon:hover {
+  background: var(--matter);
+  color: var(--fg);
+}
+
+.st-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.st-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: -6px 0 18px -8px;
+  padding: 6px 10px 6px 8px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.st-back:hover {
+  background: var(--matter);
+  color: var(--fg);
+}
+
+.st-back svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Le formulaire d'agent vient de l'onboarding : son titre y est grand, ici
+   il prend la taille des autres onglets. */
+.st-agent-form .ob-title {
+  font-size: 1.45rem;
+}
+
+.st-agent-form .ob-lede {
+  margin-bottom: 24px;
+}
+
+.st-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 30px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+/* --- Fournisseurs ------------------------------------------------------------ */
+
+.st-section .subs,
+.st-section > .sub {
+  margin-top: 12px;
+}
+
+.st-section .field-hint {
+  margin-top: 10px;
+  font-size: 0.76rem;
+}
+
+/* --- Etroit ------------------------------------------------------------------ */
+
+@media (max-width: 720px) {
+  .st {
+    height: min(100vh - 32px, 100%);
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .st-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .st-nav-title {
+    display: none;
+  }
+
+  .st-nav-item {
+    width: auto;
+  }
+
+  .st-content {
+    padding: 22px 20px 30px;
+  }
+
+  .st-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .st-seg {
+    justify-self: start;
+  }
+
+  .st-agent {
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st,
+  .st-content {
+    animation: none;
+  }
+}

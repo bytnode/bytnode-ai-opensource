@@ -29,7 +29,7 @@ import {
 import { acpAgentOf } from "@/lib/acp/agents";
 import { useAcpAuth } from "@/lib/acp/use-auth";
 import { closeAcpConversation } from "@/lib/acp/client";
-import { Wizard, type WizardDraft } from "@/components/onboarding/wizard";
+import { SettingsPanel, type SettingsTarget } from "@/components/settings/settings-panel";
 import { allowedAccounts, anyLive, describeAccounts } from "@/lib/tools/exchange/accounts";
 import { Composer } from "./composer";
 import { Sidebar } from "./sidebar";
@@ -64,12 +64,8 @@ const PERMISSION_MODES = [
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
-/* Ce que la feuille de reglages est en train de faire, si elle est ouverte. */
-type Editing =
-  | { kind: "account" }
-  | { kind: "agent-new" }
-  | { kind: "agent-edit"; agent: AgentConfig }
-  | null;
+/* Le panneau de reglages, s'il est ouvert : l'onglet, et l'agent a editer. */
+type Editing = SettingsTarget | null;
 
 /* ---------------------------------------------------------------------------
    La page de dialogue : la colonne, le fil, le bloc de saisie.
@@ -265,43 +261,20 @@ export function ChatShell({ settings }: Props) {
     if (id === active) setActive(null);
   };
 
-  const finishEditing = (draft: WizardDraft) => {
-    const kind = editing?.kind ?? "agent-new";
+  const saveAgent = (agent: AgentConfig, isNew: boolean) => {
     /* L'id et la date d'un agent nouveau sont poses ici, a la creation. */
-    const created: AgentConfig = {
-      ...draft.agent,
-      id: newId(),
-      createdAt: Date.now(),
-    };
-    updateSettings((s) => {
-      if (kind === "account")
-        return {
-          ...s,
-          profile: draft.profile,
-          authMode: draft.authMode,
-          keys: draft.keys,
-          theme: draft.theme,
-        };
-      if (kind === "agent-new")
-        return {
-          ...s,
-          theme: draft.theme,
-          agents: [...s.agents, created],
-          activeAgentId: created.id,
-        };
-      return {
-        ...s,
-        theme: draft.theme,
-        agents: s.agents.map((a) =>
-          a.id === draft.agent.id ? draft.agent : a,
-        ),
-      };
-    });
-    if (kind === "agent-new") {
+    const created: AgentConfig = { ...agent, id: newId(), createdAt: Date.now() };
+    updateSettings((s) =>
+      isNew
+        ? { ...s, agents: [...s.agents, created], activeAgentId: created.id }
+        : { ...s, agents: s.agents.map((a) => (a.id === agent.id ? agent : a)) },
+    );
+    if (isNew) {
       setActive(null);
       setPendingModel(null);
+      /* Le premier agent cree : le panneau etait impose, il se ferme. */
+      if (settings.agents.length === 0) setEditing(null);
     }
-    setEditing(null);
   };
 
   /* L'acces aux modeles de CET agent : sa cle, ou son abonnement connecte. */
@@ -318,7 +291,7 @@ export function ChatShell({ settings }: Props) {
 
   /* Sans agent — tous supprimes — la feuille de creation s'impose. */
   const mustCreate = agent === null;
-  const sheet: Editing = mustCreate ? { kind: "agent-new" } : editing;
+  const sheet: Editing = mustCreate ? { tab: "agents", agent: "new" } : editing;
 
   return (
     <div
@@ -331,12 +304,12 @@ export function ChatShell({ settings }: Props) {
         activeAgentId={agent?.id ?? null}
         activeConversationId={active}
         open={menu}
-        onNewAgent={() => setEditing({ kind: "agent-new" })}
+        onNewAgent={() => setEditing({ tab: "agents", agent: "new" })}
         onSelectAgent={(id) => {
           selectAgent(id);
           setMenu(false);
         }}
-        onEditAgent={(a) => setEditing({ kind: "agent-edit", agent: a })}
+        onEditAgent={(a) => setEditing({ tab: "agents", agent: a })}
         onRemoveAgent={(a) => setDeleting(a)}
         onNewConversation={() => {
           setActive(null);
@@ -348,7 +321,7 @@ export function ChatShell({ settings }: Props) {
         }}
         onRemoveConversation={removeConv}
         onRenameConversation={renameConversation}
-        onSettings={() => setEditing({ kind: "account" })}
+        onSettings={() => setEditing({ tab: "general" })}
         onTheme={(theme) => updateSettings((s) => ({ ...s, theme }))}
         onCollapse={() => updateUiPrefs({ sidebarCollapsed: true })}
         onResize={(w) => updateUiPrefs({ sidebarWidth: clampWidth(w) })}
@@ -441,7 +414,7 @@ export function ChatShell({ settings }: Props) {
               <button
                 type="button"
                 className="btn btn-sm"
-                onClick={() => setEditing({ kind: "account" })}
+                onClick={() => setEditing({ tab: acp ? "providers" : "auth" })}
               >
                 Ouvrir les réglages
               </button>
@@ -518,22 +491,14 @@ export function ChatShell({ settings }: Props) {
       )}
 
       {sheet && (
-        <Wizard
-          key={sheet.kind === "agent-edit" ? sheet.agent.id : sheet.kind}
-          steps={sheet.kind === "account" ? ["profil", "auth"] : ["agent"]}
-          initial={{
-            profile: settings.profile,
-            authMode: settings.authMode,
-            keys: settings.keys,
-            theme: settings.theme,
-            agent: sheet.kind === "agent-edit" ? sheet.agent : blankAgent(),
-          }}
-          finishLabel={
-            sheet.kind === "agent-new" ? "Créer l'agent" : "Enregistrer"
-          }
-          onTheme={(theme) => updateSettings((s) => ({ ...s, theme }))}
-          onCancel={mustCreate ? undefined : () => setEditing(null)}
-          onDone={finishEditing}
+        <SettingsPanel
+          key={`${sheet.tab}:${sheet.agent === "new" ? "new" : (sheet.agent?.id ?? "")}`}
+          settings={settings}
+          target={sheet}
+          onUpdate={(patch) => updateSettings((s) => ({ ...s, ...patch }))}
+          onSaveAgent={saveAgent}
+          onRemoveAgent={(a) => setDeleting(a)}
+          onClose={mustCreate ? undefined : () => setEditing(null)}
         />
       )}
     </div>
