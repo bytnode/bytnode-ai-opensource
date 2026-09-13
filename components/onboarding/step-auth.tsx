@@ -7,6 +7,7 @@ import { acpInstall, acpLogin, acpLogout, useAcpAuth } from "@/lib/acp/use-auth"
 import { Field } from "@/components/ui/field";
 import { Check, Eye, EyeOff, Spinner } from "@/components/ui/icons";
 import type { StepErrors } from "./wizard";
+import { ExchangeAccounts } from "./exchange-accounts";
 
 type Props = {
   mode: AuthMode;
@@ -65,6 +66,10 @@ export function StepAuth({ mode, keys, errors, onMode, onKeys }: Props) {
             }}
             onChange={(bytnode) => onKeys({ ...keys, bytnode })}
           />
+        </div>
+
+        <div className="ob-sub">
+          <ExchangeAccounts value={keys.exchanges} onChange={(exchanges) => onKeys({ ...keys, exchanges })} />
         </div>
       </div>
     </>

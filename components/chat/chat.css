@@ -1829,3 +1829,7 @@ html[data-theme="light"] .md pre {
   text-transform: uppercase;
   color: var(--fg-faint);
 }
+
+.chat-xch {
+  margin-left: 6px;
+}

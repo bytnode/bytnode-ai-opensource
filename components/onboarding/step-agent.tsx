@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { AgentConfig, AuthMode } from "@/lib/domain/types";
+import type { AgentConfig, AuthMode, ExchangeAccount } from "@/lib/domain/types";
 import { isAcpProvider } from "@/lib/acp/agents";
 import { PROFESSIONS } from "@/lib/professions/catalog";
 import { Field } from "@/components/ui/field";
@@ -16,10 +16,14 @@ type Props = {
   isNew: boolean;
   /** L'onglet choisi a l'authentification : la source proposee d'abord. */
   authMode: AuthMode;
+  /** Les comptes exchange du compte : l'agent choisit ceux qu'il pilote. */
+  exchanges: ExchangeAccount[];
   onChange: (agent: AgentConfig) => void;
 };
 
-export function StepAgent({ value, errors, isNew, authMode, onChange }: Props) {
+export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange }: Props) {
+  const picked = value.exchangeAccountIds ?? [];
+  const toggleAccount = (id: string) => set({ exchangeAccountIds: picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id] });
   const set = (patch: Partial<AgentConfig>) => onChange({ ...value, ...patch });
   /* La source des modeles : deduite du fournisseur deja choisi, sinon celle
      de l'authentification. En changer vide le fournisseur. */
@@ -247,10 +251,32 @@ export function StepAgent({ value, errors, isNew, authMode, onChange }: Props) {
                   <span className="ob-choice-title">Exécution directe</span>
                   <span className="ob-choice-desc">
                     Tous les outils s&apos;exécutent sans demander. Plus rapide,
-                    sans filet.
+                    sans filet. Les ordres, fermetures et transferts sur un
+                    exchange demandent quand même.
                   </span>
                 </button>
               </div>
+            </div>
+
+            <div className="field">
+              <span className="field-label">Comptes exchange</span>
+              {exchanges.length === 0 ? (
+                <p className="field-hint">Ajoutez un compte dans Authentification pour que cet agent puisse trader.</p>
+              ) : (
+                <>
+                  <p className="field-hint">Les comptes que cet agent peut lire et piloter. Aucun : pas d&apos;outil exchange.</p>
+                  <div className="xch-pick">
+                    {exchanges.map((a) => (
+                      <label key={a.id}>
+                        <input type="checkbox" checked={picked.includes(a.id)} onChange={() => toggleAccount(a.id)} />
+                        <span className={`xch-badge${a.testnet ? "" : " is-live"}`}>{a.testnet ? "TESTNET" : "RÉEL"}</span>
+                        <span>{a.label}</span>
+                        <span className="xch-exchange">{a.exchange}</span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </>
         )}

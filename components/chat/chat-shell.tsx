@@ -29,6 +29,7 @@ import { acpAgentOf } from "@/lib/acp/agents";
 import { useAcpAuth } from "@/lib/acp/use-auth";
 import { closeAcpConversation } from "@/lib/acp/client";
 import { Wizard, type WizardDraft } from "@/components/onboarding/wizard";
+import { allowedAccounts, anyLive, describeAccounts } from "@/lib/tools/exchange/accounts";
 import { Composer } from "./composer";
 import { Sidebar } from "./sidebar";
 import { Thread } from "./thread";
@@ -145,6 +146,7 @@ export function ChatShell({ settings }: Props) {
      modes de permission sinon. Le choix vit dans la conversation (ou en
      attente avant le premier message) et devient le defaut de l'agent. */
   const acp = acpAgentOf(agent?.providerId);
+  const agentAccounts = allowedAccounts(settings.keys.exchanges, agent?.exchangeAccountIds);
   const agentModes = acp ? (catalog.acpModes[acp.id] ?? null) : null;
   const modeOptions = acp ? (agentModes?.options ?? []) : PERMISSION_MODES;
   const mode = acp
@@ -395,6 +397,11 @@ export function ChatShell({ settings }: Props) {
             >
               Compacter
             </button>
+          )}
+          {agent && agentAccounts.length > 0 && (
+            <span className={`xch-badge chat-xch${anyLive(agentAccounts) ? " is-live" : ""}`} title={`Comptes exchange : ${describeAccounts(agentAccounts)}`}>
+              {anyLive(agentAccounts) ? "RÉEL" : "TESTNET"}
+            </span>
           )}
           {agent && !acp && (
             <button

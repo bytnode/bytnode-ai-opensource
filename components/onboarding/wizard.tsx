@@ -134,6 +134,7 @@ export function Wizard({ steps, initial, finishLabel, onDone, onCancel, onTheme 
               errors={shown}
               isNew={initial.agent.id === ""}
               authMode={draft.authMode}
+              exchanges={draft.keys.exchanges}
               onChange={(agent) => setDraft({ ...draft, agent })}
             />
           )}
