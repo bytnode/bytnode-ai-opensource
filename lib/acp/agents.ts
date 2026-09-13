@@ -45,7 +45,7 @@ export const ACP_AGENTS: AcpAgentInfo[] = [
     plan: "Claude Pro ou Max",
     providerId: `${ACP_PREFIX}claude`,
     distribution: "npm",
-    staticEfforts: ["max", "high", "medium", "low"],
+    staticEfforts: ["max", "xhigh", "high", "medium", "low"],
   },
   {
     id: "openai",
