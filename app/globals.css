@@ -10,6 +10,10 @@
 --------------------------------------------------------------------------- */
 
 :root {
+  /* Les controles natifs (liste d'un select, ascenseurs, calendrier) sont
+     dessines par le systeme dans ce schema : sans lui, la liste s'ouvre
+     blanche avec du texte blanc herite. */
+  color-scheme: dark;
   --ink: 255, 255, 255;
   --paper: 0, 0, 0;
   /* Le voile : la couleur vers laquelle un panneau assombrit, c'est-a-dire
@@ -53,6 +57,11 @@ html[data-theme="light"] {
 
 * {
   box-sizing: border-box;
+}
+
+select.field-input option {
+  background: rgb(var(--voile));
+  color: var(--fg);
 }
 
 html,
