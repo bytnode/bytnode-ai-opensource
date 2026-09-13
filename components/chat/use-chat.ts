@@ -29,6 +29,7 @@ import type { ToolCall } from "@/lib/agent/tool-calls";
 import { LlmError, OpenRouterClient } from "@/lib/llm/client";
 import { executeTool, fetchToolset } from "@/lib/tools/client";
 import { alwaysAsks, isGated } from "@/lib/tools/names";
+import { allowedAccounts } from "@/lib/tools/exchange/accounts";
 import {
   getConversation,
   patchLastMessage,
@@ -390,12 +391,16 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
         let caught: unknown;
         const acp = acpAgentOf(agent.providerId);
         try {
+          /* Les comptes exchange que CET agent peut piloter : ils partent
+             avec chaque requete d'outil, et decident des outils qu'il voit. */
+          const exchangeAccounts = allowedAccounts(settings.keys.exchanges, agent.exchangeAccountIds);
           const [toolset, memory] = await Promise.all([
             fetchToolset(
               agent.id,
               agent.workspace ?? "",
               agent.profession,
               settings.keys.bytnode,
+              exchangeAccounts,
             ),
             fetchMemory(agent.id, agent.workspace ?? ""),
           ]);
@@ -409,6 +414,7 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
                 toolset.skills,
                 toolset.bytnode,
                 acp.product,
+                exchangeAccounts,
               ),
               memory,
             ]
@@ -489,6 +495,7 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
                 firstTurn: previous.length === 0,
                 history: previous.length > 0 ? transcriptOf(previous) : undefined,
                 bytnodeKey: settings.keys.bytnode,
+                exchangeAccounts,
               },
               onEvent,
               controller.signal,
@@ -503,6 +510,7 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
                 toolset.platform,
                 agent.scope ?? "workspace",
                 toolset.bytnode,
+                exchangeAccounts,
               ),
               memory,
             ]
@@ -548,6 +556,7 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
               scope: agent.scope ?? "workspace",
               profession: agent.profession,
               bytnodeKey: settings.keys.bytnode,
+              exchangeAccounts,
             };
             await runAgentLoop(replay, {
               complete: (messages, tools, signal) =>

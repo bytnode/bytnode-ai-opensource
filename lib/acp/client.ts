@@ -1,3 +1,4 @@
+import type { ExchangeAccount } from "@/lib/domain/types";
 import type { AcpAgentId } from "./agents";
 import type { WireEvent } from "./wire";
 
@@ -26,6 +27,7 @@ export type AcpTurnInput = {
   images?: string[];
   history?: string;
   bytnodeKey: string;
+  exchangeAccounts: ExchangeAccount[];
 };
 
 export class AcpError extends Error {}

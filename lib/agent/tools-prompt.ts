@@ -1,4 +1,6 @@
 import type { SkillInfo } from "@/lib/tools/skills/skill";
+import type { ExchangeAccount } from "@/lib/domain/types";
+import { exchangePromptSection } from "@/lib/tools/exchange/prompt";
 
 /* La section du prompt systeme qui presente l'environnement de travail :
    ou l'agent est, ce qu'il peut faire, et les competences qu'il peut
@@ -10,6 +12,7 @@ export function buildToolsPrompt(
   platform: string,
   scope: "workspace" | "disk" = "workspace",
   bytnode?: { ok: boolean; count: number; message?: string },
+  exchangeAccounts?: ExchangeAccount[],
 ): string {
   const windows = platform.startsWith("win32");
   const perimeter =
@@ -52,6 +55,7 @@ export function buildToolsPrompt(
         : `Source de données : BytNode n'est pas disponible (${bytnode.message ?? "clé absente"}). Dis-le à l'utilisateur si une question demande des données de marché à jour ; la clé se règle dans la page Clés.`,
     );
   }
+  lines.push(...exchangePromptSection(exchangeAccounts, "natif"));
   if (skills.length > 0) {
     lines.push("", "Compétences disponibles (à charger avec l'outil Skill quand la tâche s'y prête) :");
     for (const s of skills) lines.push(`- ${s.name}${s.description ? ` — ${s.description}` : ""}`);

@@ -18,6 +18,8 @@ import { saveMarketDataTool } from "./finance/data";
 import { chartTool } from "./finance/chart";
 import { backtestTool } from "./finance/backtest";
 import { memoryTool } from "./finance/memory";
+import { exchangeTools } from "./exchange";
+import type { ExchangeAccount } from "@/lib/domain/types";
 
 /* ---------------------------------------------------------------------------
    Le jeu d'outils de base : tous les agents l'ont, en entier.
@@ -57,8 +59,9 @@ export function baseTools(opts: { platform: string }): Tool[] {
 /** Les outils de base, plus ceux de BytNode si une cle est donnee. La
     decouverte peut echouer (cle absente, serveur injoignable) : on rend
     alors les outils de base seuls, et la raison. */
-export async function allTools(opts: { platform: string; bytnodeKey?: string }): Promise<{ tools: Tool[]; bytnode: { ok: boolean; count: number; message?: string } }> {
-  const base = baseTools(opts);
+export async function allTools(opts: { platform: string; bytnodeKey?: string; exchangeAccounts?: ExchangeAccount[] }): Promise<{ tools: Tool[]; bytnode: { ok: boolean; count: number; message?: string } }> {
+  /* Les outils exchange n'existent que pour un agent qui a un compte. */
+  const base = opts.exchangeAccounts?.length ? [...baseTools(opts), ...exchangeTools()] : baseTools(opts);
   if (!opts.bytnodeKey?.trim()) return { tools: base, bytnode: { ok: false, count: 0, message: "Aucune clé BytNode." } };
   try {
     const infos = await bytnodeTools(opts.bytnodeKey);

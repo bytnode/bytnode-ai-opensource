@@ -6,6 +6,8 @@ import { chartTool } from "@/lib/tools/finance/chart";
 import { backtestTool } from "@/lib/tools/finance/backtest";
 import { memoryTool } from "@/lib/tools/finance/memory";
 import type { Tool, ToolContext } from "@/lib/tools/types";
+import { exchangeTools } from "@/lib/tools/exchange";
+import { parseAccountsHeader } from "@/lib/tools/exchange/accounts";
 
 /* ---------------------------------------------------------------------------
    Les outils financiers de BytNode-AI, servis en MCP (stdio) aux agents par
@@ -24,8 +26,11 @@ import type { Tool, ToolContext } from "@/lib/tools/types";
 const workspace = process.env.BYTNODE_AI_WORKSPACE ?? process.cwd();
 const projectRoot = process.env.BYTNODE_AI_PROJECT_ROOT ?? process.cwd();
 const bytnodeKey = process.env.BYTNODE_AI_BYTNODE_KEY ?? "";
+/* Les comptes exchange de l'agent, s'il en a : alors les outils exchange
+   sont servis aussi. */
+const exchangeAccounts = parseAccountsHeader(process.env.BYTNODE_AI_EXCHANGE_ACCOUNTS);
 
-const TOOLS: Tool[] = [saveMarketDataTool, chartTool, backtestTool, memoryTool] as Tool[];
+const TOOLS: Tool[] = [saveMarketDataTool, chartTool, backtestTool, memoryTool, ...(exchangeAccounts.length ? exchangeTools() : [])] as Tool[];
 
 const server = new Server({ name: "bytnode-ai", version: "0.1.0" }, { capabilities: { tools: {} } });
 
@@ -46,6 +51,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
     llm: { apiKey: "", model: "", effort: null },
     callId: String(extra.requestId),
     bytnodeKey,
+    exchangeAccounts,
   };
   try {
     const result = await tool.execute((req.params.arguments ?? {}) as Record<string, unknown>, ctx);

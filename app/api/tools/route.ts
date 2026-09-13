@@ -4,6 +4,7 @@ import { PROJECT_ROOT, resolveWorkspace } from "@/lib/server/workspace";
 import { KEY_HEADER } from "@/lib/server/openrouter";
 import { loadProfession } from "@/lib/professions/load";
 import { DEFAULT_PROFESSION, isProfessionId } from "@/lib/professions/catalog";
+import { parseAccountsHeader } from "@/lib/tools/exchange/accounts";
 
 /* Ce que le navigateur doit savoir avant un tour : le dossier de travail
    resolu, les specifications des outils (base + BytNode), le prompt et les
@@ -16,8 +17,9 @@ export async function GET(req: Request) {
   const profession = isProfessionId(professionParam) ? professionParam : DEFAULT_PROFESSION;
   const workspace = await resolveWorkspace(agentId, url.searchParams.get("workspace") ?? "");
   const bytnodeKey = req.headers.get(BYTNODE_HEADER) ?? "";
+  const exchangeAccounts = parseAccountsHeader(req.headers.get(EXCHANGE_HEADER));
   const [{ tools, bytnode }, prof] = await Promise.all([
-    allTools({ platform: process.platform, bytnodeKey }),
+    allTools({ platform: process.platform, bytnodeKey, exchangeAccounts }),
     loadProfession(PROJECT_ROOT, profession),
   ]);
   const skills = await listSkills(workspace, PROJECT_ROOT, prof.skills);
@@ -32,4 +34,6 @@ export async function GET(req: Request) {
 }
 
 export const BYTNODE_HEADER = "x-bytnode-key";
+/** Les comptes exchange autorises pour l'agent, en JSON. Jamais journalise. */
+export const EXCHANGE_HEADER = "x-exchange-accounts";
 void KEY_HEADER;

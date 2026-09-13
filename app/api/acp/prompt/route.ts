@@ -1,3 +1,4 @@
+import { parseAccounts } from "@/lib/tools/exchange/accounts";
 import { isAcpAgentId } from "@/lib/acp/agents";
 import { runTurn, type WireEvent } from "@/lib/acp/sessions";
 import { syncSkills } from "@/lib/acp/skills-sync";
@@ -31,6 +32,7 @@ type Body = {
   firstTurn?: boolean;
   images?: string[];
   history?: string;
+  exchangeAccounts?: unknown;
 };
 
 export async function POST(req: Request) {
@@ -71,6 +73,7 @@ export async function POST(req: Request) {
             agent,
             workspace,
             bytnodeKey,
+            exchangeAccounts: parseAccounts(body.exchangeAccounts),
             system: body.system ?? "",
             text: body.text!,
             modelId: body.modelId ?? null,

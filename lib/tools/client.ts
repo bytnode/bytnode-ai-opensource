@@ -3,6 +3,7 @@ import type { ToolSpec } from "@/lib/agent/loop";
 import type { ToolCall } from "@/lib/agent/tool-calls";
 import type { SkillInfo } from "./skills/skill";
 import type { ToolResult } from "./types";
+import type { ExchangeAccount } from "@/lib/domain/types";
 
 /* ---------------------------------------------------------------------------
    Les outils, vus du navigateur : leurs specifications d'un cote, leur
@@ -25,14 +26,15 @@ export async function fetchToolset(
   workspace: string,
   profession: string,
   bytnodeKey: string,
+  exchangeAccounts: ExchangeAccount[] = [],
   force = false,
 ): Promise<Toolset> {
-  const key = `${agentId}::${workspace}::${profession}::${bytnodeKey ? "k" : "-"}`;
+  const key = `${agentId}::${workspace}::${profession}::${bytnodeKey ? "k" : "-"}::${exchangeAccounts.map((a) => a.id).join(",")}`;
   const hit = cache.get(key);
   if (hit && !force) return hit;
   const res = await fetch(
     `/api/tools?agentId=${encodeURIComponent(agentId)}&workspace=${encodeURIComponent(workspace)}&profession=${encodeURIComponent(profession)}`,
-    { headers: bytnodeKey ? { "x-bytnode-key": bytnodeKey } : {} },
+    { headers: { ...(bytnodeKey ? { "x-bytnode-key": bytnodeKey } : {}), ...exchangeHeader(exchangeAccounts) } },
   );
   if (!res.ok) throw new Error("Impossible de charger les outils.");
   const set = (await res.json()) as Toolset;
@@ -49,13 +51,18 @@ export type ExecuteParams = {
   scope: "workspace" | "disk";
   profession: string;
   bytnodeKey: string;
+  exchangeAccounts: ExchangeAccount[];
 };
+
+/** Les comptes exchange de l'agent, en en-tete — rien si aucun. */
+const exchangeHeader = (accounts: ExchangeAccount[]): Record<string, string> =>
+  accounts.length ? { "x-exchange-accounts": JSON.stringify(accounts) } : {};
 
 /** Execute un outil sur le serveur et relaie ce qu'il raconte en chemin. */
 export async function executeTool(call: ToolCall, p: ExecuteParams, signal: AbortSignal, emit: (e: AgentEvent) => void): Promise<ToolResult> {
   const res = await fetch("/api/tools/execute", {
     method: "POST",
-    headers: { "content-type": "application/json", "x-openrouter-key": p.apiKey, ...(p.bytnodeKey ? { "x-bytnode-key": p.bytnodeKey } : {}) },
+    headers: { "content-type": "application/json", "x-openrouter-key": p.apiKey, ...(p.bytnodeKey ? { "x-bytnode-key": p.bytnodeKey } : {}), ...exchangeHeader(p.exchangeAccounts) },
     body: JSON.stringify({
       name: call.name,
       args: call.args,

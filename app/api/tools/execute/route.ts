@@ -5,6 +5,7 @@ import { loadProfession } from "@/lib/professions/load";
 import { DEFAULT_PROFESSION, isProfessionId } from "@/lib/professions/catalog";
 import type { ToolContext } from "@/lib/tools/types";
 import type { AgentEvent } from "@/lib/agent/events";
+import { parseAccountsHeader } from "@/lib/tools/exchange/accounts";
 
 /* ---------------------------------------------------------------------------
    Executer un outil, et raconter ce qui se passe en chemin.
@@ -39,7 +40,8 @@ export async function POST(req: Request) {
     return Response.json({ error: { message: "Il manque le nom de l'outil ou le modèle." } }, { status: 400 });
   }
   const bytnodeKey = req.headers.get("x-bytnode-key") ?? "";
-  const { tools } = await allTools({ platform: process.platform, bytnodeKey });
+  const exchangeAccounts = parseAccountsHeader(req.headers.get("x-exchange-accounts"));
+  const { tools } = await allTools({ platform: process.platform, bytnodeKey, exchangeAccounts });
   const tool = tools.find((t) => t.name === body.name);
   if (!tool) return Response.json({ error: { message: `Outil inconnu : ${body.name}` } }, { status: 404 });
   const profession = await loadProfession(PROJECT_ROOT, isProfessionId(body.profession) ? body.profession : DEFAULT_PROFESSION);
@@ -66,6 +68,7 @@ export async function POST(req: Request) {
         callId: body.callId ?? "call",
         professionSkills: profession.skills,
         bytnodeKey,
+        exchangeAccounts,
       };
       try {
         const result = await tool.execute(body.args ?? {}, ctx);

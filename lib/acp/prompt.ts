@@ -1,4 +1,6 @@
 import type { SkillInfo } from "@/lib/tools/skills/skill";
+import type { ExchangeAccount } from "@/lib/domain/types";
+import { exchangePromptSection } from "@/lib/tools/exchange/prompt";
 
 /* La section « Environnement » du prompt d'un agent par abonnement.
 
@@ -13,6 +15,7 @@ export function buildAcpPrompt(
   skills: SkillInfo[],
   bytnode: { ok: boolean; count: number; message?: string } | undefined,
   product: string,
+  exchangeAccounts?: ExchangeAccount[],
 ): string {
   const lines = [
     "## Environnement",
@@ -37,6 +40,7 @@ export function buildAcpPrompt(
     "- Backtest : le moteur de backtest standard de BytNode-AI ; tu n'écris que `signal(df)` (et `stop_distance(df)`). Ne réécris jamais de moteur.",
     "- Memory : ta mémoire entre les conversations (add / list / search / remove).",
   );
+  lines.push(...exchangePromptSection(exchangeAccounts, "mcp"));
   if (skills.length > 0) {
     lines.push(
       "",

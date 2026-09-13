@@ -24,6 +24,8 @@ import { DEFAULT_MODEL, effortsOfConfig, eventsOfUpdate, modelConfigId, modesOfS
 --------------------------------------------------------------------------- */
 
 import type { WireEvent } from "./wire";
+import type { ExchangeAccount } from "@/lib/domain/types";
+import { isAlwaysAskTitle } from "@/lib/tools/names";
 export type { WireEvent };
 
 export type TurnInput = {
@@ -31,6 +33,8 @@ export type TurnInput = {
   agent: AcpAgentId;
   workspace: string;
   bytnodeKey: string;
+  /** Les comptes exchange que l'agent peut piloter, pour le serveur MCP. */
+  exchangeAccounts: ExchangeAccount[];
   /** Le prompt systeme de BytNode-AI (profil, profession, environnement). */
   system: string;
   text: string;
@@ -127,7 +131,7 @@ function toolsVersion(): string {
   return String(Math.floor(latest));
 }
 
-const mcpServersFor = (workspace: string, bytnodeKey: string): McpServer[] => {
+const mcpServersFor = (workspace: string, bytnodeKey: string, exchangeAccounts: ExchangeAccount[]): McpServer[] => {
   const servers: McpServer[] = [
     {
       name: "bytnode-ai",
@@ -145,6 +149,7 @@ const mcpServersFor = (workspace: string, bytnodeKey: string): McpServer[] => {
         { name: "BYTNODE_AI_WORKSPACE", value: workspace },
         { name: "BYTNODE_AI_PROJECT_ROOT", value: PROJECT_ROOT },
         { name: "BYTNODE_AI_BYTNODE_KEY", value: bytnodeKey.trim() },
+        { name: "BYTNODE_AI_EXCHANGE_ACCOUNTS", value: exchangeAccounts.length ? JSON.stringify(exchangeAccounts) : "" },
         { name: "BYTNODE_AI_TOOLS_VERSION", value: toolsVersion() },
       ],
     },
@@ -170,7 +175,7 @@ function sessionMeta(agent: AcpAgentId, input: TurnInput): Record<string, unknow
 
 async function ensureSession(input: TurnInput): Promise<{ l: Live; fresh: boolean; loaded: boolean }> {
   const current = live.get(input.conversationId);
-  const servers = mcpServersFor(input.workspace, input.bytnodeKey);
+  const servers = mcpServersFor(input.workspace, input.bytnodeKey, input.exchangeAccounts);
   const serversKey = JSON.stringify(servers);
   if (
     current &&
@@ -318,7 +323,9 @@ export async function runTurn(input: TurnInput, emit: (e: WireEvent) => void, si
       for (const e of eventsOfUpdate(n.update)) emit(e);
     },
     async (req) => {
-      const auto = input.permissionMode === "skip";
+      /* Un ordre, une fermeture, un transfert : on demande meme en
+         execution directe. */
+      const auto = input.permissionMode === "skip" && !isAlwaysAskTitle(req.toolCall.title ?? "");
       const id = req.toolCall.toolCallId;
       if (auto) {
         const optionId = pickPermissionOption(req.options, true, false);

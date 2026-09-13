@@ -71,7 +71,7 @@ async function runOne(task: Task, index: number, context: string | undefined, ct
   const title = task.title || `Tâche ${index + 1}`;
   ctx.emit({ type: "subagent", id, index, title, status: "running" });
   const sub: ToolContext = { ...ctx, depth: ctx.depth + 1, callId: id };
-  const tools = (await allTools({ platform: process.platform, bytnodeKey: ctx.bytnodeKey })).tools.filter((t) => t.name !== "Workflow");
+  const tools = (await allTools({ platform: process.platform, bytnodeKey: ctx.bytnodeKey, exchangeAccounts: ctx.exchangeAccounts })).tools.filter((t) => t.name !== "Workflow");
   const specs: ToolSpec[] = toToolSpecs(tools);
   const model = task.model?.trim() || ctx.llm.model;
   try {
