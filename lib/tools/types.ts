@@ -13,6 +13,7 @@
 --------------------------------------------------------------------------- */
 
 import type { AgentEvent } from "@/lib/agent/events";
+import type { ExchangeAccount } from "@/lib/domain/types";
 import type { Scope } from "./paths";
 
 export type JsonSchema = {
@@ -55,6 +56,8 @@ export type ToolContext = {
   professionSkills?: Array<{ name: string; description: string; path: string }>;
   /** La cle BytNode, pour qu'un sous-agent retrouve les memes outils. */
   bytnodeKey?: string;
+  /** Les comptes d'exchange que l'agent peut piloter (deja filtres). */
+  exchangeAccounts?: ExchangeAccount[];
 };
 
 export interface Tool<A = Record<string, unknown>> {
