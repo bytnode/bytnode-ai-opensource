@@ -89,3 +89,41 @@ export function stepsToMessages(m: Message): ProviderMessage[] {
   else flushText();
   return out;
 }
+
+/* ---------------------------------------------------------------------------
+   Elaguer les vieux resultats d'outils.
+
+   ⚠️ CE SONT LES SORTIES D'OUTILS QUI REMPLISSENT LA FENETRE. Un `Read` de
+   CSV, un `Bash` verbeux : 40 000 caracteres chacun, rejoues a chaque tour
+   jusqu'a la fin du fil. Comme Claude Code ou Codex, quand le fil pese, les
+   `keep` derniers resultats restent entiers — c'est le plan de travail du
+   moment — et les plus anciens sont reduits a leur debut plus un marqueur
+   qui dit au modele de relancer l'outil s'il lui manque le detail.
+
+   Ne touche que le rejeu : le fil affiche garde tout. Pur.
+--------------------------------------------------------------------------- */
+
+export type PruneOptions = {
+  /** Combien de resultats d'outils, les plus recents, rester entiers. */
+  keep: number;
+  /** Combien de caracteres garder en tete d'un resultat elague. */
+  head: number;
+};
+
+export function pruneToolOutputs(messages: ProviderMessage[], opts: PruneOptions): ProviderMessage[] {
+  const tools = messages.filter((m) => m.role === "tool").length;
+  const cutoff = tools - opts.keep;
+  if (cutoff <= 0) return messages;
+  let seen = 0;
+  return messages.map((m) => {
+    if (m.role !== "tool") return m;
+    const old = seen++ < cutoff;
+    if (!old || m.content.length <= opts.head) return m;
+    const more = m.content.length - opts.head;
+    return {
+      ...m,
+      content: `${m.content.slice(0, opts.head)}
+[… sortie élaguée pour libérer du contexte (${more} caractères de plus). Relance l'outil si tu as besoin du détail.]`,
+    };
+  });
+}

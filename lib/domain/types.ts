@@ -117,6 +117,10 @@ export type Message = {
       le fil l'affiche comme tel, et l'historique le rejoue comme un rappel
       de contexte plutot que comme une reponse. */
   compaction?: boolean;
+  /** Qui l'a declenchee : `user` (/compact), `auto` (jauge pleine en fin de
+      tour), `overflow` (le fournisseur a refuse le contexte). Absent sur
+      les fils anciens : vaut `user`. */
+  compactedBy?: "user" | "auto" | "overflow";
 };
 
 export type Conversation = {

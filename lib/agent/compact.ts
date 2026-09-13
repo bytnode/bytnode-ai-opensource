@@ -25,6 +25,37 @@ export function isCompactCommand(text: string): { instructions: string } | null 
 
 export const COMPACT_LABEL = "Conversation compactée";
 
+/** Qui a declenche la compaction : l'utilisateur (`/compact`), la jauge
+    pleine en fin de tour (`auto`), ou une erreur « contexte depasse » du
+    fournisseur (`overflow`). */
+export type CompactedBy = "user" | "auto" | "overflow";
+
+export function compactLabel(m: Pick<Message, "compactedBy">): string {
+  switch (m.compactedBy) {
+    case "auto":
+      return `${COMPACT_LABEL} automatiquement — fenêtre pleine`;
+    case "overflow":
+      return `${COMPACT_LABEL} automatiquement — contexte dépassé`;
+    default:
+      return COMPACT_LABEL;
+  }
+}
+
+/* ⚠️ « CONTEXTE DEPASSE » N'EST PAS UNE ERREUR TRANSITOIRE. Relancer la meme
+   requete echouerait pareil ; la seule issue est de compacter le fil puis de
+   rejouer. Chaque fournisseur le dit a sa maniere (OpenRouter, Anthropic,
+   OpenAI…) : on reconnait la famille de formulations, sur un 400/413 ou
+   sans statut. */
+const OVERFLOW_TEXT = /context.length|context.limit|too long|too many tokens|maximum.*tokens|tokens.*maximum|exceed.*context/i;
+
+export function isContextOverflow(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const e = error as { name?: unknown; status?: unknown; message?: unknown };
+  if (e.name === "AbortError") return false;
+  if (typeof e.status === "number" && e.status !== 400 && e.status !== 413) return false;
+  return typeof e.message === "string" && OVERFLOW_TEXT.test(e.message);
+}
+
 /** Ce qu'on demande a l'agent. Il connait le fil : inutile de le lui
     redonner, il suffit de lui dire quoi en garder. */
 export function buildCompactRequest(instructions: string): string {
@@ -58,8 +89,8 @@ export function transcriptOf(messages: Message[], max = MAX_TRANSCRIPT): string 
 
 /** Le message qui remplace le fil. Il porte `compaction` : le fil l'affiche
     comme un resume, et `history.ts` le rejoue comme un rappel de contexte. */
-export function compactionMessage(summary: string, id: string, createdAt: number): Message {
-  return { id, role: "assistant", content: summary, createdAt, compaction: true, steps: [{ type: "text", text: summary }] };
+export function compactionMessage(summary: string, id: string, createdAt: number, compactedBy: CompactedBy = "user"): Message {
+  return { id, role: "assistant", content: summary, createdAt, compaction: true, compactedBy, steps: [{ type: "text", text: summary }] };
 }
 
 /** Faut-il proposer le compactage ? (assez de matiere pour que ça serve) */

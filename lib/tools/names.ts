@@ -41,6 +41,11 @@ export function summarizeCall(name: string, args: Record<string, unknown>): stri
       return `${s("strategy")} sur ${s("data")}`;
     case "Memory":
       return `${s("action")}${s("text") ? ` · ${s("text").slice(0, 60)}` : s("query") ? ` · ${s("query")}` : ""}`;
+    case "TodoWrite": {
+      if (!Array.isArray(args.todos)) return "";
+      const done = (args.todos as Array<{ status?: unknown }>).filter((t) => t?.status === "completed").length;
+      return `${done}/${args.todos.length} faite${done > 1 ? "s" : ""}`;
+    }
     case "Workflow":
       return Array.isArray(args.tasks) ? `${(args.tasks as unknown[]).length} tâche${(args.tasks as unknown[]).length > 1 ? "s" : ""}` : "";
     default:

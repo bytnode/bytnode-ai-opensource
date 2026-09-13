@@ -1,4 +1,5 @@
-import type { ToolResult } from "@/lib/tools/types";
+import type { JsonSchema, ToolResult } from "@/lib/tools/types";
+import { validateArgs } from "@/lib/tools/validate";
 import type { Delta } from "@/lib/llm/sse";
 import type { AgentEvent } from "./events";
 import type { ProviderMessage } from "./history";
@@ -25,6 +26,10 @@ import { MAX_ATTEMPTS, RepetitionGuard, backoffDelay, isTransient } from "./resi
    d'outil, avec les memes arguments, trois fois de suite, n'est pas
    execute une quatrieme : l'agent recoit un refus qui lui dit de changer
    de voie.
+
+   ⚠️ LES ARGUMENTS SONT VERIFIES AVANT TOUT (voir `tools/validate.ts`). Un
+   appel mal forme n'est ni execute ni soumis a l'utilisateur : le modele
+   recoit la raison et corrige au tour suivant.
 --------------------------------------------------------------------------- */
 
 export type ToolSpec = { type: "function"; function: { name: string; description: string; parameters: unknown } };
@@ -128,8 +133,11 @@ export async function runAgentLoop(messages: ProviderMessage[], deps: LoopDeps):
       deps.emit({ type: "tool_call", id: call.id, name: call.name, args: call.args });
       let result: ToolResult;
       const enBoucle = guard.check(call);
+      const malForme = invalidArgs(deps.tools, call);
       if (enBoucle) {
         result = { ok: false, output: enBoucle };
+      } else if (malForme) {
+        result = { ok: false, output: malForme };
       } else if (deps.permission && deps.gated?.(call.name) && !(await deps.permission(call))) {
         result = { ok: false, output: "Refusé par l'utilisateur. N'insistez pas : proposez une autre approche ou demandez ce qu'il souhaite." };
       } else {
@@ -163,3 +171,15 @@ export async function runAgentLoop(messages: ProviderMessage[], deps: LoopDeps):
     }
   }
 }
+
+/** La phrase a rendre au modele si l'appel ne respecte pas le schema de
+    l'outil ; `null` sinon (ou si l'outil est inconnu : l'execution dira). */
+function invalidArgs(tools: ToolSpec[], call: ToolCall): string | null {
+  const spec = tools.find((t) => t.function.name === call.name)?.function.parameters;
+  if (!isSchema(spec)) return null;
+  const problem = validateArgs(spec, call.args);
+  return problem ? `Arguments invalides pour ${call.name} : ${problem} Corrige l'appel.` : null;
+}
+
+const isSchema = (v: unknown): v is JsonSchema =>
+  typeof v === "object" && v !== null && (v as { type?: unknown }).type === "object" && typeof (v as { properties?: unknown }).properties === "object";

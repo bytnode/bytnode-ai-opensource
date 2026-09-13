@@ -3,7 +3,7 @@
 import { memo, useState } from "react";
 import type { Message as MessageT } from "@/lib/domain/types";
 import type { PlanEntry } from "@/lib/agent/events";
-import { COMPACT_LABEL } from "@/lib/agent/compact";
+import { compactLabel } from "@/lib/agent/compact";
 import { Markdown } from "./markdown";
 import { ChevronDown } from "@/components/ui/icons";
 import { ToolStepView } from "./tool-step";
@@ -56,7 +56,7 @@ export const Message = memo(function Message({ message, streaming, onRetry, onAn
   if (message.compaction) {
     return (
       <article className="msg msg-compact">
-        <p className="msg-compact-head">{COMPACT_LABEL}</p>
+        <p className="msg-compact-head">{compactLabel(message)}</p>
         <div className="md">
           <Markdown text={message.content} />
         </div>

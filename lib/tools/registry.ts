@@ -12,6 +12,7 @@ import { makeWebSearchTool } from "./web/search";
 import { bytnodeTools, wrapBytnodeTools } from "@/lib/mcp/bytnode";
 import { webFetchTool } from "./web/fetch";
 import { skillTool } from "./skills/skill";
+import { todoTool } from "./todo";
 import { workflowTool } from "./agents/workflow";
 import { saveMarketDataTool } from "./finance/data";
 import { chartTool } from "./finance/chart";
@@ -43,6 +44,7 @@ export function baseTools(opts: { platform: string }): Tool[] {
     webFetchTool,
     workflowTool,
     skillTool,
+    todoTool,
     /* Les outils financiers : donnees en fichiers, graphiques, backtest
        standard, memoire. */
     saveMarketDataTool,

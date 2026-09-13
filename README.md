@@ -157,6 +157,14 @@ PowerShell, Monitor, WebSearch, WebFetch, Workflow, Skill — plus quatre outils
   courbe de capital. Soumis à permission (il exécute le Python de l'agent).
 - **Memory** : des notes datées dans `.bytnode-ai/memory.jsonl` du dossier de travail ; les 25
   dernières sont glissées dans le prompt de chaque tour (`/api/memory`).
+- **TodoWrite** : la liste de tâches de l'agent sur une demande longue, envoyée en entier à chaque
+  appel et affichée dans le fil (le même bloc « plan » que les agents par abonnement).
+
+Le contexte se gère tout seul (moteur OpenRouter) : au-delà de 70 % de la fenêtre du modèle, les
+anciens résultats d'outils sont élagués dans ce que le modèle reçoit (le fil affiché garde tout) ;
+à 90 % en fin de tour, le fil est compacté automatiquement ; si le fournisseur refuse le contexte,
+le fil est compacté puis votre message rejoué. Les arguments de chaque appel d'outil sont vérifiés
+contre son schéma avant toute exécution : un appel mal formé revient au modèle avec la raison.
 
 Les agents par abonnement reçoivent les mêmes quatre outils par un serveur MCP stdio local
 (`lib/mcp/finance-server.ts`, lancé avec `tsx`), passé dans `session/new` à côté de BytNode. Chaque outil est un fichier de

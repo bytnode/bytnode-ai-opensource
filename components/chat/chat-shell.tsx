@@ -163,6 +163,7 @@ export function ChatShell({ settings }: Props) {
       modelId,
       effort,
       mode: acp ? mode : null,
+      window: currentModel?.contextLength ?? null,
       onConversationCreated,
       onAllowRule,
     });

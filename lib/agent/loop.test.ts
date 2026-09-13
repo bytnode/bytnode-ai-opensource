@@ -84,4 +84,42 @@ describe("runAgentLoop", () => {
     expect(toolsSeen).toEqual([1, 1, undefined]);
     expect(out.text).toBe("fin");
   });
+
+  test("an ill-formed call is refused before permission and execution, with the reason", async () => {
+    let ran = false;
+    let asked = false;
+    const complete = scripted([
+      [{ text: "", toolCalls: [{ index: 0, id: "c1", name: "Read", args: '{"limit":"dix"}' }], finish: "tool_calls" }],
+      [{ text: "Je corrige.", finish: "stop" }],
+    ]);
+    const events: AgentEvent[] = [];
+    await runAgentLoop([{ role: "user", content: "x" }], {
+      complete: () => complete(),
+      execute: async () => {
+        ran = true;
+        return { ok: true, output: "" };
+      },
+      permission: async () => {
+        asked = true;
+        return true;
+      },
+      gated: () => true,
+      emit: (e) => events.push(e),
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "Read",
+            description: "",
+            parameters: { type: "object", properties: { file_path: { type: "string" }, limit: { type: "integer" } }, required: ["file_path"] },
+          },
+        },
+      ],
+      signal: new AbortController().signal,
+    });
+    expect(ran).toBe(false);
+    expect(asked).toBe(false);
+    const res = events.find((e) => e.type === "tool_result");
+    expect(res && res.type === "tool_result" && !res.ok && res.output).toBe("Arguments invalides pour Read : `file_path` requis (string). Corrige l'appel.");
+  });
 });
