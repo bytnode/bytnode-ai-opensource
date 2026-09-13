@@ -53,10 +53,56 @@ describe("SettingsRepository", () => {
       }),
     );
     const loaded = new SettingsRepository(store).load();
-    expect(loaded.version).toBe(2);
+    expect(loaded.version).toBe(3);
     expect(loaded.agents).toHaveLength(1);
     expect(loaded.agents[0]).toMatchObject({ id: LEGACY_AGENT_ID, name: "Nova", providerId: "anthropic", contextText: "ctx" });
     expect(loaded.activeAgentId).toBe(LEGACY_AGENT_ID);
+  });
+
+  test("v3 : les comptes exchange et les comptes par agent, avec des defauts pour la v2", () => {
+    const storage = new MemoryStorage();
+    storage.set(
+      "agentchat:settings",
+      JSON.stringify({
+        version: 2,
+        onboardingDone: true,
+        keys: { openrouter: "k", bytnode: "" },
+        agents: [{ id: "a1", name: "A", providerId: "openai" }],
+        activeAgentId: "a1",
+      }),
+    );
+    const s = new SettingsRepository(storage).load();
+    expect(s.version).toBe(3);
+    expect(s.keys.exchanges).toEqual([]);
+    expect(s.agents[0].exchangeAccountIds).toEqual([]);
+  });
+
+  test("v3 : garde les comptes exchange valides et ignore les entrees informes", () => {
+    const storage = new MemoryStorage();
+    storage.set(
+      "agentchat:settings",
+      JSON.stringify({
+        version: 3,
+        keys: {
+          openrouter: "k",
+          bytnode: "",
+          exchanges: [
+            { id: "x1", exchange: "binance", label: "Binance-main", apiKey: "a", secret: "b", testnet: false },
+            { id: "x2", exchange: "bybit", label: "Bybit-test", apiKey: "c", secret: "d", password: "p", testnet: true },
+            { label: "sans id" },
+            "n'importe quoi",
+          ],
+        },
+        agents: [{ id: "a1", name: "A", providerId: "openai", exchangeAccountIds: ["x1", 42, "x9"] }],
+        activeAgentId: "a1",
+      }),
+    );
+    const s = new SettingsRepository(storage).load();
+    expect(s.keys.exchanges).toEqual([
+      { id: "x1", exchange: "binance", label: "Binance-main", apiKey: "a", secret: "b", password: "", testnet: false },
+      { id: "x2", exchange: "bybit", label: "Bybit-test", apiKey: "c", secret: "d", password: "p", testnet: true },
+    ]);
+    expect(s.agents[0].exchangeAccountIds).toEqual(["x1", "x9"]);
   });
 
   test("keeps a v2 agents list and its active id", () => {
@@ -64,8 +110,8 @@ describe("SettingsRepository", () => {
     const s = {
       ...defaultSettings(),
       agents: [
-        { id: "a", name: "A", profession: "standard" as const, providerId: "openai", defaultModelId: null, defaultEffort: null, workspace: "", permissionMode: "ask" as const, scope: "workspace" as const, allowRules: [], contextText: "", contextFiles: [], createdAt: 1 },
-        { id: "b", name: "B", profession: "quantitatif" as const, providerId: "google", defaultModelId: null, defaultEffort: "high", workspace: "C:/proj", permissionMode: "skip" as const, scope: "disk" as const, allowRules: ["Write", "Bash(git status *)"], contextText: "", contextFiles: [], createdAt: 2 },
+        { id: "a", name: "A", profession: "standard" as const, providerId: "openai", defaultModelId: null, defaultEffort: null, workspace: "", permissionMode: "ask" as const, scope: "workspace" as const, allowRules: [], exchangeAccountIds: [], contextText: "", contextFiles: [], createdAt: 1 },
+        { id: "b", name: "B", profession: "quantitatif" as const, providerId: "google", defaultModelId: null, defaultEffort: "high", workspace: "C:/proj", permissionMode: "skip" as const, scope: "disk" as const, allowRules: ["Write", "Bash(git status *)"], exchangeAccountIds: [], contextText: "", contextFiles: [], createdAt: 2 },
       ],
       activeAgentId: "b",
     };

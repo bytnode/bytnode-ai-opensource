@@ -15,11 +15,30 @@ export type Profile = {
   bio: string;
 };
 
+/** Un compte sur un exchange centralise, pilote par ccxt. Les cles restent
+    dans le navigateur et voyagent par en-tete a chaque requete d'outil —
+    jamais sur le disque du serveur. */
+export type ExchangeAccount = {
+  id: string;
+  /** L'id ccxt : `binance`, `bybit`, `okx`… (voir `lib/tools/exchange/catalog.ts`). */
+  exchange: string;
+  /** Le nom que l'agent emploie pour designer ce compte : « Binance-main ». */
+  label: string;
+  apiKey: string;
+  secret: string;
+  /** La passphrase, pour les exchanges qui en demandent (OKX, KuCoin, Bitget). */
+  password: string;
+  /** Vrai : le compte est sur le reseau de test de l'exchange. */
+  testnet: boolean;
+};
+
 /** Une cle par service : OpenRouter pour dialoguer (et chercher sur le
-    web), BytNode pour les donnees de marche. */
+    web), BytNode pour les donnees de marche, et les comptes d'exchanges
+    sur lesquels les agents peuvent agir. */
 export type ApiKeys = {
   openrouter: string;
   bytnode: string;
+  exchanges: ExchangeAccount[];
 };
 
 /** Un fichier depose dans le contexte de l'agent : lu une fois cote client,
@@ -66,6 +85,9 @@ export type AgentConfig = {
       remplacent l'ancien « tout autoriser » — voir
       `lib/tools/permissions.ts`. */
   allowRules?: string[];
+  /** Les comptes d'exchange (ids de `ApiKeys.exchanges`) que cet agent peut
+      piloter. Vide : aucun outil exchange dans son prompt. */
+  exchangeAccountIds?: string[];
 };
 
 export type Theme = "dark" | "light";
@@ -77,7 +99,7 @@ export type Theme = "dark" | "light";
 export type AuthMode = "subscription" | "keys";
 
 export type Settings = {
-  version: 2;
+  version: 3;
   onboardingDone: boolean;
   theme: Theme;
   profile: Profile;

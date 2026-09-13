@@ -1,4 +1,4 @@
-import type { AgentConfig, Conversation, Profile, Settings } from "@/lib/domain/types";
+import type { AgentConfig, Conversation, ExchangeAccount, Profile, Settings } from "@/lib/domain/types";
 import { DEFAULT_PROFESSION, isProfessionId } from "@/lib/professions/catalog";
 import type { Storage } from "./storage";
 
@@ -14,12 +14,12 @@ export const LEGACY_AGENT_ID = "agent-1";
 
 export function defaultSettings(): Settings {
   return {
-    version: 2,
+    version: 3,
     onboardingDone: false,
     theme: "dark",
     profile: { firstName: "", lastName: "", email: "", bio: "" },
     authMode: "subscription",
-    keys: { openrouter: "", bytnode: "" },
+    keys: { openrouter: "", bytnode: "", exchanges: [] },
     agents: [],
     activeAgentId: null,
   };
@@ -40,6 +40,7 @@ export function blankAgent(): AgentConfig {
     permissionMode: "ask",
     scope: "workspace",
     allowRules: [],
+    exchangeAccountIds: [],
     contextText: "",
     contextFiles: [],
   };
@@ -67,10 +68,29 @@ function normalizeAgent(raw: unknown, fallbackId: string): AgentConfig | null {
     permissionMode: raw.permissionMode === "skip" ? "skip" : "ask",
     scope: raw.scope === "disk" ? "disk" : "workspace",
     allowRules: Array.isArray(raw.allowRules) ? raw.allowRules.filter((r): r is string => typeof r === "string") : [],
+    exchangeAccountIds: Array.isArray(raw.exchangeAccountIds) ? raw.exchangeAccountIds.filter((r): r is string => typeof r === "string") : [],
     contextText: str(raw.contextText),
     contextFiles: files
       .filter(isRecord)
       .map((f) => ({ id: str(f.id), name: str(f.name), size: typeof f.size === "number" ? f.size : 0, content: str(f.content) })),
+  };
+}
+
+/** Un compte exchange lisible : id et exchange presents. Les autres
+    entrees sont ecartees sans bruit. */
+function normalizeExchangeAccount(raw: unknown): ExchangeAccount | null {
+  if (!isRecord(raw)) return null;
+  const id = str(raw.id);
+  const exchange = str(raw.exchange);
+  if (!id || !exchange) return null;
+  return {
+    id,
+    exchange,
+    label: str(raw.label, exchange),
+    apiKey: str(raw.apiKey),
+    secret: str(raw.secret),
+    password: str(raw.password),
+    testnet: raw.testnet === true,
   };
 }
 
@@ -100,13 +120,17 @@ function normalizeSettings(raw: unknown): Settings {
   const activeAgentId = agents.some((a) => a.id === wanted) ? wanted : (agents[0]?.id ?? null);
 
   return {
-    version: 2,
+    version: 3,
     onboardingDone: raw.onboardingDone === true,
     theme: raw.theme === "light" ? "light" : "dark",
     profile: p,
     /* Un compte d'avant ce choix a une cle : il reste sur les cles. */
     authMode: raw.authMode === "subscription" || raw.authMode === "keys" ? raw.authMode : str(keys.openrouter) ? "keys" : "subscription",
-    keys: { openrouter: str(keys.openrouter), bytnode: str(keys.bytnode) },
+    keys: {
+      openrouter: str(keys.openrouter),
+      bytnode: str(keys.bytnode),
+      exchanges: Array.isArray(keys.exchanges) ? keys.exchanges.map(normalizeExchangeAccount).filter((a): a is ExchangeAccount => a !== null) : [],
+    },
     agents,
     activeAgentId,
   };
