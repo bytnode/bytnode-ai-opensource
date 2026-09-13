@@ -45,12 +45,29 @@ const ACP_LAUNCH: Record<AcpAgentId, () => Launch> = {
 /** Le CLI du produit lui-meme, pour la connexion au compte et son etat
     (les agents qui en ont un ; les autres passent par le protocole). */
 const CLI_LAUNCH: Partial<Record<AcpAgentId, () => Launch>> = {
-  claude: () => ({ command: process.execPath, args: [mod("@anthropic-ai", "claude-agent-sdk", "cli.js")] }),
+  claude: claudeCli,
   openai: () => ({ command: process.execPath, args: [mod("@openai", "codex", "bin", "codex.js")] }),
   gemini: () => ({ command: process.execPath, args: [mod("@google", "gemini-cli", "bundle", "gemini.js")] }),
   copilot: () => ({ command: process.execPath, args: [mod("@github", "copilot", "npm-loader.js")] }),
   grok: () => ({ command: process.execPath, args: [mod("@xai-official", "grok", "bin", "grok")] }),
 };
+
+/** Le CLI Claude Code du SDK Agent. Depuis le SDK 0.3, c'est un binaire
+    natif dans un paquet par plateforme (`@anthropic-ai/claude-agent-sdk-
+    win32-x64/claude.exe`…) ; le SDK 0.2 embarquait un `cli.js` a lancer
+    avec Node. On prend ce qui est present. */
+function claudeCli(): Launch {
+  const exe = process.platform === "win32" ? "claude.exe" : "claude";
+  const variants =
+    process.platform === "linux"
+      ? [`linux-${process.arch}`, `linux-${process.arch}-musl`]
+      : [`${process.platform}-${process.arch}`];
+  for (const v of variants) {
+    const bin = mod("@anthropic-ai", `claude-agent-sdk-${v}`, exe);
+    if (fs.existsSync(bin)) return { command: bin, args: [] };
+  }
+  return { command: process.execPath, args: [mod("@anthropic-ai", "claude-agent-sdk", "cli.js")] };
+}
 
 export const acpLaunch = (agent: AcpAgentId): Launch => ACP_LAUNCH[agent]();
 export const cliLaunch = (agent: AcpAgentId): Launch => {
@@ -134,9 +151,15 @@ export function openTerminal(command: string, args: string[], title: string, ext
   const full = [command, ...args];
   const env = subscriptionEnv(extraEnv);
   if (process.platform === "win32") {
-    const q = (s: string) => `"${s}"`;
-    /* `start` prend le premier argument entre guillemets comme titre. */
-    spawn("cmd.exe", ["/c", "start", q(title), "cmd.exe", "/k", full.map(q).join(" ")], { env, detached: true, stdio: "ignore", windowsHide: false }).unref();
+    /* ⚠️ LIGNE DE COMMANDE ECRITE A LA MAIN (`windowsVerbatimArguments`).
+       Laisser Node citer les arguments ajoute des `\"` que cmd.exe ne
+       comprend pas : `start` prenait `Claude\"` pour le programme a lancer.
+       `start` prend le premier argument entre guillemets comme titre ;
+       `cmd /k "…"` retire la premiere et la derniere paire de guillemets,
+       d'ou la paire externe autour de la commande complete. */
+    const q = (s: string) => `"${s.replace(/"/g, "")}"`;
+    const line = `/c start ${q(title)} cmd.exe /k "${full.map(q).join(" ")}"`;
+    spawn("cmd.exe", [line], { env, detached: true, stdio: "ignore", windowsHide: false, windowsVerbatimArguments: true }).unref();
     return;
   }
   const line = full.map((s) => `'${s.replace(/'/g, `'\\''`)}'`).join(" ");
