@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import type { Conversation, Message } from "@/lib/domain/types";
-import { ConversationsRepository } from "@/lib/storage/repositories";
+import { ConversationsRepository, StorageFullError } from "@/lib/storage/repositories";
 import { BrowserStorage } from "@/lib/storage/storage";
 import { createStore } from "./store";
 
@@ -10,13 +10,30 @@ const repo = new ConversationsRepository(new BrowserStorage());
 
 const store = createStore<Conversation[]>([], () => repo.list());
 
+/** Vrai quand la derniere sauvegarde n'a pas tenu dans le stockage : le fil
+    affiche ce qui s'est passe, mais un rechargement le perdrait. */
+const full = createStore<boolean>(false);
+
 export function useConversations(): Conversation[] {
   return useSyncExternalStore(store.subscribe, store.get, store.getServer);
 }
 
+export function useStorageFull(): boolean {
+  return useSyncExternalStore(full.subscribe, full.get, full.getServer);
+}
+
 export function saveConversation(conversation: Conversation) {
-  repo.save(conversation);
-  store.set(repo.list());
+  try {
+    repo.save(conversation);
+    full.set(false);
+    store.set(repo.list());
+  } catch (e) {
+    if (!(e instanceof StorageFullError)) throw e;
+    /* Pas ecrit, mais pas perdu a l'ecran : la liste en memoire prend la
+       conversation telle quelle, et le fil previent. */
+    full.set(true);
+    store.set((list) => [conversation, ...list.filter((c) => c.id !== conversation.id)].sort((a, b) => b.updatedAt - a.updatedAt));
+  }
 }
 
 export function renameConversation(id: string, title: string) {

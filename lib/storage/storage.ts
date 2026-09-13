@@ -6,7 +6,8 @@
 
 export interface Storage {
   get(key: string): string | null;
-  set(key: string, value: string): void;
+  /** Faux si la valeur n'a pas pu etre ecrite (quota, acces refuse). */
+  set(key: string, value: string): boolean;
   remove(key: string): void;
 }
 
@@ -17,6 +18,7 @@ export class MemoryStorage implements Storage {
   }
   set(key: string, value: string) {
     this.map.set(key, value);
+    return true;
   }
   remove(key: string) {
     this.map.delete(key);
@@ -36,8 +38,10 @@ export class BrowserStorage implements Storage {
   set(key: string, value: string) {
     try {
       window.localStorage.setItem(key, value);
+      return true;
     } catch {
-      /* quota ou acces refuse : la donnee ne survivra pas au rechargement */
+      /* quota ou acces refuse : a l'appelant de le dire et de s'adapter */
+      return false;
     }
   }
   remove(key: string) {

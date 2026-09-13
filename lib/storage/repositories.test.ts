@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { MemoryStorage } from "./storage";
-import { ConversationsRepository, LEGACY_AGENT_ID, SettingsRepository, defaultSettings } from "./repositories";
+import { ConversationsRepository, LEGACY_AGENT_ID, SettingsRepository, StorageFullError, defaultSettings } from "./repositories";
 import type { Conversation } from "@/lib/domain/types";
 
 const conv = (id: string, updatedAt: number): Conversation => ({
@@ -162,5 +162,41 @@ describe("ConversationsRepository", () => {
     void _drop;
     store.set("agentchat:conversations", JSON.stringify([v1]));
     expect(new ConversationsRepository(store).list()[0].agentId).toBe(LEGACY_AGENT_ID);
+  });
+});
+
+/* Un stockage a capacite bornee, comme le localStorage d'un navigateur. */
+class LimitedStorage extends MemoryStorage {
+  constructor(private limit: number) {
+    super();
+  }
+  set(key: string, value: string) {
+    if (value.length > this.limit) return false;
+    return super.set(key, value);
+  }
+}
+
+describe("ConversationsRepository : quota", () => {
+  const image = "data:image/png;base64," + "A".repeat(2000);
+  const withImage = (id: string): Conversation => ({
+    ...conv(id, 1),
+    messages: [{ id: "m1", role: "user", content: "vois", createdAt: 1, attachments: [{ name: "a.png", path: "entrees/a.png", kind: "image", size: 10, dataUrl: image }] }],
+  });
+
+  test("quand la place manque, les images inline partent (le chemin reste) et la sauvegarde passe", () => {
+    const storage = new LimitedStorage(1500);
+    const repo = new ConversationsRepository(storage);
+    repo.save(withImage("a"));
+    const saved = repo.list()[0];
+    expect(saved.messages[0].attachments?.[0].dataUrl).toBeUndefined();
+    expect(saved.messages[0].attachments?.[0].path).toBe("entrees/a.png");
+  });
+
+  test("si meme allege ca ne rentre pas : StorageFullError, et rien n'est ecrase", () => {
+    const storage = new LimitedStorage(200);
+    const repo = new ConversationsRepository(storage);
+    repo.save(conv("petit", 1));
+    expect(() => repo.save({ ...conv("gros", 2), title: "x".repeat(500) })).toThrow(StorageFullError);
+    expect(repo.list().map((c) => c.id)).toEqual(["petit"]);
   });
 });

@@ -25,6 +25,7 @@ $owner.Show()
 $owner.Activate()
 $d = New-Object System.Windows.Forms.FolderBrowserDialog
 $d.Description = "Dossier de travail de l'agent"
+if ($env:BYTNODE_AI_INITIAL_DIR) { $d.SelectedPath = $env:BYTNODE_AI_INITIAL_DIR }
 $d.ShowNewFolderButton = $true
 $d.UseDescriptionForTitle = $true
 if ($d.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }
@@ -32,12 +33,15 @@ $owner.Close()
 `;
 
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => ({}))) as { initial?: string };
-  const opts = { cwd: process.cwd(), timeoutMs: 5 * 60_000, signal: req.signal };
+  const body = (await req.json().catch(() => ({}))) as { initial?: unknown };
+  /* ⚠️ Le dossier initial passe par l'ENVIRONNEMENT, jamais dans le texte
+     du script : une chaine PowerShell entre guillemets interprete `$(…)`,
+     et ce chemin vient du navigateur. */
+  const initial = typeof body.initial === "string" && !/[\r\n\0]/.test(body.initial) ? body.initial.trim() : "";
+  const opts = { cwd: process.cwd(), timeoutMs: 5 * 60_000, signal: req.signal, env: initial ? { BYTNODE_AI_INITIAL_DIR: initial } : {} };
   let result;
   if (process.platform === "win32") {
-    const script = body.initial ? WINDOWS_SCRIPT.replace("$d.ShowNewFolderButton", `$d.SelectedPath = ${JSON.stringify(body.initial)}\n$d.ShowNewFolderButton`) : WINDOWS_SCRIPT;
-    result = await run(findPowerShell(), ["-NoProfile", "-NonInteractive", "-STA", "-Command", script], opts);
+    result = await run(findPowerShell(), ["-NoProfile", "-NonInteractive", "-STA", "-Command", WINDOWS_SCRIPT], opts);
   } else if (process.platform === "darwin") {
     result = await run("osascript", ["-e", 'POSIX path of (choose folder with prompt "Dossier de travail de l\'agent")'], opts);
   } else {

@@ -14,6 +14,7 @@ import {
   renameConversation,
   saveConversation,
   useConversations,
+  useStorageFull,
 } from "@/lib/state/conversations";
 import { updateSettings } from "@/lib/state/settings";
 import { clampWidth, updateUiPrefs, useUiPrefs } from "@/lib/state/ui";
@@ -146,6 +147,7 @@ export function ChatShell({ settings }: Props) {
      modes de permission sinon. Le choix vit dans la conversation (ou en
      attente avant le premier message) et devient le defaut de l'agent. */
   const acp = acpAgentOf(agent?.providerId);
+  const storageFull = useStorageFull();
   const agentAccounts = allowedAccounts(settings.keys.exchanges, agent?.exchangeAccountIds);
   const agentModes = acp ? (catalog.acpModes[acp.id] ?? null) : null;
   const modeOptions = acp ? (agentModes?.options ?? []) : PERMISSION_MODES;
@@ -421,6 +423,13 @@ export function ChatShell({ settings }: Props) {
           )}
         </header>
 
+        {storageFull && (
+          <div className="chat-notice">
+            <div className="notice">
+              <p>Le stockage du navigateur est plein : ce qui s&apos;affiche ne survivra pas à un rechargement. Supprimez d&apos;anciennes conversations, ou compactez celle-ci.</p>
+            </div>
+          </div>
+        )}
         {!hasKey && (
           <div className="chat-notice">
             <div className="notice">

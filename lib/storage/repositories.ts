@@ -154,6 +154,28 @@ export class SettingsRepository {
   }
 }
 
+/** Le stockage du navigateur est plein : la conversation n'a pas ete
+    ecrite, l'ancienne liste est intacte. */
+export class StorageFullError extends Error {
+  constructor() {
+    super("Le stockage du navigateur est plein.");
+    this.name = "StorageFullError";
+  }
+}
+
+/** La meme liste sans les images inline : elles restent sur le disque
+    (`path`), et le fil les recharge par `/api/files`. */
+function withoutInlineImages(list: Conversation[]): Conversation[] {
+  return list.map((c) => ({
+    ...c,
+    messages: c.messages.map((m) =>
+      m.attachments?.some((a) => a.dataUrl)
+        ? { ...m, attachments: m.attachments.map((a) => (a.dataUrl ? { ...a, dataUrl: undefined } : a)) }
+        : m,
+    ),
+  }));
+}
+
 export class ConversationsRepository {
   constructor(private storage: Storage) {}
 
@@ -180,7 +202,12 @@ export class ConversationsRepository {
     this.write(this.list().filter((c) => c.id !== id));
   }
 
+  /* ⚠️ UNE ECRITURE PEUT ECHOUER (quota). Alors on allege — les images
+     inline d'abord, ce sont elles qui pesent — et on reessaie ; si ca ne
+     rentre toujours pas, on le dit au lieu de perdre le tour en silence. */
   private write(list: Conversation[]) {
-    this.storage.set(CONVERSATIONS_KEY, JSON.stringify(list));
+    if (this.storage.set(CONVERSATIONS_KEY, JSON.stringify(list))) return;
+    if (this.storage.set(CONVERSATIONS_KEY, JSON.stringify(withoutInlineImages(list)))) return;
+    throw new StorageFullError();
   }
 }
