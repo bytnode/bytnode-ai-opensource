@@ -270,10 +270,11 @@ export function ChatShell({ settings }: Props) {
         : { ...s, agents: s.agents.map((a) => (a.id === agent.id ? agent : a)) },
     );
     if (isNew) {
+      /* Un agent cree, c'est une conversation qui commence : le panneau se
+         ferme sur le fil vide de ce nouvel agent, pas sur la liste. */
       setActive(null);
       setPendingModel(null);
-      /* Le premier agent cree : le panneau etait impose, il se ferme. */
-      if (settings.agents.length === 0) setEditing(null);
+      setEditing(null);
     }
   };
 

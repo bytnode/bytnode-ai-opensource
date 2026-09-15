@@ -112,7 +112,9 @@ export function SettingsPanel({ settings, target, onUpdate, onSaveAgent, onRemov
                 onBack={mustCreate ? undefined : () => setView({ kind: "list" })}
                 onSave={(agent) => {
                   onSaveAgent(agent, view.isNew);
-                  setView({ kind: "list" });
+                  /* Une creation ferme le panneau (voir chat-shell) ; une
+                     modification revient a la liste. */
+                  if (!view.isNew) setView({ kind: "list" });
                 }}
               />
             )}
