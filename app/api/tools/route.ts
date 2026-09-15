@@ -18,11 +18,15 @@ export async function GET(req: Request) {
   const workspace = await resolveWorkspace(agentId, url.searchParams.get("workspace") ?? "");
   const bytnodeKey = req.headers.get(BYTNODE_HEADER) ?? "";
   const exchangeAccounts = parseAccountsHeader(req.headers.get(EXCHANGE_HEADER));
+  const t0 = Date.now();
   const [{ tools, bytnode }, prof] = await Promise.all([
     allTools({ platform: process.platform, bytnodeKey, exchangeAccounts }),
     loadProfession(PROJECT_ROOT, profession),
   ]);
   const skills = await listSkills(workspace, PROJECT_ROOT, prof.skills);
+  /* Le premier appel connecte BytNode a distance (decouverte des outils,
+     puis en cache) : c'est lui qui peut prendre plusieurs secondes. */
+  console.info(`[tools] jeu d'outils prêt en ${((Date.now() - t0) / 1000).toFixed(1)} s (BytNode : ${bytnode.ok ? `${bytnode.count} outils` : (bytnode.message ?? "non")})`);
   return Response.json({
     workspace,
     tools: toToolSpecs(tools),

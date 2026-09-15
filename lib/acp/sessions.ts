@@ -137,6 +137,17 @@ function toolsVersion(): string {
   return String(Math.floor(latest));
 }
 
+/* Ou passe le temps du premier tour : chaque etape est ecrite dans le
+   terminal de `next dev` (`[acp] …`). Un premier message lent, c'est
+   presque toujours l'ouverture de session — Claude Code attend que
+   chaque serveur MCP reponde, dont BytNode a distance — ou la reflexion
+   du modele avant le premier mot. */
+const clock = () => {
+  const t0 = Date.now();
+  return () => `${((Date.now() - t0) / 1000).toFixed(1)} s`;
+};
+const trace = (msg: string) => console.info(`[acp] ${msg}`);
+
 const mcpServersFor = (workspace: string, bytnodeKey: string, exchangeAccounts: ExchangeAccount[]): McpServer[] => {
   const servers: McpServer[] = [
     {
@@ -197,7 +208,9 @@ async function ensureSession(input: TurnInput): Promise<{ l: Live; fresh: boolea
     live.delete(input.conversationId);
   }
   await prepareWorkspace(input.agent, input.workspace);
+  const opened = clock();
   const conn = await AcpConnection.open(input.agent, input.workspace);
+  trace(`${input.agent} : processus lancé en ${opened()}`);
   const meta = sessionMeta(input.agent, input);
   const l: Live = {
     agent: input.agent,
@@ -235,7 +248,9 @@ async function ensureSession(input: TurnInput): Promise<{ l: Live; fresh: boolea
   }
   if (!loaded) {
     try {
+      const created = clock();
       const res = await conn.newSession(input.workspace, servers, meta);
+      trace(`${input.agent} : session ouverte en ${created()} (serveurs MCP : ${servers.map((s) => s.name).join(", ") || "aucun"})`);
       l.sessionId = res.sessionId;
       l.configOptions = res.configOptions ?? [];
       l.legacyModel = legacyModelOf(res);
@@ -305,7 +320,9 @@ export async function runTurn(input: TurnInput, emit: (e: WireEvent) => void, si
   l.busy = true;
   l.lastUsed = Date.now();
   emit({ type: "session", sessionId: l.sessionId });
+  const configured = clock();
   await applyConfig(l, input);
+  trace(`${input.agent} : réglages appliqués en ${configured()} (modèle ${input.modelId ?? "par défaut"}, effort ${input.effort ?? "-"})`);
 
   let text = input.text;
   if (input.agent !== "claude" && (input.firstTurn || fresh)) {
@@ -322,10 +339,16 @@ export async function runTurn(input: TurnInput, emit: (e: WireEvent) => void, si
   };
   signal.addEventListener("abort", onAbort, { once: true });
 
+  const answered = clock();
+  let firstWord = false;
   l.conn.listen(
     l.sessionId,
     (n) => {
       if (l.loading) return;
+      if (!firstWord && n.update.sessionUpdate === "agent_message_chunk") {
+        firstWord = true;
+        trace(`${input.agent} : premier mot après ${answered()}`);
+      }
       for (const e of eventsOfUpdate(n.update)) emit(e);
     },
     async (req) => {

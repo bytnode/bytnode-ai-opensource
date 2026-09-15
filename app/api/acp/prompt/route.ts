@@ -51,7 +51,9 @@ export async function POST(req: Request) {
   const profession = await loadProfession(PROJECT_ROOT, isProfessionId(body.profession) ? body.profession : DEFAULT_PROFESSION);
   try {
     /* Celles de la profession, puis les votres (`skills/` du projet). */
+    const t0 = Date.now();
     await syncSkills(workspace, [...profession.skills, ...(await projectSkills(PROJECT_ROOT))]);
+    console.info(`[acp] compétences synchronisées en ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   } catch {
     /* un dossier en lecture seule n'empeche pas de parler */
   }
