@@ -32,6 +32,8 @@ type Overrides = Partial<Record<string, unknown>>;
 export function fakeExchange(over: Overrides = {}): Exchange {
   const market = (symbol: string, swap: boolean) => ({
     symbol,
+    id: symbol.replace("/", "").replace(":USDT", ""),
+    settle: swap ? "USDT" : undefined,
     base: "BTC",
     quote: "USDT",
     swap,
@@ -41,7 +43,7 @@ export function fakeExchange(over: Overrides = {}): Exchange {
   });
   const base = {
     id: "binance",
-    has: { fetchPositions: true, fetchPositionMode: true, fetchTickers: true, fetchFundingRate: true, fetchClosedOrders: true, cancelAllOrders: true, transfer: true },
+    has: { fetchPositions: true, fetchPositionMode: true, fetchTickers: true, fetchFundingRate: true, fetchClosedOrders: true, cancelAllOrders: true, transfer: true, setLeverage: true, setMarginMode: true },
     markets: {
       "BTC/USDT": market("BTC/USDT", false),
       "BTC/USDT:USDT": market("BTC/USDT:USDT", true),

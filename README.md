@@ -206,6 +206,23 @@ Un ordre, une fermeture de position ou un transfert **vous est toujours demandé
 
 Deux compétences communes guident les agents : `trading-execution` (solde → prix → taille → ordre → confirmation) et `trade-review` (revue de positions et d'historique, seuils d'alerte).
 
+Chaque exchange a ses limites, relevées sur sa documentation et sur ccxt ; l'application les connaît et refuse avant tout appel, avec la raison — l'agent les lit aussi dans son prompt :
+
+| Exchange | Futures | Transfert spot ↔ futures | Testnet | À savoir |
+| --- | --- | --- | --- | --- |
+| Binance | oui | oui | oui | Les clés du testnet spot (testnet.binance.vision) et du testnet futures (testnet.binancefuture.com) sont distinctes. |
+| Bybit | oui | non — compte unifié, un seul solde | oui | Clés testnet créées sur testnet.bybit.com. |
+| OKX | oui | non — compte de trading unifié | oui (démo) | Passphrase ; clés démo créées en mode démo. |
+| Coinbase | non | non | non | Advanced Trade ; le secret est la clé privée EC de la clé CDP (collée telle quelle, avec ou sans `\n`). |
+| Kraken | non | non | non | Kraken Futures a ses propres clés, hors de cette intégration. |
+| Bitget | oui | oui | non | Passphrase ; le compte doit être en one-way (vérifié avant chaque ordre). |
+| KuCoin | oui | oui | non | Passphrase ; une même clé (permissions Spot + Futures) sert les deux marchés. |
+| Gate.io | oui | oui | oui | Pas de mode de marge par l'API (levier seulement). |
+| HTX | oui | non | non | Pas de mode de marge par l'API. |
+| MEXC | lecture seule | oui | non | MEXC a fermé le passage d'ordres futures par API (25/07/2022). |
+
+L'horloge du PC est compensée : ccxt mesure l'écart avec chaque exchange à l'ouverture (et toutes les dix minutes) et date les requêtes à *son* heure — Binance et Bybit refusent une requête datée plus d'une seconde après la leur. Un refus de ce type est nommé comme tel (« horloge décalée d'environ N s »).
+
 ### Le « + » du bloc de saisie
 
 Trois actions, et ce qu'elles font vraiment :

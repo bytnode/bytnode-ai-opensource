@@ -101,11 +101,12 @@ describe("ExchangeTicker", () => {
     });
     mocked.mockResolvedValue(ex);
     const r = await tickerTool.execute({ symbol: "BTC/USDT", market: "futures", depth: 1 }, ctx());
-    expect(ex.fetchOrderBook).toHaveBeenCalledWith("BTC/USDT:USDT", 5);
+    expect(ex.fetchOrderBook).toHaveBeenCalledWith("BTC/USDT:USDT", 20);
     expect(r.output).toBe(["BTC/USDT:USDT · last 67000 · bid 66999 / ask 67001 · 24 h +1.2 % · volume 12345.6", "Funding 0.01 % · prochain 2023-11-14T22:13:20Z", "Carnet :", "  ask 67001 × 0.8", "  bid 66999 × 1.5"].join("\n"));
   });
   test("spot sans carnet : une ligne ; un carnet qui echoue n'empeche rien", async () => {
     const ex = fakeExchange({ fetchTicker: vi.fn(async () => ({ symbol: "BTC/USDT", last: 50000 })), fetchOrderBook: vi.fn(async () => { throw ccxtError("NetworkError"); }) });
+
     mocked.mockResolvedValue(ex);
     expect((await tickerTool.execute({ symbol: "BTC/USDT", depth: 0 }, ctx())).output).toBe("BTC/USDT · last 50000 · bid – / ask – · 24 h – · volume –");
     expect(ex.fetchOrderBook).not.toHaveBeenCalled();

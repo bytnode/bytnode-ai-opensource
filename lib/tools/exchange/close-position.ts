@@ -1,7 +1,7 @@
 import type { Order, Position } from "ccxt";
 import type { Tool } from "../types";
 import { fail, ok } from "../types";
-import { ACCOUNT_PROP, SYMBOL_PROP, attempt, hedgeModeError, resolve, symbolOn } from "./common";
+import { ACCOUNT_PROP, SYMBOL_PROP, attempt, futuresActionError, hedgeModeError, resolve, symbolOn } from "./common";
 import { n8, positionSize } from "./format";
 
 /* ClosePosition : ferme tout ou partie d'une position futures par un ordre
@@ -25,6 +25,8 @@ export const closePositionTool: Tool<Args> = {
   async execute(args, ctx) {
     const r = await resolve(args, ctx, "futures");
     if ("error" in r) return fail(r.error);
+    const readOnly = futuresActionError(r.account, "futures");
+    if (readOnly) return fail(readOnly);
     const s = symbolOn(r.ex, args.symbol, "futures");
     if ("error" in s) return fail(s.error);
     const symbol = s.symbol;

@@ -1,4 +1,4 @@
-import type { FundingRate, OrderBook, Ticker } from "ccxt";
+import type { Exchange, FundingRate, OrderBook, Ticker } from "ccxt";
 import type { Tool } from "../types";
 import { fail, ok } from "../types";
 import { ACCOUNT_PROP, MARKET_PROP, SYMBOL_PROP, attempt, resolve, symbolOn, type BaseArgs } from "./common";
@@ -35,14 +35,12 @@ export const tickerTool: Tool<Args> = {
       let book: OrderBook | undefined;
       let funding: FundingRate | undefined;
       if (depth > 0) {
-        try {
-          /* Certains exchanges n'acceptent que des profondeurs fixes (5, 10,
-             20…) : on demande au moins 5 et on garde `depth` niveaux. */
-          const raw = (await r.ex.fetchOrderBook(s.symbol, Math.max(5, depth))) as OrderBook;
-          book = { ...raw, bids: raw.bids.slice(0, depth), asks: raw.asks.slice(0, depth) };
-        } catch {
-          /* le prix suffit */
-        }
+        /* Chaque exchange a ses profondeurs : KuCoin n'accepte que 20 ou
+           100, Binance des paliers (5, 10, 20, 50, 100…), Bybit 1 a 200.
+           20 et 100 sont acceptes partout ; on garde `depth` niveaux. Si
+           meme cela est refuse, sans limite ; sinon, le prix suffit. */
+        const raw = await orderBook(r.ex, s.symbol, depth <= 20 ? 20 : 100);
+        if (raw) book = { ...raw, bids: raw.bids.slice(0, depth), asks: raw.asks.slice(0, depth) };
       }
       if (r.market === "futures" && r.ex.has["fetchFundingRate"]) {
         try {
@@ -60,3 +58,15 @@ export const tickerTool: Tool<Args> = {
     });
   },
 };
+
+async function orderBook(ex: Exchange, symbol: string, limit: number): Promise<OrderBook | undefined> {
+  try {
+    return (await ex.fetchOrderBook(symbol, limit)) as OrderBook;
+  } catch {
+    try {
+      return (await ex.fetchOrderBook(symbol)) as OrderBook;
+    } catch {
+      return undefined;
+    }
+  }
+}

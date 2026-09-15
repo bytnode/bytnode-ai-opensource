@@ -1,7 +1,7 @@
 import type { Order } from "ccxt";
 import type { Tool } from "../types";
 import { fail, ok } from "../types";
-import { ACCOUNT_PROP, MARKET_PROP, SYMBOL_PROP, attempt, hedgeModeError, resolve, symbolOn, type BaseArgs, type Resolved } from "./common";
+import { ACCOUNT_PROP, MARKET_PROP, SYMBOL_PROP, attempt, futuresActionError, hedgeModeError, resolve, symbolOn, triggerDirection, type BaseArgs, type Resolved } from "./common";
 import { n8 } from "./format";
 
 /* ---------------------------------------------------------------------------
@@ -60,6 +60,8 @@ export const placeOrderTool: Tool<Args> = {
   async execute(args, ctx) {
     const r = await resolve(args, ctx);
     if ("error" in r) return fail(r.error);
+    const readOnly = futuresActionError(r.account, r.market);
+    if (readOnly) return fail(readOnly);
     const s = symbolOn(r.ex, args.symbol, r.market);
     if ("error" in s) return fail(s.error);
     const symbol = s.symbol;
@@ -93,11 +95,14 @@ export const placeOrderTool: Tool<Args> = {
       if (args.type === "limit") {
         type = "limit";
         limit = price;
-      } else if (args.type === "stop") params.triggerPrice = stop;
-      else if (args.type === "stop_limit") {
-        type = "limit";
-        limit = price;
+      } else if (args.type === "stop" || args.type === "stop_limit") {
+        if (args.type === "stop_limit") {
+          type = "limit";
+          limit = price;
+        }
         params.triggerPrice = stop;
+        const direction = await triggerDirection(r.ex, symbol, r.market, stop as number);
+        if (direction) params.triggerDirection = direction;
       } else if (args.type === "take_profit") params.takeProfitPrice = stop;
 
       const o = (await r.ex.createOrder(symbol, type, args.side, amount, limit, params)) as Order;

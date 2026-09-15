@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { allowedAccounts, describeAccounts, encodeAccountsHeader, parseAccounts, parseAccountsHeader, pickAccount } from "./accounts";
+import { pemSecret } from "./accounts";
 import type { ExchangeAccount } from "@/lib/domain/types";
 
 const main: ExchangeAccount = { id: "x1", exchange: "binance", label: "Binance-main", apiKey: "a", secret: "b", password: "", testnet: false };
@@ -56,5 +57,29 @@ describe("allowedAccounts", () => {
 describe("describeAccounts", () => {
   test("une ligne pour le prompt", () => {
     expect(describeAccounts([main, test1])).toBe("Binance-main (binance, RÉEL), Bybit-test (bybit, testnet)");
+  });
+});
+
+describe("pemSecret", () => {
+  const body = "MHcCAQEEIExampleExampleExampleExampleExampleExampleExampleExampleoAoGCCqGSM49AwEHoUQDQgAEexampleexampleexampleexampleexampleexampleexampleexampleexampleexampleexampleexamplex";
+  test("une cle qui n'est pas un PEM est rendue telle quelle", () => {
+    expect(pemSecret("abc123")).toBe("abc123");
+  });
+  test("les \\n litteraux d'un JSON CDP redeviennent des sauts de ligne", () => {
+    const pasted = `-----BEGIN EC PRIVATE KEY-----\\n${body}\\n-----END EC PRIVATE KEY-----\\n`;
+    expect(pemSecret(pasted)).toBe(`-----BEGIN EC PRIVATE KEY-----\n${body.slice(0, 64)}\n${body.slice(64, 128)}\n${body.slice(128)}\n-----END EC PRIVATE KEY-----\n`);
+  });
+  test("un PEM aplati sur une ligne est recompose (corps replie a 64)", () => {
+    const flat = `-----BEGIN EC PRIVATE KEY----- ${body} -----END EC PRIVATE KEY-----`;
+    const out = pemSecret(flat);
+    const lines = out.split("\n");
+    expect(lines[0]).toBe("-----BEGIN EC PRIVATE KEY-----");
+    expect(lines.at(-2)).toBe("-----END EC PRIVATE KEY-----");
+    expect(lines.slice(1, -2).every((l) => l.length <= 64)).toBe(true);
+    expect(lines.slice(1, -2).join("")).toBe(body);
+  });
+  test("un PEM deja bien forme ne change pas", () => {
+    const good = `-----BEGIN EC PRIVATE KEY-----\n${body.slice(0, 64)}\n${body.slice(64, 128)}\n${body.slice(128)}\n-----END EC PRIVATE KEY-----\n`;
+    expect(pemSecret(good)).toBe(good);
   });
 });

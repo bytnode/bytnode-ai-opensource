@@ -76,5 +76,20 @@ export function pickAccount(accounts: ExchangeAccount[], name: string | undefine
 export const describeAccounts = (accounts: ExchangeAccount[]): string =>
   accounts.map((a) => `${a.label} (${a.exchange}, ${a.testnet ? "testnet" : "RÉEL"})`).join(", ");
 
+/** Le secret tel que ccxt l'attend. Une cle CDP Coinbase est une cle
+    privee EC en PEM : collee depuis le JSON, elle arrive avec des `\\n`
+    litteraux ; collee dans un champ d'une ligne, aplatie. On rend un PEM
+    propre (en-tete, corps replie a 64 colonnes, pied) ; tout autre secret
+    est rendu tel quel. Pur. */
+export function pemSecret(secret: string): string {
+  if (!secret.includes("-----BEGIN")) return secret;
+  const unescaped = secret.replace(/\\n/g, "\n").trim();
+  const m = unescaped.match(/^(-----BEGIN [A-Z ]+-----)\s*([\s\S]*?)\s*(-----END [A-Z ]+-----)$/);
+  if (!m) return unescaped;
+  const body = m[2].replace(/\s+/g, "");
+  const lines = body.match(/.{1,64}/g) ?? [];
+  return `${m[1]}\n${lines.join("\n")}\n${m[3]}\n`;
+}
+
 /** Un compte au moins engage de l'argent reel ? */
 export const anyLive = (accounts: ExchangeAccount[]): boolean => accounts.some((a) => !a.testnet);

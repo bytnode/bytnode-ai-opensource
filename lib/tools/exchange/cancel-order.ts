@@ -32,6 +32,13 @@ export const cancelOrderTool: Tool<Args> = {
     }
     return attempt(async () => {
       if (args.all && symbol) {
+        /* OKX et Coinbase n'ont pas d'annulation globale : les ordres
+           ouverts, un par un. */
+        if (!r.ex.has["cancelAllOrders"]) {
+          const open = (await r.ex.fetchOpenOrders(symbol)) as Array<{ id: string }>;
+          for (const o of open) await r.ex.cancelOrder(o.id, symbol);
+          return ok(open.length === 0 ? `Aucun ordre ouvert sur ${symbol}.` : `${open.length} ordre${open.length > 1 ? "s" : ""} annulé${open.length > 1 ? "s" : ""} sur ${symbol}.`);
+        }
         const res = await r.ex.cancelAllOrders(symbol);
         const n = Array.isArray(res) ? res.length : null;
         return ok(n === null ? `Tous les ordres ${symbol} annulés.` : `${n} ordre${n > 1 ? "s" : ""} annulé${n > 1 ? "s" : ""} sur ${symbol}.`);

@@ -5,7 +5,7 @@ import { cancelOrderTool } from "./cancel-order";
 import { closePositionTool } from "./close-position";
 import { transferTool } from "./transfer";
 import { setLeverageTool } from "./set-leverage";
-import { ccxtError, ctx, fakeExchange } from "./test-fixture";
+import { MAIN, TESTNET, ccxtError, ctx, fakeExchange } from "./test-fixture";
 
 vi.mock("./client", () => ({ clientFor: vi.fn() }));
 const mocked = vi.mocked(clientFor);
@@ -54,9 +54,52 @@ describe("PlaceOrder", () => {
     mocked.mockResolvedValue(ex);
     await placeOrderTool.execute({ symbol: "BTC/USDT", market: "futures", side: "sell", type: "stop_limit", amount: 0.01, price: 60000, stopPrice: 60500, reduceOnly: true, leverage: 3, timeInForce: "GTC" }, ctx());
     expect(ex.setLeverage).toHaveBeenCalledWith(3, "BTC/USDT:USDT");
-    expect(ex.createOrder).toHaveBeenCalledWith("BTC/USDT:USDT", "limit", "sell", 0.01, 60000, { triggerPrice: 60500, reduceOnly: true, timeInForce: "GTC" });
+    expect(ex.createOrder).toHaveBeenCalledWith("BTC/USDT:USDT", "limit", "sell", 0.01, 60000, { triggerPrice: 60500, triggerDirection: "ascending", reduceOnly: true, timeInForce: "GTC" });
     await placeOrderTool.execute({ symbol: "BTC/USDT", market: "futures", side: "sell", type: "take_profit", amount: 0.01, stopPrice: 70000 }, ctx());
     expect(ex.createOrder).toHaveBeenLastCalledWith("BTC/USDT:USDT", "market", "sell", 0.01, undefined, { takeProfitPrice: 70000 });
+  });
+  test("stop : la direction du declencheur vient du dernier prix ; jamais sur Bybit spot", async () => {
+    const ex = fakeExchange({ id: "bybit" });
+    mocked.mockResolvedValue(ex);
+    await placeOrderTool.execute({ symbol: "BTC/USDT", market: "futures", side: "sell", type: "stop", amount: 0.01, stopPrice: 45000 }, ctx([TESTNET]));
+    expect(ex.createOrder).toHaveBeenLastCalledWith("BTC/USDT:USDT", "market", "sell", 0.01, undefined, { triggerPrice: 45000, triggerDirection: "descending" });
+    await placeOrderTool.execute({ symbol: "BTC/USDT", side: "sell", type: "stop", amount: 0.01, stopPrice: 45000 }, ctx([TESTNET]));
+    expect(ex.createOrder).toHaveBeenLastCalledWith("BTC/USDT", "market", "sell", 0.01, undefined, { triggerPrice: 45000 });
+  });
+  test("spot seulement (Coinbase, Kraken) : futures refuses avant tout appel", async () => {
+    const ex = fakeExchange({ id: "kraken" });
+    mocked.mockResolvedValue(ex);
+    const kraken = { ...MAIN, exchange: "kraken", label: "Kraken-main" };
+    const r = await placeOrderTool.execute({ symbol: "BTC/USDT", market: "futures", side: "buy", type: "market", amount: 0.01 }, ctx([kraken]));
+    expect(r.ok).toBe(false);
+    expect(r.output).toMatch(/^Kraken : spot seulement/);
+    expect(ex.createOrder).not.toHaveBeenCalled();
+  });
+  test("MEXC : futures en lecture seule, l'ordre est refuse", async () => {
+    const ex = fakeExchange({ id: "mexc" });
+    mocked.mockResolvedValue(ex);
+    const mexc = { ...MAIN, exchange: "mexc", label: "MEXC-main" };
+    const r = await placeOrderTool.execute({ symbol: "BTC/USDT", market: "futures", side: "buy", type: "market", amount: 0.01 }, ctx([mexc]));
+    expect(r.ok).toBe(false);
+    expect(r.output).toMatch(/^MEXC : futures en lecture seule/);
+    expect(ex.createOrder).not.toHaveBeenCalled();
+    const spot = await placeOrderTool.execute({ symbol: "BTC/USDT", side: "buy", type: "market", amount: 0.01 }, ctx([mexc]));
+    expect(spot.ok).toBe(true);
+  });
+  test("hedge mode Bybit : lu sur les positions (positionIdx)", async () => {
+    const ex = fakeExchange({ id: "bybit", has: { fetchPositions: true }, fetchPositions: vi.fn(async () => [{ symbol: "BTC/USDT:USDT", info: { positionIdx: "1" } }]) });
+    mocked.mockResolvedValue(ex);
+    const r = await placeOrderTool.execute({ symbol: "BTC/USDT", market: "futures", side: "buy", type: "market", amount: 0.01 }, ctx([TESTNET]));
+    expect(r.output).toMatch(/hedge mode/);
+    expect(ex.createOrder).not.toHaveBeenCalled();
+  });
+  test("hedge mode Bitget : lu sur le compte (posMode)", async () => {
+    const ex = fakeExchange({ id: "bitget", has: { fetchPositions: true }, privateMixGetV2MixAccountAccount: vi.fn(async () => ({ data: { posMode: "hedge_mode" } })) });
+    mocked.mockResolvedValue(ex);
+    const bitget = { ...MAIN, exchange: "bitget", label: "Bitget-main" };
+    const r = await placeOrderTool.execute({ symbol: "BTC/USDT", market: "futures", side: "buy", type: "market", amount: 0.01 }, ctx([bitget]));
+    expect(r.output).toMatch(/hedge mode/);
+    expect(ex.createOrder).not.toHaveBeenCalled();
   });
   test("hedge mode : refus en futures", async () => {
     const ex = fakeExchange({ fetchPositionMode: vi.fn(async () => ({ hedged: true })) });
@@ -86,6 +129,15 @@ describe("CancelOrder", () => {
     mocked.mockResolvedValue(ex);
     const r = await cancelOrderTool.execute({ symbol: "BTC/USDT", all: true }, ctx());
     expect(ex.cancelAllOrders).toHaveBeenCalledWith("BTC/USDT");
+    expect(r.output).toBe("2 ordres annulés sur BTC/USDT.");
+  });
+  test("sans cancelAllOrders (OKX, Coinbase) : les ordres ouverts, un par un", async () => {
+    const ex = fakeExchange({ id: "okx", has: { cancelAllOrders: false }, fetchOpenOrders: vi.fn(async () => [{ id: "a" }, { id: "b" }]) });
+    mocked.mockResolvedValue(ex);
+    const r = await cancelOrderTool.execute({ symbol: "BTC/USDT", all: true }, ctx());
+    expect(ex.fetchOpenOrders).toHaveBeenCalledWith("BTC/USDT");
+    expect(ex.cancelOrder).toHaveBeenCalledTimes(2);
+    expect(ex.cancelOrder).toHaveBeenLastCalledWith("b", "BTC/USDT");
     expect(r.output).toBe("2 ordres annulés sur BTC/USDT.");
   });
   test("ni id ni all : refus", async () => {
@@ -130,6 +182,14 @@ describe("Transfer", () => {
     mocked.mockResolvedValue(fakeExchange());
     expect((await transferTool.execute({ asset: "USDT", amount: 1, from: "spot", to: "spot" }, ctx())).output).toBe("`from` et `to` doivent différer.");
   });
+  test("compte unifie (Bybit) : refus explique, sans appel", async () => {
+    const ex = fakeExchange({ id: "bybit" });
+    mocked.mockResolvedValue(ex);
+    const r = await transferTool.execute({ asset: "USDT", amount: 1, from: "spot", to: "futures" }, ctx([TESTNET]));
+    expect(r.ok).toBe(false);
+    expect(r.output).toMatch(/^Bybit : pas de transfert spot ↔ futures par l'API\. Compte unifié/);
+    expect(ex.transfer).not.toHaveBeenCalled();
+  });
   test("non pris en charge", async () => {
     mocked.mockResolvedValue(fakeExchange({ transfer: vi.fn(async () => { throw ccxtError("NotSupported", "x"); }) }));
     expect((await transferTool.execute({ asset: "USDT", amount: 1, from: "spot", to: "futures" }, ctx())).output).toBe("Cette opération n'est pas prise en charge par cet exchange. Exchange : x");
@@ -144,6 +204,15 @@ describe("SetLeverage", () => {
     expect(ex.setMarginMode).toHaveBeenCalledWith("isolated", "BTC/USDT:USDT");
     expect(ex.setLeverage).toHaveBeenCalledWith(5, "BTC/USDT:USDT");
     expect(r.output).toBe("BTC/USDT:USDT : levier ×5 (isolated).");
+  });
+  test("mode de marge sans setMarginMode (Gate, HTX) : refus explique", async () => {
+    const ex = fakeExchange({ id: "gate", has: { setMarginMode: false } });
+    mocked.mockResolvedValue(ex);
+    const gate = { ...MAIN, exchange: "gate", label: "Gate-main" };
+    const r = await setLeverageTool.execute({ symbol: "BTC/USDT", leverage: 5, marginMode: "isolated" }, ctx([gate]));
+    expect(r.ok).toBe(false);
+    expect(r.output).toBe("Gate.io ne permet pas de changer le mode de marge par l'API : réglez-le sur l'exchange, puis relance sans `marginMode`.");
+    expect(ex.setLeverage).not.toHaveBeenCalled();
   });
   test("« deja dans ce mode » n'est pas une erreur", async () => {
     const ex = fakeExchange({ setMarginMode: vi.fn(async () => { throw ccxtError("ExchangeError", 'binance {"code":-4046,"msg":"No need to change margin type."}'); }) });

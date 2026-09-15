@@ -129,7 +129,7 @@ function AddForm({ existing, onAdd, onCancel }: { existing: ExchangeAccount[]; o
 
   return (
     <div className="xch-form">
-      <Field id="xch-exchange" label="Exchange">
+      <Field id="xch-exchange" label="Exchange" hint={info?.note}>
         <Select
           id="xch-exchange"
           label="Exchanges"
@@ -137,7 +137,14 @@ function AddForm({ existing, onAdd, onCancel }: { existing: ExchangeAccount[]; o
           options={EXCHANGES.map((e) => ({
             value: e.id,
             label: e.label,
-            meta: [e.testnet ? "testnet disponible" : null, e.password ? "passphrase requise" : null].filter(Boolean).join(" · ") || undefined,
+            meta:
+              [
+                e.futures === "none" ? "spot seulement" : e.futures === "read" ? "futures en lecture seule" : "spot + futures",
+                e.testnet ? "testnet" : null,
+                e.password ? "passphrase" : null,
+              ]
+                .filter(Boolean)
+                .join(" · ") || undefined,
           }))}
           onChange={(id) => {
             setExchange(id);

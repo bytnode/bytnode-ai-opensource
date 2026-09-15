@@ -1,6 +1,7 @@
 import type { Tool } from "../types";
 import { fail, ok } from "../types";
-import { ACCOUNT_PROP, SYMBOL_PROP, attempt, resolve, symbolOn } from "./common";
+import { exchangeInfo } from "./catalog";
+import { ACCOUNT_PROP, SYMBOL_PROP, attempt, futuresActionError, resolve, symbolOn } from "./common";
 
 /* SetLeverage : le levier (et le mode de marge) d'une paire futures. Gated. */
 
@@ -27,8 +28,14 @@ export const setLeverageTool: Tool<Args> = {
   async execute(args, ctx) {
     const r = await resolve(args, ctx, "futures");
     if ("error" in r) return fail(r.error);
+    const readOnly = futuresActionError(r.account, "futures");
+    if (readOnly) return fail(readOnly);
     const s = symbolOn(r.ex, args.symbol, "futures");
     if ("error" in s) return fail(s.error);
+    if (args.marginMode && !r.ex.has["setMarginMode"]) {
+      const label = exchangeInfo(r.account.exchange)?.label ?? r.ex.id;
+      return fail(`${label} ne permet pas de changer le mode de marge par l'API : réglez-le sur l'exchange, puis relance sans \`marginMode\`.`);
+    }
     return attempt(async () => {
       if (args.marginMode) {
         try {

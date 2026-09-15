@@ -1,5 +1,6 @@
 import type { Tool } from "../types";
 import { fail, ok } from "../types";
+import { exchangeInfo } from "./catalog";
 import { ACCOUNT_PROP, attempt, resolve } from "./common";
 import { n8 } from "./format";
 
@@ -33,6 +34,8 @@ export const transferTool: Tool<Args> = {
     if (!(args.amount > 0)) return fail("`amount` doit être positif.");
     const r = await resolve(args, ctx, "spot");
     if ("error" in r) return fail(r.error);
+    const info = exchangeInfo(r.account.exchange);
+    if (info && !info.transfer) return fail(`${info.label} : pas de transfert spot ↔ futures par l'API. ${info.note ?? ""}`.trim());
     const asset = args.asset.trim().toUpperCase();
     return attempt(async () => {
       const t = (await r.ex.transfer(asset, args.amount, ccxtWallet(args.from), ccxtWallet(args.to))) as { id?: string };
