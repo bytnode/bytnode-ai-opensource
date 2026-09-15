@@ -394,6 +394,7 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
           /* Les comptes exchange que CET agent peut piloter : ils partent
              avec chaque requete d'outil, et decident des outils qu'il voit. */
           const exchangeAccounts = allowedAccounts(settings.keys.exchanges, agent.exchangeAccountIds);
+          const unattachedExchanges = settings.keys.exchanges.length - exchangeAccounts.length;
           const [toolset, memory] = await Promise.all([
             fetchToolset(
               agent.id,
@@ -415,6 +416,7 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
                 toolset.bytnode,
                 acp.product,
                 exchangeAccounts,
+                unattachedExchanges,
               ),
               memory,
             ]
@@ -511,6 +513,7 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
                 agent.scope ?? "workspace",
                 toolset.bytnode,
                 exchangeAccounts,
+                unattachedExchanges,
               ),
               memory,
             ]

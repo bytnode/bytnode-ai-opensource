@@ -6,8 +6,20 @@ import { exchangeInfo } from "./catalog";
    discipline qui va avec. Partagee : agents OpenRouter (`tools-prompt.ts`)
    et agents par abonnement (`lib/acp/prompt.ts`). Vide sans compte. Pur. */
 
-export function exchangePromptSection(accounts: ExchangeAccount[] | undefined, via: "natif" | "mcp"): string[] {
-  if (!accounts?.length) return [];
+export function exchangePromptSection(accounts: ExchangeAccount[] | undefined, via: "natif" | "mcp", unattached = 0): string[] {
+  /* Des comptes existent mais aucun n'est rattache a cet agent : qu'il le
+     dise, au lieu de chercher une cle dans le dossier ou d'ecrire un
+     script — il n'a AUCUN outil exchange, et c'est un choix de
+     l'utilisateur, reversible dans les reglages. */
+  if (!accounts?.length) {
+    if (unattached <= 0) return [];
+    return [
+      "",
+      "## Comptes exchange",
+      "",
+      `L'utilisateur a configuré ${unattached} compte${unattached > 1 ? "s" : ""} exchange dans BytNode-AI, mais aucun n'est rattaché à toi : tu n'as pas d'outil exchange dans cette conversation. S'il te demande de lire ou d'agir sur un compte, réponds qu'il doit cocher le compte dans Réglages → Agents → Modifier → « Comptes exchange », puis renvoyer son message. Ne cherche pas de clé dans le dossier de travail, n'écris pas de script d'accès à l'exchange, ne demande jamais de clé dans la conversation.`,
+    ];
+  }
   const lines = [
     "",
     "## Comptes exchange",

@@ -16,6 +16,8 @@ export function buildAcpPrompt(
   bytnode: { ok: boolean; count: number; message?: string } | undefined,
   product: string,
   exchangeAccounts?: ExchangeAccount[],
+  /** Les comptes exchange configures mais non rattaches a cet agent. */
+  unattachedExchanges = 0,
 ): string {
   const lines = [
     "## Environnement",
@@ -40,7 +42,7 @@ export function buildAcpPrompt(
     "- Backtest : le moteur de backtest standard de BytNode-AI ; tu n'écris que `signal(df)` (et `stop_distance(df)`). Ne réécris jamais de moteur.",
     "- Memory : ta mémoire entre les conversations (add / list / search / remove).",
   );
-  lines.push(...exchangePromptSection(exchangeAccounts, "mcp"));
+  lines.push(...exchangePromptSection(exchangeAccounts, "mcp", unattachedExchanges));
   if (skills.length > 0) {
     lines.push(
       "",

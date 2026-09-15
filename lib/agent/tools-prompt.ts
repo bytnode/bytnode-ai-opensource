@@ -13,6 +13,8 @@ export function buildToolsPrompt(
   scope: "workspace" | "disk" = "workspace",
   bytnode?: { ok: boolean; count: number; message?: string },
   exchangeAccounts?: ExchangeAccount[],
+  /** Les comptes exchange configures mais non rattaches a cet agent. */
+  unattachedExchanges = 0,
 ): string {
   const windows = platform.startsWith("win32");
   const perimeter =
@@ -55,7 +57,7 @@ export function buildToolsPrompt(
         : `Source de données : BytNode n'est pas disponible (${bytnode.message ?? "clé absente"}). Dis-le à l'utilisateur si une question demande des données de marché à jour ; la clé se règle dans la page Clés.`,
     );
   }
-  lines.push(...exchangePromptSection(exchangeAccounts, "natif"));
+  lines.push(...exchangePromptSection(exchangeAccounts, "natif", unattachedExchanges));
   if (skills.length > 0) {
     lines.push("", "Compétences disponibles (à charger avec l'outil Skill quand la tâche s'y prête) :");
     for (const s of skills) lines.push(`- ${s.name}${s.description ? ` — ${s.description}` : ""}`);
