@@ -25,6 +25,13 @@ export type ExchangeInfo = {
   futuresId?: string;
   /** Transfert interne spot ↔ futures possible par l'API. */
   transfer: boolean;
+  /** Le portefeuille ou arrivent les depots quand ce n'est PAS le compte de
+      trading (nom ccxt) : Bybit et OKX « funding », KuCoin « main », Binance
+      « funding » (P2P, Pay). Absent : les depots vont au spot. */
+  funding?: string;
+  /** Le compte de trading vu par ccxt pour un transfert depuis le Funding,
+      quand ce n'est pas simplement « spot » (Bybit : « unified »). */
+  tradingWallet?: string;
   /** Ce que l'utilisateur et l'agent doivent savoir, en une phrase. */
   note?: string;
 };
@@ -37,6 +44,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     password: false,
     futures: "full",
     transfer: true,
+    funding: "funding",
     note: "Testnet : les clés spot (testnet.binance.vision) et futures (testnet.binancefuture.com) sont distinctes — un compte testnet ne sert qu'un des deux marchés.",
   },
   {
@@ -46,7 +54,9 @@ export const EXCHANGES: ExchangeInfo[] = [
     password: false,
     futures: "full",
     transfer: false,
-    note: "Compte unifié : spot et futures partagent le même solde, il n'y a rien à transférer. Testnet : clés créées sur testnet.bybit.com.",
+    funding: "funding",
+    tradingWallet: "unified",
+    note: "Compte unifié : spot et futures partagent le même solde. Les dépôts arrivent dans le portefeuille Funding, à transférer vers le compte unifié pour trader. Testnet : clés créées sur testnet.bybit.com.",
   },
   {
     id: "okx",
@@ -55,7 +65,8 @@ export const EXCHANGES: ExchangeInfo[] = [
     password: true,
     futures: "full",
     transfer: false,
-    note: "Compte de trading unifié : spot et futures partagent le même solde. Testnet = démo OKX, avec des clés API créées en mode démo.",
+    funding: "funding",
+    note: "Compte de trading unifié : spot et futures partagent le même solde ; les dépôts arrivent dans le compte Funding, à transférer vers le trading. Testnet = démo OKX, avec des clés API créées en mode démo.",
   },
   {
     id: "coinbase",
@@ -92,7 +103,8 @@ export const EXCHANGES: ExchangeInfo[] = [
     futures: "full",
     futuresId: "kucoinfutures",
     transfer: true,
-    note: "Une même clé, avec les permissions Spot et Futures, sert les deux marchés.",
+    funding: "main",
+    note: "Une même clé, avec les permissions Spot et Futures, sert les deux marchés. Les dépôts arrivent sur le compte principal (main), à transférer vers le compte de trading.",
   },
   {
     id: "gate",

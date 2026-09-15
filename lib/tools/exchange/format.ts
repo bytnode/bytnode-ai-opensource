@@ -13,18 +13,29 @@ const iso = (ts: number | undefined | null) => (ts ? new Date(ts).toISOString().
 
 export type BalanceRow = { asset: string; free: number; used: number; total: number; usd?: number };
 
-export function formatBalance(label: string, market: string, rows: BalanceRow[]): string {
+const balanceLine = (r: BalanceRow) => {
+  const parts = [`libre ${n8(r.free)}`];
+  if (r.used > 0) parts.push(`bloqué ${n8(r.used)}`);
+  return `${r.asset} : ${n8(r.total)} (${parts.join(", ")})${r.usd !== undefined ? ` ≈ ${n8(r.usd)} USD` : ""}`;
+};
+
+/** Les soldes du compte de trading, puis, s'il existe et n'est pas vide,
+    le portefeuille Funding — avec ce qu'il faut faire pour s'en servir. */
+export function formatBalance(label: string, market: string, rows: BalanceRow[], funding?: BalanceRow[]): string {
   const head = `${label} · ${market}`;
-  if (rows.length === 0) return `${head}\nAucun solde.`;
-  const lines = rows.map((r) => {
-    const parts = [`libre ${n8(r.free)}`];
-    if (r.used > 0) parts.push(`bloqué ${n8(r.used)}`);
-    return `${r.asset} : ${n8(r.total)} (${parts.join(", ")})${r.usd !== undefined ? ` ≈ ${n8(r.usd)} USD` : ""}`;
-  });
-  const priced = rows.filter((r) => r.usd !== undefined);
-  const total = priced.reduce((s, r) => s + (r.usd ?? 0), 0);
-  const note = priced.length < rows.length ? " (hors actifs sans prix)" : "";
-  return [head, ...lines, `Total ≈ ${n8(total)} USD${note}`].join("\n");
+  const out: string[] = [head];
+  if (rows.length === 0) out.push("Aucun solde.");
+  else {
+    out.push(...rows.map(balanceLine));
+    const priced = rows.filter((r) => r.usd !== undefined);
+    const total = priced.reduce((s, r) => s + (r.usd ?? 0), 0);
+    out.push(`Total ≈ ${n8(total)} USD${priced.length < rows.length ? " (hors actifs sans prix)" : ""}`);
+  }
+  if (funding && funding.length > 0) {
+    out.push(`Portefeuille Funding (hors trading) : ${funding.map(balanceLine).join(" · ")}`);
+    out.push("Ces fonds ne sont pas utilisables pour trader tant qu'ils ne sont pas transférés vers le compte de trading (Transfer, from: funding).");
+  }
+  return out.join("\n");
 }
 
 /** La taille d'une position en actif de base. */

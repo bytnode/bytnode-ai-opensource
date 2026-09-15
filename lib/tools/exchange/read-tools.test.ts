@@ -14,7 +14,9 @@ beforeEach(() => mocked.mockReset());
 describe("ExchangeBalance", () => {
   test("soldes avec estimation USD : stable a 1, cote via fetchTickers, sans marche sans prix", async () => {
     const ex = fakeExchange({
-      fetchBalance: vi.fn(async () => ({ total: { USDT: 2000, BTC: 0.05, DOGE: 10, ZERO: 0 }, free: { USDT: 1500, BTC: 0.05, DOGE: 10 }, used: { USDT: 500, BTC: 0, DOGE: 0 } })),
+      fetchBalance: vi.fn(async (params?: { type?: string }) =>
+        params?.type ? { total: {}, free: {}, used: {} } : { total: { USDT: 2000, BTC: 0.05, DOGE: 10, ZERO: 0 }, free: { USDT: 1500, BTC: 0.05, DOGE: 10 }, used: { USDT: 500, BTC: 0, DOGE: 0 } },
+      ),
       fetchTickers: vi.fn(async () => ({ "BTC/USDT": { last: 67432 } })),
     });
     mocked.mockResolvedValue(ex);
@@ -24,6 +26,26 @@ describe("ExchangeBalance", () => {
       ["Binance-main · spot", "USDT : 2000 (libre 1500, bloqué 500) ≈ 2000 USD", "BTC : 0.05 (libre 0.05) ≈ 3371.6 USD", "DOGE : 10 (libre 10)", "Total ≈ 5371.6 USD (hors actifs sans prix)"].join("\n"),
     );
     expect(ex.fetchTickers).toHaveBeenCalledWith(["BTC/USDT"]);
+  });
+  test("portefeuille Funding (Bybit) : lu a part, et signale quand le trading est vide", async () => {
+    const ex = fakeExchange({
+      id: "bybit",
+      fetchBalance: vi.fn(async (params?: { type?: string }) =>
+        params?.type === "funding" ? { total: { USDC: 40 }, free: { USDC: 40 }, used: {} } : { total: {}, free: {}, used: {} },
+      ),
+    });
+    mocked.mockResolvedValue(ex);
+    const r = await balanceTool.execute({}, ctx([TESTNET]));
+    expect(ex.fetchBalance).toHaveBeenCalledWith({ type: "funding" });
+    expect(r.output).toBe(
+      ["Bybit-test · spot", "Aucun solde.", "Portefeuille Funding (hors trading) : USDC : 40 (libre 40) ≈ 40 USD", "Ces fonds ne sont pas utilisables pour trader tant qu'ils ne sont pas transférés vers le compte de trading (Transfer, from: funding)."].join("\n"),
+    );
+  });
+  test("sans portefeuille Funding distinct (Kraken) : un seul appel", async () => {
+    const ex = fakeExchange({ id: "kraken" });
+    mocked.mockResolvedValue(ex);
+    await balanceTool.execute({}, ctx([{ ...MAIN, exchange: "kraken", label: "Kraken-main" }]));
+    expect(ex.fetchBalance).toHaveBeenCalledTimes(1);
   });
   test("cle refusee : erreur en francais", async () => {
     mocked.mockResolvedValue(fakeExchange({ fetchBalance: vi.fn(async () => { throw ccxtError("AuthenticationError", "bad key"); }) }));

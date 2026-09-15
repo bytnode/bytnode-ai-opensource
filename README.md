@@ -221,6 +221,8 @@ Chaque exchange a ses limites, relevées sur sa documentation et sur ccxt ; l'ap
 | HTX | oui | non | non | Pas de mode de marge par l'API. |
 | MEXC | lecture seule | oui | non | MEXC a fermé le passage d'ordres futures par API (25/07/2022). |
 
+Sur Bybit, OKX, KuCoin (et le portefeuille Funding de Binance), un dépôt n'arrive pas sur le compte de trading mais dans un portefeuille séparé : « Tester » et `ExchangeBalance` lisent les deux et disent où sont les fonds ; `Transfer` avec `from: funding` les rapatrie vers le trading (compte unifié sur Bybit).
+
 L'horloge du PC est compensée : ccxt mesure l'écart avec chaque exchange à l'ouverture (et toutes les dix minutes) et date les requêtes à *son* heure — Binance et Bybit refusent une requête datée plus d'une seconde après la leur. Un refus de ce type est nommé comme tel (« horloge décalée d'environ N s »).
 
 ### Le « + » du bloc de saisie

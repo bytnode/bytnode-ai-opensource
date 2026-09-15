@@ -21,7 +21,7 @@ export function exchangePromptSection(accounts: ExchangeAccount[] | undefined, v
     "- Avant un ordre : ExchangeBalance puis ExchangeTicker sur l'exchange du compte ; calcule la quantité en actif de base, ou donne `quoteAmount`.",
     "- Un ordre, une fermeture ou un transfert demande TOUJOURS l'accord de l'utilisateur : attends le résultat, ne les enchaîne pas à l'aveugle. Après un ordre, confirme avec ExchangeOrders.",
     "- S'il y a plusieurs comptes, nomme toujours `account`. Précise `market: futures` pour les perpétuels.",
-    "- Aucun retrait vers une adresse externe n'existe ; Transfer ne bouge que spot ↔ futures d'un même compte.",
+    "- Aucun retrait vers une adresse externe n'existe ; Transfer ne bouge que les portefeuilles d'un même compte (spot ↔ futures, et funding → trading là où les dépôts arrivent dans un portefeuille Funding : Bybit, OKX, KuCoin, Binance). Si ExchangeBalance signale des fonds en Funding, propose ce transfert avant tout ordre.",
     "- Pour suivre une position dans le temps, ExchangeWatch avec une condition `until` ; il est borné à 10 minutes, relance-le si besoin.",
     "- Charge la compétence `trading-execution` avant de passer un ordre, `trade-review` pour analyser des positions ou un historique.",
   ];

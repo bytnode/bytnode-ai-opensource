@@ -182,6 +182,22 @@ describe("Transfer", () => {
     mocked.mockResolvedValue(fakeExchange());
     expect((await transferTool.execute({ asset: "USDT", amount: 1, from: "spot", to: "spot" }, ctx())).output).toBe("`from` et `to` doivent différer.");
   });
+  test("funding → trading sur Bybit : le compte unifie est la destination", async () => {
+    const ex = fakeExchange({ id: "bybit" });
+    mocked.mockResolvedValue(ex);
+    const r = await transferTool.execute({ asset: "USDC", amount: 40, from: "funding", to: "spot" }, ctx([TESTNET]));
+    expect(ex.transfer).toHaveBeenCalledWith("USDC", 40, "funding", "unified");
+    expect(r.output).toBe("Transfert #t1 : 40 USDC funding → spot.");
+  });
+  test("funding sur un exchange qui n'en a pas (Kraken) : refus", async () => {
+    const ex = fakeExchange({ id: "kraken" });
+    mocked.mockResolvedValue(ex);
+    const kraken = { ...MAIN, exchange: "kraken", label: "Kraken-main" };
+    const r = await transferTool.execute({ asset: "USDC", amount: 40, from: "funding", to: "spot" }, ctx([kraken]));
+    expect(r.ok).toBe(false);
+    expect(r.output).toBe("Kraken n'a pas de portefeuille Funding distinct : les dépôts arrivent directement sur le compte de trading.");
+    expect(ex.transfer).not.toHaveBeenCalled();
+  });
   test("compte unifie (Bybit) : refus explique, sans appel", async () => {
     const ex = fakeExchange({ id: "bybit" });
     mocked.mockResolvedValue(ex);
