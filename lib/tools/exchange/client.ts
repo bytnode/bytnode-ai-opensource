@@ -42,7 +42,15 @@ async function open(account: ExchangeAccount, market: Market): Promise<Exchange>
     secret: account.secret,
     ...(account.password ? { password: account.password } : {}),
     enableRateLimit: true,
-    options: { defaultType: market === "futures" ? "swap" : "spot" },
+    options: {
+      defaultType: market === "futures" ? "swap" : "spot",
+      /* L'horloge d'un PC derive de quelques secondes ; l'exchange refuse
+         une requete datee hors de sa fenetre (Bybit 10002, Binance -1021).
+         ccxt mesure l'ecart a `loadMarkets` et date les requetes a l'heure
+         de l'exchange ; la fenetre elargie absorbe la derive d'apres. */
+      adjustForTimeDifference: true,
+      recvWindow: 20_000,
+    },
   });
   if (account.testnet) ex.setSandboxMode(true);
   await ex.loadMarkets();

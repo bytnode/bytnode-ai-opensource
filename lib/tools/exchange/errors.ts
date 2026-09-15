@@ -30,9 +30,23 @@ const textOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export const isTransientExchangeError = (e: unknown) => TRANSIENT.has(nameOf(e));
 
+/* Un decalage d'horloge : l'exchange refuse une requete datee de plus de
+   `recv_window` avant son heure a lui. Ce n'est ni la cle ni le reseau —
+   c'est l'heure du PC — et le texte brut (10002, -1021) ne le dit pas. */
+const CLOCK = /recv_?window|timestamp for this request|server timestamp/i;
+const STAMPS = /req_timestamp\[(\d+)\].*?server_timestamp\[(\d+)\]/;
+
+function clockSkew(text: string): string | null {
+  if (!CLOCK.test(text)) return null;
+  const m = text.match(STAMPS);
+  const gap = m ? Math.round(Math.abs(Number(m[2]) - Number(m[1])) / 1000) : null;
+  return `L'horloge de cet ordinateur est décalée${gap !== null ? ` d'environ ${gap} s` : ""} par rapport à l'exchange : synchronisez l'heure du système.`;
+}
+
 export function describeExchangeError(e: unknown): string {
-  const head = MESSAGES[nameOf(e)] ?? "L'exchange a répondu par une erreur.";
-  return `${head} Exchange : ${textOf(e)}`;
+  const text = textOf(e);
+  const head = clockSkew(text) ?? MESSAGES[nameOf(e)] ?? "L'exchange a répondu par une erreur.";
+  return `${head} Exchange : ${text}`;
 }
 
 /** Un second essai, une seule fois, sur une erreur passagere. */

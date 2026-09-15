@@ -14,6 +14,15 @@ describe("describeExchangeError", () => {
     expect(describeExchangeError(err("RateLimitExceeded", "x"))).toBe("Trop de requêtes : l'exchange demande de ralentir. Exchange : x");
     expect(describeExchangeError(err("NetworkError", "x"))).toBe("L'exchange est injoignable. Exchange : x");
   });
+  test("un decalage d'horloge est nomme, avec l'ecart mesure", () => {
+    const bybit = err(
+      "InvalidNonce",
+      'bybit {"retCode":10002,"retMsg":"invalid request, please check your server timestamp or recv_window param: req_timestamp[1789501205653],server_timestamp[1789501211672],recv_window[5000]","result":{}}',
+    );
+    expect(describeExchangeError(bybit)).toMatch(/^L'horloge de cet ordinateur est décalée d'environ 6 s par rapport à l'exchange : synchronisez l'heure du système\. Exchange : bybit/);
+    const binance = err("BadRequest", 'binance {"code":-1021,"msg":"Timestamp for this request is outside of the recvWindow."}');
+    expect(describeExchangeError(binance)).toMatch(/^L'horloge de cet ordinateur est décalée par rapport à l'exchange : synchronisez l'heure du système\. Exchange : binance/);
+  });
   test("une erreur inconnue garde son texte", () => {
     expect(describeExchangeError(new Error("boom"))).toBe("L'exchange a répondu par une erreur. Exchange : boom");
     expect(describeExchangeError("texte")).toBe("L'exchange a répondu par une erreur. Exchange : texte");
