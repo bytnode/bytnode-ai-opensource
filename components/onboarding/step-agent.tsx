@@ -257,29 +257,31 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
                 </button>
               </div>
             </div>
-
-            <div className="field">
-              <span className="field-label">Comptes exchange</span>
-              {exchanges.length === 0 ? (
-                <p className="field-hint">Ajoutez un compte dans Authentification pour que cet agent puisse trader.</p>
-              ) : (
-                <>
-                  <p className="field-hint">Les comptes que cet agent peut lire et piloter. Aucun : pas d&apos;outil exchange.</p>
-                  <div className="xch-pick">
-                    {exchanges.map((a) => (
-                      <label key={a.id}>
-                        <input type="checkbox" checked={picked.includes(a.id)} onChange={() => toggleAccount(a.id)} />
-                        <span className={`xch-badge${a.testnet ? "" : " is-live"}`}>{a.testnet ? "TESTNET" : "RÉEL"}</span>
-                        <span>{a.label}</span>
-                        <span className="xch-exchange">{a.exchange}</span>
-                      </label>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
           </>
         )}
+
+        {/* Pour TOUS les agents, par cle ou par abonnement : les agents
+            par abonnement recoivent les memes outils par le serveur MCP. */}
+        <div className="field">
+          <span className="field-label">Comptes exchange</span>
+          {exchanges.length === 0 ? (
+            <p className="field-hint">Ajoutez un compte dans Réglages → Auth pour que cet agent puisse trader.</p>
+          ) : (
+            <>
+              <p className="field-hint">Les comptes que cet agent peut lire et piloter. Aucun : pas d&apos;outil exchange.</p>
+              <div className="xch-pick">
+                {exchanges.map((a) => (
+                  <label key={a.id}>
+                    <input type="checkbox" checked={picked.includes(a.id)} onChange={() => toggleAccount(a.id)} />
+                    <span className={`xch-badge${a.testnet ? "" : " is-live"}`}>{a.testnet ? "TESTNET" : "RÉEL"}</span>
+                    <span>{a.label}</span>
+                    <span className="xch-exchange">{a.exchange}</span>
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </>
   );
