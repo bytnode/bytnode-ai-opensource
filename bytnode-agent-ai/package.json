@@ -14,6 +14,8 @@
     "bin",
     ".next",
     "lib",
+    "!lib/**/*.test.ts",
+    "!lib/**/test-fixture.ts",
     "professions",
     "types",
     "tsconfig.json",
