@@ -111,31 +111,41 @@ export function Subscriptions({ error }: { error?: string }) {
                   {loading
                     ? "Lecture…"
                     : s.installing
-                      ? `Téléchargement de ${a.product}… (quelques minutes)`
+                      ? `Installation de ${a.product}… (quelques minutes)`
                       : !s.available
-                        ? (s.message ?? (a.distribution === "download" ? `${a.plan} · via ${a.product}, à télécharger` : "Indisponible sur cette installation."))
+                        ? (s.message ?? `${a.plan} · via ${a.product}, à installer`)
                         : s.loggedIn
-                        ? `Connecté${s.account ? ` · ${s.account}` : ""}`
-                        : s.connecting
-                          ? "Connexion en cours — terminez dans la fenêtre ouverte, puis revenez ici."
-                          : `${a.plan} · via ${a.product}`}
+                          ? `Connecté${s.account ? ` · ${s.account}` : ""}${s.source === "global" ? " · CLI détecté" : ""}`
+                          : s.connecting
+                            ? "Connexion en cours — terminez dans la fenêtre ouverte, puis revenez ici."
+                            : `${a.plan} · via ${a.product}${s.source === "global" ? " (détecté sur cette machine)" : ""}`}
                 </span>
               </div>
-              {!s.available && a.distribution === "download" ? (
+              {!s.available ? (
                 <button type="button" className="btn btn-sm" disabled={busy === a.id || s.installing || loading} onClick={() => void install(a.id)}>
                   {busy === a.id || s.installing ? <Spinner /> : null}
                   {s.installing ? "Installation" : "Installer"}
                 </button>
-              ) : s.loggedIn ? (
-                <button type="button" className="btn btn-sm btn-ghost" disabled={busy === a.id} onClick={() => void logout(a.id)}>
-                  {busy === a.id ? <Spinner /> : null}
-                  Se déconnecter
-                </button>
               ) : (
-                <button type="button" className="btn btn-sm btn-primary" disabled={!s.available || busy === a.id || loading} onClick={() => void login(a.id)}>
-                  {busy === a.id || s.connecting ? <Spinner /> : null}
-                  {s.connecting ? "En attente" : "Se connecter"}
-                </button>
+                <>
+                  {s.outdated ? (
+                    <button type="button" className="btn btn-sm" disabled={busy === a.id || s.installing} onClick={() => void install(a.id)}>
+                      {busy === a.id || s.installing ? <Spinner /> : null}
+                      {s.installing ? "Mise à jour" : "Mettre à jour"}
+                    </button>
+                  ) : null}
+                  {s.loggedIn ? (
+                    <button type="button" className="btn btn-sm btn-ghost" disabled={busy === a.id} onClick={() => void logout(a.id)}>
+                      {busy === a.id ? <Spinner /> : null}
+                      Se déconnecter
+                    </button>
+                  ) : (
+                    <button type="button" className="btn btn-sm btn-primary" disabled={busy === a.id || loading} onClick={() => void login(a.id)}>
+                      {busy === a.id || s.connecting ? <Spinner /> : null}
+                      {s.connecting ? "En attente" : "Se connecter"}
+                    </button>
+                  )}
+                </>
               )}
             </div>
           );
@@ -146,8 +156,8 @@ export function Subscriptions({ error }: { error?: string }) {
       )}
       <p className="field-hint">
         Se connecter ouvre le navigateur sur la page de l&apos;éditeur (et, pour Claude et GitHub Copilot, une fenêtre de terminal).
-        Aucune clé n&apos;est créée : c&apos;est votre abonnement qui est utilisé, avec ses limites habituelles. Mistral est
-        téléchargé au premier clic.
+        Aucune clé n&apos;est créée : c&apos;est votre abonnement qui est utilisé, avec ses limites habituelles. Les agents
+        absents s&apos;installent dans ~/.bytnode-ai/agents au premier clic ; un agent déjà installé sur la machine est reconnu.
       </p>
     </>
   );

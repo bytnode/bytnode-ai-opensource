@@ -1,61 +1,83 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import type { AcpAgentId } from "./agents";
+import { agentsDir } from "@/lib/server/data-dir";
+import { acpAgentInfo, type AcpAgentId } from "./agents";
+import { findOnPath } from "./detect";
+import { AGENT_SOURCES, type NpmSource } from "./packages";
 
 /* ---------------------------------------------------------------------------
    Ou sont les agents, et comment on les lance.
 
-   Deux familles. Les paquets npm sont des dependances de BytNode-AI : rien
-   a installer a part l'application — chacun embarque le vrai produit
-   (Claude Code dans le SDK Agent, Codex, Gemini CLI, Copilot CLI, Grok
-   Build en binaire par plateforme) et on le lance avec le Node qui fait
-   tourner ce serveur. Les binaires telecharges (Mistral Vibe)
-   vivent dans `~/.bytnode-ai/agents/<id>/`, poses par `install.ts`.
+   Rien n'est embarque : « Installer » pose chaque agent dans
+   `~/.bytnode-ai/agents/<id>/` (un `npm install` pour les paquets npm, une
+   archive du registre ACP pour Mistral — `install.ts`), et les agents qui
+   parlent ACP nativement sont aussi reconnus s'ils sont deja sur le PATH.
+   La table est dans `packages.ts` ; ici, la resolution sur cette machine.
 
    ⚠️ LES CLES API SONT RETIREES DE L'ENVIRONNEMENT. Une `ANTHROPIC_API_KEY`
    ou `OPENAI_API_KEY` presente ferait facturer l'API au lieu de
    l'abonnement — exactement ce que ce mode veut eviter.
 --------------------------------------------------------------------------- */
 
-const ROOT = process.cwd();
-const mod = (...p: string[]) => path.join(ROOT, "node_modules", ...p);
-
-export const AGENTS_HOME = path.join(os.homedir(), ".bytnode-ai", "agents");
-export const agentDir = (agent: AcpAgentId) => path.join(AGENTS_HOME, agent);
+export const agentDir = (agent: AcpAgentId) => path.join(agentsDir(), agent);
 
 type Launch = { command: string; args: string[] };
+export type Resolved = Launch & { source: "installed" | "global" };
 
-/** Le nom de l'executable d'un agent telecharge, par plateforme. */
-const DOWNLOADED_EXE: Partial<Record<AcpAgentId, string>> = {
-  mistral: process.platform === "win32" ? "vibe-acp.exe" : "vibe-acp",
+const installed = (agent: AcpAgentId, pkg: string, entry: string[]) => path.join(agentDir(agent), "node_modules", pkg, ...entry);
+
+/** Un CLI global trouve sur le PATH. Sous Windows, `npm i -g` pose un
+    `.cmd` que Node refuse de lancer sans shell (CVE-2024-27980) : on
+    remonte au script du paquet, a cote, et on le lance avec ce Node. */
+function fromGlobal(found: string, src: NpmSource, entry: string[], args: string[]): Launch | null {
+  if (process.platform !== "win32") return { command: found, args };
+  const script = path.join(path.dirname(found), "node_modules", src.pkg, ...entry);
+  return fs.existsSync(script) ? { command: process.execPath, args: [script, ...args] } : null;
+}
+
+/** Le lancement ACP de l'agent sur cette machine, ou null s'il est absent. */
+export function resolveAcp(agent: AcpAgentId): Resolved | null {
+  const src = AGENT_SOURCES[agent];
+  if (src.kind === "download") {
+    const exe = path.join(agentDir(agent), process.platform === "win32" ? `${src.exe}.exe` : src.exe);
+    return fs.existsSync(exe) ? { command: exe, args: [], source: "installed" } : null;
+  }
+  const local = installed(agent, src.pkg, src.acp.entry);
+  if (fs.existsSync(local)) return { command: process.execPath, args: [local, ...src.acp.args], source: "installed" };
+  if (src.global) {
+    const found = findOnPath(src.global.command);
+    const launch = found && fromGlobal(found, src, src.acp.entry, src.global.args);
+    if (launch) return { ...launch, source: "global" };
+  }
+  return null;
+}
+
+export const acpLaunch = (agent: AcpAgentId): Launch => {
+  const r = resolveAcp(agent);
+  if (!r) throw new Error(`${acpAgentInfo(agent).label} n'est pas installé.`);
+  return r;
 };
 
-/** Le lancement ACP (stdio) de chaque agent. */
-const ACP_LAUNCH: Record<AcpAgentId, () => Launch> = {
-  claude: () => ({ command: process.execPath, args: [mod("@zed-industries", "claude-agent-acp", "dist", "index.js")] }),
-  openai: () => ({ command: process.execPath, args: [mod("@agentclientprotocol", "codex-acp", "dist", "index.js")] }),
-  gemini: () => ({ command: process.execPath, args: [mod("@google", "gemini-cli", "bundle", "gemini.js"), "--acp"] }),
-  copilot: () => ({ command: process.execPath, args: [mod("@github", "copilot", "npm-loader.js"), "--acp"] }),
-  grok: () => ({ command: process.execPath, args: [mod("@xai-official", "grok", "bin", "grok"), "agent", "stdio"] }),
-  mistral: () => ({ command: path.join(agentDir("mistral"), DOWNLOADED_EXE.mistral!), args: [] }),
-};
+/** L'agent est-il lancable ? (installe par nous, ou trouve sur le PATH) */
+export const isInstalled = (agent: AcpAgentId): boolean => resolveAcp(agent) !== null;
 
-/** Le CLI du produit lui-meme, pour la connexion au compte et son etat
-    (les agents qui en ont un ; les autres passent par le protocole). */
-const CLI_LAUNCH: Partial<Record<AcpAgentId, () => Launch>> = {
-  claude: claudeCli,
-  openai: () => ({ command: process.execPath, args: [mod("@openai", "codex", "bin", "codex.js")] }),
-  gemini: () => ({ command: process.execPath, args: [mod("@google", "gemini-cli", "bundle", "gemini.js")] }),
-  copilot: () => ({ command: process.execPath, args: [mod("@github", "copilot", "npm-loader.js")] }),
-  grok: () => ({ command: process.execPath, args: [mod("@xai-official", "grok", "bin", "grok")] }),
-};
+/** La version du paquet installe par nous, ou null (absent, ou CLI global). */
+export function installedVersion(agent: AcpAgentId): string | null {
+  const src = AGENT_SOURCES[agent];
+  if (src.kind !== "npm") return null;
+  try {
+    const json = JSON.parse(fs.readFileSync(installed(agent, src.pkg, ["package.json"]), "utf8")) as { version?: string };
+    return json.version ?? null;
+  } catch {
+    return null;
+  }
+}
 
-/** Le CLI Claude Code du SDK Agent. Depuis le SDK 0.3, c'est un binaire
-    natif dans un paquet par plateforme (`@anthropic-ai/claude-agent-sdk-
-    win32-x64/claude.exe`…) ; le SDK 0.2 embarquait un `cli.js` a lancer
-    avec Node. On prend ce qui est present. */
+/** Le CLI Claude Code du SDK Agent, dans l'installation de l'adaptateur.
+    Depuis le SDK 0.3, c'est un binaire natif dans un paquet par plateforme
+    (`@anthropic-ai/claude-agent-sdk-win32-x64/claude.exe`…) ; le SDK 0.2
+    embarquait un `cli.js` a lancer avec Node. On prend ce qui est present. */
 function claudeCli(): Launch {
   const exe = process.platform === "win32" ? "claude.exe" : "claude";
   const variants =
@@ -63,24 +85,41 @@ function claudeCli(): Launch {
       ? [`linux-${process.arch}`, `linux-${process.arch}-musl`]
       : [`${process.platform}-${process.arch}`];
   for (const v of variants) {
-    const bin = mod("@anthropic-ai", `claude-agent-sdk-${v}`, exe);
+    const bin = installed("claude", `@anthropic-ai/claude-agent-sdk-${v}`, [exe]);
     if (fs.existsSync(bin)) return { command: bin, args: [] };
   }
-  return { command: process.execPath, args: [mod("@anthropic-ai", "claude-agent-sdk", "cli.js")] };
+  return { command: process.execPath, args: [installed("claude", "@anthropic-ai/claude-agent-sdk", ["cli.js"])] };
 }
 
-export const acpLaunch = (agent: AcpAgentId): Launch => ACP_LAUNCH[agent]();
-export const cliLaunch = (agent: AcpAgentId): Launch => {
-  const l = CLI_LAUNCH[agent];
-  if (!l) throw new Error(`${agent} n'a pas de ligne de commande propre.`);
-  return l();
-};
+/** Le CLI du produit lui-meme, pour la connexion au compte et son etat
+    (les agents qui en ont un ; les autres passent par le protocole). */
+export function cliLaunch(agent: AcpAgentId): Launch {
+  if (agent === "claude") return claudeCli();
+  const src = AGENT_SOURCES[agent];
+  if (src.kind !== "npm" || !src.cli) throw new Error(`${agent} n'a pas de ligne de commande propre.`);
+  const local = installed(agent, src.cli.pkg ?? src.pkg, src.cli.entry);
+  if (fs.existsSync(local)) return { command: process.execPath, args: [local] };
+  if (src.global) {
+    const found = findOnPath(src.global.command);
+    const launch = found && fromGlobal(found, src, src.cli.entry, []);
+    if (launch) return launch;
+  }
+  throw new Error(`${acpAgentInfo(agent).label} n'est pas installé.`);
+}
 
-/** L'adaptateur est-il present ? (le script ou l'executable existe) */
-export function isInstalled(agent: AcpAgentId): boolean {
-  const { command, args } = ACP_LAUNCH[agent]();
-  const entry = command === process.execPath ? args[0] : command;
-  return fs.existsSync(entry);
+/** Le `npm` livre avec le Node qui nous execute, lance par ce Node : pas
+    de dependance au PATH ni au `npm.cmd` de Windows. */
+export function npmCli(): Launch {
+  const nodeDir = path.dirname(process.execPath);
+  const candidates =
+    process.platform === "win32"
+      ? [path.join(nodeDir, "node_modules", "npm", "bin", "npm-cli.js")]
+      : [path.join(nodeDir, "..", "lib", "node_modules", "npm", "bin", "npm-cli.js")];
+  const onPath = findOnPath("npm");
+  if (onPath) candidates.push(path.join(path.dirname(onPath), "node_modules", "npm", "bin", "npm-cli.js"));
+  for (const c of candidates) if (fs.existsSync(c)) return { command: process.execPath, args: [c] };
+  if (onPath && process.platform !== "win32") return { command: onPath, args: [] };
+  throw new Error("npm introuvable à côté de Node : impossible d'installer l'agent.");
 }
 
 const STRIPPED_ENV = [
@@ -120,9 +159,9 @@ export function runCli(agent: AcpAgentId, args: string[], timeoutMs = 20_000): P
   return runCommand(command, [...base, ...args], timeoutMs);
 }
 
-export function runCommand(command: string, args: string[], timeoutMs = 20_000): Promise<{ code: number | null; out: string }> {
+export function runCommand(command: string, args: string[], timeoutMs = 20_000, opts: { cwd?: string } = {}): Promise<{ code: number | null; out: string }> {
   return new Promise((resolve) => {
-    const child = spawn(command, args, { env: subscriptionEnv(), stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    const child = spawn(command, args, { cwd: opts.cwd, env: subscriptionEnv(), stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
     let out = "";
     const take = (chunk: Buffer) => {
       out += chunk.toString("utf8");

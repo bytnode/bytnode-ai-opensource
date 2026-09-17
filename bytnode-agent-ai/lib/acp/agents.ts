@@ -26,10 +26,6 @@ export type AcpAgentInfo = {
   /** L'identifiant de fournisseur porte par un agent BytNode-AI
       (`AgentConfig.providerId`) et prefixe des ids de modeles. */
   providerId: string;
-  /** `npm` : embarque dans les dependances de BytNode-AI, present des
-      l'installation. `download` : un binaire par plateforme, telecharge
-      depuis le registre ACP au premier clic sur « Installer ». */
-  distribution: "npm" | "download";
   /** Les niveaux d'effort fixes quand l'agent ne les publie pas dans ses
       options de session (Claude Code : un reglage a la creation). */
   staticEfforts: string[];
@@ -44,7 +40,6 @@ export const ACP_AGENTS: AcpAgentInfo[] = [
     product: "Claude Code",
     plan: "Claude Pro ou Max",
     providerId: `${ACP_PREFIX}claude`,
-    distribution: "npm",
     staticEfforts: ["max", "xhigh", "high", "medium", "low"],
   },
   {
@@ -53,7 +48,6 @@ export const ACP_AGENTS: AcpAgentInfo[] = [
     product: "Codex",
     plan: "ChatGPT Plus, Pro ou Business",
     providerId: `${ACP_PREFIX}openai`,
-    distribution: "npm",
     staticEfforts: [],
   },
   {
@@ -62,7 +56,6 @@ export const ACP_AGENTS: AcpAgentInfo[] = [
     product: "Gemini CLI",
     plan: "Compte Google",
     providerId: `${ACP_PREFIX}gemini`,
-    distribution: "npm",
     staticEfforts: [],
   },
   {
@@ -71,7 +64,6 @@ export const ACP_AGENTS: AcpAgentInfo[] = [
     product: "Copilot CLI",
     plan: "GitHub Copilot Pro, Pro+ ou Business",
     providerId: `${ACP_PREFIX}copilot`,
-    distribution: "npm",
     staticEfforts: [],
   },
   {
@@ -80,7 +72,6 @@ export const ACP_AGENTS: AcpAgentInfo[] = [
     product: "Grok Build",
     plan: "SuperGrok ou X Premium",
     providerId: `${ACP_PREFIX}grok`,
-    distribution: "npm",
     staticEfforts: [],
   },
   {
@@ -89,7 +80,6 @@ export const ACP_AGENTS: AcpAgentInfo[] = [
     product: "Mistral Vibe",
     plan: "Compte Mistral AI Studio",
     providerId: `${ACP_PREFIX}mistral`,
-    distribution: "download",
     staticEfforts: [],
   },
 ];
@@ -117,10 +107,15 @@ export function acpModelId(modelId: string): string {
 /** L'etat d'un agent, tel que le serveur le rapporte. */
 export type AcpAuthStatus = {
   agent: AcpAgentId;
-  /** L'adaptateur est present sur cette installation (paquet npm ou
-      binaire telecharge). */
+  /** L'agent est lancable sur cette machine (pose par « Installer » dans
+      ~/.bytnode-ai/agents, ou CLI global trouve sur le PATH — `packages.ts`). */
   available: boolean;
-  /** Un telechargement est en cours. */
+  /** D'ou il vient, quand il est disponible. */
+  source?: "installed" | "global";
+  /** La version installee ne satisfait plus la plage attendue par cette
+      version de BytNode-AI : « Mettre a jour ». */
+  outdated?: boolean;
+  /** Une installation est en cours. */
   installing?: boolean;
   /** L'etat du compte n'est pas encore connu : la lecture se fait en
       arriere-plan (agents sans ligne de commande d'etat, qu'il faut

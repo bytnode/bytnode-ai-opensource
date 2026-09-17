@@ -14,12 +14,15 @@ import { installFailure, isInstalling } from "./install";
 import {
   acpLaunch,
   cliLaunch,
+  installedVersion,
   isInstalled,
   openTerminal,
+  resolveAcp,
   openTerminalWith,
   runCli,
   subscriptionEnv,
 } from "./launch";
+import { AGENT_SOURCES, satisfiesCaret } from "./packages";
 import { prepareWorkspace, scratchWorkspace } from "./prepare";
 
 /* ---------------------------------------------------------------------------
@@ -50,27 +53,24 @@ const isConnecting = (agent: AcpAgentId) => {
 };
 
 export async function authStatus(agent: AcpAgentId): Promise<AcpAuthStatus> {
-  const info = acpAgentInfo(agent);
-  if (!isInstalled(agent)) {
-    const failure = installFailure(agent);
-    return {
-      agent,
-      available: false,
-      installing: isInstalling(agent),
-      loggedIn: false,
-      message:
-        failure ??
-        (info.distribution === "download"
-          ? null
-          : "Adaptateur absent : relancez `npm install`."),
-    };
+  const resolved = resolveAcp(agent);
+  if (!resolved) {
+    return { agent, available: false, installing: isInstalling(agent), loggedIn: false, message: installFailure(agent) };
   }
   const base = await (STATUS[agent] ?? genericStatus(agent))();
-  const status: AcpAuthStatus = { agent, available: true, ...base };
+  const status: AcpAuthStatus = { agent, available: true, source: resolved.source, outdated: isOutdated(agent), ...base };
   if (status.loggedIn) connecting.delete(agent);
   else status.connecting = isConnecting(agent);
   return status;
 }
+
+/* La plage attendue a ete relevee par une version de BytNode-AI (nouveaux
+   modeles, efforts) : le bouton devient « Mettre a jour ». */
+const isOutdated = (agent: AcpAgentId): boolean => {
+  const src = AGENT_SOURCES[agent];
+  const got = installedVersion(agent);
+  return src.kind === "npm" && got !== null && !satisfiesCaret(got, src.version);
+};
 
 export const allAuthStatus = () =>
   Promise.all(ACP_AGENTS.map((a) => authStatus(a.id)));

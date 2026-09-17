@@ -94,12 +94,12 @@ export function ProviderPicker({ id, value, source, onChange }: Props) {
                   />
                 );
               }
-              const toInstall = !!st && !st.available && a.distribution === "download";
+              const toInstall = !!st && !st.available;
               const waiting = busy === a.id || !!st?.connecting || !!st?.installing;
               const meta = loading
                 ? "Lecture…"
                 : st?.installing
-                  ? `Téléchargement de ${a.product}…`
+                  ? `Installation de ${a.product}…`
                   : st?.connecting
                     ? "Connexion en cours — terminez dans la fenêtre ouverte."
                     : st && !st.available && !toInstall
