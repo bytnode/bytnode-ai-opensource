@@ -117,7 +117,9 @@ export function npmCli(): Launch {
       : [path.join(nodeDir, "..", "lib", "node_modules", "npm", "bin", "npm-cli.js")];
   const onPath = findOnPath("npm");
   if (onPath) candidates.push(path.join(path.dirname(onPath), "node_modules", "npm", "bin", "npm-cli.js"));
-  for (const c of candidates) if (fs.existsSync(c)) return { command: process.execPath, args: [c] };
+  /* `turbopackIgnore` : sans lui, Turbopack croit devoir tracer tout le
+     projet a cause de ce test de chemin dynamique. */
+  for (const c of candidates) if (fs.existsSync(/*turbopackIgnore: true*/ c)) return { command: process.execPath, args: [c] };
   if (onPath && process.platform !== "win32") return { command: onPath, args: [] };
   throw new Error("npm introuvable à côté de Node : impossible d'installer l'agent.");
 }

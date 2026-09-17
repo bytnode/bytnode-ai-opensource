@@ -17,6 +17,47 @@ if (build.status !== 0) {
 }
 fs.rmSync(path.join(root, ".next", "cache"), { recursive: true, force: true });
 
+/* ⚠️ LES PAQUETS EXTERNES SONT LIES PAR UN ALIAS HACHE. Turbopack compile
+   `require("fast-glob")` (serverExternalPackages) en
+   `require("fast-glob-461a4a069d284914")`, et resout cet alias par un lien
+   symbolique `.next/node_modules/fast-glob-461a…` → le node_modules ABSOLU
+   de la machine de build. npm ne livre ni liens ni node_modules : chez
+   l'utilisateur, « Cannot find module 'fast-glob-461a…' ». On remet le vrai
+   nom dans les chunks — Node le resout depuis le node_modules de
+   l'utilisateur, ou le paquet est une dependance — et on retire les liens. */
+function walk(dir: string): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]));
+}
+function unaliasExternals(): number {
+  const links = path.join(root, ".next", "node_modules");
+  if (!fs.existsSync(links)) return 0;
+  const aliases: [string, string][] = [];
+  const visit = (dir: string, scope: string) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (e.name.startsWith("@")) visit(path.join(dir, e.name), `${e.name}/`);
+      else {
+        const m = e.name.match(/^(.+)-[0-9a-f]{16}$/);
+        if (m) aliases.push([scope + e.name, scope + m[1]]);
+      }
+    }
+  };
+  visit(links, "");
+  let rewritten = 0;
+  for (const f of walk(path.join(root, ".next", "server")).filter((f) => /\.(js|json)$/.test(f))) {
+    let s = fs.readFileSync(f, "utf8");
+    const before = s;
+    for (const [alias, real] of aliases) s = s.split(alias).join(real);
+    if (s !== before) {
+      fs.writeFileSync(f, s);
+      rewritten++;
+    }
+  }
+  fs.rmSync(links, { recursive: true, force: true });
+  console.log(`prepack : ${aliases.length} alias externes remis en clair dans ${rewritten} fichiers (${aliases.map(([, r]) => r).join(", ")}).`);
+  return rewritten;
+}
+unaliasExternals();
+
 const npm = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { cwd: root, encoding: "utf8", shell: process.platform === "win32" });
 if (npm.status !== 0) {
   console.error("prepack : npm pack --dry-run a échoué.\n" + npm.stderr);
