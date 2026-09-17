@@ -23,7 +23,7 @@ export async function GET(req: Request) {
     allTools({ platform: process.platform, bytnodeKey, exchangeAccounts }),
     loadProfession(PROJECT_ROOT, profession),
   ]);
-  const skills = await listSkills(workspace, PROJECT_ROOT, prof.skills);
+  const skills = await listSkills(workspace, prof.skills);
   /* Le premier appel connecte BytNode a distance (decouverte des outils,
      puis en cache) : c'est lui qui peut prendre plusieurs secondes. */
   console.info(`[tools] jeu d'outils prêt en ${((Date.now() - t0) / 1000).toFixed(1)} s (BytNode : ${bytnode.ok ? `${bytnode.count} outils` : (bytnode.message ?? "non")})`);

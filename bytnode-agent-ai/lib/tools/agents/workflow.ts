@@ -54,7 +54,7 @@ async function runOne(task: SubagentTask, index: number, context: string | undef
       loadProfession(ctx.projectRoot, profession),
       allTools({ platform: process.platform, bytnodeKey: ctx.bytnodeKey, exchangeAccounts: ctx.exchangeAccounts }),
     ]);
-    const skills = await listSkills(ctx.workspace, ctx.projectRoot, prof.skills);
+    const skills = await listSkills(ctx.workspace, prof.skills);
     const tools = every.filter((t) => allowedForSubagent(t.name));
     const specs: ToolSpec[] = toToolSpecs(tools);
     const sub: ToolContext = { ...ctx, depth: ctx.depth + 1, callId: id, professionSkills: prof.skills };

@@ -3,11 +3,12 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { BYTNODE_MCP_URL, bytnodeTools } from "@/lib/mcp/bytnode";
+import { dataDir } from "@/lib/server/data-dir";
 import { PROJECT_ROOT } from "@/lib/server/workspace";
 import { loadProfession } from "@/lib/professions/load";
 import { PROFESSIONS, type ProfessionId } from "@/lib/professions/catalog";
 import { subagentFrame } from "@/lib/tools/agents/subagent";
-import { projectSkills, type SkillInfo } from "@/lib/tools/skills/skill";
+import { userSkills, type SkillInfo } from "@/lib/tools/skills/skill";
 import { acpAgentInfo, type AcpAgentId } from "./agents";
 import { AcpConnection } from "./connection";
 import { prepareWorkspace } from "./prepare";
@@ -198,6 +199,7 @@ const mcpServersFor = (workspace: string, bytnodeKey: string, exchangeAccounts: 
       env: [
         { name: "BYTNODE_AI_WORKSPACE", value: workspace },
         { name: "BYTNODE_AI_PROJECT_ROOT", value: PROJECT_ROOT },
+        { name: "BYTNODE_AI_HOME", value: dataDir() },
         { name: "BYTNODE_AI_BYTNODE_KEY", value: bytnodeKey.trim() },
         { name: "BYTNODE_AI_EXCHANGE_ACCOUNTS", value: exchangeAccounts.length ? JSON.stringify(exchangeAccounts) : "" },
         { name: "BYTNODE_AI_TOOLS_VERSION", value: toolsVersion() },
@@ -475,7 +477,7 @@ const SUBAGENT_TIMEOUT = 10 * 60_000;
    prochain tour. */
 async function subagentSkillSet(): Promise<SkillInfo[]> {
   const all = await Promise.all(PROFESSIONS.map((p) => loadProfession(PROJECT_ROOT, p.id)));
-  return [...all.flatMap((p) => p.skills), ...(await projectSkills(PROJECT_ROOT))];
+  return [...all.flatMap((p) => p.skills), ...(await userSkills())];
 }
 
 /* Trois sous-agents demarrent ensemble et deposent la meme liste dans le
@@ -492,7 +494,7 @@ export async function runSubagent(input: SubagentInput, signal: AbortSignal): Pr
   const [prof, skillSet, project, bytnode] = await Promise.all([
     loadProfession(PROJECT_ROOT, input.profession),
     subagentSkillSet(),
-    projectSkills(PROJECT_ROOT),
+    userSkills(),
     input.bytnodeKey.trim()
       ? bytnodeTools(input.bytnodeKey).then(
           (infos) => ({ ok: true, count: infos.length }),

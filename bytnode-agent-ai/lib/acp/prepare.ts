@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { PROJECT_ROOT } from "@/lib/server/workspace";
+import { workspacesDir } from "@/lib/server/data-dir";
 import type { AcpAgentId } from "./agents";
 
 /* Preparer un dossier de travail pour un agent par abonnement.
@@ -33,7 +33,7 @@ export async function prepareWorkspace(agent: AcpAgentId, cwd: string): Promise<
 /** Un dossier neutre, a nous, pour les sessions jetables (decouverte des
     modeles). */
 export async function scratchWorkspace(): Promise<string> {
-  const dir = path.join(PROJECT_ROOT, "workspaces", "_acp");
+  const dir = path.join(workspacesDir(), "_acp");
   await fs.mkdir(dir, { recursive: true });
   return dir;
 }

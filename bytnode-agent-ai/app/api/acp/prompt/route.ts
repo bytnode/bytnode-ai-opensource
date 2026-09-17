@@ -5,7 +5,7 @@ import { syncSkills } from "@/lib/acp/skills-sync";
 import { loadProfession } from "@/lib/professions/load";
 import { DEFAULT_PROFESSION, isProfessionId } from "@/lib/professions/catalog";
 import { PROJECT_ROOT, resolveWorkspace } from "@/lib/server/workspace";
-import { projectSkills } from "@/lib/tools/skills/skill";
+import { userSkills } from "@/lib/tools/skills/skill";
 
 /* ---------------------------------------------------------------------------
    Un tour de conversation avec un agent par abonnement.
@@ -50,9 +50,9 @@ export async function POST(req: Request) {
   const workspace = await resolveWorkspace(body.agentId ?? "", body.workspace);
   const profession = await loadProfession(PROJECT_ROOT, isProfessionId(body.profession) ? body.profession : DEFAULT_PROFESSION);
   try {
-    /* Celles de la profession, puis les votres (`skills/` du projet). */
+    /* Celles de la profession, puis les votres (`~/.bytnode-ai/skills/`). */
     const t0 = Date.now();
-    await syncSkills(workspace, [...profession.skills, ...(await projectSkills(PROJECT_ROOT))]);
+    await syncSkills(workspace, [...profession.skills, ...(await userSkills())]);
     console.info(`[acp] compétences synchronisées en ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   } catch {
     /* un dossier en lecture seule n'empeche pas de parler */

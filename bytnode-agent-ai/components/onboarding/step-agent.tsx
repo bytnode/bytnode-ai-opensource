@@ -168,7 +168,7 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
           id="workspace"
           label="Dossier de travail"
           optional
-          hint="Là où l'agent démarre ses commandes et résout les chemins relatifs. Vide : un dossier workspaces/<id> dans le projet."
+          hint="Là où l'agent démarre ses commandes et résout les chemins relatifs. Vide : un dossier ~/.bytnode-ai/workspaces/<id>."
         >
           <FolderField
             id="workspace"

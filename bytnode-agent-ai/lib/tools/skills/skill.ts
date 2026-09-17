@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { userSkillsDir } from "@/lib/server/data-dir";
 import type { Tool } from "../types";
 import { errorText, fail, ok } from "../types";
 
@@ -9,24 +10,23 @@ import { errorText, fail, ok } from "../types";
 
    Une competence est un dossier `<nom>/SKILL.md` avec un en-tete YAML
    (`name`, `description`). On les cherche, dans l'ordre : le dossier de
-   travail (`.agents/skills`, `skills`), le projet (`skills`), et le compte
-   (`~/.agents/skills`). Le prompt systeme en donne la liste ; l'outil Skill
+   travail (`.agents/skills`, `skills`), puis le compte (`~/.bytnode-ai/skills`,
+   `~/.agents/skills`). Le prompt systeme en donne la liste ; l'outil Skill
    rend le corps de celle que le modele veut suivre.
 --------------------------------------------------------------------------- */
 
 export type SkillInfo = { name: string; description: string; path: string };
 
-/** Le dossier des competences que VOUS ecrivez, a la racine du projet :
-    vu par les agents sur OpenRouter, et recopie dans le dossier de travail
-    des agents par abonnement. */
-export const PROJECT_SKILLS = "skills";
+/** Les competences que VOUS ecrivez, dans `~/.bytnode-ai/skills/` (hors du
+    paquet, qui est remplace a chaque version) : vues par les agents sur
+    OpenRouter, et recopiees dans le dossier de travail des agents par
+    abonnement. */
+export const userSkills = () => listSkillsIn(userSkillsDir());
 
-export const projectSkills = (projectRoot: string) => listSkillsIn(path.join(projectRoot, PROJECT_SKILLS));
-
-const roots = (workspace: string, projectRoot: string) => [
+const roots = (workspace: string) => [
   path.join(workspace, ".agents", "skills"),
   path.join(workspace, "skills"),
-  path.join(projectRoot, "skills"),
+  userSkillsDir(),
   path.join(os.homedir(), ".agents", "skills"),
 ];
 
@@ -64,10 +64,10 @@ export async function listSkillsIn(root: string): Promise<SkillInfo[]> {
 
 /** Toutes les competences visibles d'un agent : celles de sa profession
     (passees en `extra`, prioritaires), puis les dossiers generaux. */
-export async function listSkills(workspace: string, projectRoot: string, extra: SkillInfo[] = []): Promise<SkillInfo[]> {
+export async function listSkills(workspace: string, extra: SkillInfo[] = []): Promise<SkillInfo[]> {
   const seen = new Map<string, SkillInfo>();
   for (const s of extra) if (!seen.has(s.name)) seen.set(s.name, s);
-  for (const root of roots(workspace, projectRoot)) {
+  for (const root of roots(workspace)) {
     for (const s of await listSkillsIn(root)) if (!seen.has(s.name)) seen.set(s.name, s);
   }
   return [...seen.values()];
@@ -86,7 +86,7 @@ export const skillTool: Tool<Args> = {
     additionalProperties: false,
   },
   async execute(args, ctx) {
-    const skills = await listSkills(ctx.workspace, ctx.projectRoot, ctx.professionSkills ?? []);
+    const skills = await listSkills(ctx.workspace, ctx.professionSkills ?? []);
     const skill = skills.find((s) => s.name === args.name) ?? skills.find((s) => s.name.toLowerCase() === String(args.name).toLowerCase());
     if (!skill) {
       return fail(
