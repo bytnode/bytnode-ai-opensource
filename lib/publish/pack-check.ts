@@ -15,3 +15,8 @@ export const leakedSecrets = (files: { path: string; text: string }[]): string[]
 
 /** Les fichiers dont on lit le texte pour chercher une cle. */
 export const isTextFile = (p: string) => /\.(ts|tsx|js|mjs|cjs|json|md|txt|css|yml|yaml)$/.test(p);
+
+/** Les fichiers qui contiennent l'un de ces textes (le chemin absolu de la
+    machine de build, par exemple : il nomme l'utilisateur). */
+export const containing = (files: { path: string; text: string }[], needles: string[]): string[] =>
+  files.filter((f) => needles.some((n) => n.length > 0 && f.text.includes(n))).map((f) => f.path);

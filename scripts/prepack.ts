@@ -4,7 +4,7 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { forbiddenPaths, isTextFile, leakedSecrets } from "../lib/publish/pack-check";
+import { containing, forbiddenPaths, isTextFile, leakedSecrets } from "../lib/publish/pack-check";
 
 const root = process.cwd();
 
@@ -58,6 +58,17 @@ function unaliasExternals(): number {
 }
 unaliasExternals();
 
+/* `required-server-files.json` porte le chemin ABSOLU du projet (`appDir`) :
+   le nom d'utilisateur et l'arborescence de la machine de build. `next
+   start` ne lit pas ce fichier (il sert aux hebergeurs, en mode standalone) ;
+   on efface le chemin, et le controle plus bas refuse l'archive s'il
+   reapparait ou si un autre fichier le cite. */
+const rootJson = JSON.stringify(root).slice(1, -1);
+for (const name of ["required-server-files.json", "required-server-files.js"]) {
+  const f = path.join(root, ".next", name);
+  if (fs.existsSync(f)) fs.writeFileSync(f, fs.readFileSync(f, "utf8").split(rootJson).join("").split(root).join(""));
+}
+
 const npm = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { cwd: root, encoding: "utf8", shell: process.platform === "win32" });
 if (npm.status !== 0) {
   console.error("prepack : npm pack --dry-run a échoué.\n" + npm.stderr);
@@ -67,11 +78,14 @@ const [pack] = JSON.parse(npm.stdout) as { files: { path: string; size: number }
 const paths = pack.files.map((f) => f.path);
 
 const bad = forbiddenPaths(paths);
-const leaks = leakedSecrets(paths.filter(isTextFile).map((p) => ({ path: p, text: fs.readFileSync(path.join(root, p), "utf8") })));
-if (bad.length || leaks.length) {
+const texts = paths.filter(isTextFile).map((p) => ({ path: p, text: fs.readFileSync(path.join(root, p), "utf8") }));
+const leaks = leakedSecrets(texts);
+const machine = containing(texts, [root, rootJson]);
+if (bad.length || leaks.length || machine.length) {
   console.error("prepack : PUBLICATION REFUSÉE.");
   for (const p of bad) console.error(`  fichier interdit : ${p}`);
   for (const p of leaks) console.error(`  clé détectée dans : ${p}`);
+  for (const p of machine) console.error(`  chemin de cette machine dans : ${p}`);
   process.exit(1);
 }
 console.log(`prepack : ${paths.length} fichiers, ${(pack.size / 1e6).toFixed(1)} Mo compressés, ${(pack.unpackedSize / 1e6).toFixed(1)} Mo décompressés — archive propre.`);

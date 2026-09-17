@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { forbiddenPaths, isTextFile, leakedSecrets } from "./pack-check";
+import { containing, forbiddenPaths, isTextFile, leakedSecrets } from "./pack-check";
 
 describe("forbiddenPaths", () => {
   it("refuse les fichiers d'environnement, les donnees et les cles MCP", () => {
@@ -33,5 +33,21 @@ describe("isTextFile", () => {
     expect(isTextFile("lib/a.ts")).toBe(true);
     expect(isTextFile(".next/static/chunks/x.js")).toBe(true);
     expect(isTextFile("professions/x/image.png")).toBe(false);
+  });
+});
+
+describe("containing", () => {
+  it("nomme les fichiers qui citent la machine de build, sous les deux ecritures", () => {
+    const root = String.raw`C:\Users\x\proj`;
+    const rootJson = JSON.stringify(root).slice(1, -1); // C:\\Users\\x\\proj
+    const files = [
+      { path: ".next/required-server-files.json", text: `{"appDir":"${rootJson}"}` },
+      { path: ".next/a.js", text: root },
+      { path: "lib/b.ts", text: "rien" },
+    ];
+    expect(containing(files, [root, rootJson])).toEqual([".next/required-server-files.json", ".next/a.js"]);
+  });
+  it("ignore une aiguille vide", () => {
+    expect(containing([{ path: "a", text: "abc" }], [""])).toEqual([]);
   });
 });
