@@ -1,9 +1,10 @@
 # Vos compétences
 
-Un dossier par compétence, avec un `SKILL.md` :
+Elles vont dans `~/.bytnode-ai/skills/` (ce dossier du dépôt n'est plus lu : il documente le
+format). Un dossier par compétence, avec un `SKILL.md` :
 
 ```
-skills/
+~/.bytnode-ai/skills/
   analyse-funding/
     SKILL.md          ← obligatoire
     exemple.csv       ← ce que vous voulez : le dossier est copié en entier

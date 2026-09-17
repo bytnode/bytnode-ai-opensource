@@ -10,7 +10,23 @@ l'agent de l'éditeur (Claude Code, Codex, Gemini CLI, Copilot CLI, Grok Build, 
 Le fond est celui de BytNode (`components/fond`), avec les mêmes tokens (`--ink`, `--paper`,
 `--voile`) et les mêmes polices (Geist, Inter, IBM Plex Mono).
 
-## Lancer
+## Installer
+
+```bash
+npx bytnode-ai        # démarre http://localhost:3777 et ouvre le navigateur
+```
+
+Prérequis : Node ≥ 20.9. Optionnels : Python + pandas (outil Backtest), `zenity` sous Linux
+(sélecteur de dossier). Les données — dossiers de travail, agents par abonnement, compétences
+personnelles — vivent dans `~/.bytnode-ai/` (`BYTNODE_AI_HOME` pour changer) ; les clés et les
+conversations dans le `localStorage` du navigateur. Mise à jour : `npx bytnode-ai@latest`.
+Options : `--port N`, `--no-open`.
+
+Les six agents par abonnement ne sont pas embarqués : un agent déjà installé sur la machine
+(`gemini`, `copilot`, `grok`) est reconnu ; les autres s'installent au premier clic sur
+« Installer », dans `~/.bytnode-ai/agents/<id>/`.
+
+## Développer
 
 ```bash
 npm install
@@ -33,6 +49,8 @@ npm test           # Vitest sur lib/
 npm run typecheck  # tsc --noEmit
 npm run lint       # eslint
 npm run build      # next build
+npm run smoke:pack # le paquet tel qu'un utilisateur le reçoit (npm pack, install, démarrage)
+npm pack --dry-run # prepack : build propre + contrôle de l'archive (rien d'interdit, aucune clé)
 ```
 
 `OPENROUTER_BASE_URL` (serveur) redirige les appels vers un autre hôte — un relais, ou un faux
@@ -54,10 +72,14 @@ reçoit (mesuré). Toutes nos requêtes portent donc `provider: { sort: "latency
 
 ### Par abonnement (ACP)
 
-Cinq agents sont des dépendances npm (Claude Code, Codex, Gemini CLI, Copilot CLI, Grok Build) :
-rien d'autre à installer. Mistral Vibe est un binaire par plateforme :
-`Installer` lit l'entrée du registre ACP (github.com/agentclientprotocol/registry), télécharge
-l'archive de la machine et l'extrait dans `~/.bytnode-ai/agents/<id>/` (`lib/acp/install.ts`).
+Rien n'est embarqué (`lib/acp/packages.ts` dit d'où vient chacun). Cinq agents sont des paquets
+npm (Claude Code, Codex, Gemini CLI, Copilot CLI, Grok Build) : `Installer` écrit un `package.json`
+dans `~/.bytnode-ai/agents/<id>/` et y lance `npm install` (`lib/acp/install.ts`) ; `gemini`,
+`copilot` et `grok` déjà installés globalement sont reconnus sur le PATH (`lib/acp/detect.ts`).
+Mistral Vibe est un binaire par plateforme : `Installer` lit l'entrée du registre ACP
+(github.com/agentclientprotocol/registry), télécharge l'archive de la machine et l'extrait au même
+endroit. Quand une version de BytNode-AI relève la plage d'un adaptateur, le bouton devient
+`Mettre à jour`.
 `Se connecter` ouvre le navigateur sur la page de l'éditeur (Claude et Copilot : dans une fenêtre de
 terminal ; OpenAI : `codex login` ; les autres : la méthode `authenticate` que l'agent annonce —
 compte personnel, jamais une clé API), et l'état se relit tout seul. Pour les agents sans CLI
@@ -176,7 +198,7 @@ La boucle (`lib/agent/loop.ts`) tourne **dans le navigateur** pour l'agent princ
 serveur** pour les sous-agents de Workflow (tout en direct). Un message d'assistant mémorise ses
 *pas* (texte, appels, résultats) et `history.ts` les rejoue au format du fournisseur.
 
-- **Dossier de travail et périmètre** : chaque agent a un dossier (`workspaces/<id>` par défaut,
+- **Dossier de travail et périmètre** : chaque agent a un dossier (`~/.bytnode-ai/workspaces/<id>` par défaut,
   ou choisi dans l'explorateur) où les shells démarrent et où les chemins relatifs se résolvent.
   Périmètre `Dossier de travail seulement` (les outils fichiers refusent tout chemin extérieur ;
   une commande shell qui en désigne un est refusée avant de partir) ou `Tout le disque`.
