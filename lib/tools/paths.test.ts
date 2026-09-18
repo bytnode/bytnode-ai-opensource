@@ -2,7 +2,10 @@ import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { OutsideWorkspaceError, displayPath, resolvePath } from "./paths";
 
-const ws = path.resolve("C:/tmp/work");
+/* Chemins portables : `path.resolve("/x")` donne `C:\x` sous Windows et `/x`
+   ailleurs — les tests tournent sur les trois OS (matrice GitHub). */
+const ws = path.resolve("/tmp/work");
+const other = path.resolve("/other/x.txt");
 
 describe("resolvePath, périmètre disk", () => {
   test("resolves a relative path inside the workspace", () => {
@@ -10,7 +13,7 @@ describe("resolvePath, périmètre disk", () => {
   });
 
   test("keeps an absolute path anywhere on disk", () => {
-    expect(resolvePath(ws, "C:/other/x.txt", "disk")).toBe(path.resolve("C:/other/x.txt"));
+    expect(resolvePath(ws, other, "disk")).toBe(other);
   });
 });
 
@@ -27,12 +30,12 @@ describe("resolvePath, périmètre workspace", () => {
   });
 
   test("refuses an absolute path elsewhere, even with a look-alike prefix", () => {
-    expect(() => resolvePath(ws, "C:/tmp/work2/x", "workspace")).toThrow(OutsideWorkspaceError);
-    expect(() => resolvePath(ws, "C:/Windows/system32", "workspace")).toThrow(OutsideWorkspaceError);
+    expect(() => resolvePath(ws, path.resolve("/tmp/work2/x"), "workspace")).toThrow(OutsideWorkspaceError);
+    expect(() => resolvePath(ws, path.resolve("/Windows/system32"), "workspace")).toThrow(OutsideWorkspaceError);
   });
 
   test("is the default", () => {
-    expect(() => resolvePath(ws, "C:/other/x.txt")).toThrow(OutsideWorkspaceError);
+    expect(() => resolvePath(ws, other)).toThrow(OutsideWorkspaceError);
   });
 });
 
@@ -43,6 +46,6 @@ describe("displayPath", () => {
   });
 
   test("shows outside paths absolute", () => {
-    expect(displayPath(ws, path.resolve("C:/other/x.txt"))).toBe("C:/other/x.txt");
+    expect(displayPath(ws, other)).toBe(other.split(path.sep).join("/"));
   });
 });

@@ -2,7 +2,8 @@ import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { findOutsideReferences } from "./guard";
 
-const ws = path.resolve("C:/Users/fremo/Desktop/cryptos/workspaces/a1");
+/* Portable : absolu sur les trois OS (`C:\Users\…` sous Windows, `/Users/…` ailleurs). */
+const ws = path.resolve("/Users/fremo/Desktop/cryptos/workspaces/a1");
 const wsSlash = ws.replace(/\\/g, "/");
 
 describe("findOutsideReferences", () => {
@@ -12,7 +13,7 @@ describe("findOutsideReferences", () => {
   });
 
   test("accepts an absolute path inside the workspace", () => {
-    expect(findOutsideReferences(`node "${ws}\\script.js"`, ws)).toEqual([]);
+    expect(findOutsideReferences(`node "${path.join(ws, "script.js")}"`, ws)).toEqual([]);
     expect(findOutsideReferences(`cat ${wsSlash}/notes/a.md`, ws)).toEqual([]);
   });
 
