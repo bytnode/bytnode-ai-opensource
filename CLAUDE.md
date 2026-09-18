@@ -11,8 +11,10 @@ BytNode-AI: a local Next.js 16 (App Router, Turbopack) + React 19 + TypeScript-s
 ## Where this sits
 
 This folder is the git root (`benjfrem07/bytnode-ai`). The sibling `../app-web/` is a separate
-repository, not part of this one. The app is **published on npm as `bytnode-ai`** (`npx
-bytnode-ai`): `package.json` `files` is a whitelist (`bin`, `.next`, `lib` minus tests,
+repository, not part of this one. The app is **published on npm as `bytnode-ai`**: `npx bytnode-ai` is the *install* step —
+`bin/bytnode-ai.mjs`, seeing `_npx` in its own path, runs `npm install -g bytnode-ai@<same version>`
+so the plain `bytnode-ai` command exists afterwards (`npx bytnode-ai@latest` = update; a failed
+global install is reported and the app starts anyway). Packaging: `package.json` `files` is a whitelist (`bin`, `.next`, `lib` minus tests,
 `professions`, `types`, the three config files), `prepack` (`scripts/prepack.ts`) does a clean
 `next build`, drops `.next/cache`, rewrites the hashed aliases Turbopack uses for
 `serverExternalPackages` (symlinks in `.next/node_modules` → the build machine's absolute

@@ -13,14 +13,16 @@ Le fond est celui de BytNode (`components/fond`), avec les mêmes tokens (`--ink
 ## Installer
 
 ```bash
-npx bytnode-ai        # démarre http://localhost:3777 et ouvre le navigateur
+npx bytnode-ai        # une fois : installe la commande bytnode-ai, puis démarre http://localhost:3777
+bytnode-ai            # les fois suivantes
+npx bytnode-ai@latest # mise à jour
 ```
 
 Prérequis : Node ≥ 20.9. Optionnels : Python + pandas (outil Backtest), `zenity` sous Linux
 (sélecteur de dossier). Les données — dossiers de travail, agents par abonnement, compétences
 personnelles — vivent dans `~/.bytnode-ai/` (`BYTNODE_AI_HOME` pour changer) ; les clés et les
-conversations dans le `localStorage` du navigateur. Mise à jour : `npx bytnode-ai@latest`.
-Options : `--port N`, `--no-open`.
+conversations dans le `localStorage` du navigateur. Fermer : Ctrl-C dans le terminal.
+Options : `--port N`, `--no-open` ; `--no-install` pour que `npx` ne pose pas la commande.
 
 Les six agents par abonnement ne sont pas embarqués : un agent déjà installé sur la machine
 (`gemini`, `copilot`, `grok`) est reconnu ; les autres s'installent au premier clic sur
