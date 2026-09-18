@@ -13,11 +13,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      # Le package-lock est ecrit par npm 11 ; le npm 10 livre avec Node 22
-      # range autrement les dependances optionnelles wasm (@emnapi/*) et
-      # refuse le verrou (« Missing … from lock file »). Meme npm des deux cotes.
-      - run: npm install -g npm@11
-      - run: npm ci
+      # Pas `npm ci` : le verrou, ecrit sous Windows, omet les dependances des
+      # paquets optionnels qui n'y sont pas installes (wasm @emnapi/*,
+      # bufferutil) — defaut connu de npm — et `npm ci` les reclame
+      # (« Missing … from lock file »). `npm install` lit le verrou et comble.
+      - run: npm install --no-audit --no-fund
       - run: npm run typecheck
       - run: npm test
       - run: npm run smoke:pack
