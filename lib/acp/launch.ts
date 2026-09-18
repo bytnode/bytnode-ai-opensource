@@ -37,6 +37,10 @@ function fromGlobal(found: string, src: NpmSource, entry: string[], args: string
 }
 
 /** Le lancement ACP de l'agent sur cette machine, ou null s'il est absent. */
+/** `BYTNODE_AI_IGNORE_PATH` (`npm run vierge`) : ne rien reconnaitre sur le
+    PATH, pour voir le systeme comme une machine sans aucun agent. */
+const onPath = (name: string) => (process.env.BYTNODE_AI_IGNORE_PATH ? null : findOnPath(name));
+
 export function resolveAcp(agent: AcpAgentId): Resolved | null {
   const src = AGENT_SOURCES[agent];
   if (src.kind === "download") {
@@ -46,7 +50,7 @@ export function resolveAcp(agent: AcpAgentId): Resolved | null {
   const local = installed(agent, src.pkg, src.acp.entry);
   if (fs.existsSync(local)) return { command: process.execPath, args: [local, ...src.acp.args], source: "installed" };
   if (src.global) {
-    const found = findOnPath(src.global.command);
+    const found = onPath(src.global.command);
     const launch = found && fromGlobal(found, src, src.acp.entry, src.global.args);
     if (launch) return { ...launch, source: "global" };
   }
@@ -100,7 +104,7 @@ export function cliLaunch(agent: AcpAgentId): Launch {
   const local = installed(agent, src.cli.pkg ?? src.pkg, src.cli.entry);
   if (fs.existsSync(local)) return { command: process.execPath, args: [local] };
   if (src.global) {
-    const found = findOnPath(src.global.command);
+    const found = onPath(src.global.command);
     const launch = found && fromGlobal(found, src, src.cli.entry, []);
     if (launch) return launch;
   }

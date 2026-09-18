@@ -241,6 +241,10 @@ textarea.field-input {
   color: var(--fg-faint);
 }
 
+.field-link {
+  font-size: 0.8rem;
+}
+
 .field-error {
   font-size: 0.82rem;
   color: var(--fg);

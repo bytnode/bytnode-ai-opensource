@@ -34,7 +34,7 @@ export function StepAuth({ mode, keys, errors, onMode, onKeys }: Props) {
         Authentification
       </h1>
       <p className="ob-lede">
-        Vos agents ont besoin d&apos;un accès aux modèles : votre abonnement, ou une clé. Tout reste sur cet ordinateur.
+        Vos agents ont besoin d&apos;un accès aux modèles — votre abonnement, ou une clé — et d&apos;une clé BytNode pour les données de marché. Tout reste sur cet ordinateur.
       </p>
 
       <div className="ob-tabs" role="tablist" aria-label="Mode d'authentification">
@@ -57,7 +57,7 @@ export function StepAuth({ mode, keys, errors, onMode, onKeys }: Props) {
         )}
 
         <div className="ob-sub">
-          <BytnodeKey value={keys.bytnode} onChange={(bytnode) => onKeys({ ...keys, bytnode })} />
+          <BytnodeKey value={keys.bytnode} error={errors.bytnode} onChange={(bytnode) => onKeys({ ...keys, bytnode })} />
         </div>
 
         <div className="ob-sub">
@@ -167,6 +167,9 @@ export function Subscriptions({ error }: { error?: string }) {
 
 type KeyProps = { value: string; error?: string; onChange: (value: string) => void };
 
+/** La page de la console BytNode ou l'on cree et copie sa cle. */
+export const BYTNODE_CONSOLE_KEYS = "https://bytnode.com/console/cles";
+
 export function OpenRouterKey({ value, error, onChange }: KeyProps) {
   return (
     <KeyField
@@ -185,14 +188,15 @@ export function OpenRouterKey({ value, error, onChange }: KeyProps) {
   );
 }
 
-export function BytnodeKey({ value, onChange }: KeyProps) {
+export function BytnodeKey({ value, error, onChange }: KeyProps) {
   return (
     <KeyField
       id="bytnode"
       label="Clé BytNode"
-      optional
       value={value}
-      placeholderHint="Commence par mk_. Depuis votre console BytNode, page Clés. Sans elle, les agents n'ont pas de données de marché."
+      error={error}
+      placeholderHint="Commence par mk_. Nécessaire : sans elle, les agents n'ont pas de données de marché."
+      link={{ href: BYTNODE_CONSOLE_KEYS, label: "Créer ou copier ma clé dans la console BytNode" }}
       verify={async (key) => {
         const res = await fetch("/api/bytnode/key", { headers: { "x-bytnode-key": key } });
         const json = (await res.json()) as { ok?: boolean; tools?: string[]; error?: { message?: string } };
@@ -217,9 +221,10 @@ type KeyFieldProps = {
   placeholderHint: string;
   verify: (key: string) => Promise<{ ok: true; label: string | null } | { ok: false; message: string }>;
   onChange: (value: string) => void;
+  link?: { href: string; label: string };
 };
 
-export function KeyField({ id, label, optional, value, error, placeholderHint, verify, onChange }: KeyFieldProps) {
+export function KeyField({ id, label, optional, value, error, placeholderHint, verify, onChange, link }: KeyFieldProps) {
   const [shown, setShown] = useState(false);
   const [check, setCheck] = useState<Check>({ state: "idle" });
 
@@ -240,6 +245,7 @@ export function KeyField({ id, label, optional, value, error, placeholderHint, v
       id={id}
       label={label}
       optional={optional}
+      link={link}
       error={error ?? (check.state === "bad" ? check.message : null)}
       hint={check.state === "ok" ? `Clé reconnue${check.label ? ` : ${check.label}` : ""}.` : placeholderHint}
     >

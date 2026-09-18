@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "description": "Des agents IA financiers, en local : professions, outils, donnees de marche BytNode, modeles par cle OpenRouter ou par abonnement (ACP).",
   "license": "MIT",
-  "repository": "github:benjfrem07/bytnode-ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/benjfrem07/bytnode-ai.git"
+  },
   "bin": {
     "bytnode-ai": "bin/bytnode-ai.mjs"
   },
@@ -31,7 +34,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "prepack": "tsx scripts/prepack.ts",
-    "smoke:pack": "node scripts/smoke-pack.mjs"
+    "smoke:pack": "node scripts/smoke-pack.mjs",
+    "vierge": "node scripts/vierge.mjs"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.4.0",

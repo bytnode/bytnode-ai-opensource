@@ -212,7 +212,7 @@ function Auth({ settings, onUpdate }: { settings: Settings; onUpdate: (p: Partia
       <Section title="Clés">
         <div className="st-form ob-form">
           <OpenRouterKey value={keys.openrouter} onChange={(openrouter) => onUpdate({ keys: { ...keys, openrouter } })} />
-          <BytnodeKey value={keys.bytnode} onChange={(bytnode) => onUpdate({ keys: { ...keys, bytnode } })} />
+          <BytnodeKey value={keys.bytnode} error={keys.bytnode.trim() ? undefined : "Nécessaire : sans clé BytNode, les agents n'ont pas de données de marché."} onChange={(bytnode) => onUpdate({ keys: { ...keys, bytnode } })} />
         </div>
       </Section>
       <Section title="Exchanges">

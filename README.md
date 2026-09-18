@@ -51,6 +51,7 @@ npm run lint       # eslint
 npm run build      # next build
 npm run smoke:pack # le paquet tel qu'un utilisateur le reçoit (npm pack, install, démarrage)
 npm pack --dry-run # prepack : build propre + contrôle de l'archive (rien d'interdit, aucune clé)
+npm run vierge     # comme au premier lancement : données temporaires, aucun agent reconnu, port neuf (localStorage vide) ; --no-build, --no-open
 ```
 
 `OPENROUTER_BASE_URL` (serveur) redirige les appels vers un autre hôte — un relais, ou un faux

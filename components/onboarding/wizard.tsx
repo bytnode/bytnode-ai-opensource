@@ -158,7 +158,7 @@ export function Wizard({ steps, initial, finishLabel, onDone, onCancel, onTheme 
   );
 }
 
-export type StepErrors = Partial<Record<"firstName" | "openrouter" | "subscription" | "name" | "providerId", string>>;
+export type StepErrors = Partial<Record<"firstName" | "openrouter" | "subscription" | "bytnode" | "name" | "providerId", string>>;
 
 function validate(step: StepId, d: WizardDraft, subscribed: boolean): StepErrors {
   const e: StepErrors = {};
@@ -169,6 +169,9 @@ function validate(step: StepId, d: WizardDraft, subscribed: boolean): StepErrors
     if (d.authMode === "keys") e.openrouter = "La clé est nécessaire pour dialoguer — ou connectez un abonnement.";
     else e.subscription = "Connectez un abonnement pour continuer — ou saisissez une clé OpenRouter dans l'onglet Clés.";
   }
+  /* La cle BytNode n'est pas facultative : sans donnees de marche, l'agent
+     n'a rien a analyser. */
+  if (step === "auth" && !d.keys.bytnode.trim()) e.bytnode = "La clé BytNode est nécessaire : sans elle, les agents n'ont pas de données de marché.";
   if (step === "agent") {
     if (!d.agent.name.trim()) e.name = "Donnez un nom à votre agent.";
     if (!d.agent.providerId) e.providerId = "Choisissez un abonnement ou un éditeur.";

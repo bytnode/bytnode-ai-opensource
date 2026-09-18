@@ -1,3 +1,4 @@
+import { bytnodeGuidance } from "./bytnode-guidance";
 import type { SkillInfo } from "@/lib/tools/skills/skill";
 import type { ExchangeAccount } from "@/lib/domain/types";
 import { exchangePromptSection } from "@/lib/tools/exchange/prompt";
@@ -64,6 +65,7 @@ export function buildToolsPrompt(
         : `Source de données : BytNode n'est pas disponible (${bytnode.message ?? "clé absente"}). Dis-le à l'utilisateur si une question demande des données de marché à jour ; la clé se règle dans la page Clés.`,
     );
   }
+  lines.push(...bytnodeGuidance(subagent));
   lines.push(...exchangePromptSection(exchangeAccounts, "natif", unattachedExchanges, subagent));
   if (skills.length > 0) {
     lines.push("", "Compétences disponibles (à charger avec l'outil Skill quand la tâche s'y prête) :");

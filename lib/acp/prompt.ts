@@ -1,3 +1,4 @@
+import { bytnodeGuidance } from "@/lib/agent/bytnode-guidance";
 import type { SkillInfo } from "@/lib/tools/skills/skill";
 import type { ExchangeAccount } from "@/lib/domain/types";
 import { exchangePromptSection } from "@/lib/tools/exchange/prompt";
@@ -34,6 +35,7 @@ export function buildAcpPrompt(
   } else {
     lines.push("", `Source de données : BytNode n'est pas connectée${bytnode?.message ? ` (${bytnode.message})` : ""}. Dis-le à l'utilisateur dès qu'une question exige des données de marché ; ne les invente pas.`);
   }
+  lines.push(...bytnodeGuidance(subagent));
   lines.push(
     "",
     "## Outils supplémentaires BytNode-AI (externes)",
