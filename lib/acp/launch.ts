@@ -27,6 +27,18 @@ export type Resolved = Launch & { source: "installed" | "global" };
 
 const installed = (agent: AcpAgentId, pkg: string, entry: string[]) => path.join(agentDir(agent), "node_modules", pkg, ...entry);
 
+/** Une installation npm interrompue (fermeture pendant le telechargement,
+    coupure) laisse un `node_modules` partiel — un binaire tronque, que
+    Windows refuse avec `spawn EFTYPE` — et pas de `package-lock.json`, que
+    npm n'ecrit qu'a la fin (`--package-lock=true` dans `install.ts`, pour
+    que le signal ne depende pas du .npmrc de l'utilisateur). On ne lance
+    jamais un agent dans cet etat : « Installer » repart de zero. */
+export function brokenInstall(agent: AcpAgentId, exists: (p: string) => boolean = fs.existsSync): string | null {
+  const dir = agentDir(agent);
+  if (AGENT_SOURCES[agent].kind !== "npm" || !exists(path.join(dir, "node_modules")) || exists(path.join(dir, "package-lock.json"))) return null;
+  return `Installation incomplète de ${acpAgentInfo(agent).label} : relancez Installer.`;
+}
+
 /** Un CLI global trouve sur le PATH. Sous Windows, `npm i -g` pose un
     `.cmd` que Node refuse de lancer sans shell (CVE-2024-27980) : on
     remonte au script du paquet, a cote, et on le lance avec ce Node. */
@@ -48,7 +60,7 @@ export function resolveAcp(agent: AcpAgentId): Resolved | null {
     return fs.existsSync(exe) ? { command: exe, args: [], source: "installed" } : null;
   }
   const local = installed(agent, src.pkg, src.acp.entry);
-  if (fs.existsSync(local)) return { command: process.execPath, args: [local, ...src.acp.args], source: "installed" };
+  if (!brokenInstall(agent) && fs.existsSync(local)) return { command: process.execPath, args: [local, ...src.acp.args], source: "installed" };
   if (src.global) {
     const found = onPath(src.global.command);
     const launch = found && fromGlobal(found, src, src.acp.entry, src.global.args);
@@ -90,7 +102,7 @@ function claudeCli(): Launch {
       : [`${process.platform}-${process.arch}`];
   for (const v of variants) {
     const bin = installed("claude", `@anthropic-ai/claude-agent-sdk-${v}`, [exe]);
-    if (fs.existsSync(bin)) return { command: bin, args: [] };
+    if (!brokenInstall("claude") && fs.existsSync(bin)) return { command: bin, args: [] };
   }
   return { command: process.execPath, args: [installed("claude", "@anthropic-ai/claude-agent-sdk", ["cli.js"])] };
 }
@@ -102,7 +114,7 @@ export function cliLaunch(agent: AcpAgentId): Launch {
   const src = AGENT_SOURCES[agent];
   if (src.kind !== "npm" || !src.cli) throw new Error(`${agent} n'a pas de ligne de commande propre.`);
   const local = installed(agent, src.cli.pkg ?? src.pkg, src.cli.entry);
-  if (fs.existsSync(local)) return { command: process.execPath, args: [local] };
+  if (!brokenInstall(agent) && fs.existsSync(local)) return { command: process.execPath, args: [local] };
   if (src.global) {
     const found = onPath(src.global.command);
     const launch = found && fromGlobal(found, src, src.cli.entry, []);

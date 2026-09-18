@@ -5,7 +5,7 @@ import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 import { createWriteStream } from "node:fs";
 import { acpAgentInfo, type AcpAgentId } from "./agents";
-import { agentDir, npmCli, runCommand } from "./launch";
+import { agentDir, brokenInstall, npmCli, runCommand } from "./launch";
 import { AGENT_SOURCES, installPackageJson, type NpmSource } from "./packages";
 
 /* ---------------------------------------------------------------------------
@@ -69,10 +69,16 @@ export function installAgent(agent: AcpAgentId): Promise<void> {
 async function installNpm(agent: AcpAgentId, src: NpmSource): Promise<void> {
   const dir = agentDir(agent);
   await fs.mkdir(dir, { recursive: true });
+  /* Une installation interrompue repart de zero : un paquet a moitie
+     extrait n'a pas de package.json, npm le reprend, mais un binaire tronque
+     qui en a un resterait. */
+  if (brokenInstall(agent)) await fs.rm(path.join(dir, "node_modules"), { recursive: true, force: true });
   await fs.writeFile(path.join(dir, "package.json"), JSON.stringify(installPackageJson(src), null, 2) + "\n");
   const npm = npmCli();
-  const r = await runCommand(npm.command, [...npm.args, "install", "--no-audit", "--no-fund", "--loglevel=error"], 15 * 60_000, { cwd: dir });
+  const r = await runCommand(npm.command, [...npm.args, "install", "--no-audit", "--no-fund", "--package-lock=true", "--loglevel=error"], 15 * 60_000, { cwd: dir });
   if (r.code !== 0) throw new Error(`npm install a échoué : ${r.out.trim().slice(-300)}`);
+  const broken = brokenInstall(agent);
+  if (broken) throw new Error(broken);
 }
 
 async function installDownload(agent: AcpAgentId): Promise<void> {

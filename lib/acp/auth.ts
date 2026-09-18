@@ -11,17 +11,7 @@ import {
 } from "./agents";
 import { AcpConnection } from "./connection";
 import { installFailure, isInstalling } from "./install";
-import {
-  acpLaunch,
-  cliLaunch,
-  installedVersion,
-  isInstalled,
-  openTerminal,
-  resolveAcp,
-  openTerminalWith,
-  runCli,
-  subscriptionEnv,
-} from "./launch";
+import { acpLaunch, brokenInstall, cliLaunch, installedVersion, isInstalled, openTerminal, openTerminalWith, resolveAcp, runCli, subscriptionEnv } from "./launch";
 import { AGENT_SOURCES, satisfiesCaret } from "./packages";
 import { prepareWorkspace, scratchWorkspace } from "./prepare";
 
@@ -55,9 +45,17 @@ const isConnecting = (agent: AcpAgentId) => {
 export async function authStatus(agent: AcpAgentId): Promise<AcpAuthStatus> {
   const resolved = resolveAcp(agent);
   if (!resolved) {
-    return { agent, available: false, installing: isInstalling(agent), loggedIn: false, message: installFailure(agent) };
+    return { agent, available: false, installing: isInstalling(agent), loggedIn: false, message: installFailure(agent) ?? brokenInstall(agent) };
   }
-  const base = await (STATUS[agent] ?? genericStatus(agent))();
+  /* Un lancement qui echoue (binaire illisible, ENOENT) est un etat a
+     afficher, pas une exception : sinon le remplissage en arriere-plan
+     plante et la page reste sur « verification ». */
+  let base: Partial_;
+  try {
+    base = await (STATUS[agent] ?? genericStatus(agent))();
+  } catch (e) {
+    base = { loggedIn: false, message: `Vérification impossible : ${e instanceof Error ? e.message : String(e)}` };
+  }
   const status: AcpAuthStatus = { agent, available: true, source: resolved.source, outdated: isOutdated(agent), ...base };
   if (status.loggedIn) connecting.delete(agent);
   else status.connecting = isConnecting(agent);
