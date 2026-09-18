@@ -13,6 +13,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # Le package-lock est ecrit par npm 11 ; le npm 10 livre avec Node 22
+      # range autrement les dependances optionnelles wasm (@emnapi/*) et
+      # refuse le verrou (« Missing … from lock file »). Meme npm des deux cotes.
+      - run: npm install -g npm@11
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
