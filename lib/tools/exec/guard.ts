@@ -53,10 +53,12 @@ export function findOutsideReferences(command: string, workspace: string): strin
   for (const m of command.matchAll(UNIX_ABS)) {
     const p = m[1];
     if (!p || ALLOWED_UNIX.has(p)) continue;
-    /* `/c/Users/…` est le lecteur C: vu de Git bash ; les autres racines
-       (`/usr`, `/tmp`) sont hors du dossier par construction. */
-    const drive = p.match(/^\/([A-Za-z])\/(.*)$/);
-    const resolved = drive ? path.resolve(`${drive[1]}:/${drive[2]}`) : null;
+    /* Sous Windows, `/c/Users/…` est le lecteur C: vu de Git bash et les
+       autres racines (`/usr`, `/tmp`) sont hors du dossier par construction.
+       Sous macOS/Linux, c'est simplement un chemin absolu : on le compare au
+       dossier, sinon tout chemin absolu DANS le dossier serait refuse. */
+    const drive = process.platform === "win32" ? p.match(/^\/([A-Za-z])\/(.*)$/) : null;
+    const resolved = process.platform !== "win32" ? path.resolve(p) : drive ? path.resolve(`${drive[1]}:/${drive[2]}`) : null;
     if (!resolved || !isInside(workspace, resolved)) push(p);
   }
   for (const m of command.matchAll(RELATIVE_UP)) {
