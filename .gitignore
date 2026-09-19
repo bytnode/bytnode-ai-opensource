@@ -9,3 +9,7 @@ npm-debug.log*
 next-env.d.ts
 /sandboxes/
 /workspaces/
+
+# guidance et specs de travail locales, hors depot
+CLAUDE.md
+docs/superpowers/
