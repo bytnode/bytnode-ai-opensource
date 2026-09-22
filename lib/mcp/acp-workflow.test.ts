@@ -70,7 +70,7 @@ describe("acpWorkflowTool", () => {
     );
     expect(r.ok).toBe(true);
     expect(r.output).toBe(
-      "## Funding — Analyste\n\nRapport analyste (haiku) : BTC.\n\nLis le funding.\n\n## Backtest — Quantitatif\n\n[échec : Python absent]",
+      "## Funding — Analyst\n\nRapport analyste (haiku) : BTC.\n\nLis le funding.\n\n## Backtest — Quantitative\n\n[failed: Python absent]",
     );
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const [url, init] = fetchMock.mock.calls[0];

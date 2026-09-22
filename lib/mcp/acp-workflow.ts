@@ -101,7 +101,7 @@ async function runRemote(link: ParentLink, task: SubagentTask, context: string |
       if (!line) continue;
       const msg = JSON.parse(line) as { type: string; report?: string; message?: string };
       if (msg.type === "done") return msg.report ?? "";
-      if (msg.type === "error") throw new Error(msg.message ?? "échec inconnu");
+      if (msg.type === "error") throw new Error(msg.message ?? "unknown failure");
     }
   }
   throw new Error("Le serveur a fermé la connexion avant le rapport.");

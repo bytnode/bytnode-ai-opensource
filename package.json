@@ -1,6 +1,6 @@
 {
   "name": "bytnode-ai",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Local AI finance agents: professions, tools, BytNode market data, models by OpenRouter key or by subscription (ACP).",
   "license": "MIT",
   "repository": {
