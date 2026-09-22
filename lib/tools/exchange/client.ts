@@ -6,19 +6,19 @@ import { ccxtIdFor } from "./catalog";
 import type { Market } from "./symbols";
 
 /* ---------------------------------------------------------------------------
-   Une instance ccxt par compte et par marche, gardee en memoire.
+   One ccxt instance per account and per market, kept in memory.
 
-   ⚠️ SERVEUR SEULEMENT. `loadMarkets` coute une requete et une seconde :
-   on le fait une fois par instance. Le cache est indexe par une empreinte
-   de la cle, jamais par la cle elle-meme. Aucune methode de retrait n'est
-   exposee par les outils ; ce module ne fait qu'ouvrir la connexion.
+   ⚠️ SERVER ONLY. `loadMarkets` costs one request and one second: we do
+   it once per instance. The cache is keyed by a fingerprint of the key,
+   never by the key itself. No withdrawal method is exposed by the tools;
+   this module only opens the connection.
 --------------------------------------------------------------------------- */
 
 const cache = new Map<string, Promise<Exchange>>();
-/** Quand l'ecart d'horloge de chaque client a ete mesure pour la derniere fois. */
+/** When each client's clock skew was last measured. */
 const synced = new Map<string, number>();
-/** Au-dela, on remesure : l'horloge du PC derive, et Bybit ou Binance
-    refusent une requete datee plus d'une seconde APRES leur heure. */
+/** Past this, we measure again: the PC clock drifts, and Bybit or Binance
+    refuse a request dated more than one second AFTER their time. */
 const RESYNC_MS = 10 * 60_000;
 
 const fingerprint = (a: ExchangeAccount, market: Market) =>
@@ -42,26 +42,26 @@ export async function clientFor(account: ExchangeAccount, market: Market): Promi
   return ex;
 }
 
-/** Mesure l'ecart entre l'horloge du PC et celle de l'exchange ; ccxt date
-    ensuite chaque requete a l'heure de l'exchange (`nonce()`). Sans bruit
-    si l'exchange ne publie pas son heure. */
+/** Measures the gap between the PC clock and the exchange's; ccxt then
+    dates every request at the exchange's time (`nonce()`). Silent if the
+    exchange does not publish its time. */
 async function syncClock(ex: Exchange): Promise<void> {
   if (!ex.has["fetchTime"]) return;
   try {
     await ex.loadTimeDifference();
   } catch {
-    /* on gardera la derniere mesure */
+    /* we keep the last measurement */
   }
 }
 
 type Ctor = new (config: Record<string, unknown>) => Exchange;
 
 async function open(account: ExchangeAccount, market: Market): Promise<Exchange> {
-  /* La classe suit le marche : KuCoin sert ses futures par une autre classe
-     (memes cles, autre hote). Seuls les ids publies par ccxt : jamais une
-     propriete quelconque de l'objet (`constructor`, `Exchange`…). */
+  /* The class follows the market: KuCoin serves its futures through another
+     class (same keys, other host). Only the ids ccxt publishes: never an
+     arbitrary property of the object (`constructor`, `Exchange`…). */
   const id = ccxtIdFor(account.exchange, market);
-  if (!ccxt.exchanges.includes(id)) throw Object.assign(new Error(`Exchange inconnu de ccxt : ${id}`), { name: "NotSupported" });
+  if (!ccxt.exchanges.includes(id)) throw Object.assign(new Error(`Exchange unknown to ccxt: ${id}`), { name: "NotSupported" });
   const Klass = (ccxt as unknown as Record<string, Ctor>)[id];
   const ex = new Klass({
     apiKey: account.apiKey,
@@ -70,19 +70,19 @@ async function open(account: ExchangeAccount, market: Market): Promise<Exchange>
     enableRateLimit: true,
     options: {
       defaultType: market === "futures" ? "swap" : "spot",
-      /* L'horloge d'un PC derive de quelques secondes. Binance et Bybit
-         exigent `timestamp < heure_serveur + 1 s` : une avance d'une
-         seconde suffit a tout refuser (10002, -1021), et la fenetre n'y
-         peut rien — seule la compensation compte. ccxt date alors les
-         requetes a l'heure de l'exchange ; la fenetre couvre le reste. */
+      /* A PC clock drifts by a few seconds. Binance and Bybit require
+         `timestamp < server_time + 1 s`: being one second ahead is enough
+         to refuse everything (10002, -1021), and the window cannot help —
+         only compensation counts. ccxt then dates the requests at the
+         exchange's time; the window covers the rest. */
       adjustForTimeDifference: true,
       recvWindow: 10_000,
     },
   });
   if (account.testnet) ex.setSandboxMode(true);
-  /* ⚠️ L'ECART D'HORLOGE AVANT `loadMarkets`. Bybit interroge le compte
-     (`query-api`) AVANT que `fetchMarkets` ne mesure l'ecart : cet appel
-     partait a l'heure du PC et tombait sur 10002. */
+  /* ⚠️ THE CLOCK SKEW BEFORE `loadMarkets`. Bybit queries the account
+     (`query-api`) BEFORE `fetchMarkets` measures the gap: that call went
+     out at the PC's time and hit 10002. */
   await syncClock(ex);
   await ex.loadMarkets();
   return ex;

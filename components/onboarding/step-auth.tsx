@@ -18,38 +18,37 @@ type Props = {
 };
 
 /* ---------------------------------------------------------------------------
-   Authentification : deux facons d'acceder aux modeles.
+   Authentication: two ways to access the models.
 
-   Par ABONNEMENT — le compte Claude, ChatGPT ou Google qu'on a deja ; on
-   se connecte une fois, l'agent de l'editeur (Claude Code, Codex, Gemini
-   CLI) tourne sous BytNode-AI, sans jeton supplementaire. Par CLES — une
-   cle OpenRouter donne tous les editeurs a la fois, facturee a l'usage.
-   Les deux coexistent : chaque agent choisit son fournisseur. BytNode, la
-   source de donnees, est une cle dans les deux cas.
+   By SUBSCRIPTION — the Claude, ChatGPT or Google account you already have;
+   sign in once, the vendor's agent (Claude Code, Codex, Gemini CLI) runs
+   under BytNode-AI, with no extra token. By KEYS — an OpenRouter key gives
+   every vendor at once, billed per use. The two coexist: each agent picks
+   its provider. BytNode, the data source, is a key in both cases.
 --------------------------------------------------------------------------- */
 export function StepAuth({ mode, keys, errors, onMode, onKeys }: Props) {
   return (
     <>
       <h1 id="ob-title" className="ob-title">
-        Authentification
+        Authentication
       </h1>
       <p className="ob-lede">
-        Vos agents ont besoin d&apos;un accès aux modèles — votre abonnement, ou une clé — et d&apos;une clé BytNode pour les données de marché. Tout reste sur cet ordinateur.
+        Your agents need access to the models — your subscription, or a key — and a BytNode key for market data. Everything stays on this computer.
       </p>
 
-      <div className="ob-tabs" role="tablist" aria-label="Mode d'authentification">
+      <div className="ob-tabs" role="tablist" aria-label="Authentication mode">
         <button type="button" role="tab" aria-selected={mode === "subscription"} className={`ob-tab${mode === "subscription" ? " is-on" : ""}`} onClick={() => onMode("subscription")}>
-          Abonnement
+          Subscription
         </button>
         <button type="button" role="tab" aria-selected={mode === "keys"} className={`ob-tab${mode === "keys" ? " is-on" : ""}`} onClick={() => onMode("keys")}>
-          Clés
+          Keys
         </button>
       </div>
 
       <div className="ob-form" role="tabpanel">
         {mode === "subscription" ? (
           <div className="field">
-            <span className="field-label">Votre abonnement</span>
+            <span className="field-label">Your subscription</span>
             <Subscriptions error={errors.subscription} />
           </div>
         ) : (
@@ -68,7 +67,7 @@ export function StepAuth({ mode, keys, errors, onMode, onKeys }: Props) {
   );
 }
 
-/* --- Abonnements ---------------------------------------------------------- */
+/* --- Subscriptions -------------------------------------------------------- */
 
 export function Subscriptions({ error }: { error?: string }) {
   const auth = useAcpAuth();
@@ -93,7 +92,9 @@ export function Subscriptions({ error }: { error?: string }) {
   };
   const logout = async (id: AcpAgentId) => {
     setBusy(id);
-    await acpLogout(id);
+    setFailure(null);
+    const msg = await acpLogout(id);
+    if (msg) setFailure(msg);
     setBusy(null);
   };
 
@@ -109,40 +110,40 @@ export function Subscriptions({ error }: { error?: string }) {
                 <span className="sub-name">{a.label}</span>
                 <span className="sub-desc">
                   {loading
-                    ? "Lecture…"
+                    ? "Reading…"
                     : s.installing
-                      ? `Installation de ${a.product}… (quelques minutes)`
+                      ? `Installing ${a.product}… (a few minutes)`
                       : !s.available
-                        ? (s.message ?? `${a.plan} · via ${a.product}, à installer`)
+                        ? (s.message ?? `${a.plan} · via ${a.product}, to install`)
                         : s.loggedIn
-                          ? `Connecté${s.account ? ` · ${s.account}` : ""}${s.source === "global" ? " · CLI détecté" : ""}`
+                          ? `Signed in${s.account ? ` · ${s.account}` : ""}${s.source === "global" ? " · CLI detected" : ""}`
                           : s.connecting
-                            ? "Connexion en cours — terminez dans la fenêtre ouverte, puis revenez ici."
-                            : `${a.plan} · via ${a.product}${s.source === "global" ? " (détecté sur cette machine)" : ""}`}
+                            ? "Signing in — finish in the window that opened, then come back here."
+                            : `${a.plan} · via ${a.product}${s.source === "global" ? " (detected on this machine)" : ""}`}
                 </span>
               </div>
               {!s.available ? (
                 <button type="button" className="btn btn-sm" disabled={busy === a.id || s.installing || loading} onClick={() => void install(a.id)}>
                   {busy === a.id || s.installing ? <Spinner /> : null}
-                  {s.installing ? "Installation" : "Installer"}
+                  {s.installing ? "Installing" : "Install"}
                 </button>
               ) : (
                 <>
                   {s.outdated ? (
                     <button type="button" className="btn btn-sm" disabled={busy === a.id || s.installing} onClick={() => void install(a.id)}>
                       {busy === a.id || s.installing ? <Spinner /> : null}
-                      {s.installing ? "Mise à jour" : "Mettre à jour"}
+                      {s.installing ? "Updating" : "Update"}
                     </button>
                   ) : null}
                   {s.loggedIn ? (
                     <button type="button" className="btn btn-sm btn-ghost" disabled={busy === a.id} onClick={() => void logout(a.id)}>
                       {busy === a.id ? <Spinner /> : null}
-                      Se déconnecter
+                      Sign out
                     </button>
                   ) : (
                     <button type="button" className="btn btn-sm btn-primary" disabled={busy === a.id || loading} onClick={() => void login(a.id)}>
                       {busy === a.id || s.connecting ? <Spinner /> : null}
-                      {s.connecting ? "En attente" : "Se connecter"}
+                      {s.connecting ? "Waiting" : "Sign in"}
                     </button>
                   )}
                 </>
@@ -155,33 +156,34 @@ export function Subscriptions({ error }: { error?: string }) {
         <p className="field-error">{error ?? failure ?? auth.message}</p>
       )}
       <p className="field-hint">
-        Se connecter ouvre le navigateur sur la page de l&apos;éditeur (et, pour Claude et GitHub Copilot, une fenêtre de terminal).
-        Aucune clé n&apos;est créée : c&apos;est votre abonnement qui est utilisé, avec ses limites habituelles. Les agents
-        absents s&apos;installent dans ~/.bytnode-ai/agents au premier clic ; un agent déjà installé sur la machine est reconnu.
+        Signing in opens the browser on the vendor&apos;s page (and, for Claude and GitHub Copilot, a terminal window).
+        No key is created: your subscription is what gets used, with its usual limits. Missing agents
+        install into ~/.bytnode-ai/agents on the first click; an agent already installed on the machine is recognised.
       </p>
     </>
   );
 }
 
-/* --- Cles ----------------------------------------------------------------- */
+/* --- Keys ----------------------------------------------------------------- */
 
 type KeyProps = { value: string; error?: string; onChange: (value: string) => void };
 
-/** La page de la console BytNode ou l'on cree et copie sa cle. */
+/** The BytNode console page where the key is created and copied. The route
+    is French on the deployed site (`/console/cles`) and must stay so. */
 export const BYTNODE_CONSOLE_KEYS = "https://bytnode.com/console/cles";
 
 export function OpenRouterKey({ value, error, onChange }: KeyProps) {
   return (
     <KeyField
       id="openrouter"
-      label="Clé OpenRouter"
+      label="OpenRouter key"
       value={value}
       error={error}
-      placeholderHint="Commence par sk-or-. Créez-la sur openrouter.ai/keys. Donne accès à tous les éditeurs, facturé à l'usage."
+      placeholderHint="Starts with sk-or-. Create it on openrouter.ai/keys. Gives access to every vendor, billed per use."
       verify={async (key) => {
         const res = await fetch("/api/openrouter/key", { headers: { "x-openrouter-key": key } });
         const json = (await res.json()) as { ok?: boolean; label?: string | null; error?: { message?: string } };
-        return res.ok && json.ok ? { ok: true, label: json.label ?? null } : { ok: false, message: json.error?.message ?? "Clé refusée." };
+        return res.ok && json.ok ? { ok: true, label: json.label ?? null } : { ok: false, message: json.error?.message ?? "Key refused." };
       }}
       onChange={onChange}
     />
@@ -192,18 +194,18 @@ export function BytnodeKey({ value, error, onChange }: KeyProps) {
   return (
     <KeyField
       id="bytnode"
-      label="Clé BytNode"
+      label="BytNode key"
       value={value}
       error={error}
-      placeholderHint="Commence par mk_. Nécessaire : sans elle, les agents n'ont pas de données de marché."
-      link={{ href: BYTNODE_CONSOLE_KEYS, label: "Créer ou copier ma clé dans la console BytNode" }}
+      placeholderHint="Starts with mk_. Required: without it, the agents have no market data."
+      link={{ href: BYTNODE_CONSOLE_KEYS, label: "Create or copy my key in the BytNode console" }}
       verify={async (key) => {
         const res = await fetch("/api/bytnode/key", { headers: { "x-bytnode-key": key } });
         const json = (await res.json()) as { ok?: boolean; tools?: string[]; error?: { message?: string } };
         const n = json.tools?.length ?? 0;
         return res.ok && json.ok
-          ? { ok: true, label: `${n} outil${n > 1 ? "s" : ""} de données` }
-          : { ok: false, message: json.error?.message ?? "Clé refusée." };
+          ? { ok: true, label: `${n} data tool${n > 1 ? "s" : ""}` }
+          : { ok: false, message: json.error?.message ?? "Key refused." };
       }}
       onChange={onChange}
     />
@@ -236,7 +238,7 @@ export function KeyField({ id, label, optional, value, error, placeholderHint, v
       const r = await verify(key);
       setCheck(r.ok ? { state: "ok", label: r.label } : { state: "bad", message: r.message });
     } catch {
-      setCheck({ state: "bad", message: "Impossible de joindre le service." });
+      setCheck({ state: "bad", message: "Could not reach the service." });
     }
   };
 
@@ -247,7 +249,7 @@ export function KeyField({ id, label, optional, value, error, placeholderHint, v
       optional={optional}
       link={link}
       error={error ?? (check.state === "bad" ? check.message : null)}
-      hint={check.state === "ok" ? `Clé reconnue${check.label ? ` : ${check.label}` : ""}.` : placeholderHint}
+      hint={check.state === "ok" ? `Key recognised${check.label ? `: ${check.label}` : ""}.` : placeholderHint}
     >
       <div className="ob-key">
         <input
@@ -262,12 +264,12 @@ export function KeyField({ id, label, optional, value, error, placeholderHint, v
             setCheck({ state: "idle" });
           }}
         />
-        <button type="button" className="ob-key-eye" onClick={() => setShown(!shown)} aria-label={shown ? "Masquer la clé" : "Afficher la clé"}>
+        <button type="button" className="ob-key-eye" onClick={() => setShown(!shown)} aria-label={shown ? "Hide the key" : "Show the key"}>
           {shown ? <EyeOff /> : <Eye />}
         </button>
         <button type="button" className={`btn btn-sm${check.state === "ok" ? " is-ok" : ""}`} onClick={run} disabled={!value.trim() || check.state === "checking"}>
           {check.state === "checking" ? <Spinner /> : check.state === "ok" ? <Check /> : null}
-          {check.state === "ok" ? "Vérifiée" : "Vérifier"}
+          {check.state === "ok" ? "Verified" : "Verify"}
         </button>
       </div>
     </Field>

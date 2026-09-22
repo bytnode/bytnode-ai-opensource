@@ -1,7 +1,7 @@
 {
   "name": "bytnode-ai",
   "version": "0.1.1",
-  "description": "Des agents IA financiers, en local : professions, outils, donnees de marche BytNode, modeles par cle OpenRouter ou par abonnement (ACP).",
+  "description": "Local AI finance agents: professions, tools, BytNode market data, models by OpenRouter key or by subscription (ACP).",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -26,9 +26,9 @@
     "proxy.ts"
   ],
   "scripts": {
-    "dev": "next dev --port 3777",
+    "dev": "next dev --hostname 127.0.0.1 --port 3777",
     "build": "next build",
-    "start": "next start --port 3777",
+    "start": "next start --hostname 127.0.0.1 --port 3777",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

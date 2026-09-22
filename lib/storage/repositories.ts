@@ -5,11 +5,11 @@ import type { Storage } from "./storage";
 export const SETTINGS_KEY = "agentchat:settings";
 export const CONVERSATIONS_KEY = "agentchat:conversations";
 
-/* ⚠️ L'ID DE L'AGENT MIGRE EST FIXE, ET C'EST CE QUI REND LA MIGRATION SURE.
-   La v1 n'avait qu'un agent et des conversations sans `agentId`. Les deux
-   depots sont lus separement ; pour que les anciennes conversations
-   retrouvent leur agent, il faut que l'un et l'autre s'accordent sur un id
-   sans se parler. */
+/* ⚠️ THE MIGRATED AGENT'S ID IS FIXED, AND THAT IS WHAT MAKES THE MIGRATION
+   SAFE. v1 had only one agent and conversations with no `agentId`. The two
+   repositories are read separately; for the old conversations to find
+   their agent again, both have to agree on an id without talking to each
+   other. */
 export const LEGACY_AGENT_ID = "agent-1";
 
 export function defaultSettings(): Settings {
@@ -25,8 +25,8 @@ export function defaultSettings(): Settings {
   };
 }
 
-/** Un agent vide, sans id : l'id et la date sont poses a la creation, par
-    celui qui l'enregistre. */
+/** A blank agent, with no id: the id and the date are set at creation, by
+    whoever saves it. */
 export function blankAgent(): AgentConfig {
   return {
     id: "",
@@ -50,9 +50,9 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 
 const str = (v: unknown, fallback = "") => (typeof v === "string" ? v : fallback);
 
-/** Recompose des reglages complets a partir de ce qui a ete lu : chaque champ
-    manquant reprend sa valeur par defaut, de sorte qu'un reglage ajoute dans
-    une version future ne casse pas les donnees d'une version passee. */
+/** Rebuilds full settings from what was read: each missing field falls back
+    to its default value, so that a setting added in a future version does
+    not break a past version's data. */
 function normalizeAgent(raw: unknown, fallbackId: string): AgentConfig | null {
   if (!isRecord(raw)) return null;
   const files = Array.isArray(raw.contextFiles) ? raw.contextFiles : [];
@@ -76,8 +76,8 @@ function normalizeAgent(raw: unknown, fallbackId: string): AgentConfig | null {
   };
 }
 
-/** Un compte exchange lisible : id et exchange presents. Les autres
-    entrees sont ecartees sans bruit. */
+/** A readable exchange account: id and exchange present. The other entries
+    are dropped without complaint. */
 function normalizeExchangeAccount(raw: unknown): ExchangeAccount | null {
   if (!isRecord(raw)) return null;
   const id = str(raw.id);
@@ -106,8 +106,8 @@ function normalizeSettings(raw: unknown): Settings {
     bio: str(profile.bio),
   };
 
-  /* v2 : une liste. v1 : un seul `agent`, qui devient le premier de la liste
-     sous l'id convenu. */
+  /* v2: a list. v1: a single `agent`, which becomes the first of the list
+     under the agreed id. */
   let agents: AgentConfig[] = [];
   if (Array.isArray(raw.agents)) {
     agents = raw.agents.map((a, i) => normalizeAgent(a, `agent-${i + 1}`)).filter((a): a is AgentConfig => a !== null);
@@ -124,7 +124,7 @@ function normalizeSettings(raw: unknown): Settings {
     onboardingDone: raw.onboardingDone === true,
     theme: raw.theme === "light" ? "light" : "dark",
     profile: p,
-    /* Un compte d'avant ce choix a une cle : il reste sur les cles. */
+    /* An account from before this choice existed has a key: it stays on keys. */
     authMode: raw.authMode === "subscription" || raw.authMode === "keys" ? raw.authMode : str(keys.openrouter) ? "keys" : "subscription",
     keys: {
       openrouter: str(keys.openrouter),
@@ -154,17 +154,17 @@ export class SettingsRepository {
   }
 }
 
-/** Le stockage du navigateur est plein : la conversation n'a pas ete
-    ecrite, l'ancienne liste est intacte. */
+/** The browser's storage is full: the conversation was not written, the
+    old list is intact. */
 export class StorageFullError extends Error {
   constructor() {
-    super("Le stockage du navigateur est plein.");
+    super("The browser's storage is full.");
     this.name = "StorageFullError";
   }
 }
 
-/** La meme liste sans les images inline : elles restent sur le disque
-    (`path`), et le fil les recharge par `/api/files`. */
+/** The same list without the inline images: they stay on disk (`path`),
+    and the thread reloads them through `/api/files`. */
 function withoutInlineImages(list: Conversation[]): Conversation[] {
   return list.map((c) => ({
     ...c,
@@ -202,9 +202,9 @@ export class ConversationsRepository {
     this.write(this.list().filter((c) => c.id !== id));
   }
 
-  /* ⚠️ UNE ECRITURE PEUT ECHOUER (quota). Alors on allege — les images
-     inline d'abord, ce sont elles qui pesent — et on reessaie ; si ca ne
-     rentre toujours pas, on le dit au lieu de perdre le tour en silence. */
+  /* ⚠️ A WRITE CAN FAIL (quota). So we lighten it — the inline images
+     first, they are what weighs it down — and retry; if it still does not
+     fit, we say so instead of silently losing the turn. */
   private write(list: Conversation[]) {
     if (this.storage.set(CONVERSATIONS_KEY, JSON.stringify(list))) return;
     if (this.storage.set(CONVERSATIONS_KEY, JSON.stringify(withoutInlineImages(list)))) return;

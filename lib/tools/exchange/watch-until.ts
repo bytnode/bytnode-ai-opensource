@@ -1,12 +1,12 @@
-/* La condition d'arret d'ExchangeWatch : une grammaire minuscule, lisible
-   par le modele et par l'utilisateur. Pur. */
+/* ExchangeWatch's stop condition: a tiny grammar, readable by the model
+   and by the user. Pure. */
 
 export type Sample = {
   price: number;
-  /** PnL latent de la position, si elle existe. */
+  /** Unrealized PnL of the position, if it exists. */
   pnl?: number;
   pnlPct?: number;
-  /** Distance a la liquidation en % du mark (signee). */
+  /** Distance to liquidation in % of the mark (signed). */
   liqPct?: number;
   open: boolean;
 };
@@ -21,7 +21,7 @@ export function parseUntil(text: string): Condition | { error: string } {
   const t = text.trim();
   if (/^closed$/i.test(t)) return { field: "closed" };
   const m = GRAMMAR.exec(t);
-  if (!m) return { error: `Condition \`until\` illisible : « ${t} ». Attendu : \`price>=70000\`, \`pnl<-50\`, \`pnl%<-2\`, \`liq<3%\` ou \`closed\`.` };
+  if (!m) return { error: `Unreadable \`until\` condition: "${t}". Expected: \`price>=70000\`, \`pnl<-50\`, \`pnl%<-2\`, \`liq<3%\` or \`closed\`.` };
   const field = FIELDS[m[1].toLowerCase()];
   if (field === "closed") return { error: "impossible" };
   return { field, op: m[2] as Op, value: Number(m[3]) };

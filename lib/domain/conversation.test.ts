@@ -14,7 +14,7 @@ describe("deriveTitle", () => {
   });
 
   test("falls back to a default for an empty message", () => {
-    expect(deriveTitle("   ")).toBe("Nouvelle conversation");
+    expect(deriveTitle("   ")).toBe("New conversation");
   });
 });
 

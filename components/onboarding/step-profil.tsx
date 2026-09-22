@@ -13,13 +13,13 @@ export function StepProfil({ value, errors, onChange }: Props) {
   return (
     <>
       <h1 id="ob-title" className="ob-title">
-        Qui êtes-vous ?
+        Who are you?
       </h1>
-      <p className="ob-lede">L&apos;agent s&apos;adressera à vous par votre prénom. Rien ne quitte cet ordinateur.</p>
+      <p className="ob-lede">The agent will address you by your first name. Nothing leaves this computer.</p>
 
       <div className="ob-form">
         <div className="ob-row">
-          <Field id="firstName" label="Prénom" error={errors.firstName}>
+          <Field id="firstName" label="First name" error={errors.firstName}>
             <input
               id="firstName"
               className="field-input"
@@ -29,7 +29,7 @@ export function StepProfil({ value, errors, onChange }: Props) {
               onChange={(e) => set({ firstName: e.target.value })}
             />
           </Field>
-          <Field id="lastName" label="Nom" optional>
+          <Field id="lastName" label="Last name" optional>
             <input
               id="lastName"
               className="field-input"
@@ -51,14 +51,14 @@ export function StepProfil({ value, errors, onChange }: Props) {
         </Field>
         <Field
           id="bio"
-          label="Quelques mots sur vous"
+          label="A few words about you"
           optional
-          hint="Votre activité, vos habitudes, ce que chaque agent doit savoir de vous. Transmis à tous vos agents."
+          hint="Your activity, your habits, what every agent should know about you. Passed on to all your agents."
         >
           <textarea
             id="bio"
             className="field-input"
-            placeholder="Trader crypto indépendant, je travaille surtout sur BTC et ETH…"
+            placeholder="Independent crypto trader, I mostly work on BTC and ETH…"
             value={value.bio}
             onChange={(e) => set({ bio: e.target.value })}
           />

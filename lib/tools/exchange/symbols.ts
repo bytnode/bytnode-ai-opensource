@@ -1,6 +1,6 @@
-/* Les symboles au format ccxt : `BTC/USDT` en spot, `BTC/USDT:USDT` pour un
-   perpetuel lineaire. Le modele ecrit souvent `BTCUSDT` ou en minuscules ;
-   on repare ce qui se repare. Pur. */
+/* Symbols in ccxt format: `BTC/USDT` on spot, `BTC/USDT:USDT` for a linear
+   perpetual. The model often writes `BTCUSDT` or in lowercase; we repair
+   what can be repaired. Pure. */
 
 export type Market = "spot" | "futures";
 

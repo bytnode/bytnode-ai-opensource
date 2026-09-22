@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Model } from "@/lib/domain/types";
 import { getCatalog, loadAcpModels } from "./use-catalog";
 
-/* Le catalogue des abonnements est relu quand un agent se connecte. Au
-   demarrage a froid, la premiere lecture dure longtemps (chaque agent est
-   lance pour publier ses modeles) pendant que les agents interroges par le
-   protocole (Grok, Copilot, Mistral) passent a « connecté » en quelques
-   secondes : la relecture qu'ils declenchent ne doit pas etre perdue. */
+/* The subscription catalog is read again when an agent connects. On a
+   cold start, the first read takes a long time (every agent is spawned to
+   publish its models) while the agents probed through the protocol (Grok,
+   Copilot, Mistral) switch to « connected » in a few seconds: the re-read
+   they trigger must not be lost. */
 
 const model = (id: string): Model => ({
   id,
@@ -46,10 +46,10 @@ describe("loadAcpModels", () => {
     vi.unstubAllGlobals();
   });
 
-  it("rejoue un chargement demandé pendant qu'un autre est en vol", async () => {
+  it("replays a load requested while another is in flight", async () => {
     const first = loadAcpModels();
-    /* Grok vient de se connecter : le catalogue demande une relecture alors
-       que la premiere, calculee sans lui, n'est pas encore revenue. */
+    /* Grok just connected: the catalog asks for a re-read while the first
+       one, computed without it, has not come back yet. */
     const second = loadAcpModels();
     expect(pending).toHaveLength(1);
 
@@ -62,15 +62,15 @@ describe("loadAcpModels", () => {
     expect(getCatalog().models.map((m) => m.id)).toContain("acp:grok/grok-4.6");
   });
 
-  it("dit qu'une lecture des abonnements est en cours jusqu'à la dernière rejouée", async () => {
+  it("says a subscription read is in progress until the last replayed one", async () => {
     const first = loadAcpModels();
     expect(getCatalog().acpLoading).toBe(true);
     const second = loadAcpModels();
 
     pending[0].resolve([]);
     await first;
-    /* La premiere est revenue, mais la relecture demandee entre-temps est
-       encore a faire : l'interface ne doit pas conclure « aucun modele ». */
+    /* The first one came back, but the re-read requested in the meantime
+       is still to be done: the interface must not conclude « no model ». */
     expect(getCatalog().acpLoading).toBe(true);
 
     await vi.waitFor(() => expect(pending).toHaveLength(2));

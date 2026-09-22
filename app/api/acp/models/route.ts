@@ -4,9 +4,9 @@ import { discoverOffer } from "@/lib/acp/models";
 import type { AgentModes } from "@/lib/acp/translate";
 import type { Model } from "@/lib/domain/types";
 
-/* Les modeles ET les modes des agents par abonnement connectes — ou d'un
-   seul, avec `?agent=`. Un agent non connecte n'est pas interroge : il
-   refuserait. */
+/* The models AND the modes of the logged-in subscription agents — or of a
+   single one, with `?agent=`. An agent that is not logged in is not asked:
+   it would refuse. */
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const only = url.searchParams.get("agent");

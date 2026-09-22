@@ -4,21 +4,21 @@ import { fail, ok } from "../types";
 import { ACCOUNT_PROP, MARKET_PROP, SYMBOL_PROP, attempt, resolve, sinceMs, symbolOn, type BaseArgs } from "./common";
 import { formatOrders } from "./format";
 
-/* ExchangeOrders : les ordres ouverts, ou l'historique (fills, frais).
-   Lecture seule. */
+/* ExchangeOrders: the open orders, or the history (fills, fees).
+   Read-only. */
 
 type Args = BaseArgs & { status: "open" | "closed"; symbol?: string; since?: string | number; limit?: number };
 
 export const ordersTool: Tool<Args> = {
   name: "ExchangeOrders",
-  description: "Les ordres d'un compte : `open` (en attente) ou `closed` (exécutés / annulés, avec prix moyen et frais). Filtre par paire et par date. Lecture seule, sans permission.",
+  description: "An account's orders: `open` (pending) or `closed` (filled / canceled, with average price and fees). Filter by pair and by date. Read-only, no permission needed.",
   parameters: {
     type: "object",
     properties: {
-      status: { type: "string", enum: ["open", "closed"], description: "`open` : ordres en attente. `closed` : historique." },
-      symbol: { ...SYMBOL_PROP, description: "Limiter à une paire (souvent exigé par l'exchange pour l'historique)." },
-      since: { type: "string", description: "Ne rendre que les ordres depuis cette date (ISO 8601 ou millisecondes)." },
-      limit: { type: "integer", minimum: 1, maximum: 200, description: "Nombre maximum d'ordres (défaut 50)." },
+      status: { type: "string", enum: ["open", "closed"], description: "`open`: pending orders. `closed`: history." },
+      symbol: { ...SYMBOL_PROP, description: "Limit to one pair (often required by the exchange for the history)." },
+      since: { type: "string", description: "Only return orders since this date (ISO 8601 or milliseconds)." },
+      limit: { type: "integer", minimum: 1, maximum: 200, description: "Maximum number of orders (default 50)." },
       account: ACCOUNT_PROP,
       market: MARKET_PROP,
     },

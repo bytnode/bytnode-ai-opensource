@@ -2,13 +2,13 @@ import os from "node:os";
 import path from "node:path";
 
 /* ---------------------------------------------------------------------------
-   Le dossier des donnees de l'utilisateur : dossiers de travail des agents,
-   agents par abonnement installes, competences personnelles.
+   The user's data folder: the agents' workspaces, installed subscription
+   agents, personal skills.
 
-   Hors du paquet, toujours : installe par `npx`, le paquet vit dans
-   `~/.npm/_npx/<hash>/node_modules/bytnode-ai/`, purge sans prevenir et
-   remplace a chaque version. `PROJECT_ROOT` ne sert plus qu'au code et aux
-   ressources du paquet (professions, lib, node_modules).
+   Outside the package, always: installed by `npx`, the package lives in
+   `~/.npm/_npx/<hash>/node_modules/bytnode-ai/`, purged without warning and
+   replaced at every version. `PROJECT_ROOT` now only serves the package's
+   code and resources (professions, lib, node_modules).
 --------------------------------------------------------------------------- */
 
 export const DATA_DIR_ENV = "BYTNODE_AI_HOME";

@@ -2,13 +2,13 @@ import { describe, expect, test } from "vitest";
 import { validateArgs } from "./validate";
 import type { JsonSchema } from "./types";
 
-/* Un appel mal forme doit revenir au modele en une phrase qu'il peut
-   corriger, sans executer l'outil ni deranger l'utilisateur. */
+/* An ill-formed call must come back to the model as one sentence it can
+   fix, without running the tool or bothering the user. */
 
 const schema: JsonSchema = {
   type: "object",
   properties: {
-    path: { type: "string", description: "Le fichier." },
+    path: { type: "string", description: "The file." },
     limit: { type: "integer", minimum: 1, maximum: 500 },
     ratio: { type: "number" },
     dry: { type: "boolean" },
@@ -21,50 +21,50 @@ const schema: JsonSchema = {
 };
 
 describe("validateArgs", () => {
-  test("accepte des arguments conformes", () => {
+  test("accepts conforming arguments", () => {
     expect(validateArgs(schema, { path: "a.md", limit: 10, ratio: 0.5, dry: true, action: "add", tags: ["x"], slug: "ok-slug" })).toBeNull();
   });
 
-  test("signale un argument requis manquant, avec son type", () => {
-    expect(validateArgs(schema, {})).toBe("`path` requis (string).");
+  test("reports a missing required argument, with its type", () => {
+    expect(validateArgs(schema, {})).toBe("`path` required (string).");
   });
 
-  test("signale un type incorrect en montrant la valeur reçue", () => {
-    expect(validateArgs(schema, { path: 12 })).toBe("`path` : string attendu, reçu 12.");
-    expect(validateArgs(schema, { path: "a", limit: "abc" })).toBe("`limit` : integer attendu, reçu \"abc\".");
-    expect(validateArgs(schema, { path: "a", limit: 1.5 })).toBe("`limit` : integer attendu, reçu 1.5.");
-    expect(validateArgs(schema, { path: "a", dry: "oui" })).toBe("`dry` : boolean attendu, reçu \"oui\".");
-    expect(validateArgs(schema, { path: "a", tags: "x" })).toBe("`tags` : array attendu, reçu \"x\".");
+  test("reports a wrong type by showing the received value", () => {
+    expect(validateArgs(schema, { path: 12 })).toBe("`path`: string expected, got 12.");
+    expect(validateArgs(schema, { path: "a", limit: "abc" })).toBe("`limit`: integer expected, got \"abc\".");
+    expect(validateArgs(schema, { path: "a", limit: 1.5 })).toBe("`limit`: integer expected, got 1.5.");
+    expect(validateArgs(schema, { path: "a", dry: "yes" })).toBe("`dry`: boolean expected, got \"yes\".");
+    expect(validateArgs(schema, { path: "a", tags: "x" })).toBe("`tags`: array expected, got \"x\".");
   });
 
-  test("verifie les elements d'un tableau", () => {
-    expect(validateArgs(schema, { path: "a", tags: ["x", 3] })).toBe("`tags[1]` : string attendu, reçu 3.");
+  test("checks the items of an array", () => {
+    expect(validateArgs(schema, { path: "a", tags: ["x", 3] })).toBe("`tags[1]`: string expected, got 3.");
   });
 
-  test("verifie une liste de valeurs, les bornes et un motif", () => {
-    expect(validateArgs(schema, { path: "a", action: "drop" })).toBe("`action` : valeur hors liste (add, search, list), reçu \"drop\".");
-    expect(validateArgs(schema, { path: "a", limit: 0 })).toBe("`limit` : au moins 1, reçu 0.");
-    expect(validateArgs(schema, { path: "a", limit: 900 })).toBe("`limit` : au plus 500, reçu 900.");
-    expect(validateArgs(schema, { path: "a", slug: "Nope!" })).toBe("`slug` : ne respecte pas le motif ^[a-z-]+$, reçu \"Nope!\".");
+  test("checks a list of values, the bounds and a pattern", () => {
+    expect(validateArgs(schema, { path: "a", action: "drop" })).toBe("`action`: value not in list (add, search, list), got \"drop\".");
+    expect(validateArgs(schema, { path: "a", limit: 0 })).toBe("`limit`: at least 1, got 0.");
+    expect(validateArgs(schema, { path: "a", limit: 900 })).toBe("`limit`: at most 500, got 900.");
+    expect(validateArgs(schema, { path: "a", slug: "Nope!" })).toBe("`slug`: does not match the pattern ^[a-z-]+$, got \"Nope!\".");
   });
 
-  test("refuse un argument inconnu quand le schema ferme la porte", () => {
-    expect(validateArgs(schema, { path: "a", extra: 1 })).toBe("`extra` : argument inconnu (attendus : path, limit, ratio, dry, action, tags, slug).");
+  test("refuses an unknown argument when the schema closes the door", () => {
+    expect(validateArgs(schema, { path: "a", extra: 1 })).toBe("`extra`: unknown argument (expected: path, limit, ratio, dry, action, tags, slug).");
   });
 
-  test("tolere un argument inconnu quand le schema ne dit rien", () => {
+  test("tolerates an unknown argument when the schema says nothing", () => {
     expect(validateArgs({ type: "object", properties: { a: { type: "string" } } }, { a: "x", b: 1 })).toBeNull();
   });
 
-  test("un argument optionnel absent ou nul passe", () => {
+  test("an absent or null optional argument passes", () => {
     expect(validateArgs(schema, { path: "a", limit: undefined, dry: null })).toBeNull();
   });
 
-  test("ne signale que le premier probleme, dans l'ordre du schema", () => {
-    expect(validateArgs(schema, { limit: "x" })).toBe("`path` requis (string).");
+  test("reports only the first problem, in schema order", () => {
+    expect(validateArgs(schema, { limit: "x" })).toBe("`path` required (string).");
   });
 
-  test("descend dans les objets d'un tableau et les nomme par leur index", () => {
+  test("descends into the objects of an array and names them by index", () => {
     const nested: JsonSchema = {
       type: "object",
       properties: {
@@ -80,8 +80,8 @@ describe("validateArgs", () => {
       required: ["tasks"],
     };
     expect(validateArgs(nested, { tasks: [{ title: "a", profession: "analyste" }] })).toBeNull();
-    expect(validateArgs(nested, { tasks: [{ title: "a", profession: "analyste" }, { title: "b" }] })).toBe("`tasks[1].profession` requis (string).");
-    expect(validateArgs(nested, { tasks: [{ title: "a", profession: "trader" }] })).toBe("`tasks[0].profession` : valeur hors liste (standard, analyste), reçu \"trader\".");
-    expect(validateArgs(nested, { tasks: ["a"] })).toBe("`tasks[0]` : object attendu, reçu \"a\".");
+    expect(validateArgs(nested, { tasks: [{ title: "a", profession: "analyste" }, { title: "b" }] })).toBe("`tasks[1].profession` required (string).");
+    expect(validateArgs(nested, { tasks: [{ title: "a", profession: "trader" }] })).toBe("`tasks[0].profession`: value not in list (standard, analyste), got \"trader\".");
+    expect(validateArgs(nested, { tasks: ["a"] })).toBe("`tasks[0]`: object expected, got \"a\".");
   });
 });

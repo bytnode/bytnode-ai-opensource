@@ -10,6 +10,6 @@ next-env.d.ts
 /sandboxes/
 /workspaces/
 
-# guidance et specs de travail locales, hors depot
+# local guidance and working specs, kept out of the repo
 CLAUDE.md
 docs/superpowers/

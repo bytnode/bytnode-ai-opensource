@@ -7,13 +7,13 @@ import { liquidationDistance, n8 } from "./format";
 import { holds, parseUntil, type Condition, type Sample } from "./watch-until";
 
 /* ---------------------------------------------------------------------------
-   ExchangeWatch : suivre un prix ou une position, toutes les N secondes.
+   ExchangeWatch: follow a price or a position, every N seconds.
 
-   Comme `Monitor` pour un processus : chaque releve est une ligne envoyee a
-   l'ecran au moment ou elle sort (`tool_line`), et l'outil rend la main
-   quand la condition `until` tient, quand la position se ferme, quand le
-   temps est ecoule, ou quand l'utilisateur interrompt. Surveillance BORNEE :
-   rien ne survit au tour ; le modele relance s'il veut continuer.
+   Like `Monitor` for a process: each reading is a line sent to the screen
+   the moment it comes out (`tool_line`), and the tool hands back control
+   when the `until` condition holds, when the position closes, when the
+   time has elapsed, or when the user interrupts. BOUNDED watch: nothing
+   survives the turn; the model runs it again if it wants to continue.
 --------------------------------------------------------------------------- */
 
 type Args = BaseArgs & { symbol: string; every?: number; timeout?: number; until?: string };
@@ -28,15 +28,15 @@ const MAX_MISSES = 3;
 export const watchTool: Tool<Args> = {
   name: "ExchangeWatch",
   description:
-    "Surveille une paire (et la position futures dessus) : un relevé toutes les `every` secondes (5–300, défaut 30), affiché à l'utilisateur au fil de l'eau. " +
-    "S'arrête quand `until` est vrai (`price>=70000`, `pnl<-50`, `pnl%<-2`, `liq<3%`, `closed`), quand la position se ferme, ou après `timeout` ms (défaut 300000, max 600000). Lecture seule, sans permission.",
+    "Watches a pair (and the futures position on it): one reading every `every` seconds (5–300, default 30), shown to the user as it comes. " +
+    "Stops when `until` is true (`price>=70000`, `pnl<-50`, `pnl%<-2`, `liq<3%`, `closed`), when the position closes, or after `timeout` ms (default 300000, max 600000). Read-only, no permission needed.",
   parameters: {
     type: "object",
     properties: {
       symbol: SYMBOL_PROP,
-      every: { type: "integer", minimum: MIN_EVERY, maximum: MAX_EVERY, description: "Secondes entre deux relevés." },
-      timeout: { type: "integer", minimum: 5000, maximum: MAX_TIMEOUT, description: "Durée maximale en millisecondes." },
-      until: { type: "string", description: "Condition d'arrêt : `price>=70000`, `pnl<-50`, `pnl%<-2`, `liq<3%` ou `closed`." },
+      every: { type: "integer", minimum: MIN_EVERY, maximum: MAX_EVERY, description: "Seconds between two readings." },
+      timeout: { type: "integer", minimum: 5000, maximum: MAX_TIMEOUT, description: "Maximum duration in milliseconds." },
+      until: { type: "string", description: "Stop condition: `price>=70000`, `pnl<-50`, `pnl%<-2`, `liq<3%` or `closed`." },
       account: ACCOUNT_PROP,
       market: MARKET_PROP,
     },
@@ -64,28 +64,28 @@ export const watchTool: Tool<Args> = {
       if (lines.length < MAX_LINES) lines.push(line);
       ctx.emit({ type: "tool_line", id: ctx.callId, line });
     };
-    const done = (why: string) => ok([...lines, `Arrêt : ${why}`].join("\n"));
+    const done = (why: string) => ok([...lines, `Stopped: ${why}`].join("\n"));
 
     let wasOpen: boolean | undefined;
     let misses = 0;
     while (true) {
-      if (ctx.signal.aborted) return done("interrompu.");
+      if (ctx.signal.aborted) return done("interrupted.");
       try {
         const sample = await read(r.ex, symbol, r.market === "futures");
         misses = 0;
         push(describe(sample));
         if (wasOpen === undefined) wasOpen = sample.open;
-        if (cond && holds(cond, sample)) return done(`condition \`${args.until}\` atteinte.`);
-        if (wasOpen && !sample.open) return done("position fermée.");
+        if (cond && holds(cond, sample)) return done(`condition \`${args.until}\` reached.`);
+        if (wasOpen && !sample.open) return done("position closed.");
       } catch (e) {
         misses++;
-        push(`(relevé manqué : ${describeExchangeError(e)})`);
-        if (misses >= MAX_MISSES) return fail([...lines, `Arrêt : ${MAX_MISSES} relevés manqués de suite.`].join("\n"));
+        push(`(reading missed: ${describeExchangeError(e)})`);
+        if (misses >= MAX_MISSES) return fail([...lines, `Stopped: ${MAX_MISSES} readings missed in a row.`].join("\n"));
       }
       const left = deadline - Date.now();
-      if (left <= 0) return done(`temps écoulé (${Math.round(timeout / 1000)} s).`);
+      if (left <= 0) return done(`time elapsed (${Math.round(timeout / 1000)} s).`);
       const interrupted = await sleep(Math.min(every, left), ctx.signal);
-      if (interrupted) return done("interrompu.");
+      if (interrupted) return done("interrupted.");
     }
   },
 };
@@ -111,12 +111,12 @@ function describe(s: Sample): string {
   const parts = [new Date().toISOString().slice(11, 19), `mark ${n8(s.price)}`];
   if (s.open) {
     if (s.pnl !== undefined) parts.push(`PnL ${s.pnl >= 0 ? "+" : "−"}${n8(Math.abs(s.pnl))}${s.pnlPct !== undefined ? ` (${s.pnlPct >= 0 ? "+" : "−"}${n8(Math.abs(s.pnlPct))} %)` : ""}`);
-    if (s.liqPct !== undefined) parts.push(`liquidation à ${n8(Math.abs(s.liqPct))} %`);
+    if (s.liqPct !== undefined) parts.push(`liquidation at ${n8(Math.abs(s.liqPct))} %`);
   }
   return parts.join(" · ");
 }
 
-/** Vrai si le signal a coupe l'attente. */
+/** True if the signal cut the wait short. */
 function sleep(ms: number, signal: AbortSignal): Promise<boolean> {
   return new Promise((resolve) => {
     if (signal.aborted) return resolve(true);

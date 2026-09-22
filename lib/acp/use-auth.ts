@@ -4,9 +4,9 @@ import { useEffect, useSyncExternalStore } from "react";
 import { createStore } from "@/lib/state/store";
 import { ACP_AGENTS, type AcpAgentId, type AcpAuthStatus } from "./agents";
 
-/* L'etat des comptes par abonnement, partage par tous les composants qui
-   l'affichent. Pendant une connexion, on relit toutes les deux secondes
-   jusqu'a ce que l'agent dise « connecté » (ou qu'on renonce). */
+/* The state of the subscription accounts, shared by every component that
+   displays it. During a sign-in, we re-read every two seconds until the
+   agent says « signed in » (or we give up). */
 
 export type AcpAuth = { status: "idle" | "loading" | "ready" | "error"; agents: AcpAuthStatus[]; message?: string };
 
@@ -25,7 +25,7 @@ export function loadAcpAuth(): Promise<void> {
     try {
       const res = await fetch("/api/acp/auth");
       const json = (await res.json()) as { agents?: AcpAuthStatus[]; error?: { message?: string } };
-      if (!res.ok || !json.agents) throw new Error(json.error?.message ?? "État des abonnements indisponible.");
+      if (!res.ok || !json.agents) throw new Error(json.error?.message ?? "Subscription status unavailable.");
       store.set({ status: "ready", agents: json.agents });
       for (const l of listeners) l(json.agents);
       schedulePoll(json.agents);
@@ -52,8 +52,8 @@ export function useAcpAuth(): AcpAuth {
   return auth;
 }
 
-/** Appele quand un agent passe a « connecté » : le catalogue de modeles
-    doit alors l'interroger. */
+/** Called when an agent flips to « signed in »: the model catalog must
+    then query it. */
 export function onAcpAuthChange(listener: (agents: AcpAuthStatus[]) => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -62,7 +62,7 @@ export function onAcpAuthChange(listener: (agents: AcpAuthStatus[]) => void): ()
 export async function acpLogin(agent: AcpAgentId): Promise<string | null> {
   const res = await fetch("/api/acp/auth", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agent, action: "login" }) });
   const json = (await res.json()) as { status?: AcpAuthStatus; error?: { message?: string } };
-  if (!res.ok) return json.error?.message ?? "Connexion impossible.";
+  if (!res.ok) return json.error?.message ?? "Could not sign in.";
   if (json.status) {
     const agents = store.get().agents.map((a) => (a.agent === agent ? { ...json.status!, connecting: !json.status!.loggedIn } : a));
     store.set({ status: "ready", agents });
@@ -74,7 +74,7 @@ export async function acpLogin(agent: AcpAgentId): Promise<string | null> {
 export async function acpInstall(agent: AcpAgentId): Promise<string | null> {
   const res = await fetch("/api/acp/auth", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agent, action: "install" }) });
   const json = (await res.json()) as { status?: AcpAuthStatus; error?: { message?: string } };
-  if (!res.ok) return json.error?.message ?? "Installation impossible.";
+  if (!res.ok) return json.error?.message ?? "Could not install.";
   if (json.status) {
     const agents = store.get().agents.map((a) => (a.agent === agent ? { ...json.status!, installing: !json.status!.available } : a));
     store.set({ status: "ready", agents });
@@ -83,9 +83,21 @@ export async function acpInstall(agent: AcpAgentId): Promise<string | null> {
   return null;
 }
 
-export async function acpLogout(agent: AcpAgentId): Promise<void> {
-  await fetch("/api/acp/auth", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agent, action: "logout" }) }).catch(() => {});
+/** Returns the reason the sign-out failed, or null. ⚠️ It used to swallow
+    everything and return void, so a refusal from the agent reached nobody:
+    the button simply came back. `loadAcpAuth` still runs either way — a
+    partial sign-out must not leave a stale state on screen. */
+export async function acpLogout(agent: AcpAgentId): Promise<string | null> {
+  let message: string | null = null;
+  try {
+    const res = await fetch("/api/acp/auth", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agent, action: "logout" }) });
+    const json = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+    if (!res.ok) message = json.error?.message ?? "Could not sign out.";
+  } catch {
+    message = "Could not sign out.";
+  }
   await loadAcpAuth();
+  return message;
 }
 
 export const isLoggedIn = (auth: AcpAuth, agent: AcpAgentId) => auth.agents.find((a) => a.agent === agent)?.loggedIn === true;

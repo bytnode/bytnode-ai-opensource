@@ -32,8 +32,8 @@ describe("ToolCallAccumulator", () => {
     expect(a.argsError).toBeUndefined();
     expect(b.args).toEqual({});
     expect(b.rawArgs).toBe("{broken");
-    /* Le modele doit savoir que c'est le JSON qui est en cause, pas un
-       argument manquant. */
+    /* The model must know that the JSON is at fault, not a missing
+       argument. */
     expect(b.argsError).toMatch(/JSON/);
   });
 

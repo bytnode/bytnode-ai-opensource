@@ -1,54 +1,54 @@
 ---
 name: macro-conventions
-description: À ouvrir dès qu'un indicateur macro entre dans l'analyse — CPI, emploi, taux, liquidité : quelle variante on lit, dans quelle unité, et quel effet usuel sur la crypto (avec ses contre-exemples)
+description: Open this as soon as a macro indicator enters the analysis — CPI, employment, rates, liquidity: which variant we read, in what unit, and what usual effect on crypto (with its counter-examples)
 ---
 
-# Lire la macro sans la déformer
+# Reading macro without distorting it
 
-Tes erreurs macro ne sont pas des erreurs de raisonnement : ce sont des confusions de variante et d'unité. Cœur ou total, mensuel ou annuel, nominal ou réel, niveau ou variation — se tromper de colonne inverse la conclusion.
+Your macro errors are not reasoning errors: they are confusions of variant and unit. Core or headline, monthly or annual, nominal or real, level or change — picking the wrong column reverses the conclusion.
 
-## Les indicateurs et leurs pièges
+## The indicators and their traps
 
-| Indicateur | Ce qu'on lit | Piège classique |
+| Indicator | What we read | Classic trap |
 |---|---|---|
-| **CPI / inflation** | l'écart à l'attendu, sur le **cœur** (hors énergie et alimentation) et sur le total, en m/m **et** a/a | un a/a qui baisse avec un m/m qui accélère : la désinflation est terminée. L'a/a seul est en retard d'un an |
-| **Emploi (NFP, chômage)** | créations + révisions des mois précédents + salaires | les révisions changent souvent le sens de la publication ; le chômage et les créations peuvent aller dans le même sens (participation) |
-| **Taux directeurs** | ce qui est **déjà anticipé** par le marché à terme, pas le niveau | une baisse de taux attendue depuis trois mois est déjà dans les prix : la surprise compte, pas la décision |
-| **Rendements réels** | nominal − inflation anticipée | un nominal qui monte avec une inflation qui monte plus vite est un assouplissement, pas un resserrement |
-| **DXY / dollar** | la variation, pas le niveau | « DXY à 104 » ne dit rien ; « +2 % en deux semaines » dit quelque chose |
-| **Liquidité globale** | bilan des banques centrales, reverse repo, réserves | mélanger les zones ; les rythmes sont mensuels, pas journaliers |
-| **Flux ETF** | net, cumulé, et rapporté au volume du marché | un flux brut sans dénominateur n'est pas interprétable |
+| **CPI / inflation** | the gap to expectations, on **core** (ex energy and food) and on headline, m/m **and** y/y | a falling y/y with an accelerating m/m: disinflation is over. The y/y alone lags by a year |
+| **Employment (NFP, unemployment)** | payrolls + revisions of previous months + wages | revisions often change the meaning of the release; unemployment and payrolls can move in the same direction (participation) |
+| **Policy rates** | what is **already priced** by the futures market, not the level | a rate cut expected for three months is already in prices: the surprise counts, not the decision |
+| **Real yields** | nominal − expected inflation | a rising nominal with inflation rising faster is an easing, not a tightening |
+| **DXY / dollar** | the change, not the level | "DXY at 104" says nothing; "+2% in two weeks" says something |
+| **Global liquidity** | central bank balance sheets, reverse repo, reserves | mixing zones; the rhythms are monthly, not daily |
+| **ETF flows** | net, cumulative, and relative to market volume | a gross flow without a denominator cannot be interpreted |
 
-## L'effet usuel sur la crypto — et pourquoi il casse
+## The usual effect on crypto — and why it breaks
 
-La chaîne habituelle : **inflation surprise à la hausse → taux réels attendus plus élevés → moins d'appétit pour le risque → crypto sous pression.** Et l'inverse.
+The usual chain: **upside inflation surprise → higher expected real rates → less risk appetite → crypto under pressure.** And the reverse.
 
-Trois raisons pour lesquelles cette chaîne échoue régulièrement, à vérifier avant de l'invoquer :
+Three reasons why this chain fails regularly, to check before invoking it:
 
-1. **La corrélation n'est pas stable.** La crypto suit les actions technologiques par périodes, puis s'en détache. Chiffre la corrélation sur la fenêtre récente avant de raisonner « actif à risque ».
-2. **Les flux propres dominent souvent.** ETF, halving, liquidations, événement de protocole : l'endogène écrase le macro sur les horizons courts.
-3. **Le régime commande.** En phase d'aversion extrême, tout descend ensemble et les nuances macro disparaissent.
+1. **The correlation is not stable.** Crypto follows tech equities for periods, then detaches. Quantify the correlation over the recent window before reasoning "risk asset".
+2. **Crypto-specific flows often dominate.** ETF, halving, liquidations, protocol event: the endogenous crushes the macro over short horizons.
+3. **The regime rules.** In a phase of extreme aversion, everything falls together and the macro nuances disappear.
 
-Donc : la lecture macro entre dans l'analyse comme **contexte et calendrier**, pas comme mécanisme de prévision à court terme.
+So: the macro reading enters the analysis as **context and calendar**, not as a short-term forecasting mechanism.
 
-## Le calendrier, sans base de données
+## The calendar, without a database
 
-Tu n'as pas d'outil de calendrier économique. Ce que tu peux faire, honnêtement :
+You have no economic calendar tool. What you can do, honestly:
 
-- Les **dates connues par construction** (réunions de banques centrales, publications mensuelles) se cherchent sur le web, datées et attribuées (`WebSearch`, `WebFetch`).
-- Ce qui est **dans les données BytNode** (`get_market_indicators`, familles macro que `get_system_info` liste) prime, parce que c'est mesuré.
-- Ce que tu ne peux pas vérifier, tu ne l'affirmes pas : « je ne connais pas la date exacte de la prochaine publication CPI, je peux la chercher ».
+- **Dates known by construction** (central bank meetings, monthly releases) are looked up on the web, dated and attributed (`WebSearch`, `WebFetch`).
+- What is **in the BytNode data** (`get_market_indicators`, the macro families that `get_system_info` lists) takes precedence, because it is measured.
+- What you cannot verify, you do not assert: "I do not know the exact date of the next CPI release, I can look it up".
 
-Et jamais de date de mémoire : une réunion de banque centrale « le 18 » sortie de ta mémoire est une invention (`horodatage`).
+And never a date from memory: a central bank meeting "on the 18th" pulled from your memory is an invention (`horodatage`).
 
-## La forme dans le rapport
+## The form in the report
 
-Deux à quatre lignes, jamais un cours d'économie :
+Two to four lines, never an economics lecture:
 
-> **Macro** : inflation cœur à 0,3 % m/m contre 0,2 % attendu (as-of …, source …) ; le marché à terme réduit la probabilité de baisse de taux à 35 % (contre 55 % il y a un mois). Contexte défavorable au risque, mais la corrélation BTC/Nasdaq sur 30 j est de 0,31 : l'effet direct est faible en ce moment.
+> **Macro**: core inflation at 0.3% m/m versus 0.2% expected (as-of …, source …); the futures market cuts the probability of a rate cut to 35% (from 55% a month ago). Context unfavourable to risk, but the 30d BTC/Nasdaq correlation is 0.31: the direct effect is weak right now.
 
-## Lié
+## Related
 
-- `contexte-macro` : la place de la macro dans l'analyse.
-- `piege-de-la-narration` : la macro est le premier fournisseur de fausses causes.
-- `citer-ou-se-taire` : une date ou un consensus se cite, ne se devine pas.
+- `contexte-macro`: the place of macro in the analysis.
+- `piege-de-la-narration`: macro is the first supplier of false causes.
+- `citer-ou-se-taire`: a date or a consensus is cited, not guessed.

@@ -1,38 +1,38 @@
-/* Ce que le navigateur sait des outils sans les importer : lesquels
-   attendent l'accord de l'utilisateur en mode « demander », et comment
-   resumer un appel en une ligne. Partage avec le serveur. */
+/* What the browser knows about the tools without importing them: which
+   ones wait for the user's approval in "ask" mode, and how to summarise
+   a call in one line. Shared with the server. */
 
-/** Les outils qui agissent — sur les fichiers, le systeme, ou en lancant
-    d'autres agents. En mode `ask`, chacun attend un accord. */
+/** The tools that act — on files, on the system, or by launching other
+    agents. In `ask` mode, each one waits for approval. */
 export const GATED_TOOLS = new Set(["Bash", "PowerShell", "Monitor", "Write", "Edit", "NotebookEdit", "Workflow", "Backtest", "PlaceOrder", "CancelOrder", "ClosePosition", "Transfer", "SetLeverage"]);
 
 export const isGated = (name: string) => GATED_TOOLS.has(name);
 
-/** Les outils exchange qui agissent (les cinq gated). */
+/** The exchange tools that act (the five gated ones). */
 const GATED_EXCHANGE = new Set(["PlaceOrder", "CancelOrder", "ClosePosition", "Transfer", "SetLeverage"]);
 
-/** ⚠️ Les outils qui engagent des fonds : ils demandent TOUJOURS, quel que
-    soit le mode de l'agent, sans « Toujours » ni regle possible. */
+/** ⚠️ The tools that commit funds: they ALWAYS ask, whatever the agent's
+    mode, with no "Always" button and no rule possible. */
 export const ALWAYS_ASK = new Set(["PlaceOrder", "ClosePosition", "Transfer"]);
 
 export const alwaysAsks = (name: string) => ALWAYS_ASK.has(name);
 
-/** Un titre d'appel d'un agent externe (`mcp__bytnode-ai__PlaceOrder`…)
-    designe-t-il un de ces outils ? */
+/** Does the title of an external agent's call (`mcp__bytnode-ai__PlaceOrder`…)
+    designate one of these tools? */
 export const isAlwaysAskTitle = (title: string) => [...ALWAYS_ASK].some((n) => title.includes(n));
 
-/** ⚠️ Un sous-agent (Workflow) n'a personne a qui demander : il ne recoit
-    jamais un outil qui engage des fonds, ni Workflow lui-meme. */
+/** ⚠️ A sub-agent (Workflow) has nobody to ask: it never receives a tool
+    that commits funds, nor Workflow itself. */
 export const allowedForSubagent = (name: string) => name !== "Workflow" && !GATED_EXCHANGE.has(name);
 
-/** Un appel Workflow, sous son nom natif ou celui d'un serveur MCP
+/** A Workflow call, under its native name or that of an MCP server
     (`mcp__bytnode-ai__Workflow`). */
 export const isWorkflowName = (name: string) => /(?:^|[_/.:-])Workflow$/.test(name);
 
-/** Les outils exchange, pour le badge RÉEL / TESTNET. */
+/** The exchange tools, for the LIVE / TESTNET badge. */
 export const isExchangeTool = (name: string) => name.startsWith("Exchange") || GATED_EXCHANGE.has(name);
 
-/** L'argument qui resume un appel : le chemin, la commande, le motif… */
+/** The argument that summarises a call: the path, the command, the pattern… */
 export function summarizeCall(name: string, args: Record<string, unknown>): string {
   const s = (k: string) => (typeof args[k] === "string" ? (args[k] as string) : "");
   switch (name) {
@@ -41,11 +41,11 @@ export function summarizeCall(name: string, args: Record<string, unknown>): stri
     case "Edit":
       return s("file_path");
     case "NotebookEdit":
-      return `${s("notebook_path")} · cellule ${args.cell_index ?? "?"}`;
+      return `${s("notebook_path")} · cell ${args.cell_index ?? "?"}`;
     case "Glob":
       return s("pattern");
     case "Grep":
-      return `/${s("pattern")}/${s("glob") ? ` dans ${s("glob")}` : ""}`;
+      return `/${s("pattern")}/${s("glob") ? ` in ${s("glob")}` : ""}`;
     case "Bash":
     case "PowerShell":
       return s("description") || s("command");
@@ -62,13 +62,13 @@ export function summarizeCall(name: string, args: Record<string, unknown>): stri
     case "Chart":
       return s("title") || s("data");
     case "Backtest":
-      return `${s("strategy")} sur ${s("data")}`;
+      return `${s("strategy")} on ${s("data")}`;
     case "Memory":
       return `${s("action")}${s("text") ? ` · ${s("text").slice(0, 60)}` : s("query") ? ` · ${s("query")}` : ""}`;
     case "TodoWrite": {
       if (!Array.isArray(args.todos)) return "";
       const done = (args.todos as Array<{ status?: unknown }>).filter((t) => t?.status === "completed").length;
-      return `${done}/${args.todos.length} faite${done > 1 ? "s" : ""}`;
+      return `${done}/${args.todos.length} done`;
     }
     case "ExchangeBalance":
     case "ExchangePositions":
@@ -87,7 +87,7 @@ export function summarizeCall(name: string, args: Record<string, unknown>): stri
       return [s("account"), bits.join(" ")].filter(Boolean).join(" · ");
     }
     case "CancelOrder":
-      return [s("account"), args.all === true ? `tous les ordres ${s("symbol")}`.trim() : `#${s("orderId")}`].filter(Boolean).join(" · ");
+      return [s("account"), args.all === true ? `all ${s("symbol")} orders`.replace(/\s+/g, " ").trim() : `#${s("orderId")}`].filter(Boolean).join(" · ");
     case "ClosePosition": {
       const f = typeof args.fraction === "number" && args.fraction < 1 ? ` ${Math.round(args.fraction * 100)} %` : "";
       return [s("account"), `${s("symbol")}${f}`].filter(Boolean).join(" · ");
@@ -97,7 +97,7 @@ export function summarizeCall(name: string, args: Record<string, unknown>): stri
     case "SetLeverage":
       return [s("account"), `${s("symbol")} ×${args.leverage ?? "?"}${s("marginMode") ? ` ${s("marginMode")}` : ""}`].filter(Boolean).join(" · ");
     default:
-      if (isWorkflowName(name)) return Array.isArray(args.tasks) ? `${(args.tasks as unknown[]).length} sous-agent${(args.tasks as unknown[]).length > 1 ? "s" : ""}` : "";
+      if (isWorkflowName(name)) return Array.isArray(args.tasks) ? `${(args.tasks as unknown[]).length} sub-agent${(args.tasks as unknown[]).length > 1 ? "s" : ""}` : "";
       return "";
   }
 }

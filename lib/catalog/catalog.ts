@@ -2,19 +2,19 @@ import type { Model, Provider } from "@/lib/domain/types";
 import { acpAgentOf } from "@/lib/acp/agents";
 
 /* ---------------------------------------------------------------------------
-   Le catalogue : ce qu'OpenRouter publie, reduit et reorganise.
+   The catalog: what OpenRouter publishes, reduced and reorganised.
 
-   OpenRouter ne publie pas de liste d'editeurs, seulement des modeles dont
-   l'id porte l'editeur en prefixe (`anthropic/claude-sonnet-4`). Le
-   « fournisseur » de l'interface est donc DERIVE des ids, et les noms lisibles
-   viennent d'une table : le prefixe `meta-llama` s'affiche « Meta Llama ».
+   OpenRouter publishes no list of vendors, only models whose id carries the
+   vendor as a prefix (`anthropic/claude-sonnet-4`). The interface's
+   « provider » is therefore DERIVED from the ids, and the readable names
+   come from a table: the `meta-llama` prefix is shown as « Meta Llama ».
 
-   ⚠️ DEUX FORMES D'ID NE SONT PAS DES MODELES NOUVEAUX. `openai/gpt-4o:free`
-   est une DECLINAISON de `openai/gpt-4o` (gratuite, par lots, avec
-   raisonnement…) : elle porte la date du modele de base, et listee parmi les
-   « derniers sortis » elle le doublerait. `~anthropic/claude-opus-latest` est
-   un ALIAS mobile : sa date est celle de l'alias, pas d'une sortie, et son
-   editeur est celui apres le tilde. Les deux restent cherchables.
+   ⚠️ TWO ID FORMS ARE NOT NEW MODELS. `openai/gpt-4o:free` is a VARIANT of
+   `openai/gpt-4o` (free, batch, with reasoning…): it carries the base
+   model's date, and listed among the « latest releases » it would
+   duplicate it. `~anthropic/claude-opus-latest` is a moving ALIAS: its date
+   is the alias's, not a release's, and its vendor is the one after the
+   tilde. Both remain searchable.
 --------------------------------------------------------------------------- */
 
 const PROVIDER_NAMES: Record<string, string> = {
@@ -59,8 +59,8 @@ const providerName = (id: string) =>
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null;
 
-/** Lit la reponse de `GET /api/v1/models`. Tolerant : une entree mal formee
-    est ignoree, un corps mal forme donne une liste vide. */
+/** Reads the response of `GET /api/v1/models`. Tolerant: a malformed entry
+    is ignored, a malformed body yields an empty list. */
 export function parseOpenRouterModels(raw: unknown): Model[] {
   if (!isRecord(raw) || !Array.isArray(raw.data)) return [];
   const out: Model[] = [];
@@ -104,8 +104,8 @@ const byNewest = (a: Model, b: Model) => b.created - a.created;
 const ofProvider = (models: Model[], providerId: string) =>
   models.filter((m) => m.providerId === providerId).sort(byNewest);
 
-/** Les derniers modeles sortis par un editeur, du plus recent au plus ancien :
-    les modeles de base seulement — ni declinaisons, ni alias. */
+/** The latest models released by a vendor, newest first: base models
+    only — no variants, no aliases. */
 export function latestModels(models: Model[], providerId: string, n = 3): Model[] {
   return ofProvider(models, providerId)
     .filter((m) => m.variant === null && !m.alias)
@@ -125,28 +125,28 @@ export function searchProviders(providers: Provider[], query: string): Provider[
   return providers.filter((p) => p.id.toLowerCase().includes(q) || p.name.toLowerCase().includes(q));
 }
 
-/** Les niveaux d'effort, tels qu'on les nomme a l'ecran. Un niveau inconnu
-    garde son nom technique. */
+/** The effort levels, as they are named on screen. An unknown level keeps
+    its technical name. */
 export const EFFORT_LABELS: Record<string, string> = {
-  max: "Maximal",
-  xhigh: "Très élevé",
-  high: "Élevé",
-  medium: "Moyen",
-  low: "Faible",
+  max: "Max",
+  xhigh: "Very high",
+  high: "High",
+  medium: "Medium",
+  low: "Low",
   minimal: "Minimal",
-  none: "Aucun",
+  none: "None",
 };
 
 export const effortLabel = (effort: string) => EFFORT_LABELS[effort] ?? effort;
 
-/** La valeur qui coupe le raisonnement. Envoyee a OpenRouter comme
-    `reasoning: { enabled: false }`, la seule forme valable pour tous les
-    fournisseurs. */
+/** The value that switches reasoning off. Sent to OpenRouter as
+    `reasoning: { enabled: false }`, the only form valid for every
+    provider. */
 export const EFFORT_OFF = "none";
 
-/** Les niveaux a proposer pour un modele : ceux qu'il publie, puis « Aucun »
-    s'il accepte de ne pas raisonner — soit parce qu'il le liste, soit parce
-    que son raisonnement n'est pas obligatoire. */
+/** The levels to offer for a model: the ones it publishes, then « None »
+    if it accepts not to reason — either because it lists it, or because
+    its reasoning is not mandatory. */
 export function effortOptions(model: Model): string[] {
   if (model.efforts.length === 0) return [];
   const levels = model.efforts.filter((e) => e !== EFFORT_OFF);

@@ -15,21 +15,21 @@ type Props = {
 };
 
 /* ---------------------------------------------------------------------------
-   Le fil.
+   The thread.
 
-   Vide, il salue : le prenom en grand, en Geist legere. Plein, il SUIT ce
-   qui arrive — texte, appels d'outils, lignes d'un Monitor — tant que le
-   lecteur est en bas. Des qu'il remonte lire, on le laisse : plus aucun
-   defilement automatique jusqu'a ce qu'il revienne en bas de lui-meme, ou
-   par le bouton qui apparait alors.
+   Empty, it greets: the first name in large, light Geist. Full, it FOLLOWS
+   what comes in — text, tool calls, lines from a Monitor — as long as the
+   reader is at the bottom. As soon as they scroll up to read, we leave them
+   be: no more automatic scrolling until they come back to the bottom on
+   their own, or through the button that then appears.
 
-   ⚠️ LE SUIVI OBSERVE LA HAUTEUR DU CONTENU, PAS LE TEXTE. Un appel d'outil
-   qui s'affiche, une ligne de Monitor, un bloc qui se deplie changent la
-   hauteur sans changer le texte : c'est `ResizeObserver` qui les voit tous.
+   ⚠️ THE FOLLOWING WATCHES THE CONTENT HEIGHT, NOT THE TEXT. A tool call
+   that shows up, a Monitor line, a block that unfolds change the height
+   without changing the text: `ResizeObserver` is what sees them all.
 
-   ⚠️ UN DEFILEMENT PROGRAMME NE DOIT PAS PASSER POUR UN GESTE. Poser
-   `scrollTop` declenche `scroll` comme un coup de molette ; on le marque
-   pour que la position du lecteur ne soit relue que sur SES gestes.
+   ⚠️ A PROGRAMMATIC SCROLL MUST NOT PASS FOR A GESTURE. Setting `scrollTop`
+   fires `scroll` like a wheel notch; we mark it so the reader's position is
+   only re-read on THEIR gestures.
 --------------------------------------------------------------------------- */
 export function Thread({ settings, agent, conversation, streaming, onRetry, onAnswer }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
@@ -57,14 +57,15 @@ export function Thread({ settings, agent, conversation, streaming, onRetry, onAn
     setShowJump(!atBottom);
   };
 
-  /* Nouveau fil : on repart du bas, epingle. Le composant est remonte par
-     conversation (cle posee par le parent), donc l'etat repart de zero. */
+  /* New thread: start again from the bottom, pinned. The component is
+     remounted per conversation (key set by the parent), so the state starts
+     from scratch. */
   useLayoutEffect(() => {
     pinned.current = true;
     toBottom();
   }, []);
 
-  /* Tout ce qui change la hauteur du contenu fait suivre le lecteur epingle. */
+  /* Anything that changes the content height carries the pinned reader along. */
   useEffect(() => {
     const el = inner.current;
     if (!el) return;
@@ -77,18 +78,18 @@ export function Thread({ settings, agent, conversation, streaming, onRetry, onAn
 
   if (!conversation || conversation.messages.length === 0) {
     const who = settings.profile.firstName.trim();
-    const name = agent.name.trim() || "Votre agent";
+    const name = agent.name.trim() || "Your agent";
     return (
       <div className="thread thread-empty">
-        <h1 className="hello">{who ? `Bonjour, ${who}.` : "Bonjour."}</h1>
-        <p className="hello-sub">{name} vous écoute.</p>
+        <h1 className="hello">{who ? `Hello, ${who}.` : "Hello."}</h1>
+        <p className="hello-sub">{name} is listening.</p>
       </div>
     );
   }
 
   const last = conversation.messages.length - 1;
-  /* Les images produites dans le dossier de travail sont servies par le
-     serveur, pour cet agent. */
+  /* Images produced in the workspace are served by the server, for this
+     agent. */
   const fileUrl = (rel: string) =>
     `/api/files?agentId=${encodeURIComponent(agent.id)}&workspace=${encodeURIComponent(agent.workspace ?? "")}&path=${encodeURIComponent(rel)}`;
 
@@ -117,10 +118,10 @@ export function Thread({ settings, agent, conversation, streaming, onRetry, onAn
             setShowJump(false);
             toBottom();
           }}
-          aria-label="Aller en bas"
+          aria-label="Jump to bottom"
         >
           <ArrowDown />
-          {streaming ? "Suivre la réponse" : "Aller en bas"}
+          {streaming ? "Follow the reply" : "Jump to bottom"}
         </button>
       )}
     </div>

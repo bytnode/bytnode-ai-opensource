@@ -1,12 +1,12 @@
 /* ---------------------------------------------------------------------------
-   Un magasin minuscule pour `useSyncExternalStore`.
+   A tiny store for `useSyncExternalStore`.
 
-   ⚠️ LA LECTURE PARESSEUSE EST CE QUI REND L'HYDRATATION SURE. Le serveur ne
-   connait ni localStorage ni les reglages : il rend avec `initial`. Dans le
-   navigateur, React lit d'abord le meme `initial` (via `getServerSnapshot`)
-   pour hydrater sans desaccord, PUIS appelle `getSnapshot`, qui charge la
-   vraie valeur une seule fois et provoque le rendu client. Aucun effet, aucun
-   `setState` au montage : c'est le mecanisme prevu pour cela.
+   ⚠️ LAZY READING IS WHAT MAKES HYDRATION SAFE. The server knows neither
+   localStorage nor the settings: it renders with `initial`. In the
+   browser, React first reads that same `initial` (via `getServerSnapshot`)
+   to hydrate without a mismatch, THEN calls `getSnapshot`, which loads the
+   real value exactly once and triggers the client render. No effect, no
+   `setState` on mount: this is the mechanism designed for that.
 --------------------------------------------------------------------------- */
 
 export type Store<T> = {

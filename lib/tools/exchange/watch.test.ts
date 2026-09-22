@@ -16,7 +16,7 @@ afterEach(() => vi.useRealTimers());
 const lines = (events: AgentEvent[]) => events.filter((e) => e.type === "tool_line").map((e) => (e as { line: string }).line);
 
 describe("ExchangeWatch", () => {
-  test("s'arrete quand la condition est atteinte, une ligne par releve", async () => {
+  test("stops when the condition is reached, one line per reading", async () => {
     let n = 0;
     const ex = fakeExchange({ fetchTicker: vi.fn(async () => ({ symbol: "BTC/USDT", last: [66000, 70500][n++] })) });
     mocked.mockResolvedValue(ex);
@@ -27,18 +27,18 @@ describe("ExchangeWatch", () => {
     expect(r.ok).toBe(true);
     expect(lines(events)).toHaveLength(2);
     expect(lines(events)[1]).toMatch(/mark 70500$/);
-    expect(r.output.endsWith("Arrêt : condition `price>=70000` atteinte.")).toBe(true);
+    expect(r.output.endsWith("Stopped: condition `price>=70000` reached.")).toBe(true);
   });
-  test("temps ecoule", async () => {
+  test("time elapsed", async () => {
     mocked.mockResolvedValue(fakeExchange());
     const events: AgentEvent[] = [];
     const p = watchTool.execute({ symbol: "BTC/USDT", every: 5, timeout: 12000 }, ctx(undefined, events));
     await vi.advanceTimersByTimeAsync(13000);
     const r = await p;
     expect(lines(events).length).toBeGreaterThanOrEqual(2);
-    expect(r.output).toContain("Arrêt : temps écoulé (12 s).");
+    expect(r.output).toContain("Stopped: time elapsed (12 s).");
   });
-  test("futures : PnL et liquidation dans la ligne, arret quand la position se ferme", async () => {
+  test("futures: PnL and liquidation on the line, stops when the position closes", async () => {
     let n = 0;
     const ex = fakeExchange({
       fetchTicker: vi.fn(async () => ({ symbol: "BTC/USDT:USDT", last: 67000 })),
@@ -49,16 +49,16 @@ describe("ExchangeWatch", () => {
     const p = watchTool.execute({ symbol: "BTC/USDT", market: "futures", every: 5 }, ctx(undefined, events));
     await vi.advanceTimersByTimeAsync(6000);
     const r = await p;
-    expect(lines(events)[0]).toMatch(/mark 67000 · PnL \+100 \(\+3\.08 %\) · liquidation à 22\.39 %$/);
-    expect(r.output).toContain("Arrêt : position fermée.");
+    expect(lines(events)[0]).toMatch(/mark 67000 · PnL \+100 \(\+3\.08 %\) · liquidation at 22\.39 %$/);
+    expect(r.output).toContain("Stopped: position closed.");
   });
-  test("until illisible : refus immediat", async () => {
+  test("unreadable until: immediate refusal", async () => {
     mocked.mockResolvedValue(fakeExchange());
     const r = await watchTool.execute({ symbol: "BTC/USDT", until: "volume>1" }, ctx());
     expect(r.ok).toBe(false);
-    expect(r.output).toContain("illisible");
+    expect(r.output).toContain("Unreadable");
   });
-  test("annulation par le signal", async () => {
+  test("cancellation through the signal", async () => {
     mocked.mockResolvedValue(fakeExchange());
     const ac = new AbortController();
     const c = { ...ctx(), signal: ac.signal };
@@ -67,6 +67,6 @@ describe("ExchangeWatch", () => {
     ac.abort();
     await vi.advanceTimersByTimeAsync(10);
     const r = await p;
-    expect(r.output).toContain("Arrêt : interrompu.");
+    expect(r.output).toContain("Stopped: interrupted.");
   });
 });

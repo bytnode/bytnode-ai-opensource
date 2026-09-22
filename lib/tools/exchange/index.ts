@@ -10,7 +10,7 @@ import { closePositionTool } from "./close-position";
 import { transferTool } from "./transfer";
 import { setLeverageTool } from "./set-leverage";
 
-/* Les dix outils exchange. Un agent ne les recoit que s'il a au moins un
-   compte rattache (`registry.ts`, `finance-server.ts`). */
+/* The ten exchange tools. An agent only receives them if it has at least
+   one attached account (`registry.ts`, `finance-server.ts`). */
 export const exchangeTools = (): Tool[] =>
   [balanceTool, positionsTool, ordersTool, tickerTool, watchTool, placeOrderTool, cancelOrderTool, closePositionTool, transferTool, setLeverageTool] as Tool[];

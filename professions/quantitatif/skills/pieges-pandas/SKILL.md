@@ -1,28 +1,28 @@
 ---
 name: pieges-pandas
-description: À ouvrir en écrivant du pandas sur des séries temporelles de marché — les idiomes exacts pour resample, alignement, décalage, fuseaux, flottants, et les tournures qui produisent des résultats faux sans erreur
+description: Open this when writing pandas on market time series — the exact idioms for resample, alignment, shifting, time zones, floats, and the constructs that produce wrong results without an error
 ---
 
-# Les idiomes qui ne mentent pas
+# The idioms that do not lie
 
-Tes erreurs pandas ne lèvent pas d'exception : elles décalent une série d'une bougie, alignent mal deux actifs, ou comparent deux flottants. Le code tourne, le résultat est faux. Voici les tournures à utiliser, et celles à ne jamais écrire.
+Your pandas errors raise no exception: they shift a series by one candle, misalign two assets, or compare two floats. The code runs, the result is wrong. Here are the constructs to use, and those never to write.
 
-## Le chargement, une fois pour toutes
+## Loading, once and for all
 
 ```python
 import pandas as pd
 
 df = (pd.read_csv("data/btc_4h.csv", parse_dates=["time"])
         .set_index("time")
-        .sort_index())                       # ⚠️ sans tri, rolling mélange les époques
+        .sort_index())                       # ⚠️ without sorting, rolling mixes epochs
 df = df[~df.index.duplicated(keep="last")]
 if df.index.tz is None:
-    df.index = df.index.tz_localize("UTC")   # tout en UTC, toujours
+    df.index = df.index.tz_localize("UTC")   # everything in UTC, always
 ```
 
-Si le temps est numérique : `pd.to_datetime(t, unit="ms" if t.iloc[0] > 1e11 else "s", utc=True)`.
+If time is numeric: `pd.to_datetime(t, unit="ms" if t.iloc[0] > 1e11 else "s", utc=True)`.
 
-## Resample : les quatre arguments qui comptent
+## Resample: the four arguments that matter
 
 ```python
 j = df.resample("1D", label="left", closed="left", origin="epoch").agg(
@@ -30,71 +30,71 @@ j = df.resample("1D", label="left", closed="left", origin="epoch").agg(
 )
 ```
 
-- `label` : quel horodatage porte la période. `left` = la période est nommée par son début — la convention des bougies.
-- `closed` : quel bord est inclus. **`label` et `closed` doivent être cohérents**, sinon la bougie est décalée d'une période.
-- `origin="epoch"` : sinon la grille dépend de la première ligne du fichier et deux actifs ne s'alignent plus.
-- Le dernier groupe est **partiel** : `j = j.iloc[:-1]` si tu ne veux que des périodes complètes.
+- `label`: which timestamp the period carries. `left` = the period is named by its start — the candle convention.
+- `closed`: which edge is included. **`label` and `closed` must be consistent**, otherwise the candle is shifted by one period.
+- `origin="epoch"`: otherwise the grid depends on the first row of the file and two assets no longer align.
+- The last group is **partial**: `j = j.iloc[:-1]` if you only want complete periods.
 
-## Décalages et fenêtres
+## Shifts and windows
 
 ```python
 c = df["close"]
-c.shift(1)                      # la valeur précédente — causal
-c.shift(-1)                     # ⛔ le futur : jamais dans un signal
-c.rolling(20).mean()            # causal, NaN sur les 19 premières
-c.rolling(20, center=True)      # ⛔ utilise le futur
-c.rolling(20, min_periods=1)    # ⚠️ moyenne sur 3 points au début : évite, garde les NaN
-c.ewm(span=20, adjust=False)    # exponentielle causale
-c.diff(), c.pct_change()        # décalage de 1 par défaut
+c.shift(1)                      # the previous value — causal
+c.shift(-1)                     # ⛔ the future: never in a signal
+c.rolling(20).mean()            # causal, NaN on the first 19
+c.rolling(20, center=True)      # ⛔ uses the future
+c.rolling(20, min_periods=1)    # ⚠️ average over 3 points at the start: avoid, keep the NaN
+c.ewm(span=20, adjust=False)    # causal exponential
+c.diff(), c.pct_change()        # shift of 1 by default
 ```
 
-Les NaN du début sont une **information** : ils disent que l'indicateur n'existe pas encore. Les remplir (`fillna(0)`, `bfill`) crée des signaux fantômes au début de l'historique.
+The NaN at the start are **information**: they say the indicator does not exist yet. Filling them (`fillna(0)`, `bfill`) creates phantom signals at the start of the history.
 
-## Aligner deux actifs
+## Aligning two assets
 
 ```python
 a = charge("data/btc_4h.csv")["close"].rename("btc")
 b = charge("data/eth_4h.csv")["close"].rename("eth")
-paire = pd.concat([a, b], axis=1, join="inner")      # inner : seules les dates communes
+paire = pd.concat([a, b], axis=1, join="inner")      # inner: only the common dates
 corr = paire["btc"].pct_change().rolling(90).corr(paire["eth"].pct_change())
 ```
 
-`join="outer"` (le défaut de `concat`) fabrique des NaN, qu'un `ffill` transforme ensuite en faux prix. Pour une corrélation, `inner` est le seul choix honnête — et dis combien de lignes ont été perdues.
+`join="outer"` (the `concat` default) manufactures NaN, which a `ffill` then turns into false prices. For a correlation, `inner` is the only honest choice — and say how many rows were lost.
 
-⛔ `a.corr(b)` sur les **prix** : deux séries qui montent sont corrélées à 0,99 sans rien dire. La corrélation se calcule sur les **rendements**.
+⛔ `a.corr(b)` on **prices**: two rising series are correlated at 0.99 without meaning anything. Correlation is computed on **returns**.
 
-## Les flottants
+## Floats
 
 ```python
 import numpy as np
 if np.isclose(a, b): ...          # ✅
-if a == b: ...                    # ⛔ sur des flottants
-croise = (f > s) & (f.shift(1) <= s.shift(1))    # un croisement, proprement
+if a == b: ...                    # ⛔ on floats
+croise = (f > s) & (f.shift(1) <= s.shift(1))    # a crossover, done properly
 ```
 
-## Les tournures à bannir
+## The constructs to ban
 
-| ⛔ | ✅ | Pourquoi |
+| ⛔ | ✅ | Why |
 |---|---|---|
-| `df.append(...)` | `pd.concat([...])` | retiré de pandas 2 |
-| `df["x"][df.y > 0] = 1` | `df.loc[df.y > 0, "x"] = 1` | affectation en chaîne : silencieusement sans effet |
-| `inplace=True` | réassigner | comportement ambigu, déconseillé en amont |
-| `iterrows()` sur 10 000 lignes | opérations vectorisées | mille fois plus lent, et `r["close"]` perd le type |
-| `df.dropna()` en fin de chaîne | `dropna(subset=[...])` | supprime des lignes pour une colonne annexe |
-| `apply(lambda …)` par ligne | `np.where`, `.clip`, `.mask` | lent, et masque les erreurs de type |
+| `df.append(...)` | `pd.concat([...])` | removed from pandas 2 |
+| `df["x"][df.y > 0] = 1` | `df.loc[df.y > 0, "x"] = 1` | chained assignment: silently without effect |
+| `inplace=True` | reassign | ambiguous behaviour, discouraged upstream |
+| `iterrows()` over 10,000 rows | vectorised operations | a thousand times slower, and `r["close"]` loses the type |
+| `df.dropna()` at the end of a chain | `dropna(subset=[...])` | removes rows because of a secondary column |
+| `apply(lambda …)` per row | `np.where`, `.clip`, `.mask` | slow, and masks type errors |
 
-## Le contrôle de forme
+## The shape check
 
-Après chaque transformation qui change la granularité ou joint des séries :
+After every transformation that changes the granularity or joins series:
 
 ```python
 print(len(df), df.index.is_monotonic_increasing, df.index.tz, df.isna().sum().to_dict())
 ```
 
-Trois lignes qui font gagner des heures : longueur attendue, index trié, fuseau posé, NaN comptés.
+Three lines that save hours: expected length, sorted index, time zone set, NaN counted.
 
-## Lié
+## Related
 
-- `anti-fuite` : le test qui prouve qu'aucun de ces pièges n'a fui.
-- `controle-qualite-donnees` : ce qu'on vérifie avant de transformer.
-- `python-quant` : la démarche d'ensemble.
+- `anti-fuite`: the test that proves none of these traps leaked.
+- `controle-qualite-donnees`: what we check before transforming.
+- `python-quant`: the overall approach.

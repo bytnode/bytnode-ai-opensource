@@ -1,64 +1,64 @@
 ---
 name: conception-strategie
-description: Le canevas d'une stratégie de trading ou d'investissement écrite pour être exécutée et testée — intention, hypothèse, univers, règles chiffrées, exécution, faiblesses
+description: The canvas of a trading or investment strategy written to be executed and tested — intention, hypothesis, universe, quantified rules, execution, weaknesses
 ---
 
-# Conception d'une stratégie
+# Strategy design
 
-Le livrable est un document que quelqu'un d'autre peut appliquer ou coder sans te poser de question. S'il faut l'écrire, `strategie-<nom>.md` dans le dossier de travail.
+The deliverable is a document that someone else can apply or code without asking you a question. If it must be written, `strategie-<name>.md` in the workspace.
 
-## Canevas
+## Canvas
 
 ```
-# Stratégie <nom>
+# Strategy <name>
 
 ## Intention
-Une phrase. Ex. : capter les tendances de plusieurs semaines sur BTC et ETH en limitant le drawdown à 15 %.
+One sentence. E.g.: capture multi-week trends on BTC and ETH while limiting drawdown to 15%.
 
-## Contraintes
-Capital ; horizon ; drawdown max ; fréquence de décision (par bougie 4 h, journalière…) ;
-marchés autorisés (spot / perp / options) ; levier max ; contraintes pratiques (temps disponible, automatisation).
+## Constraints
+Capital; horizon; max drawdown; decision frequency (per 4h candle, daily…);
+allowed markets (spot / perp / options); max leverage; practical constraints (time available, automation).
 
-## Hypothèse de marché
-D'où vient l'avantage, en deux phrases, et pourquoi il devrait persister.
-Ex. : les tendances crypto persistent sur plusieurs semaines parce que les flux (ETF, stablecoins) sont
-autocorrélés ; l'avantage disparaît en range, d'où un filtre de régime.
+## Market hypothesis
+Where the edge comes from, in two sentences, and why it should persist.
+E.g.: crypto trends persist over several weeks because flows (ETF, stablecoins) are
+autocorrelated; the edge disappears in a range, hence a regime filter.
 
-## Univers
-Actifs et critères de sélection (liquidité minimale : volume 24 h > X, spread < Y).
+## Universe
+Assets and selection criteria (minimum liquidity: 24h volume > X, spread < Y).
 
-## Règles
-| Élément | Règle | Paramètre |
+## Rules
+| Element | Rule | Parameter |
 |---|---|---|
-| Régime / filtre | ex. clôture > MM200 journalière et ADX(14) > 20 | 200, 14, 20 |
-| Entrée | ex. clôture 4 h au-dessus du plus haut 20 bougies | 20 |
-| Taille | ex. risque 1 % du capital par position, taille = 1 % / distance au stop | 1 % |
-| Stop initial | ex. 2 × ATR(14) sous l'entrée | 2, 14 |
-| Sortie | ex. stop suiveur 3 × ATR ou clôture sous MM50 4 h | 3, 50 |
-| Pyramidage | autorisé / non ; conditions | |
-| Temps | sortie forcée après N bougies sans progrès | N |
+| Regime / filter | e.g. close > daily MA200 and ADX(14) > 20 | 200, 14, 20 |
+| Entry | e.g. 4h close above the 20-candle high | 20 |
+| Size | e.g. risk 1% of capital per position, size = 1% / distance to stop | 1% |
+| Initial stop | e.g. 2 × ATR(14) below entry | 2, 14 |
+| Exit | e.g. trailing stop 3 × ATR or close below 4h MA50 | 3, 50 |
+| Pyramiding | allowed / not; conditions | |
+| Time | forced exit after N candles without progress | N |
 
-## Risque
-Renvoi à `gestion-risque` : limites par position, par jour, globales ; corrélation entre positions ;
-levier ; comportement en stress (gap, liquidation en cascade, panne d'échange).
+## Risk
+Refer to `gestion-risque`: limits per position, per day, overall; correlation between positions;
+leverage; behaviour under stress (gap, liquidation cascade, exchange outage).
 
-## Exécution
-Type d'ordres ; frais supposés (maker/taker) ; slippage supposé ; fenêtre d'exécution ;
-ce qu'on fait si le prix a déjà bougé de plus de X % au moment d'agir.
+## Execution
+Order types; assumed fees (maker/taker); assumed slippage; execution window;
+what to do if the price has already moved more than X% by the time of acting.
 
 ## Validation
-Renvoi à `plan-backtest` : période, hors échantillon, métriques, seuils de rejet.
+Refer to `plan-backtest`: period, out-of-sample, metrics, rejection thresholds.
 
-## Faiblesses connues
-Régimes où elle perd ; sensibilité aux paramètres ; coût de friction ; ce qui casserait l'hypothèse.
+## Known weaknesses
+Regimes where it loses; parameter sensitivity; friction cost; what would break the hypothesis.
 ```
 
-## Règles de conception
+## Design rules
 
-- **Une hypothèse, une stratégie.** Deux hypothèses = deux stratégies, éventuellement combinées après test.
-- **Chaque règle a un paramètre nommé** et une valeur par défaut. Le quant les fera varier ; toi, tu dis lesquels comptent.
-- **Peu de paramètres.** Au-delà de cinq ou six, la stratégie s'ajuste au passé plus qu'au marché.
-- **La sortie compte plus que l'entrée.** Elle est chiffrée avant l'entrée.
-- **La friction est une règle.** Une stratégie 1 h sur un actif peu liquide meurt de ses frais : dis-le à la conception, pas au backtest.
-- **Le régime est un filtre, pas une excuse.** Si la stratégie ne marche qu'en tendance, la règle de détection du régime fait partie de la stratégie.
-- Ancre les valeurs par défaut dans les données réelles (BytNode) : volatilité récente pour l'ATR, volumes pour l'univers, funding pour les coûts de portage sur perp.
+- **One hypothesis, one strategy.** Two hypotheses = two strategies, possibly combined after testing.
+- **Every rule has a named parameter** and a default value. The quant will vary them; you say which ones matter.
+- **Few parameters.** Beyond five or six, the strategy fits the past more than the market.
+- **The exit matters more than the entry.** It is quantified before the entry.
+- **Friction is a rule.** A 1h strategy on an illiquid asset dies of its fees: say so at design time, not at backtest time.
+- **The regime is a filter, not an excuse.** If the strategy only works in a trend, the regime detection rule is part of the strategy.
+- Anchor default values in real data (BytNode): recent volatility for the ATR, volumes for the universe, funding for carry costs on perps.

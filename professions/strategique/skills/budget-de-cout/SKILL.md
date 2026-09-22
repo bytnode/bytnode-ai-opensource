@@ -1,22 +1,22 @@
 ---
 name: budget-de-cout
-description: À ouvrir avant de proposer une stratégie — chiffrer frais, slippage et funding par aller-retour, les comparer à l'avantage attendu, et refuser ce qui ne passe pas le seuil
+description: Open this before proposing a strategy — quantify fees, slippage and funding per round trip, compare them to the expected edge, and refuse what does not clear the threshold
 ---
 
-# La plupart des stratégies proposées meurent sur les coûts
+# Most proposed strategies die on costs
 
-C'est l'erreur la plus fréquente et la plus silencieuse : une règle qui gagne 0,15 % par trade, avec 0,22 % de frictions par aller-retour, perd de l'argent — et rien dans le raisonnement ne le signale. Plus le pas de temps est court, plus c'est vrai.
+This is the most frequent and most silent error: a rule that wins 0.15% per trade, with 0.22% of frictions per round trip, loses money — and nothing in the reasoning flags it. The shorter the timeframe, the truer this is.
 
-**Règle : le budget de coût se calcule avant le premier backtest, et la stratégie est refusée si l'avantage brut attendu n'atteint pas deux fois le coût.**
+**Rule: the cost budget is computed before the first backtest, and the strategy is refused if the expected gross edge does not reach twice the cost.**
 
-## Le calcul
+## The calculation
 
 ```python
-FEE = 0.0006        # taker, par côté — valeur réelle de l'échange visé
-SLIP = 0.0005       # par côté ; davantage sur altcoins ou en stress
-FUNDING = 0.0001    # par période de 8 h, moyenne récente (signe selon le sens)
+FEE = 0.0006        # taker, per side — real value of the targeted exchange
+SLIP = 0.0005       # per side; more on altcoins or under stress
+FUNDING = 0.0001    # per 8h period, recent average (sign depending on direction)
 
-duree_h = 48        # durée moyenne de position visée
+duree_h = 48        # targeted average position duration
 aller_retour = 2 * (FEE + SLIP)
 cout_funding = FUNDING * (duree_h / 8)
 cout_total = aller_retour + cout_funding
@@ -24,46 +24,46 @@ print(f"coût par trade : {100*cout_total:.3f} % "
       f"(frictions {100*aller_retour:.3f} % + funding {100*cout_funding:.3f} %)")
 ```
 
-Puis, en face, l'avantage brut attendu par trade — **estimé avant le test**, à partir de l'amplitude visée et du taux de réussite espéré :
+Then, opposite it, the expected gross edge per trade — **estimated before the test**, from the targeted amplitude and the hoped-for win rate:
 
 ```python
-taux_reussite, gain_moyen, perte_moyenne = 0.40, 0.030, 0.012   # en fraction
+taux_reussite, gain_moyen, perte_moyenne = 0.40, 0.030, 0.012   # as fractions
 avantage = taux_reussite * gain_moyen - (1 - taux_reussite) * perte_moyenne
 print(f"avantage brut : {100*avantage:.3f} % — ratio avantage/coût : {avantage/cout_total:.1f}×")
 ```
 
-| Ratio avantage / coût | Verdict |
+| Edge / cost ratio | Verdict |
 |---|---|
-| < 1 | perdante par construction — on arrête ici |
-| 1 à 2 | trop fragile : une hausse de slippage la tue. À refuser sauf argument fort |
-| 2 à 4 | viable, à tester |
-| > 10 | suspect : vérifie l'hypothèse d'amplitude, elle est probablement trop optimiste |
+| < 1 | losing by construction — we stop here |
+| 1 to 2 | too fragile: a rise in slippage kills it. To refuse unless there is a strong argument |
+| 2 to 4 | viable, to be tested |
+| > 10 | suspect: check the amplitude assumption, it is probably too optimistic |
 
-## Ce qu'on oublie systématiquement
+## What is systematically forgotten
 
-- **Le funding sur les positions tenues.** À 0,01 % / 8 h, une position de 5 jours coûte 0,15 % — souvent plus que les frais. Sur un short, le funding positif te **paie** : le signe compte.
-- **Le slippage réel, pas le théorique.** Il dépend de la taille par rapport au carnet, et il explose au moment précis où la stratégie veut agir (volatilité, liquidations). Double-le pour un test de robustesse.
-- **Les stops sont des ordres marché.** Un stop touché paie le slippage, souvent pire que la moyenne.
-- **La fréquence.** Une stratégie qui trade 300 fois par an paie 300 aller-retours : à 0,22 %, c'est 66 % de capital consommé en frictions. Le nombre de trades est un paramètre de conception, pas une conséquence.
-- **Les altcoins.** Sur les paires moins liquides du périmètre, prends le double des frictions de BTC.
+- **Funding on held positions.** At 0.01% / 8h, a 5-day position costs 0.15% — often more than fees. On a short, positive funding **pays** you: the sign matters.
+- **Real slippage, not theoretical.** It depends on size relative to the order book, and it explodes at the precise moment the strategy wants to act (volatility, liquidations). Double it for a robustness test.
+- **Stops are market orders.** A hit stop pays slippage, often worse than average.
+- **Frequency.** A strategy that trades 300 times a year pays 300 round trips: at 0.22%, that is 66% of capital consumed in frictions. The number of trades is a design parameter, not a consequence.
+- **Altcoins.** On the less liquid pairs of the scope, take double the frictions of BTC.
 
-## Le test de sensibilité obligatoire
+## The mandatory sensitivity test
 
-Après le backtest, relance avec **le double de frais et de slippage**. Si le résultat se retourne, la stratégie n'est pas viable — elle vivait de l'hypothèse de coût.
+After the backtest, rerun with **double the fees and slippage**. If the result flips, the strategy is not viable — it lived off the cost assumption.
 
 ```
-Backtest(..., fee=0.0006, slippage=0.0005)   # référence
+Backtest(..., fee=0.0006, slippage=0.0005)   # reference
 Backtest(..., fee=0.0012, slippage=0.0010)   # stress
 ```
 
-Les deux tableaux vont dans le rapport, côte à côte.
+Both tables go into the report, side by side.
 
-## La forme dans la proposition
+## The form in the proposal
 
-> **Budget de coût** : 0,22 % de frictions par aller-retour + 0,06 % de funding (48 h à 0,01 %/8 h) = **0,28 % par trade**. Avantage brut estimé : 0,77 % (40 % de réussite, +3,0 % / −1,2 %). Ratio 2,8× — viable, à tester. Sous stress (frais et slippage doublés), le ratio tombe à 1,5× : la marge est mince, la fréquence devra rester basse.
+> **Cost budget**: 0.22% of frictions per round trip + 0.06% of funding (48h at 0.01%/8h) = **0.28% per trade**. Estimated gross edge: 0.77% (40% win rate, +3.0% / −1.2%). Ratio 2.8× — viable, to be tested. Under stress (fees and slippage doubled), the ratio drops to 1.5×: the margin is thin, frequency will have to stay low.
 
-## Lié
+## Related
 
-- `conventions-marche` : funding, bp, mark et liquidation.
-- `specification-executable` : les coûts sont un champ de la spécification.
-- `plan-backtest` : où le test de stress se place.
+- `conventions-marche`: funding, bp, mark and liquidation.
+- `specification-executable`: costs are a field of the specification.
+- `plan-backtest`: where the stress test sits.

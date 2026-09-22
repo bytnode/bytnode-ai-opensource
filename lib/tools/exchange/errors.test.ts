@@ -4,33 +4,33 @@ import { describeExchangeError, isTransientExchangeError, withRetry } from "./er
 const err = (name: string, message: string) => Object.assign(new Error(message), { name });
 
 describe("describeExchangeError", () => {
-  test("phrase francaise, puis le texte de l'exchange", () => {
+  test("plain sentence, then the exchange's text", () => {
     expect(describeExchangeError(err("InsufficientFunds", 'binance {"code":-2019,"msg":"Margin is insufficient."}'))).toBe(
-      'Fonds insuffisants. Exchange : binance {"code":-2019,"msg":"Margin is insufficient."}',
+      'Insufficient funds. Exchange: binance {"code":-2019,"msg":"Margin is insufficient."}',
     );
-    expect(describeExchangeError(err("InvalidOrder", "x"))).toBe("Ordre refusé par l'exchange. Exchange : x");
-    expect(describeExchangeError(err("AuthenticationError", "x"))).toBe("Clé API refusée : vérifiez le compte dans Authentification (bouton Tester). Exchange : x");
-    expect(describeExchangeError(err("BadSymbol", "x"))).toBe("Marché inconnu sur cet exchange. Exchange : x");
-    expect(describeExchangeError(err("RateLimitExceeded", "x"))).toBe("Trop de requêtes : l'exchange demande de ralentir. Exchange : x");
-    expect(describeExchangeError(err("NetworkError", "x"))).toBe("L'exchange est injoignable. Exchange : x");
+    expect(describeExchangeError(err("InvalidOrder", "x"))).toBe("Order refused by the exchange. Exchange: x");
+    expect(describeExchangeError(err("AuthenticationError", "x"))).toBe("API key refused: check the account in Authentication (Test button). Exchange: x");
+    expect(describeExchangeError(err("BadSymbol", "x"))).toBe("Unknown market on this exchange. Exchange: x");
+    expect(describeExchangeError(err("RateLimitExceeded", "x"))).toBe("Too many requests: the exchange asks to slow down. Exchange: x");
+    expect(describeExchangeError(err("NetworkError", "x"))).toBe("The exchange is unreachable. Exchange: x");
   });
-  test("un decalage d'horloge est nomme, avec l'ecart mesure", () => {
+  test("a clock skew is named, with the measured gap", () => {
     const bybit = err(
       "InvalidNonce",
       'bybit {"retCode":10002,"retMsg":"invalid request, please check your server timestamp or recv_window param: req_timestamp[1789501205653],server_timestamp[1789501211672],recv_window[5000]","result":{}}',
     );
-    expect(describeExchangeError(bybit)).toMatch(/^L'horloge de cet ordinateur est décalée d'environ 6 s par rapport à l'exchange : synchronisez l'heure du système\. Exchange : bybit/);
+    expect(describeExchangeError(bybit)).toMatch(/^This computer's clock is off by about 6 s from the exchange's: synchronize the system time\. Exchange: bybit/);
     const binance = err("BadRequest", 'binance {"code":-1021,"msg":"Timestamp for this request is outside of the recvWindow."}');
-    expect(describeExchangeError(binance)).toMatch(/^L'horloge de cet ordinateur est décalée par rapport à l'exchange : synchronisez l'heure du système\. Exchange : binance/);
+    expect(describeExchangeError(binance)).toMatch(/^This computer's clock is off from the exchange's: synchronize the system time\. Exchange: binance/);
   });
-  test("une erreur inconnue garde son texte", () => {
-    expect(describeExchangeError(new Error("boom"))).toBe("L'exchange a répondu par une erreur. Exchange : boom");
-    expect(describeExchangeError("texte")).toBe("L'exchange a répondu par une erreur. Exchange : texte");
+  test("an unknown error keeps its text", () => {
+    expect(describeExchangeError(new Error("boom"))).toBe("The exchange answered with an error. Exchange: boom");
+    expect(describeExchangeError("text")).toBe("The exchange answered with an error. Exchange: text");
   });
 });
 
 describe("withRetry", () => {
-  test("reessaie une fois sur une erreur passagere", async () => {
+  test("retries once on a transient error", async () => {
     let n = 0;
     const r = await withRetry(async () => {
       n++;
@@ -40,7 +40,7 @@ describe("withRetry", () => {
     expect(r).toBe("ok");
     expect(n).toBe(2);
   });
-  test("ne reessaie pas une erreur franche, ni plus d'une fois", async () => {
+  test("does not retry a hard error, nor more than once", async () => {
     let n = 0;
     await expect(
       withRetry(async () => {

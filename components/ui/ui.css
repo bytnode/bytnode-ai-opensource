@@ -1,10 +1,10 @@
 /* ---------------------------------------------------------------------------
-   Le panneau de recherche.
+   The search panel.
 
-   Un voile pose sous (ou sur) son declencheur. Il est le seul element de
-   l'interface a porter une ombre, parce qu'il est le seul a FLOTTER : tout le
-   reste est a plat sur le fond. L'ombre est un bleu de nuit, pas du noir —
-   c'est l'ombre que porterait un objet dans cette lumiere-la.
+   A veil laid under (or over) its trigger. It is the only element of the
+   interface to carry a shadow, because it is the only one to FLOAT: everything
+   else sits flat on the backdrop. The shadow is a midnight blue, not black —
+   it is the shadow an object would cast in that light.
 --------------------------------------------------------------------------- */
 
 .sp {
@@ -110,7 +110,7 @@ html[data-theme="light"] .sp {
   font-weight: 500;
 }
 
-/* Une ligne de menu : le nom du reglage, sa valeur en dessous, un chevron. */
+/* A menu row: the setting's name, its value below, a chevron. */
 .sp-item-chevron {
   color: var(--fg-faint);
   transform: rotate(-90deg);
@@ -242,7 +242,7 @@ html[data-theme="light"] .sp {
   stroke-linejoin: round;
 }
 
-/* Serre : des lignes d'une seule hauteur, en plus petit corps. */
+/* Dense: single-height rows, in a smaller body. */
 .sp.is-dense .sp-item {
   padding: 6px 10px;
 }
@@ -299,7 +299,7 @@ html[data-theme="light"] .sp {
   margin-top: 4px;
 }
 
-/* --- Le declencheur d'un panneau ------------------------------------------- */
+/* --- A panel's trigger ------------------------------------------------------- */
 
 .picker {
   position: relative;
@@ -345,7 +345,7 @@ html[data-theme="light"] .sp {
   color: var(--fg-faint);
 }
 
-/* L'effort fixe, en pastille a cote du modele. */
+/* The fixed effort, as a pill next to the model. */
 .picker-badge {
   flex: none;
   padding: 1px 7px;
@@ -355,8 +355,8 @@ html[data-theme="light"] .sp {
   font-size: 0.74rem;
 }
 
-/* Le declencheur nu, pour le bloc de saisie : le modele en encre, l'effort
-   en retrait, pas de fond hors survol. */
+/* The bare trigger, for the composer: the model in ink, the effort set
+   back, no background outside hover. */
 .picker-trigger.is-quiet {
   gap: 6px;
   padding: 0 6px 0 8px;
@@ -386,7 +386,7 @@ html[data-theme="light"] .sp {
   font-weight: 400;
 }
 
-/* Le meme declencheur, a la taille d'un champ de formulaire. */
+/* The same trigger, at the size of a form field. */
 .picker-trigger.as-field {
   width: 100%;
   height: 46px;
@@ -410,7 +410,7 @@ html[data-theme="light"] .sp {
   }
 }
 
-/* --- La confirmation ------------------------------------------------------- */
+/* --- The confirmation ------------------------------------------------------- */
 
 .cd {
   position: fixed;

@@ -3,54 +3,54 @@
 import type { Attachment } from "./attachments";
 import { captureScreen, downscaleToJpeg, toBase64 } from "./capture";
 
-/* Ce que le navigateur fait pour joindre quelque chose : reduire les images,
-   deposer les fichiers dans le dossier de travail de l'agent par la route, et
-   rendre les pieces jointes pretes a etre envoyees. */
+/* What the browser does to attach something: shrink images, drop the files
+   into the agent's workspace through the route, and make the attachments
+   ready to be sent. */
 
-type Cible = { agentId: string; workspace: string };
+type Target = { agentId: string; workspace: string };
 
-async function deposer(cible: Cible, fichiers: Array<{ name: string; blob: Blob; type?: string }>): Promise<Attachment[]> {
-  const files = await Promise.all(
-    fichiers.map(async (f) => ({ name: f.name, type: f.type ?? f.blob.type, content: await toBase64(f.blob) })),
+async function upload(target: Target, files: Array<{ name: string; blob: Blob; type?: string }>): Promise<Attachment[]> {
+  const encoded = await Promise.all(
+    files.map(async (f) => ({ name: f.name, type: f.type ?? f.blob.type, content: await toBase64(f.blob) })),
   );
   const res = await fetch("/api/files/upload", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ agentId: cible.agentId, workspace: cible.workspace, files }),
+    body: JSON.stringify({ agentId: target.agentId, workspace: target.workspace, files: encoded }),
   });
   const json = (await res.json()) as { attachments?: Attachment[]; error?: { message?: string } };
-  if (!res.ok || !json.attachments) throw new Error(json.error?.message ?? `Le dépôt a échoué (${res.status}).`);
+  if (!res.ok || !json.attachments) throw new Error(json.error?.message ?? `Upload failed (${res.status}).`);
   return json.attachments;
 }
 
 const IMAGE = /^image\//;
 
-/** Des fichiers choisis : l'original part sur le disque ; une version reduite
-    sert d'apercu et de ce que le modele voit. */
-export async function attachFiles(cible: Cible, liste: FileList | File[]): Promise<Attachment[]> {
-  const fichiers = Array.from(liste);
-  if (fichiers.length === 0) return [];
-  const depose = await deposer(
-    cible,
-    fichiers.map((f) => ({ name: f.name, blob: f, type: f.type })),
+/** Chosen files: the original goes to disk; a downscaled version serves as
+    the preview and as what the model sees. */
+export async function attachFiles(target: Target, list: FileList | File[]): Promise<Attachment[]> {
+  const files = Array.from(list);
+  if (files.length === 0) return [];
+  const uploaded = await upload(
+    target,
+    files.map((f) => ({ name: f.name, blob: f, type: f.type })),
   );
-  /* Pour les images, on remplace l'apercu du serveur par une version reduite
-     cote navigateur : le fil vit dans `localStorage`. */
+  /* For images, the server's preview is replaced by a version downscaled in
+     the browser: the thread lives in `localStorage`. */
   return Promise.all(
-    depose.map(async (a, i) => {
-      const source = fichiers[i];
+    uploaded.map(async (a, i) => {
+      const source = files[i];
       if (a.kind !== "image" || !source || !IMAGE.test(source.type)) return a;
-      const petit = await downscaleToJpeg(source);
-      if (!petit) return a;
-      return { ...a, dataUrl: `data:image/jpeg;base64,${await toBase64(petit)}` };
+      const small = await downscaleToJpeg(source);
+      if (!small) return a;
+      return { ...a, dataUrl: `data:image/jpeg;base64,${await toBase64(small)}` };
     }),
   );
 }
 
-/** Une capture d'ecran : le navigateur demande quoi partager, l'image reduite
-    est deposee dans le dossier de travail. */
-export async function attachScreenshot(cible: Cible): Promise<Attachment[]> {
+/** A screenshot: the browser asks what to share, and the downscaled image
+    is dropped into the workspace. */
+export async function attachScreenshot(target: Target): Promise<Attachment[]> {
   const { name, blob } = await captureScreen();
-  const [a] = await deposer(cible, [{ name, blob, type: "image/jpeg" }]);
+  const [a] = await upload(target, [{ name, blob, type: "image/jpeg" }]);
   return a ? [{ ...a, dataUrl: `data:image/jpeg;base64,${await toBase64(blob)}` }] : [];
 }

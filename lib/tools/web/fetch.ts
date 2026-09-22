@@ -6,14 +6,14 @@ import type { Tool } from "../types";
 import { errorText, fail, ok } from "../types";
 
 /* ---------------------------------------------------------------------------
-   WebFetch : le meme systeme que DeepSeek Harness.
+   WebFetch: the same system as DeepSeek Harness.
 
-   `fetch` natif, redirections suivies a la main et seulement vers la meme
-   origine, garde anti-SSRF (l'hote doit resoudre vers une adresse publique),
-   contenu classe par type — HTML converti en markdown avec turndown et le
-   greffon GFM, texte/JSON/XML rendus tels quels, le reste refuse. Bornes :
-   5 Mo lus, 100 000 caracteres rendus, 30 s. Un statut non-2xx est un
-   resultat, pas une erreur.
+   Native `fetch`, redirects followed by hand and only to the same origin,
+   anti-SSRF guard (the host must resolve to a public address), content
+   classified by type — HTML converted to markdown with turndown and the GFM
+   plugin, text/JSON/XML returned as is, the rest refused. Bounds: 5 MB
+   read, 100,000 characters returned, 30 s. A non-2xx status is a result,
+   not an error.
 --------------------------------------------------------------------------- */
 
 const MAX_BYTES = 5_000_000;
@@ -56,14 +56,14 @@ function isPublicIp(ip: string): boolean {
 }
 
 async function assertPublic(url: URL) {
-  if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("Seuls http et https sont acceptés.");
+  if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("Only http and https are accepted.");
   const host = url.hostname;
   if (host === "localhost" || net.isIP(host)) {
-    if (host === "localhost" || !isPublicIp(host)) throw new Error("Adresse locale ou privée refusée.");
+    if (host === "localhost" || !isPublicIp(host)) throw new Error("Local or private address refused.");
     return;
   }
   const addrs = await dns.lookup(host, { all: true });
-  if (addrs.length === 0 || addrs.some((a) => !isPublicIp(a.address))) throw new Error(`${host} ne résout pas vers une adresse publique.`);
+  if (addrs.length === 0 || addrs.some((a) => !isPublicIp(a.address))) throw new Error(`${host} does not resolve to a public address.`);
 }
 
 type Kind = "html" | "text";
@@ -77,7 +77,7 @@ function classify(contentType: string): Kind | null {
 
 export async function fetchAsMarkdown(rawUrl: string, signal: AbortSignal): Promise<{ finalUrl: string; status: number; body: string; truncated: boolean }> {
   let url = new URL(rawUrl);
-  if (rawUrl.length > 2048) throw new Error("URL trop longue.");
+  if (rawUrl.length > 2048) throw new Error("URL too long.");
   for (let hop = 0; ; hop++) {
     await assertPublic(url);
     const res = await fetch(url, {
@@ -87,14 +87,14 @@ export async function fetchAsMarkdown(rawUrl: string, signal: AbortSignal): Prom
     });
     if (res.status >= 300 && res.status < 400) {
       const loc = res.headers.get("location");
-      if (!loc || hop >= MAX_REDIRECTS) throw new Error("Trop de redirections.");
+      if (!loc || hop >= MAX_REDIRECTS) throw new Error("Too many redirects.");
       const next = new URL(loc, url);
-      if (next.origin !== url.origin) throw new Error(`Redirection vers une autre origine refusée (${next.origin}).`);
+      if (next.origin !== url.origin) throw new Error(`Redirect to another origin refused (${next.origin}).`);
       url = next;
       continue;
     }
     const kind = classify(res.headers.get("content-type") ?? "");
-    if (!kind) throw new Error(`Type de contenu non pris en charge : ${res.headers.get("content-type") ?? "inconnu"}.`);
+    if (!kind) throw new Error(`Unsupported content type: ${res.headers.get("content-type") ?? "unknown"}.`);
     const reader = res.body?.getReader();
     const chunks: Uint8Array[] = [];
     let size = 0;
@@ -133,10 +133,10 @@ type Args = { url: string };
 export const webFetchTool: Tool<Args> = {
   name: "WebFetch",
   description:
-    "Récupère le contenu d'une URL (http/https) et le rend en markdown (HTML converti) ou en texte (JSON, XML, texte brut). Suit les redirections de même origine. Limité à 100 000 caractères.",
+    "Fetches the content of a URL (http/https) and returns it as markdown (converted HTML) or text (JSON, XML, plain text). Follows same-origin redirects. Limited to 100,000 characters.",
   parameters: {
     type: "object",
-    properties: { url: { type: "string", description: "L'adresse complète." } },
+    properties: { url: { type: "string", description: "The full address." } },
     required: ["url"],
     additionalProperties: false,
   },
@@ -152,7 +152,7 @@ export const webFetchTool: Tool<Args> = {
       if (r.truncated) parts.push("(Content truncated. Fetch a more specific URL or section for the full text.)");
       return ok(parts.join("\n\n"));
     } catch (e) {
-      return fail(`WebFetch a échoué pour ${args.url} : ${errorText(e)}`);
+      return fail(`WebFetch failed for ${args.url}: ${errorText(e)}`);
     }
   },
 };

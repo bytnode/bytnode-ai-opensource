@@ -1,33 +1,33 @@
 /* ---------------------------------------------------------------------------
-   Les agents ACP que BytNode-AI sait piloter par abonnement.
+   The ACP agents BytNode-AI can drive through a subscription.
 
-   Un abonnement (Claude Pro / Max, ChatGPT Plus / Pro, Google, GitHub
-   Copilot, SuperGrok, Mistral…) ne donne pas de cle API : il donne acces a
-   l'agent de l'editeur — Claude Code, Codex, Gemini CLI, Copilot CLI,
-   Grok Build, Mistral Vibe. Ces agents parlent l'Agent Client
-   Protocol (JSON-RPC sur stdio) ; BytNode-AI les lance en sous-processus et
-   les habille de son prompt, de ses competences et de sa source de donnees.
+   A subscription (Claude Pro / Max, ChatGPT Plus / Pro, Google, GitHub
+   Copilot, SuperGrok, Mistral…) does not give an API key: it gives access
+   to the vendor's agent — Claude Code, Codex, Gemini CLI, Copilot CLI,
+   Grok Build, Mistral Vibe. These agents speak the Agent Client Protocol
+   (JSON-RPC over stdio); BytNode-AI spawns them as sub-processes and
+   dresses them with its prompt, its skills and its data source.
 
-   Ce fichier est partage navigateur / serveur : rien de Node ici.
-   Le nom affiche est celui de l'EDITEUR (« Claude », « OpenAI »), pas celui
-   du produit — l'utilisateur choisit a qui il est abonne.
+   This file is shared browser / server: nothing from Node here.
+   The displayed name is the VENDOR's (« Claude », « OpenAI »), not the
+   product's — the user picks who they are subscribed to.
 --------------------------------------------------------------------------- */
 
-export type AcpAgentId = "claude" | "openai" | "gemini" | "copilot" | "grok" | "mistral";
+export type AcpAgentId = "claude" | "openai" | "gemini" | "copilot" | "grok";
 
 export type AcpAgentInfo = {
   id: AcpAgentId;
-  /** Ce que l'interface affiche. */
+  /** What the interface displays. */
   label: string;
-  /** Le produit reellement lance, pour les libelles secondaires. */
+  /** The product actually launched, for secondary labels. */
   product: string;
-  /** L'abonnement attendu. */
+  /** The expected subscription. */
   plan: string;
-  /** L'identifiant de fournisseur porte par un agent BytNode-AI
-      (`AgentConfig.providerId`) et prefixe des ids de modeles. */
+  /** The provider id carried by a BytNode-AI agent
+      (`AgentConfig.providerId`) and prefix of the model ids. */
   providerId: string;
-  /** Les niveaux d'effort fixes quand l'agent ne les publie pas dans ses
-      options de session (Claude Code : un reglage a la creation). */
+  /** The fixed effort levels when the agent does not publish them in its
+      session options (Claude Code: a setting fixed at creation). */
   staticEfforts: string[];
 };
 
@@ -38,7 +38,7 @@ export const ACP_AGENTS: AcpAgentInfo[] = [
     id: "claude",
     label: "Claude",
     product: "Claude Code",
-    plan: "Claude Pro ou Max",
+    plan: "Claude Pro or Max",
     providerId: `${ACP_PREFIX}claude`,
     staticEfforts: ["max", "xhigh", "high", "medium", "low"],
   },
@@ -46,7 +46,7 @@ export const ACP_AGENTS: AcpAgentInfo[] = [
     id: "openai",
     label: "OpenAI",
     product: "Codex",
-    plan: "ChatGPT Plus, Pro ou Business",
+    plan: "ChatGPT Plus, Pro or Business",
     providerId: `${ACP_PREFIX}openai`,
     staticEfforts: [],
   },
@@ -54,7 +54,7 @@ export const ACP_AGENTS: AcpAgentInfo[] = [
     id: "gemini",
     label: "Gemini",
     product: "Gemini CLI",
-    plan: "Compte Google",
+    plan: "Google account",
     providerId: `${ACP_PREFIX}gemini`,
     staticEfforts: [],
   },
@@ -62,7 +62,7 @@ export const ACP_AGENTS: AcpAgentInfo[] = [
     id: "copilot",
     label: "GitHub Copilot",
     product: "Copilot CLI",
-    plan: "GitHub Copilot Pro, Pro+ ou Business",
+    plan: "GitHub Copilot Pro, Pro+ or Business",
     providerId: `${ACP_PREFIX}copilot`,
     staticEfforts: [],
   },
@@ -70,16 +70,8 @@ export const ACP_AGENTS: AcpAgentInfo[] = [
     id: "grok",
     label: "Grok",
     product: "Grok Build",
-    plan: "SuperGrok ou X Premium",
+    plan: "SuperGrok or X Premium",
     providerId: `${ACP_PREFIX}grok`,
-    staticEfforts: [],
-  },
-  {
-    id: "mistral",
-    label: "Mistral",
-    product: "Mistral Vibe",
-    plan: "Compte Mistral AI Studio",
-    providerId: `${ACP_PREFIX}mistral`,
     staticEfforts: [],
   },
 ];
@@ -88,7 +80,7 @@ export const isAcpAgentId = (v: unknown): v is AcpAgentId => ACP_AGENTS.some((a)
 
 export const isAcpProvider = (providerId: string | null | undefined) => !!providerId && providerId.startsWith(ACP_PREFIX);
 
-/** L'agent ACP derriere un fournisseur `acp:<id>`, ou null. */
+/** The ACP agent behind an `acp:<id>` provider, or null. */
 export function acpAgentOf(providerId: string | null | undefined): AcpAgentInfo | null {
   if (!isAcpProvider(providerId)) return null;
   const id = providerId!.slice(ACP_PREFIX.length);
@@ -97,34 +89,34 @@ export function acpAgentOf(providerId: string | null | undefined): AcpAgentInfo 
 
 export const acpAgentInfo = (id: AcpAgentId): AcpAgentInfo => ACP_AGENTS.find((a) => a.id === id)!;
 
-/** L'id de modele tel que l'agent ACP le connait, depuis notre id prefixe
-    `acp:<agent>/<modele>`. */
+/** The model id as the ACP agent knows it, from our prefixed id
+    `acp:<agent>/<model>`. */
 export function acpModelId(modelId: string): string {
   const slash = modelId.indexOf("/");
   return isAcpProvider(modelId) && slash > 0 ? modelId.slice(slash + 1) : modelId;
 }
 
-/** L'etat d'un agent, tel que le serveur le rapporte. */
+/** The state of an agent, as the server reports it. */
 export type AcpAuthStatus = {
   agent: AcpAgentId;
-  /** L'agent est lancable sur cette machine (pose par « Installer » dans
-      ~/.bytnode-ai/agents, ou CLI global trouve sur le PATH — `packages.ts`). */
+  /** The agent can be launched on this machine (put there by « Install » in
+      ~/.bytnode-ai/agents, or a global CLI found on the PATH — `packages.ts`). */
   available: boolean;
-  /** D'ou il vient, quand il est disponible. */
+  /** Where it comes from, when it is available. */
   source?: "installed" | "global";
-  /** La version installee ne satisfait plus la plage attendue par cette
-      version de BytNode-AI : « Mettre a jour ». */
+  /** The installed version no longer satisfies the range this version of
+      BytNode-AI expects: « Update ». */
   outdated?: boolean;
-  /** Une installation est en cours. */
+  /** An installation is in progress. */
   installing?: boolean;
-  /** L'etat du compte n'est pas encore connu : la lecture se fait en
-      arriere-plan (agents sans ligne de commande d'etat, qu'il faut
-      interroger par le protocole). */
+  /** The account state is not known yet: it is being read in the
+      background (agents with no status command line, which have to be
+      probed through the protocol). */
   checking?: boolean;
   loggedIn: boolean;
-  /** Ce que l'agent sait du compte : e-mail, type d'abonnement… */
+  /** What the agent knows about the account: e-mail, subscription type… */
   account?: string | null;
-  /** Une connexion est en cours (fenetre ou navigateur ouvert). */
+  /** A sign-in is in progress (terminal window or browser open). */
   connecting?: boolean;
   message?: string | null;
 };

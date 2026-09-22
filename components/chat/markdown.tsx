@@ -5,14 +5,14 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 /* ---------------------------------------------------------------------------
-   Du markdown qui supporte d'etre mis a jour soixante fois par seconde.
+   Markdown that can stand being updated sixty times a second.
 
-   Parser tout le texte a chaque jeton coute de plus en plus cher a mesure
-   que la reponse s'allonge — c'est ce qui fait saccader une longue reponse
-   vers la fin. Le texte est donc decoupe en BLOCS (separes par une ligne
-   vide, sans couper a l'interieur d'un bloc de code), chaque bloc rendu par
-   un composant memorise : les blocs acheves ne changent plus, seul le
-   dernier — celui qui se remplit — est re-parse.
+   Parsing the whole text on every token gets more and more expensive as the
+   reply grows — that is what makes a long reply stutter towards the end. The
+   text is therefore split into BLOCKS (separated by a blank line, never
+   cutting inside a code block), each block rendered by a memoized component:
+   finished blocks no longer change, only the last one — the one being filled
+   — is re-parsed.
 --------------------------------------------------------------------------- */
 
 export function splitBlocks(text: string): string[] {

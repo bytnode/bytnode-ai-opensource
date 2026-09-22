@@ -1,25 +1,25 @@
 ---
 name: hypothese-de-regime
-description: À ouvrir en concevant une stratégie — nommer le régime de marché dans lequel elle est censée gagner, écrire le filtre qui le détecte, et mesurer sa performance régime par régime
+description: Open this when designing a strategy — name the market regime in which it is supposed to win, write the filter that detects it, and measure its performance regime by regime
 ---
 
-# Une stratégie gagne dans un régime, pas « en général »
+# A strategy wins in a regime, not "in general"
 
-Aucune règle ne gagne partout : le suivi de tendance perd en range, le retour à la moyenne se fait balayer en tendance, la vente de volatilité gagne quatre-vingt-dix fois puis rend tout. Ton défaut est de proposer des stratégies **sans nommer leur régime**, donc sans filtre pour l'éviter et sans savoir quand elles vont échouer.
+No rule wins everywhere: trend following loses in a range, mean reversion gets swept away in a trend, volatility selling wins ninety times then gives everything back. Your flaw is to propose strategies **without naming their regime**, hence without a filter to avoid it and without knowing when they are going to fail.
 
-**Règle : la stratégie déclare son régime, le filtre qui le détecte, et sa performance mesurée dans chaque régime — pas seulement en moyenne.**
+**Rule: the strategy declares its regime, the filter that detects it, and its performance measured in each regime — not only on average.**
 
-## Les régimes, définis à l'avance
+## Regimes, defined in advance
 
-Définis-les **avant** de regarder les résultats, avec des règles causales (données ≤ t).
+Define them **before** looking at the results, with causal rules (data ≤ t).
 
 ```python
 import pandas as pd
 df = pd.read_csv("data/btc_1d.csv", parse_dates=["time"]).set_index("time").sort_index()
 c = df["close"]
 mm200 = c.rolling(200).mean()
-pente = mm200.pct_change(20)                                  # inclinaison sur 20 j
-atr = (df["high"] - df["low"]).rolling(14).mean() / c         # volatilité relative
+pente = mm200.pct_change(20)                                  # slope over 20d
+atr = (df["high"] - df["low"]).rolling(14).mean() / c         # relative volatility
 
 regime = pd.Series("range", index=c.index)
 regime[(c > mm200) & (pente > 0.01)] = "haussier"
@@ -28,43 +28,43 @@ df["vol"] = pd.cut(atr, [0, 0.02, 0.05, 1], labels=["calme", "normale", "extreme
 print(pd.crosstab(regime, df["vol"], normalize="all").round(3))
 ```
 
-Quatre familles suffisent : **haussier**, **baissier**, **range**, et en travers **volatilité calme / normale / extrême**.
+Four families are enough: **bullish**, **bearish**, **range**, and across them **calm / normal / extreme volatility**.
 
-## Le tableau qui doit accompagner tout backtest
+## The table that must accompany every backtest
 
-| Régime | Part du temps | Rendement | Sharpe | DD max | Trades |
+| Regime | Share of time | Return | Sharpe | Max DD | Trades |
 |---|---:|---:|---:|---:|---:|
-| haussier | 38 % | … | … | … | … |
-| baissier | 24 % | … | … | … | … |
-| range | 38 % | … | … | … | … |
-| vol. extrême | 9 % | … | … | … | … |
+| bullish | 38% | … | … | … | … |
+| bearish | 24% | … | … | … | … |
+| range | 38% | … | … | … | … |
+| extreme vol. | 9% | … | … | … | … |
 
-Sa lecture :
+Its reading:
 
-- **Gagne partout** : méfiance. Regarde la fuite de données (`anti-fuite`) avant de te réjouir.
-- **Gagne dans un régime, neutre ailleurs** : c'est le bon cas — le filtre de régime devient une règle de la stratégie.
-- **Gagne dans un régime, perd lourdement dans un autre** : la stratégie n'est validée que si le filtre détecte le régime **en temps réel**, sans connaître la suite.
-- **Le régime gagnant représente 10 % du temps** : la stratégie est rare. Dis combien de trades par an cela laisse, et si l'échantillon permet de conclure.
+- **Wins everywhere**: suspicion. Look for the data leak (`anti-fuite`) before rejoicing.
+- **Wins in one regime, neutral elsewhere**: that is the good case — the regime filter becomes a rule of the strategy.
+- **Wins in one regime, loses heavily in another**: the strategy is only validated if the filter detects the regime **in real time**, without knowing what comes next.
+- **The winning regime represents 10% of the time**: the strategy is rare. Say how many trades per year that leaves, and whether the sample allows a conclusion.
 
-## Le piège du filtre rétrospectif
+## The trap of the retrospective filter
 
-Un filtre de régime qui utilise l'avenir n'est pas un filtre : c'est une triche. « Ne trader que dans les phases haussières » est valide si la phase se détecte avec `close > MM200` à l'instant t ; c'est faux si la phase est nommée après coup en regardant le graphique.
+A regime filter that uses the future is not a filter: it is cheating. "Only trade in bullish phases" is valid if the phase is detected with `close > MA200` at instant t; it is wrong if the phase is named after the fact by looking at the chart.
 
-Vérifie-le : le filtre doit se calculer dans `signal(df)` comme le reste, sans `shift(-1)`, sans `center=True`.
+Check it: the filter must be computed inside `signal(df)` like the rest, without `shift(-1)`, without `center=True`.
 
-## Le changement de régime coûte cher
+## Regime change is expensive
 
-Les transitions sont là où les stratégies perdent : le suivi de tendance donne ses pires trades au retournement. Deux conséquences à écrire :
+Transitions are where strategies lose: trend following gives its worst trades at the reversal. Two consequences to write down:
 
-- Le **délai du filtre** : une MM200 tourne avec plusieurs semaines de retard. Dis-le, et mesure le coût de ce retard (performance des 10 bougies qui suivent chaque bascule).
-- Le **garde-fou de volatilité extrême** : réduire la taille ou ne pas trader quand `ATR/close` dépasse son 90ᵉ percentile. C'est souvent l'ajout le plus rentable de toute la stratégie — et il ne coûte qu'un paramètre.
+- The **filter's lag**: an MA200 turns with several weeks of delay. Say so, and measure the cost of this lag (performance of the 10 candles following each flip).
+- The **extreme volatility guardrail**: reduce size or do not trade when `ATR/close` exceeds its 90th percentile. It is often the most profitable addition to the whole strategy — and it only costs one parameter.
 
-## À écrire dans la proposition
+## What to write in the proposal
 
-> **Hypothèse de régime** : suivi de tendance, gagne en marché directionnel (haussier ou baissier prolongé), perd en range. Détection : `close` du côté de la MM200 et pente de MM200 sur 20 j au-delà de ±1 %. Sur 2022-2026, le régime directionnel couvre 62 % du temps. Hors régime, la stratégie ne prend pas de position. Garde-fou : pas d'entrée si ATR14/close > 6 % (9 % du temps). Coût du retard de détection : les 10 bougies suivant une bascule sont négatives en moyenne de −0,4 %.
+> **Regime hypothesis**: trend following, wins in a directional market (prolonged bullish or bearish), loses in a range. Detection: `close` on the side of the MA200 and MA200 slope over 20d beyond ±1%. Over 2022-2026, the directional regime covers 62% of the time. Outside the regime, the strategy takes no position. Guardrail: no entry if ATR14/close > 6% (9% of the time). Cost of the detection lag: the 10 candles following a flip are negative on average by −0.4%.
 
-## Lié
+## Related
 
-- `specification-executable` : le filtre de régime est un champ obligatoire.
-- `budget-de-parametres` : le filtre ne doit pas devenir un prétexte à ajuster.
-- `validation-statistique` (métier Quantitatif) : mesurer par régime fait partie du protocole.
+- `specification-executable`: the regime filter is a mandatory field.
+- `budget-de-parametres`: the filter must not become a pretext for tuning.
+- `validation-statistique` (Quantitative profession): measuring by regime is part of the protocol.

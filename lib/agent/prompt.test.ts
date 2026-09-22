@@ -22,6 +22,10 @@ describe("buildSystemPrompt", () => {
     expect(out).toContain("Olivier Fremont");
   });
 
+  test("tells the agent to answer in the user's language", () => {
+    expect(buildSystemPrompt(profile, agent())).toContain("Always answer in the language the user writes in.");
+  });
+
   test("includes the free-text context when present", () => {
     const out = buildSystemPrompt(profile, agent({ contextText: "Tu parles toujours en français." }));
     expect(out).toContain("Tu parles toujours en français.");
@@ -38,14 +42,14 @@ describe("buildSystemPrompt", () => {
 
   test("omits the context sections entirely when there is nothing to say", () => {
     const out = buildSystemPrompt(profile, agent());
-    expect(out).not.toMatch(/contexte/i);
-    expect(out).not.toMatch(/fichier/i);
+    expect(out).not.toMatch(/context/i);
+    expect(out).not.toMatch(/file/i);
   });
 
   test("includes the user's own description when given", () => {
     const out = buildSystemPrompt({ ...profile, bio: "Trader crypto, basé à Lyon." }, agent());
     expect(out).toContain("Trader crypto, basé à Lyon.");
-    expect(buildSystemPrompt(profile, agent())).not.toMatch(/propos/i);
+    expect(buildSystemPrompt(profile, agent())).not.toMatch(/about/i);
   });
 
   test("copes with an unnamed user", () => {

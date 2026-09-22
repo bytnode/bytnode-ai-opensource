@@ -4,11 +4,10 @@ import { errorText, fail, ok } from "../types";
 import { OutsideWorkspaceError, displayPath, resolvePath } from "../paths";
 
 /* ---------------------------------------------------------------------------
-   NotebookEdit : une cellule d'un carnet Jupyter — remplacer, inserer apres,
-   supprimer. Le carnet est du JSON (nbformat 4) : la source d'une cellule
-   est une liste de lignes qui gardent leur retour a la ligne, sauf la
-   derniere. On ecrit exactement cette forme pour que Jupyter relise le
-   fichier sans le reecrire.
+   NotebookEdit: one cell of a Jupyter notebook — replace, insert after,
+   delete. The notebook is JSON (nbformat 4): a cell's source is a list of
+   lines that keep their newline, except the last one. Exactly that form is
+   written so Jupyter reads the file back without rewriting it.
 --------------------------------------------------------------------------- */
 
 type Cell = { cell_type: string; source: string[] | string; metadata: Record<string, unknown>; outputs?: unknown[]; execution_count?: number | null };
@@ -35,12 +34,12 @@ export function editNotebook(
   const cells = nb.cells.slice();
   const i = edit.cell_index;
   if (!Number.isInteger(i) || i < 0 || i >= cells.length) {
-    return { ok: false, message: `Index de cellule ${i} hors limites (le carnet a ${cells.length} cellules).` };
+    return { ok: false, message: `Cell index ${i} out of range (the notebook has ${cells.length} cells).` };
   }
   if (mode === "delete") {
     cells.splice(i, 1);
   } else {
-    if (typeof edit.new_source !== "string") return { ok: false, message: "new_source est requis pour replace et insert." };
+    if (typeof edit.new_source !== "string") return { ok: false, message: "new_source is required for replace and insert." };
     const source = splitSource(edit.new_source);
     if (mode === "replace") {
       cells[i] = { ...cells[i], source };
@@ -59,15 +58,15 @@ export function editNotebook(
 export const notebookEditTool: Tool<Args> = {
   name: "NotebookEdit",
   description:
-    "Modifie une cellule d'un carnet Jupyter (.ipynb) : remplace sa source (`replace`, par défaut), insère une nouvelle cellule après l'index (`insert`) ou la supprime (`delete`). Les index commencent à 0 ; lisez le carnet avec Read pour les connaître.",
+    "Modifies a cell of a Jupyter notebook (.ipynb): replaces its source (`replace`, default), inserts a new cell after the index (`insert`) or deletes it (`delete`). Indexes start at 0; read the notebook with Read to know them.",
   parameters: {
     type: "object",
     properties: {
-      notebook_path: { type: "string", description: "Chemin du carnet .ipynb." },
-      cell_index: { type: "integer", description: "Index de la cellule visée (0 = première)." },
-      edit_mode: { type: "string", enum: ["replace", "insert", "delete"], description: "Par défaut : replace." },
-      new_source: { type: "string", description: "Nouvelle source de la cellule (replace, insert)." },
-      cell_type: { type: "string", enum: ["code", "markdown"], description: "Type de la cellule insérée (insert). Par défaut : code." },
+      notebook_path: { type: "string", description: "Path of the .ipynb notebook." },
+      cell_index: { type: "integer", description: "Index of the target cell (0 = first)." },
+      edit_mode: { type: "string", enum: ["replace", "insert", "delete"], description: "Default: replace." },
+      new_source: { type: "string", description: "New source of the cell (replace, insert)." },
+      cell_type: { type: "string", enum: ["code", "markdown"], description: "Type of the inserted cell (insert). Default: code." },
     },
     required: ["notebook_path", "cell_index"],
     additionalProperties: false,
@@ -84,17 +83,17 @@ export const notebookEditTool: Tool<Args> = {
     let nb: Notebook;
     try {
       nb = JSON.parse(await fs.readFile(target, "utf8")) as Notebook;
-      if (!Array.isArray(nb.cells)) throw new Error("pas de liste `cells`");
+      if (!Array.isArray(nb.cells)) throw new Error("no `cells` list");
     } catch (e) {
-      return fail(`${shown} n'est pas un carnet lisible : ${errorText(e)}`);
+      return fail(`${shown} is not a readable notebook: ${errorText(e)}`);
     }
     const out = editNotebook(nb, args);
     if (!out.ok) return fail(out.message);
     try {
       await fs.writeFile(target, JSON.stringify(out.notebook, null, 1) + "\n", "utf8");
     } catch (e) {
-      return fail(`Impossible d'écrire ${shown} : ${errorText(e)}`);
+      return fail(`Could not write ${shown}: ${errorText(e)}`);
     }
-    return ok(`${shown} : cellule ${args.cell_index} ${args.edit_mode === "delete" ? "supprimée" : args.edit_mode === "insert" ? "insérée après" : "remplacée"}. Le carnet a ${out.notebook.cells.length} cellules.`);
+    return ok(`${shown}: cell ${args.cell_index} ${args.edit_mode === "delete" ? "deleted" : args.edit_mode === "insert" ? "inserted after" : "replaced"}. The notebook has ${out.notebook.cells.length} cells.`);
   },
 };

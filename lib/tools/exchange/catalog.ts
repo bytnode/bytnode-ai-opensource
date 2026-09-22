@@ -1,38 +1,38 @@
 /* ---------------------------------------------------------------------------
-   Les exchanges proposes a l'utilisateur : les dix plus gros, par leur id
-   ccxt, avec ce que chacun permet VRAIMENT — releve sur ccxt 4.5 (`has`,
-   `urls.test`, comptes de transfert) et sur la doc de chaque exchange.
+   The exchanges offered to the user: the ten largest, by their ccxt id,
+   with what each one REALLY allows — measured on ccxt 4.5 (`has`,
+   `urls.test`, transfer accounts) and on each exchange's docs.
 
-   Ces limites sont des faits, pas des choix : un compte unifie n'a qu'un
-   solde (rien a transferer), MEXC a ferme le passage d'ordres futures par
-   API, Kraken Futures a ses propres cles. Les outils les lisent pour
-   refuser proprement, avant tout appel, avec la raison. Pur, partage
-   navigateur / serveur.
+   These limits are facts, not choices: a unified account has a single
+   balance (nothing to transfer), MEXC closed futures order placement by
+   API, Kraken Futures has its own keys. The tools read them to refuse
+   cleanly, before any call, with the reason. Pure, shared browser /
+   server.
 --------------------------------------------------------------------------- */
 
 export type ExchangeInfo = {
   id: string;
   label: string;
-  /** ccxt sait basculer ce compte sur le reseau de test (`setSandboxMode`). */
+  /** ccxt can switch this account to the test network (`setSandboxMode`). */
   testnet: boolean;
-  /** L'exchange exige une passphrase en plus de la cle et du secret. */
+  /** The exchange requires a passphrase in addition to the key and secret. */
   password: boolean;
-  /** Perpetuels lineaires USDT : `full` (lecture et ordres), `read` (lecture
-      seule), `none` (spot seulement). */
+  /** Linear USDT perpetuals: `full` (read and orders), `read` (read-only),
+      `none` (spot only). */
   futures: "full" | "read" | "none";
-  /** La classe ccxt des futures quand ce n'est pas la meme que le spot
-      (KuCoin) — memes cles, autre hote. */
+  /** The ccxt class for futures when it is not the same as spot (KuCoin)
+      — same keys, other host. */
   futuresId?: string;
-  /** Transfert interne spot ↔ futures possible par l'API. */
+  /** Internal spot ↔ futures transfer possible through the API. */
   transfer: boolean;
-  /** Le portefeuille ou arrivent les depots quand ce n'est PAS le compte de
-      trading (nom ccxt) : Bybit et OKX « funding », KuCoin « main », Binance
-      « funding » (P2P, Pay). Absent : les depots vont au spot. */
+  /** The wallet where deposits land when it is NOT the trading account
+      (ccxt name): Bybit and OKX "funding", KuCoin "main", Binance "funding"
+      (P2P, Pay). Absent: deposits go to spot. */
   funding?: string;
-  /** Le compte de trading vu par ccxt pour un transfert depuis le Funding,
-      quand ce n'est pas simplement « spot » (Bybit : « unified »). */
+  /** The trading account as ccxt sees it for a transfer from Funding, when
+      it is not simply "spot" (Bybit: "unified"). */
   tradingWallet?: string;
-  /** Ce que l'utilisateur et l'agent doivent savoir, en une phrase. */
+  /** What the user and the agent need to know, in one sentence. */
   note?: string;
 };
 
@@ -45,7 +45,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     futures: "full",
     transfer: true,
     funding: "funding",
-    note: "Testnet : les clés spot (testnet.binance.vision) et futures (testnet.binancefuture.com) sont distinctes — un compte testnet ne sert qu'un des deux marchés.",
+    note: "Testnet: spot keys (testnet.binance.vision) and futures keys (testnet.binancefuture.com) are distinct — a testnet account serves only one of the two markets.",
   },
   {
     id: "bybit",
@@ -56,7 +56,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     transfer: false,
     funding: "funding",
     tradingWallet: "unified",
-    note: "Compte unifié : spot et futures partagent le même solde. Les dépôts arrivent dans le portefeuille Funding, à transférer vers le compte unifié pour trader. Testnet : clés créées sur testnet.bybit.com.",
+    note: "Unified account: spot and futures share the same balance. Deposits land in the Funding wallet, to be transferred to the unified account before trading. Testnet: keys created on testnet.bybit.com.",
   },
   {
     id: "okx",
@@ -66,7 +66,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     futures: "full",
     transfer: false,
     funding: "funding",
-    note: "Compte de trading unifié : spot et futures partagent le même solde ; les dépôts arrivent dans le compte Funding, à transférer vers le trading. Testnet = démo OKX, avec des clés API créées en mode démo.",
+    note: "Unified trading account: spot and futures share the same balance; deposits land in the Funding account, to be transferred to trading. Testnet = OKX demo, with API keys created in demo mode.",
   },
   {
     id: "coinbase",
@@ -75,7 +75,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     password: false,
     futures: "none",
     transfer: false,
-    note: "Advanced Trade, marchés au comptant. Clé CDP : le secret est la clé privée EC (bloc « -----BEGIN … ----- »), à coller telle quelle.",
+    note: "Advanced Trade, spot markets. CDP key: the secret is the EC private key (the \"-----BEGIN … -----\" block), to paste as is.",
   },
   {
     id: "kraken",
@@ -84,7 +84,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     password: false,
     futures: "none",
     transfer: false,
-    note: "Kraken Futures a ses propres clés (futures.kraken.com), hors de cette intégration.",
+    note: "Kraken Futures has its own keys (futures.kraken.com), outside this integration.",
   },
   {
     id: "bitget",
@@ -93,7 +93,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     password: true,
     futures: "full",
     transfer: true,
-    note: "Futures : le compte doit être en one-way (Bitget démarre en hedge mode) — vérifié avant chaque ordre.",
+    note: "Futures: the account must be in one-way mode (Bitget starts in hedge mode) — checked before every order.",
   },
   {
     id: "kucoin",
@@ -104,7 +104,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     futuresId: "kucoinfutures",
     transfer: true,
     funding: "main",
-    note: "Une même clé, avec les permissions Spot et Futures, sert les deux marchés. Les dépôts arrivent sur le compte principal (main), à transférer vers le compte de trading.",
+    note: "A single key, with the Spot and Futures permissions, serves both markets. Deposits land on the main account, to be transferred to the trading account.",
   },
   {
     id: "gate",
@@ -113,7 +113,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     password: false,
     futures: "full",
     transfer: true,
-    note: "Testnet : clés créées sur testnet.gate.com. Le mode de marge ne se règle pas par l'API (levier seulement).",
+    note: "Testnet: keys created on testnet.gate.com. The margin mode cannot be set through the API (leverage only).",
   },
   {
     id: "htx",
@@ -122,7 +122,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     password: false,
     futures: "full",
     transfer: false,
-    note: "Pas de transfert spot ↔ futures USDT ni de mode de marge par cette intégration : à faire sur l'exchange.",
+    note: "No spot ↔ USDT futures transfer nor margin mode through this integration: do it on the exchange.",
   },
   {
     id: "mexc",
@@ -131,12 +131,12 @@ export const EXCHANGES: ExchangeInfo[] = [
     password: false,
     futures: "read",
     transfer: true,
-    note: "Futures en lecture seule : MEXC a fermé le passage et l'annulation d'ordres futures par API (depuis le 25/07/2022). Le spot est complet.",
+    note: "Futures read-only: MEXC closed futures order placement and cancellation by API (since 2022-07-25). Spot is complete.",
   },
 ];
 
 export const exchangeInfo = (id: string): ExchangeInfo | undefined => EXCHANGES.find((e) => e.id === id);
 
-/** La classe ccxt a instancier pour ce marche. */
+/** The ccxt class to instantiate for this market. */
 export const ccxtIdFor = (exchange: string, market: "spot" | "futures"): string =>
   (market === "futures" && exchangeInfo(exchange)?.futuresId) || exchange;

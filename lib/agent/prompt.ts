@@ -1,14 +1,14 @@
 import type { AgentConfig, Profile } from "@/lib/domain/types";
 
 /* ---------------------------------------------------------------------------
-   Le prompt systeme : l'identite de l'agent, puis ce que l'utilisateur lui a
-   confie. Chaque section n'apparait que si elle a quelque chose a dire — un
-   titre « Contexte » suivi de rien apprend au modele qu'il n'y a pas de
-   contexte, ce qui n'est pas la meme chose que ne rien dire.
+   The system prompt: the agent's identity, then what the user entrusted to
+   it. Each section only appears if it has something to say — a « Context »
+   heading followed by nothing teaches the model that there is no context,
+   which is not the same as saying nothing.
 
-   ⚠️ C'EST ICI QUE LES OUTILS S'ANNONCERONT PLUS TARD. La fonction prend la
-   configuration entiere pour que l'ajout d'une section ne change pas sa
-   signature.
+   ⚠️ THIS IS WHERE THE TOOLS WILL ANNOUNCE THEMSELVES LATER. The function
+   takes the whole configuration so that adding a section does not change
+   its signature.
 --------------------------------------------------------------------------- */
 
 const fullName = (p: Profile) => [p.firstName, p.lastName].map((s) => s.trim()).filter(Boolean).join(" ");
@@ -19,22 +19,22 @@ export function buildSystemPrompt(profile: Profile, agent: AgentConfig): string 
   const parts: string[] = [];
 
   parts.push(
-    `Tu es ${name}, un assistant conversationnel.` +
-      (user ? ` Tu parles avec ${user}.` : "") +
-      " Réponds dans la langue de ton interlocuteur, avec précision et sans remplissage.",
+    `You are ${name}, a conversational assistant.` +
+      (user ? ` You are talking with ${user}.` : "") +
+      " Answer precisely and without filler. Always answer in the language the user writes in.",
   );
 
   const bio = profile.bio.trim();
-  if (bio) parts.push(`## À propos de ${user || "l'utilisateur"}\n\n${bio}`);
+  if (bio) parts.push(`## About ${user || "the user"}\n\n${bio}`);
 
   const context = agent.contextText.trim();
-  if (context) parts.push(`## Contexte fourni par l'utilisateur\n\n${context}`);
+  if (context) parts.push(`## Context provided by the user\n\n${context}`);
 
   if (agent.contextFiles.length > 0) {
     const files = agent.contextFiles
-      .map((f) => `### Fichier : ${f.name}\n\n\`\`\`\n${f.content}\n\`\`\``)
+      .map((f) => `### File: ${f.name}\n\n\`\`\`\n${f.content}\n\`\`\``)
       .join("\n\n");
-    parts.push(`## Fichiers de référence\n\n${files}`);
+    parts.push(`## Reference files\n\n${files}`);
   }
 
   return parts.join("\n\n");

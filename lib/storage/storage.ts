@@ -1,12 +1,12 @@
 /* ---------------------------------------------------------------------------
-   Ou les donnees vivent. L'interface est volontairement minuscule — trois
-   operations sur des chaines — pour qu'un fichier, une base ou un serveur
-   puissent la remplacer sans toucher aux depots qui l'utilisent.
+   Where the data lives. The interface is deliberately tiny — three
+   operations on strings — so that a file, a database or a server can
+   replace it without touching the repositories that use it.
 --------------------------------------------------------------------------- */
 
 export interface Storage {
   get(key: string): string | null;
-  /** Faux si la valeur n'a pas pu etre ecrite (quota, acces refuse). */
+  /** False if the value could not be written (quota, access refused). */
   set(key: string, value: string): boolean;
   remove(key: string): void;
 }
@@ -25,8 +25,8 @@ export class MemoryStorage implements Storage {
   }
 }
 
-/** `localStorage`, protege : un navigateur en navigation privee ou un quota
-    depasse leve, et l'application ne doit pas tomber pour autant. */
+/** `localStorage`, guarded: a browser in private browsing or a quota
+    exceeded throws, and the app must not go down over it. */
 export class BrowserStorage implements Storage {
   get(key: string) {
     try {
@@ -40,7 +40,7 @@ export class BrowserStorage implements Storage {
       window.localStorage.setItem(key, value);
       return true;
     } catch {
-      /* quota ou acces refuse : a l'appelant de le dire et de s'adapter */
+      /* quota or access refused: it is up to the caller to say so and adapt */
       return false;
     }
   }
@@ -48,7 +48,7 @@ export class BrowserStorage implements Storage {
     try {
       window.localStorage.removeItem(key);
     } catch {
-      /* idem */
+      /* same */
     }
   }
 }

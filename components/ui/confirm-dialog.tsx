@@ -13,13 +13,13 @@ type Props = {
 };
 
 /* ---------------------------------------------------------------------------
-   Une confirmation : un voile, deux boutons.
+   A confirmation: a veil, two buttons.
 
-   Le bouton qui detruit est en encre pleine — c'est l'action qu'on est venu
-   faire — et « Annuler » reste nu. Echap annule ; le focus est pose sur
-   Annuler pour qu'un Entree distrait ne supprime rien.
+   The destructive button is in solid ink — it is the action we came to do —
+   and "Cancel" stays bare. Escape cancels; focus lands on Cancel so a stray
+   Enter deletes nothing.
 --------------------------------------------------------------------------- */
-export function ConfirmDialog({ title, body, confirmLabel, cancelLabel = "Annuler", onConfirm, onCancel }: Props) {
+export function ConfirmDialog({ title, body, confirmLabel, cancelLabel = "Cancel", onConfirm, onCancel }: Props) {
   const cancel = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-name: paquet
+name: package
 on: [push, pull_request]
 jobs:
   smoke:
@@ -13,10 +13,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      # Pas `npm ci` : le verrou, ecrit sous Windows, omet les dependances des
-      # paquets optionnels qui n'y sont pas installes (wasm @emnapi/*,
-      # bufferutil) — defaut connu de npm — et `npm ci` les reclame
-      # (« Missing … from lock file »). `npm install` lit le verrou et comble.
+      # Not `npm ci`: the lock file, written on Windows, omits the dependencies
+      # of optional packages that are not installed there (wasm @emnapi/*,
+      # bufferutil) — a known npm flaw — and `npm ci` demands them
+      # ("Missing … from lock file"). `npm install` reads the lock and fills in.
       - run: npm install --no-audit --no-fund
       - run: npm run typecheck
       - run: npm test

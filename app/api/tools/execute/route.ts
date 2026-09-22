@@ -8,11 +8,11 @@ import type { AgentEvent } from "@/lib/agent/events";
 import { parseAccountsHeader } from "@/lib/tools/exchange/accounts";
 
 /* ---------------------------------------------------------------------------
-   Executer un outil, et raconter ce qui se passe en chemin.
+   Execute a tool, and tell what happens along the way.
 
-   La reponse est un flux NDJSON : les evenements emis pendant l'execution
-   (les lignes d'un Monitor, l'etat des sous-agents), puis un dernier objet
-   `{ type: "result", ... }`. Fermer la requete interrompt l'outil.
+   The response is an NDJSON stream: the events emitted during execution
+   (the lines of a Monitor, the state of the sub-agents), then a final
+   `{ type: "result", ... }` object. Closing the request interrupts the tool.
 --------------------------------------------------------------------------- */
 
 type Body = {
@@ -34,16 +34,16 @@ export async function POST(req: Request) {
   try {
     body = (await req.json()) as Body;
   } catch {
-    return Response.json({ error: { message: "Corps de requête illisible." } }, { status: 400 });
+    return Response.json({ error: { message: "Unreadable request body." } }, { status: 400 });
   }
   if (!body.name || typeof body.model !== "string") {
-    return Response.json({ error: { message: "Il manque le nom de l'outil ou le modèle." } }, { status: 400 });
+    return Response.json({ error: { message: "Missing tool name or model." } }, { status: 400 });
   }
   const bytnodeKey = req.headers.get("x-bytnode-key") ?? "";
   const exchangeAccounts = parseAccountsHeader(req.headers.get("x-exchange-accounts"));
   const { tools } = await allTools({ platform: process.platform, bytnodeKey, exchangeAccounts });
   const tool = tools.find((t) => t.name === body.name);
-  if (!tool) return Response.json({ error: { message: `Outil inconnu : ${body.name}` } }, { status: 404 });
+  if (!tool) return Response.json({ error: { message: `Unknown tool: ${body.name}` } }, { status: 404 });
   const profession = await loadProfession(PROJECT_ROOT, isProfessionId(body.profession) ? body.profession : DEFAULT_PROFESSION);
 
   const workspace = await resolveWorkspace(body.agentId ?? "", body.workspace);
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
         try {
           controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
         } catch {
-          /* flux ferme */
+          /* stream closed */
         }
       };
       const ctx: ToolContext = {
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
         const result = await tool.execute(body.args ?? {}, ctx);
         send({ type: "result", ...result });
       } catch (e) {
-        send({ type: "result", ok: false, output: `L'outil a échoué : ${e instanceof Error ? e.message : String(e)}` });
+        send({ type: "result", ok: false, output: `The tool failed: ${e instanceof Error ? e.message : String(e)}` });
       } finally {
         controller.close();
       }

@@ -5,14 +5,13 @@ import { ArrowLeft, Search } from "./icons";
 import "./ui.css";
 
 /* ---------------------------------------------------------------------------
-   Le panneau de recherche : une barre en haut, une liste en dessous.
+   The search panel: a bar on top, a list underneath.
 
-   Il sert deux fois — choisir un editeur, choisir un modele — et ne sait rien
-   de ce qu'il liste : le parent lui donne la requete, la met a jour, et rend
-   les lignes avec `SearchPanel.Item`. Le panneau ne s'occupe que de ce qui
-   est commun : se placer sous son declencheur, donner le focus a la barre a
-   l'ouverture, se fermer sur Echap ou un clic dehors, et faire circuler les
-   fleches dans la liste.
+   It serves twice — choosing a vendor, choosing a model — and knows nothing
+   about what it lists: the parent gives it the query, updates it, and
+   renders the rows with `SearchPanel.Item`. The panel only handles what is
+   common: sitting under its trigger, focusing the bar on opening, closing on
+   Escape or a click outside, and moving the arrows through the list.
 --------------------------------------------------------------------------- */
 
 type Props = {
@@ -20,17 +19,17 @@ type Props = {
   onClose: () => void;
   query?: string;
   onQuery?: (q: string) => void;
-  /** Sans `placeholder`, pas de barre de recherche : une liste courte n'en a
-      pas besoin. */
+  /** Without `placeholder`, no search bar: a short list does not need
+      one. */
   placeholder?: string;
-  /** Un en-tete avec retour, pour une vue ouverte depuis une autre. */
+  /** A header with a back button, for a view opened from another one. */
   title?: string;
   onBack?: () => void;
-  /** Ou le panneau s'accroche : sous le declencheur (par defaut) ou au-dessus. */
+  /** Where the panel anchors: under the trigger (default) or above it. */
   side?: "bottom" | "top";
   align?: "start" | "end";
   width?: number | string;
-  /** Des lignes serrees, pour une liste courte de choix simples. */
+  /** Tight rows, for a short list of simple choices. */
   dense?: boolean;
   label: string;
   children: ReactNode;
@@ -73,8 +72,8 @@ export function SearchPanel({
 
   if (!open) return null;
 
-  /* Les fleches font circuler le focus entre la barre et les lignes ; Entree
-     sur une ligne est le clic natif du bouton. */
+  /* The arrows move focus between the bar and the rows; Enter on a row is
+     the button's native click. */
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     const items = Array.from(root.current?.querySelectorAll<HTMLElement>("[data-item]") ?? []);
@@ -102,7 +101,7 @@ export function SearchPanel({
     >
       {onBack && (
         <div className="sp-head">
-          <button type="button" className="sp-back" onClick={onBack} aria-label="Retour">
+          <button type="button" className="sp-back" onClick={onBack} aria-label="Back">
             <ArrowLeft />
           </button>
           <span className="sp-head-title">{title}</span>
@@ -133,7 +132,7 @@ type ItemProps = {
   disabled?: boolean;
   onSelect: () => void;
   title: string;
-  /** Une seconde ligne, en mono : l'id, une taille. */
+  /** A second line, in mono: the id, a size. */
   meta?: string;
   trailing?: ReactNode;
 };
@@ -158,8 +157,8 @@ SearchPanel.Item = function Item({ selected, disabled, onSelect, title, meta, tr
   );
 };
 
-/* Une ligne qui n'est pas un choix mais une action a faire d'abord : le
-   texte a gauche, un bouton a droite (se connecter, installer). */
+/* A row that is not a choice but an action to take first: the text on the
+   left, a button on the right (sign in, install). */
 SearchPanel.Row = function Row({ title, meta, action }: { title: string; meta?: string; action: ReactNode }) {
   return (
     <div className="sp-item sp-row" role="presentation">

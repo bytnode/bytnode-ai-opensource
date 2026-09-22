@@ -1,24 +1,24 @@
 /* ---------------------------------------------------------------------------
-   Agent — direction artistique, heritee de BytNode.
+   Agent — art direction, inherited from BytNode.
 
-   Monochrome strict : l'encre et le papier, aucune teinte dans le chrome. La
-   seule couleur de la page est la lumiere du fond — quatre faisceaux de bleu
-   marine peints une fois par `components/fond`. Rien n'est pose SUR ce fond :
-   chaque panneau est un voile qui l'assombrit un peu, jamais une carte avec
-   une ombre. Ce qui doit se voir est plein (un champ est un rectangle de
-   matiere), ce qui doit se lire est en encre a une opacite choisie.
+   Strict monochrome: ink and paper, no tint in the chrome. The only colour
+   on the page is the light of the background — four beams of navy blue
+   painted once by `components/fond`. Nothing is placed ON this background:
+   every panel is a veil that darkens it a little, never a card with a
+   shadow. What must be seen is solid (a field is a rectangle of matter),
+   what must be read is in ink at a chosen opacity.
 --------------------------------------------------------------------------- */
 
 :root {
-  /* Les controles natifs (liste d'un select, ascenseurs, calendrier) sont
-     dessines par le systeme dans ce schema : sans lui, la liste s'ouvre
-     blanche avec du texte blanc herite. */
+  /* Native controls (a select's list, scrollbars, calendar) are drawn by
+     the system in this scheme: without it, the list opens white with
+     inherited white text. */
   color-scheme: dark;
   --ink: 255, 255, 255;
   --paper: 0, 0, 0;
-  /* Le voile : la couleur vers laquelle un panneau assombrit, c'est-a-dire
-     le bleu de nuit du fond et non le noir pur, sinon chaque panneau devient
-     une bulle noire decoupee sur le champ marine. */
+  /* The veil: the colour a panel darkens towards, that is the night blue
+     of the background and not pure black, otherwise every panel becomes a
+     black bubble cut out on the navy field. */
   --voile: 6, 11, 18;
   --ink-inv: 0, 0, 0;
 
@@ -28,11 +28,11 @@
   --fg-faint: rgba(var(--ink), 0.36);
   --line: rgba(var(--ink), 0.1);
   --line-strong: rgba(var(--ink), 0.16);
-  /* Les trois niveaux de matiere : un champ, un champ survole, un aplat. */
+  /* The three levels of matter: a field, a hovered field, a solid fill. */
   --matter: rgba(var(--ink), 0.065);
   --matter-hover: rgba(var(--ink), 0.1);
   --matter-strong: rgba(var(--ink), 0.14);
-  /* Le voile des panneaux. */
+  /* The panels' veil. */
   --veil: rgba(var(--voile), 0.72);
   --veil-strong: rgba(var(--voile), 0.93);
 
@@ -116,11 +116,11 @@ button {
   white-space: nowrap;
 }
 
-/* --- Boutons ----------------------------------------------------------------
+/* --- Buttons ----------------------------------------------------------------
 
-   Deux voix : le plein (encre) pour l'action qui avance, le nu pour tout le
-   reste. Pas de contour a un pixel — un bouton secondaire est une pastille de
-   matiere ou rien du tout. */
+   Two voices: the solid one (ink) for the action that moves forward, the
+   bare one for everything else. No one-pixel outline — a secondary button
+   is a pill of matter or nothing at all. */
 
 .btn {
   display: inline-flex;
@@ -180,11 +180,11 @@ button {
   stroke-linejoin: round;
 }
 
-/* --- Champs -----------------------------------------------------------------
+/* --- Fields -----------------------------------------------------------------
 
-   Un champ est un rectangle de matiere : pas de bord, un fond, et une
-   etiquette au-dessus en encre attenuee. Le focus se dit par la matiere qui
-   s'eclaircit, et par l'anneau — jamais par une couleur. */
+   A field is a rectangle of matter: no border, a background, and a label
+   above it in muted ink. Focus is expressed by the matter getting lighter,
+   and by the ring — never by a colour. */
 
 .field {
   display: flex;
@@ -252,10 +252,10 @@ textarea.field-input {
   border-left: 2px solid var(--fg);
 }
 
-/* --- La bande d'avertissement ----------------------------------------------
+/* --- The warning strip -----------------------------------------------------
 
-   Monochrome comme le reste : l'alerte se dit par un trait plein a gauche
-   et un texte en pleine encre, pas par une couleur. */
+   Monochrome like the rest: the alert is expressed by a solid line on the
+   left and text in full ink, not by a colour. */
 
 .notice {
   display: flex;
@@ -273,7 +273,7 @@ textarea.field-input {
   flex: 1;
 }
 
-/* --- Reduction des mouvements --------------------------------------------- */
+/* --- Reduced motion --------------------------------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
   *,

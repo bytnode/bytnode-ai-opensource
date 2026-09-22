@@ -1,57 +1,57 @@
 ---
 name: horodatage
-description: À ouvrir avant de citer un prix, une variation ou un indicateur — quelle heure il est vraiment, pourquoi la bougie en cours ne compte pas, et pourquoi un prix de mémoire est toujours faux
+description: Open this before quoting a price, a change or an indicator — what time it really is, why the current candle does not count, and why a price from memory is always wrong
 ---
 
-# Le temps, et pourquoi tu te trompes dessus
+# Time, and why you get it wrong
 
-Deux erreurs, systématiques :
+Two errors, systematic:
 
-1. **Tu as une date de coupure.** Les prix, capitalisations, taux et « derniers événements » que tu crois connaître datent d'avant. Un prix de mémoire n'est pas une approximation : c'est un chiffre faux présenté avec assurance.
-2. **Tu ne sais pas quelle heure il est.** L'utilisateur dit « aujourd'hui », toi tu n'as pas d'horloge. Tu l'obtiens par un outil, pas par déduction.
+1. **You have a cutoff date.** The prices, market caps, rates and "latest events" you think you know date from before it. A price from memory is not an approximation: it is a wrong number presented with confidence.
+2. **You do not know what time it is.** The user says "today", and you have no clock. You get it from a tool, not by deduction.
 
-## La règle
+## The rule
 
-Tout chiffre de marché vient d'un appel, dans ce tour de conversation. Aucun prix, aucune variation, aucun niveau « de mémoire » — même pour un ordre de grandeur, même pour illustrer.
+Every market number comes from a call, in this conversation turn. No price, no change, no level "from memory" — not even for an order of magnitude, not even to illustrate.
 
-Chaque chiffre porte son **as-of** : l'instant auquel il était vrai.
+Every number carries its **as-of**: the instant at which it was true.
 
-> BTCUSDT — 111 240 USDT (as-of 2026-09-12 08:00 UTC, bougie 4 h close).
+> BTCUSDT — 111,240 USDT (as-of 2026-09-12 08:00 UTC, 4h candle close).
 
-## L'heure courante
+## The current time
 
 ```bash
 python -c "import datetime; print(datetime.datetime.now(datetime.UTC).isoformat(timespec='seconds'))"
 ```
 
-Tout en **UTC**. Les marchés crypto ne ferment pas : il n'y a pas d'« heure de clôture » à respecter, donc pas de raison d'utiliser un fuseau local — et deux séries dans deux fuseaux différents produisent un décalage silencieux d'une bougie.
+Everything in **UTC**. Crypto markets do not close: there is no "closing time" to respect, so no reason to use a local time zone — and two series in two different time zones produce a silent one-candle offset.
 
-## La bougie en cours
+## The current candle
 
-La dernière bougie renvoyée par un historique est **en train de se former** : son `close` est le prix actuel, son `high`, son `low` et son `volume` sont partiels. Elle bougera encore.
+The last candle returned by a history is **still forming**: its `close` is the current price, its `high`, its `low` and its `volume` are partial. It will still move.
 
-- Pour un calcul (moyenne, indicateur, backtest) : exclue. Une bougie incomplète fausse le dernier point de tout indicateur.
-- Pour un prix courant : utilisable, en disant qu'elle est en cours.
-- Pour une variation « sur 24 h » : dis sur quoi elle porte — dernières 24 h glissantes, ou dernier jour clos.
+- For a calculation (average, indicator, backtest): excluded. An incomplete candle distorts the last point of every indicator.
+- For a current price: usable, while saying it is in progress.
+- For a "24h" change: say what it covers — last 24 rolling hours, or last closed day.
 
-## Les périodes
+## Periods
 
-Sois explicite, toujours : « du 2026-08-13 au 2026-09-12 (30 jours) », pas « sur le dernier mois ». Un mois, un trimestre, « depuis le début de l'année » : ces bornes se calculent, elles ne s'estiment pas.
+Be explicit, always: "from 2026-08-13 to 2026-09-12 (30 days)", not "over the last month". A month, a quarter, "year to date": these bounds are computed, not estimated.
 
-Attention aux périodes partielles : annualiser une performance sur onze jours donne un nombre spectaculaire et vide de sens. Dis la durée réelle à côté.
+Beware of partial periods: annualising a performance over eleven days gives a spectacular and meaningless number. State the actual duration next to it.
 
-## Ce qui change vite, ce qui change lentement
+## What changes fast, what changes slowly
 
-| Donnée | Durée de validité |
+| Data | Validity period |
 |---|---|
-| Prix, carnet, funding courant | secondes à minutes |
-| Open interest, liquidations, sentiment | minutes à heures |
-| Indicateurs techniques journaliers | jusqu'à la prochaine clôture |
-| Publications macro | jusqu'à la publication suivante (calendrier connu) |
+| Price, order book, current funding | seconds to minutes |
+| Open interest, liquidations, sentiment | minutes to hours |
+| Daily technical indicators | until the next close |
+| Macro releases | until the next release (known calendar) |
 
-Si une conversation dure, un prix cité il y a vingt minutes est périmé pour une décision : rappelle-le ou relis-le.
+If a conversation runs long, a price quoted twenty minutes ago is stale for a decision: recall it or reread it.
 
-## Lié
+## Related
 
-- `calcul-verifie` : comment calculer une variation sans se tromper.
-- `citer-ou-se-taire` : la forme dans laquelle un chiffre horodaté se présente.
+- `calcul-verifie`: how to compute a change without going wrong.
+- `citer-ou-se-taire`: the form in which a timestamped number is presented.

@@ -1,41 +1,41 @@
 ---
 name: contexte-macro
-description: Lire le contexte macroéconomique qui pèse sur les actifs risqués et le relier au marché crypto — taux, dollar, liquidité, appétit pour le risque, calendrier
+description: Read the macroeconomic context that weighs on risk assets and relate it to the crypto market — rates, dollar, liquidity, risk appetite, calendar
 ---
 
-# Contexte macro
+# Macro context
 
-La crypto est un actif risqué à bêta élevé : elle amplifie ce que fait la liquidité mondiale. Une analyse qui ignore la macro décrit la vague sans voir la marée.
+Crypto is a high-beta risk asset: it amplifies what global liquidity does. An analysis that ignores macro describes the wave without seeing the tide.
 
-## La grille
+## The grid
 
-Pour chaque facteur : la valeur actuelle, sa direction récente, et ce qu'elle fait aux actifs risqués *en ce moment* (la relation peut se retourner : vérifie sur les 3 derniers mois avec `get_history` si BytNode couvre la macro, sinon WebSearch, sources officielles d'abord — banques centrales, offices statistiques, presse financière de référence).
+For each factor: the current value, its recent direction, and what it does to risk assets *right now* (the relationship can reverse: check over the last 3 months with `get_history` if BytNode covers macro, otherwise WebSearch, official sources first — central banks, statistical offices, reference financial press).
 
-| Facteur | Ce qu'on regarde | Lecture usuelle |
+| Factor | What we look at | Usual reading |
 |---|---|---|
-| Politique monétaire | Taux directeurs Fed/BCE, anticipations de baisse/hausse (contrats à terme), prochain FOMC | Anticipations de baisse = soutien au risque ; surprise restrictive = retrait |
-| Taux réels | Rendement 10 ans US moins inflation anticipée | Réels en hausse = pression sur les actifs sans rendement (or, crypto) |
-| Dollar | DXY, tendance 1–3 mois | Dollar fort = vent contraire pour la crypto, historiquement |
-| Liquidité | Bilan des banques centrales, réserves bancaires, conditions financières | Liquidité en expansion = terrain porteur |
-| Appétit pour le risque | Nasdaq, actions à petite capitalisation, spreads de crédit high yield, VIX | Risk-on/risk-off ; la crypto suit le Nasdaq avec un bêta > 1 |
-| Or | Tendance, corrélation récente avec BTC | Quand les deux montent : narratif « dévaluation » ; quand ils divergent : la crypto se comporte en actif risqué, pas en refuge |
-| Flux propres à la crypto | Flux ETF spot (BytNode), stablecoins émis/rachetés | Flux entrants soutenus = demande structurelle |
+| Monetary policy | Fed/ECB policy rates, cut/hike expectations (futures), next FOMC | Cut expectations = support for risk; hawkish surprise = withdrawal |
+| Real rates | US 10-year yield minus expected inflation | Rising reals = pressure on non-yielding assets (gold, crypto) |
+| Dollar | DXY, 1–3 month trend | Strong dollar = headwind for crypto, historically |
+| Liquidity | Central bank balance sheets, bank reserves, financial conditions | Expanding liquidity = supportive ground |
+| Risk appetite | Nasdaq, small caps, high-yield credit spreads, VIX | Risk-on/risk-off; crypto follows the Nasdaq with a beta > 1 |
+| Gold | Trend, recent correlation with BTC | When both rise: "debasement" narrative; when they diverge: crypto behaves as a risk asset, not a haven |
+| Crypto-specific flows | Spot ETF flows (BytNode), stablecoins issued/redeemed | Sustained inflows = structural demand |
 
-## Le calendrier
+## The calendar
 
-Liste les événements des 7 prochains jours qui peuvent bouger le marché : FOMC, CPI/PCE, emploi US, décisions BCE, expirations d'options crypto (fin de mois, fin de trimestre), déblocages de tokens, décisions réglementaires. Un événement à moins de 48 h rend toute lecture court terme conditionnelle : dis-le.
+List the events of the next 7 days that can move the market: FOMC, CPI/PCE, US employment, ECB decisions, crypto options expiries (month-end, quarter-end), token unlocks, regulatory decisions. An event less than 48h away makes any short-term reading conditional: say so.
 
-## La synthèse
+## The synthesis
 
-Trois lignes :
-- **Régime** : porteur / neutre / hostile pour le risque, et le facteur dominant.
-- **Ce qui a changé** récemment (deux semaines).
-- **Le risque de bascule** : quel événement ou quel seuil (ex. 10 ans au-dessus de X %, DXY au-dessus de Y) changerait le régime.
+Three lines:
+- **Regime**: supportive / neutral / hostile for risk, and the dominant factor.
+- **What has changed** recently (two weeks).
+- **The tipping risk**: which event or which threshold (e.g. 10-year above X%, DXY above Y) would change the regime.
 
-Puis relie explicitement au marché crypto : « dans ce régime, un rebond de BTC sans amélioration des flux ETF serait fragile » — une phrase de lien, pas une théorie.
+Then explicitly link to the crypto market: "in this regime, a BTC rebound without an improvement in ETF flows would be fragile" — one linking sentence, not a theory.
 
-## Règles
+## Rules
 
-- Chaque chiffre macro a sa date et sa source (organisme, page).
-- Les corrélations se vérifient, elles ne se supposent pas : donne la période d'observation.
-- Pas de prédiction macro ; des scénarios (« si la Fed baisse en X, alors… ») avec ce qui les invalide.
+- Every macro number has its date and its source (organisation, page).
+- Correlations are verified, not assumed: give the observation period.
+- No macro prediction; scenarios ("if the Fed cuts in X, then…") with what invalidates them.

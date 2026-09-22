@@ -14,24 +14,24 @@ type Props = {
   effort: string | null;
   onModel: (modelId: string) => void;
   onEffort: (effort: string | null) => void;
-  /** Le mode courant et ceux qu'on peut choisir : les modes de l'agent
-      externe (abonnements) ou nos deux modes de permission. */
+  /** The current mode and the ones that can be chosen: the external agent's
+      modes (subscriptions) or our two permission modes. */
   mode: string | null;
   modeOptions: Array<{ value: string; name: string; description?: string | null }>;
   onMode: (mode: string) => void;
-  /** Le metier de l'agent : change son prompt et ses competences. */
+  /** The agent's profession: changes its prompt and its skills. */
   profession: string;
   professionOptions: Array<{ value: string; name: string; description?: string | null }>;
   onProfession: (profession: string) => void;
   disabled?: boolean;
-  /** Sans fond : le modele en encre, l'effort en retrait, le chevron — pour
-      le bloc de saisie. */
+  /** No background: the model in ink, the effort set back, the chevron —
+      for the composer. */
   quiet?: boolean;
 };
 
-/* Le nom court d'un modele : OpenRouter prefixe le nom de l'editeur
-   (« Anthropic: Claude Sonnet 4 ») ; dans un panneau deja filtre par editeur,
-   c'est du bruit. */
+/* A model's short name: OpenRouter prefixes the vendor's name
+   ("Anthropic: Claude Sonnet 4"); in a panel already filtered by vendor,
+   that is noise. */
 export const shortName = (m: Model) => m.name.replace(/^[^:]+:\s*/, "");
 
 const fmtContext = (n: number | null) =>
@@ -40,14 +40,14 @@ const fmtContext = (n: number | null) =>
 type View = "menu" | "model" | "effort" | "mode" | "profession";
 
 /* ---------------------------------------------------------------------------
-   Les reglages de la conversation, dans le bloc de saisie.
+   The conversation settings, in the composer.
 
-   Ferme : le modele courant, et l'effort s'il est fixe. Ouvert : deux
-   lignes — Modele, Effort — et rien d'autre ; chacune ouvre sa propre vue,
-   avec retour. Le modele : les trois derniers sortis du fournisseur, et une
-   recherche pour tous les autres. L'effort : les niveaux que CE modele
-   accepte, tels qu'OpenRouter les publie ; un modele qui ne raisonne pas n'a
-   pas d'effort, et la ligne le dit au lieu de disparaitre.
+   Closed: the current model, and the effort if it is set. Open: two rows —
+   Model, Effort — and nothing else; each opens its own view, with a back
+   button. The model: the provider's three latest releases, and a search for
+   all the others. The effort: the levels THIS model accepts, as OpenRouter
+   publishes them; a model that does not reason has no effort, and the row
+   says so instead of disappearing.
 --------------------------------------------------------------------------- */
 export function ModelPicker({
   providerId,
@@ -92,11 +92,11 @@ export function ModelPicker({
 
   const currentMode = modeOptions.find((m) => m.value === mode) ?? null;
   const currentProfession = professionOptions.find((p) => p.value === profession) ?? null;
-  const modelLabel = current ? shortName(current) : modelId ? modelId.split("/").pop() : "Modèle";
+  const modelLabel = current ? shortName(current) : modelId ? modelId.split("/").pop() : "Model";
   const effortValue = effort && efforts.includes(effort) ? effort : null;
 
   const searching = query.trim().length > 0;
-  /* Un abonnement n'a que quelques modeles : tous, sans « derniers sortis ». */
+  /* A subscription only has a few models: all of them, no "latest releases". */
   const acp = acpAgentOf(providerId);
   const results = searching ? searchModels(catalog.models, providerId, query) : acp ? searchModels(catalog.models, providerId, "") : latestModels(catalog.models, providerId);
 
@@ -107,7 +107,7 @@ export function ModelPicker({
         className={`picker-trigger${quiet ? " is-quiet" : ""}${current || modelId ? "" : " is-empty"}`}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={`Réglages : ${modelLabel}${effortValue ? `, effort ${effortLabel(effortValue)}` : ""}`}
+        aria-label={`Settings: ${modelLabel}${effortValue ? `, effort ${effortLabel(effortValue)}` : ""}`}
         disabled={disabled}
         onClick={toggle}
       >
@@ -117,10 +117,10 @@ export function ModelPicker({
       </button>
 
       {view === "menu" && (
-        <SearchPanel open={open} onClose={close} label="Réglages de la conversation" side="top" align="end" width={260} dense>
+        <SearchPanel open={open} onClose={close} label="Conversation settings" side="top" align="end" width={260} dense>
           <SearchPanel.Item
-            title="Modèle"
-            meta={current ? current.id : "aucun modèle"}
+            title="Model"
+            meta={current ? current.id : "no model"}
             onSelect={() => openAt("model")}
             trailing={<ChevronDown className="sp-item-chevron" />}
           />
@@ -128,12 +128,12 @@ export function ModelPicker({
             title="Effort"
             meta={
               !current
-                ? "choisissez d'abord un modèle"
+                ? "choose a model first"
                 : !canEffort
-                  ? "ce modèle ne raisonne pas"
+                  ? "this model does not reason"
                   : effortValue
                     ? effortLabel(effortValue)
-                    : `par défaut${current.defaultEffort ? ` (${effortLabel(current.defaultEffort)})` : ""}`
+                    : `default${current.defaultEffort ? ` (${effortLabel(current.defaultEffort)})` : ""}`
             }
             disabled={!canEffort}
             onSelect={() => openAt("effort")}
@@ -141,7 +141,7 @@ export function ModelPicker({
           />
           <SearchPanel.Item
             title="Mode"
-            meta={modeOptions.length === 0 ? "aucun mode" : (currentMode?.name ?? "par défaut")}
+            meta={modeOptions.length === 0 ? "no mode" : (currentMode?.name ?? "default")}
             disabled={modeOptions.length === 0}
             onSelect={() => openAt("mode")}
             trailing={<ChevronDown className="sp-item-chevron" />}
@@ -159,39 +159,39 @@ export function ModelPicker({
         <SearchPanel
           open={open}
           onClose={close}
-          title="Modèle"
+          title="Model"
           onBack={() => openAt("menu")}
           query={query}
           onQuery={setQuery}
-          placeholder="Rechercher un modèle"
-          label="Modèles"
+          placeholder="Search a model"
+          label="Models"
           side="top"
           align="end"
           width={300}
           dense
         >
           {catalog.status === "loading" || catalog.status === "idle" ? (
-            <SearchPanel.Empty>Lecture du catalogue…</SearchPanel.Empty>
+            <SearchPanel.Empty>Reading the catalog…</SearchPanel.Empty>
           ) : acp && catalog.acpLoading && results.length === 0 ? (
-            /* L'agent publie ses modeles a l'ouverture d'une session : quelques
-               secondes au premier appel, pendant lesquelles « aucun modele »
-               serait un mensonge. */
-            <SearchPanel.Empty>Lecture des modèles de votre abonnement {acp.label}…</SearchPanel.Empty>
+            /* The agent publishes its models when a session opens: a few
+               seconds on the first call, during which "no model" would be a
+               lie. */
+            <SearchPanel.Empty>Reading the models of your {acp.label} subscription…</SearchPanel.Empty>
           ) : catalog.status === "error" ? (
             <SearchPanel.Empty>
               {catalog.message}
               <br />
               <button type="button" className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => loadCatalog(true)}>
-                Recharger
+                Reload
               </button>
             </SearchPanel.Empty>
           ) : results.length === 0 ? (
             <SearchPanel.Empty>
-              {searching ? `Aucun modèle ne correspond à « ${query} ».` : "Ce fournisseur n'a aucun modèle."}
+              {searching ? `No model matches "${query}".` : "This provider has no model."}
             </SearchPanel.Empty>
           ) : (
             <>
-              {!searching && <SearchPanel.Group>{acp ? `Modèles de votre abonnement ${acp.label}` : "Derniers sortis"}</SearchPanel.Group>}
+              {!searching && <SearchPanel.Group>{acp ? `Models of your ${acp.label} subscription` : "Latest releases"}</SearchPanel.Group>}
               {results.map((m) => (
                 <SearchPanel.Item
                   key={m.id}
@@ -214,7 +214,7 @@ export function ModelPicker({
       {view === "effort" && current && (
         <SearchPanel open={open} onClose={close} title="Effort" onBack={() => openAt("menu")} label="Effort" side="top" align="end" width={240} dense>
           <SearchPanel.Item
-            title={`Par défaut${current.defaultEffort ? ` · ${effortLabel(current.defaultEffort)}` : ""}`}
+            title={`Default${current.defaultEffort ? ` · ${effortLabel(current.defaultEffort)}` : ""}`}
             selected={effortValue === null}
             onSelect={() => {
               onEffort(null);
@@ -225,7 +225,7 @@ export function ModelPicker({
           {efforts.map((e) => (
             <SearchPanel.Item
               key={e}
-              title={e === EFFORT_OFF ? "Aucun · sans raisonnement" : effortLabel(e)}
+              title={e === EFFORT_OFF ? "None · no reasoning" : effortLabel(e)}
               selected={e === effortValue}
               onSelect={() => {
                 onEffort(e);

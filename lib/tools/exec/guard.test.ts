@@ -2,7 +2,7 @@ import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { findOutsideReferences } from "./guard";
 
-/* Portable : absolu sur les trois OS (`C:\Users\…` sous Windows, `/Users/…` ailleurs). */
+/* Portable: absolute on all three OSes (`C:\Users\…` on Windows, `/Users/…` elsewhere). */
 const ws = path.resolve("/Users/fremo/Desktop/cryptos/workspaces/a1");
 const wsSlash = ws.replace(/\\/g, "/");
 
@@ -38,7 +38,7 @@ describe("findOutsideReferences", () => {
   test("flags drive-root and UNC paths written with backslashes, and PowerShell ${env:} forms", () => {
     expect(findOutsideReferences("cd \\", ws)).toEqual(["\\"]);
     expect(findOutsideReferences("Get-Content \\Windows\\win.ini", ws)).toEqual(["\\Windows\\win.ini"]);
-    expect(findOutsideReferences("dir \\\\serveur\\partage", ws)).toEqual(["\\\\serveur\\partage"]);
+    expect(findOutsideReferences("dir \\\\server\\share", ws)).toEqual(["\\\\server\\share"]);
     expect(findOutsideReferences("Get-Content ${env:USERPROFILE}\\x", ws)).toEqual(["${env:USERPROFILE}\\x"]);
     expect(findOutsideReferences("ls $env:ProgramFiles", ws)).toEqual(["$env:ProgramFiles"]);
     expect(findOutsideReferences("type %SystemRoot%\\win.ini", ws)).toEqual(["%SystemRoot%\\win.ini"]);

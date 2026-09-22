@@ -2,12 +2,12 @@ import path from "node:path";
 import { describe, expect, test } from "vitest";
 import { OutsideWorkspaceError, displayPath, resolvePath } from "./paths";
 
-/* Chemins portables : `path.resolve("/x")` donne `C:\x` sous Windows et `/x`
-   ailleurs — les tests tournent sur les trois OS (matrice GitHub). */
+/* Portable paths: `path.resolve("/x")` gives `C:\x` on Windows and `/x`
+   elsewhere — the tests run on all three OSes (GitHub matrix). */
 const ws = path.resolve("/tmp/work");
 const other = path.resolve("/other/x.txt");
 
-describe("resolvePath, périmètre disk", () => {
+describe("resolvePath, disk scope", () => {
   test("resolves a relative path inside the workspace", () => {
     expect(resolvePath(ws, "src/a.ts", "disk")).toBe(path.join(ws, "src", "a.ts"));
   });
@@ -17,7 +17,7 @@ describe("resolvePath, périmètre disk", () => {
   });
 });
 
-describe("resolvePath, périmètre workspace", () => {
+describe("resolvePath, workspace scope", () => {
   test("accepts paths inside, relative or absolute", () => {
     expect(resolvePath(ws, "src/a.ts", "workspace")).toBe(path.join(ws, "src", "a.ts"));
     expect(resolvePath(ws, path.join(ws, "x"), "workspace")).toBe(path.join(ws, "x"));

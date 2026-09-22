@@ -8,12 +8,12 @@ import { PROJECT_ROOT, resolveWorkspace } from "@/lib/server/workspace";
 import { userSkills } from "@/lib/tools/skills/skill";
 
 /* ---------------------------------------------------------------------------
-   Un tour de conversation avec un agent par abonnement.
+   One conversation turn with a subscription agent.
 
-   Flux NDJSON : `{type:"session"}` d'abord (l'id a memoriser), puis les
-   evenements du fil (texte, appels, resultats), les demandes de permission
-   (`{type:"permission"}`, a repondre par /api/acp/permission), et `done`.
-   Fermer la requete interrompt le tour.
+   NDJSON stream: `{type:"session"}` first (the id to remember), then the
+   thread events (text, calls, results), the permission requests
+   (`{type:"permission"}`, to be answered through /api/acp/permission), and
+   `done`. Closing the request interrupts the turn.
 --------------------------------------------------------------------------- */
 
 type Body = {
@@ -40,22 +40,22 @@ export async function POST(req: Request) {
   try {
     body = (await req.json()) as Body;
   } catch {
-    return Response.json({ error: { message: "Corps de requête illisible." } }, { status: 400 });
+    return Response.json({ error: { message: "Unreadable request body." } }, { status: 400 });
   }
   if (!body.conversationId || !isAcpAgentId(body.agent) || typeof body.text !== "string") {
-    return Response.json({ error: { message: "Il manque la conversation, l'agent ou le message." } }, { status: 400 });
+    return Response.json({ error: { message: "Missing conversation, agent or message." } }, { status: 400 });
   }
   const agent = body.agent;
   const bytnodeKey = req.headers.get("x-bytnode-key") ?? "";
   const workspace = await resolveWorkspace(body.agentId ?? "", body.workspace);
   const profession = await loadProfession(PROJECT_ROOT, isProfessionId(body.profession) ? body.profession : DEFAULT_PROFESSION);
   try {
-    /* Celles de la profession, puis les votres (`~/.bytnode-ai/skills/`). */
+    /* The profession's skills, then your own (`~/.bytnode-ai/skills/`). */
     const t0 = Date.now();
     await syncSkills(workspace, [...profession.skills, ...(await userSkills())]);
-    console.info(`[acp] compétences synchronisées en ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+    console.info(`[acp] skills synced in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   } catch {
-    /* un dossier en lecture seule n'empeche pas de parler */
+    /* a read-only folder does not prevent talking */
   }
 
   const encoder = new TextEncoder();
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
         try {
           controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
         } catch {
-          /* flux ferme */
+          /* stream closed */
         }
       };
       try {
@@ -97,7 +97,7 @@ export async function POST(req: Request) {
         try {
           controller.close();
         } catch {
-          /* deja ferme */
+          /* already closed */
         }
       }
     },

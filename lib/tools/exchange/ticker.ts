@@ -4,20 +4,21 @@ import { fail, ok } from "../types";
 import { ACCOUNT_PROP, MARKET_PROP, SYMBOL_PROP, attempt, resolve, symbolOn, type BaseArgs } from "./common";
 import { formatTicker } from "./format";
 
-/* ExchangeTicker : le prix DE L'EXCHANGE ou l'on trade (BytNode donne le
-   marche en general ; ici c'est le carnet qui va executer l'ordre). Le
-   carnet et le funding sont des a-cotes : s'ils echouent, le ticker suffit. */
+/* ExchangeTicker: the price ON THE EXCHANGE where we trade (BytNode gives
+   the market in general; here it is the order book that will execute the
+   order). The book and the funding are extras: if they fail, the ticker is
+   enough. */
 
 type Args = BaseArgs & { symbol: string; depth?: number };
 
 export const tickerTool: Tool<Args> = {
   name: "ExchangeTicker",
-  description: "Le prix d'une paire sur l'exchange du compte : dernier, bid/ask, variation 24 h, volume ; le carnet (`depth` niveaux, défaut 5) ; en futures, le taux de funding. Lecture seule, sans permission.",
+  description: "The price of a pair on the account's exchange: last, bid/ask, 24 h change, volume; the order book (`depth` levels, default 5); on futures, the funding rate. Read-only, no permission needed.",
   parameters: {
     type: "object",
     properties: {
       symbol: SYMBOL_PROP,
-      depth: { type: "integer", minimum: 0, maximum: 50, description: "Niveaux du carnet à rendre (0 : aucun). Défaut 5." },
+      depth: { type: "integer", minimum: 0, maximum: 50, description: "Order book levels to return (0: none). Default 5." },
       account: ACCOUNT_PROP,
       market: MARKET_PROP,
     },
@@ -35,10 +36,11 @@ export const tickerTool: Tool<Args> = {
       let book: OrderBook | undefined;
       let funding: FundingRate | undefined;
       if (depth > 0) {
-        /* Chaque exchange a ses profondeurs : KuCoin n'accepte que 20 ou
-           100, Binance des paliers (5, 10, 20, 50, 100…), Bybit 1 a 200.
-           20 et 100 sont acceptes partout ; on garde `depth` niveaux. Si
-           meme cela est refuse, sans limite ; sinon, le prix suffit. */
+        /* Each exchange has its own depths: KuCoin accepts only 20 or 100,
+           Binance fixed steps (5, 10, 20, 50, 100…), Bybit 1 to 200. 20
+           and 100 are accepted everywhere; we keep `depth` levels. If even
+           that is refused, without a limit; otherwise, the price is
+           enough. */
         const raw = await orderBook(r.ex, s.symbol, depth <= 20 ? 20 : 100);
         if (raw) book = { ...raw, bids: raw.bids.slice(0, depth), asks: raw.asks.slice(0, depth) };
       }
@@ -46,10 +48,10 @@ export const tickerTool: Tool<Args> = {
         try {
           funding = (await r.ex.fetchFundingRate(s.symbol)) as FundingRate;
         } catch {
-          /* idem */
+          /* same */
         }
       }
-      /* Certains tickers futures n'ont pas de bid/ask : le carnet les a. */
+      /* Some futures tickers have no bid/ask: the order book has them. */
       if (book) {
         if (ticker.bid == null && book.bids[0]) ticker.bid = Number(book.bids[0][0]);
         if (ticker.ask == null && book.asks[0]) ticker.ask = Number(book.asks[0][0]);

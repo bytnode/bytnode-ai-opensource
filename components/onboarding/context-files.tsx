@@ -6,13 +6,13 @@ import { newId } from "@/lib/domain/conversation";
 import { Close, File } from "@/components/ui/icons";
 
 /* ---------------------------------------------------------------------------
-   Les fichiers du contexte.
+   The context files.
 
-   Ils sont lus ici, une fois, et gardes en texte dans les reglages : c'est ce
-   qui permet a l'agent de les recevoir a chaque conversation sans qu'on ait a
-   les redeposer. La contrepartie est la place dans localStorage — d'ou la
-   limite par fichier, et le refus des formats binaires (un PDF n'est pas du
-   texte, il faudrait l'extraire).
+   They are read here, once, and kept as text in the settings: that is what
+   lets the agent receive them in every conversation without having to drop
+   them again. The trade-off is the room in localStorage — hence the per-file
+   limit, and the refusal of binary formats (a PDF is not text, it would have
+   to be extracted).
 --------------------------------------------------------------------------- */
 
 const MAX_BYTES = 200 * 1024;
@@ -29,7 +29,7 @@ const isText = (f: globalThis.File) => {
   return TEXT_EXT.has(ext);
 };
 
-const fmtSize = (n: number) => (n < 1024 ? `${n} o` : n < 1024 * 1024 ? `${(n / 1024).toFixed(0)} Ko` : `${(n / 1024 / 1024).toFixed(1)} Mo`);
+const fmtSize = (n: number) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
 
 type Props = {
   value: ContextFile[];
@@ -47,15 +47,15 @@ export function ContextFiles({ value, onChange }: Props) {
     const reasons: string[] = [];
     for (const f of files) {
       if (value.length + accepted.length >= MAX_FILES) {
-        reasons.push(`${MAX_FILES} fichiers au plus.`);
+        reasons.push(`${MAX_FILES} files at most.`);
         break;
       }
       if (!isText(f)) {
-        reasons.push(`${f.name} : seuls les fichiers texte sont lus.`);
+        reasons.push(`${f.name}: only text files are read.`);
         continue;
       }
       if (f.size > MAX_BYTES) {
-        reasons.push(`${f.name} dépasse ${fmtSize(MAX_BYTES)}.`);
+        reasons.push(`${f.name} exceeds ${fmtSize(MAX_BYTES)}.`);
         continue;
       }
       accepted.push({ id: newId(), name: f.name, size: f.size, content: await f.text() });
@@ -81,9 +81,9 @@ export function ContextFiles({ value, onChange }: Props) {
         onDragLeave={() => setOver(false)}
         onDrop={onDrop}
       >
-        <span>Déposez des fichiers texte ici, ou</span>
+        <span>Drop text files here, or</span>
         <button type="button" className="cf-browse" onClick={() => input.current?.click()}>
-          parcourez
+          browse
         </button>
         <input
           ref={input}
@@ -112,7 +112,7 @@ export function ContextFiles({ value, onChange }: Props) {
                 type="button"
                 className="cf-remove"
                 onClick={() => onChange(value.filter((x) => x.id !== f.id))}
-                aria-label={`Retirer ${f.name}`}
+                aria-label={`Remove ${f.name}`}
               >
                 <Close />
               </button>

@@ -4,8 +4,8 @@ import { useSyncExternalStore } from "react";
 import { BrowserStorage } from "@/lib/storage/storage";
 import { createStore } from "./store";
 
-/* Les preferences d'ecran : la largeur de la colonne, et si elle est
-   repliee. Rien de plus — ce n'est pas un reglage, c'est une habitude. */
+/* Screen preferences: the column's width, and whether it is collapsed.
+   Nothing more — this is not a setting, it is a habit. */
 
 export type UiPrefs = { sidebarWidth: number; sidebarCollapsed: boolean };
 

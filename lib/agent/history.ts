@@ -2,14 +2,13 @@ import type { Message } from "@/lib/domain/types";
 import type { Step } from "./events";
 
 /* ---------------------------------------------------------------------------
-   Rejouer une conversation au format du fournisseur.
+   Replaying a conversation in the provider's format.
 
-   Un message d'assistant memorise ses PAS : du texte, des appels d'outils
-   avec leur resultat. Le fournisseur, lui, veut une suite de messages —
-   `assistant` avec ses `tool_calls`, puis un message `tool` par resultat,
-   puis `assistant` a nouveau si le texte a repris. On reconstruit cette
-   suite a chaque tour ; c'est ce qui permet au modele de se souvenir de ce
-   qu'il a lu et fait.
+   An assistant message stores its STEPS: text, tool calls with their
+   result. The provider, however, wants a sequence of messages —
+   `assistant` with its `tool_calls`, then one `tool` message per result,
+   then `assistant` again if the text resumed. That sequence is rebuilt at
+   every turn; it is what lets the model remember what it read and did.
 --------------------------------------------------------------------------- */
 
 export type ProviderMessage =
@@ -19,13 +18,13 @@ export type ProviderMessage =
   | { role: "tool"; tool_call_id: string; content: string };
 
 export function stepsToMessages(m: Message): ProviderMessage[] {
-  /* Un compactage en cours (ou laisse la par un rechargement en plein
-     milieu) n'est pas une reponse : il ne se rejoue jamais. */
+  /* A compaction in progress (or left behind by a mid-turn reload) is not
+     a reply: it is never replayed. */
   if (m.compacting) return [];
   if (m.role === "user") {
-    /* Les images jointes accompagnent le texte : le modele doit les voir
-       pour en parler. Les autres fichiers sont sur le disque, et le texte
-       en donne les chemins. */
+    /* Attached images go along with the text: the model has to see them to
+       talk about them. The other files are on disk, and the text gives
+       their paths. */
     const images = (m.attachments ?? []).filter((a) => a.kind === "image" && a.dataUrl);
     if (images.length === 0) return [{ role: "user", content: m.content }];
     return [
@@ -38,14 +37,14 @@ export function stepsToMessages(m: Message): ProviderMessage[] {
       },
     ];
   }
-  /* Le resume d'un fil compacte n'est pas une reponse de l'agent : c'est du
-     contexte. Il est rejoue comme tel, pour que le modele s'appuie dessus
-     au lieu de croire qu'il vient de le dire. */
+  /* The summary of a compacted thread is not a reply from the agent: it is
+     context. It is replayed as such, so the model builds on it instead of
+     believing it just said it. */
   if (m.compaction) {
     return [
       {
         role: "user",
-        content: `<resume_du_fil_precedent>\n${m.content}\n</resume_du_fil_precedent>\n\nLa conversation a été compactée : ce résumé remplace tout ce qui précède. Reprends à partir de là.`,
+        content: `<previous_thread_summary>\n${m.content}\n</previous_thread_summary>\n\nThe conversation has been compacted: this summary replaces everything before it. Resume from here.`,
       },
     ];
   }
@@ -70,7 +69,7 @@ export function stepsToMessages(m: Message): ProviderMessage[] {
       out.push({
         role: "tool",
         tool_call_id: c.id,
-        content: c.status === "running" || c.status === "pending" ? "[outil interrompu avant d'avoir répondu]" : (c.output ?? ""),
+        content: c.status === "running" || c.status === "pending" ? "[tool interrupted before it answered]" : (c.output ?? ""),
       });
     }
     pendingCalls = [];
@@ -78,8 +77,8 @@ export function stepsToMessages(m: Message): ProviderMessage[] {
   };
 
   for (const s of steps) {
-    /* Ni le plan ni le raisonnement ne repartent au modele : ils sont la
-       pour l'utilisateur, et les rejouer brouillerait le contexte. */
+    /* Neither the plan nor the reasoning go back to the model: they are
+       there for the user, and replaying them would muddle the context. */
     if (s.type === "plan" || s.type === "thought") continue;
     if (s.type === "text") {
       if (pendingCalls.length > 0) flushCalls();
@@ -94,22 +93,22 @@ export function stepsToMessages(m: Message): ProviderMessage[] {
 }
 
 /* ---------------------------------------------------------------------------
-   Elaguer les vieux resultats d'outils.
+   Pruning old tool results.
 
-   ⚠️ CE SONT LES SORTIES D'OUTILS QUI REMPLISSENT LA FENETRE. Un `Read` de
-   CSV, un `Bash` verbeux : 40 000 caracteres chacun, rejoues a chaque tour
-   jusqu'a la fin du fil. Comme Claude Code ou Codex, quand le fil pese, les
-   `keep` derniers resultats restent entiers — c'est le plan de travail du
-   moment — et les plus anciens sont reduits a leur debut plus un marqueur
-   qui dit au modele de relancer l'outil s'il lui manque le detail.
+   ⚠️ TOOL OUTPUTS ARE WHAT FILLS THE WINDOW. A `Read` of a CSV, a verbose
+   `Bash`: 40,000 characters each, replayed at every turn until the end of
+   the thread. Like Claude Code or Codex, when the thread gets heavy, the
+   `keep` most recent results stay whole — that is the current working set
+   — and the older ones are cut down to their head plus a marker that tells
+   the model to run the tool again if it misses the detail.
 
-   Ne touche que le rejeu : le fil affiche garde tout. Pur.
+   Touches only the replay: the displayed thread keeps everything. Pure.
 --------------------------------------------------------------------------- */
 
 export type PruneOptions = {
-  /** Combien de resultats d'outils, les plus recents, rester entiers. */
+  /** How many tool results, the most recent ones, stay whole. */
   keep: number;
-  /** Combien de caracteres garder en tete d'un resultat elague. */
+  /** How many characters to keep at the head of a pruned result. */
   head: number;
 };
 
@@ -126,7 +125,7 @@ export function pruneToolOutputs(messages: ProviderMessage[], opts: PruneOptions
     return {
       ...m,
       content: `${m.content.slice(0, opts.head)}
-[… sortie élaguée pour libérer du contexte (${more} caractères de plus). Relance l'outil si tu as besoin du détail.]`,
+[… output pruned to free up context (${more} more characters). Run the tool again if you need the detail.]`,
     };
   });
 }

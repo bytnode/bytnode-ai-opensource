@@ -1,72 +1,72 @@
 ---
 name: specification-executable
-description: À ouvrir dès qu'une stratégie doit être écrite — le gabarit à champs obligatoires, le test « est-ce codable », et les formulations vagues à refuser
+description: Open this as soon as a strategy must be written — the template with mandatory fields, the "can it be coded" test, and the vague wordings to refuse
 ---
 
-# Une stratégie qui ne se code pas n'existe pas
+# A strategy that cannot be coded does not exist
 
-Ton défaut ici est spécifique : tu écris de la **prose de stratégie**. « Entrer quand la tendance s'inverse avec confirmation du volume, sortir quand le momentum s'épuise » se lit très bien et ne se code pas. Personne ne peut la tester, donc personne ne peut savoir si elle perd de l'argent.
+Your flaw here is specific: you write **strategy prose**. "Enter when the trend reverses with volume confirmation, exit when momentum fades" reads very well and cannot be coded. Nobody can test it, so nobody can know whether it loses money.
 
-**Règle : chaque champ ci-dessous est rempli par une condition que `signal(df)` peut évaluer sur une bougie donnée. Si un champ ne se code pas, la stratégie n'est pas finie.**
+**Rule: every field below is filled with a condition that `signal(df)` can evaluate on a given candle. If a field cannot be coded, the strategy is not finished.**
 
-## Le gabarit
+## The template
 
 ```markdown
-## <nom de la stratégie>
+## <strategy name>
 
-**Intuition** : la raison économique de l'avantage, en une phrase. Pourquoi
-quelqu'un est prêt à perdre de l'argent en face ?
+**Intuition**: the economic reason for the edge, in one sentence. Why is
+someone willing to lose money on the other side?
 
-**Univers** : BTCUSDT, ETHUSDT (perp USDT-M). Pourquoi ceux-là.
-**Pas de temps** : 4 h. Périodes/an : 2 190.
-**Direction** : long seulement / long-short.
+**Universe**: BTCUSDT, ETHUSDT (USDT-M perp). Why those.
+**Timeframe**: 4h. Periods/year: 2,190.
+**Direction**: long only / long-short.
 
-**Entrée** : condition exacte, évaluée à la clôture de la bougie t,
-exécutée à l'ouverture de t+1.
-  ex. close > MM200(close) ET MM20(close) > MM50(close)
+**Entry**: exact condition, evaluated at the close of candle t,
+executed at the open of t+1.
+  e.g. close > MA200(close) AND MA20(close) > MA50(close)
 
-**Sortie** : condition exacte, même règle d'exécution.
-  ex. MM20 < MM50, OU stop touché, OU 30 bougies écoulées
+**Exit**: exact condition, same execution rule.
+  e.g. MA20 < MA50, OR stop hit, OR 30 candles elapsed
 
-**Stop** : distance en prix, calculable à l'entrée.
-  ex. 2 × ATR(14) sous le prix d'entrée
+**Stop**: distance in price, computable at entry.
+  e.g. 2 × ATR(14) below the entry price
 
-**Taille** : règle, pas un chiffre.
-  ex. risque 1 % du capital / distance au stop, notionnel ≤ 3× capital
+**Size**: a rule, not a number.
+  e.g. risk 1% of capital / distance to stop, notional ≤ 3× capital
 
-**Filtre de régime** : quand la stratégie ne trade pas.
-  ex. pas de position si ATR(14)/close > 6 % (volatilité extrême)
+**Regime filter**: when the strategy does not trade.
+  e.g. no position if ATR(14)/close > 6% (extreme volatility)
 
-**Coûts retenus** : frais 6 bp/côté, slippage 5 bp/côté, funding réel.
+**Costs assumed**: fees 6 bp/side, slippage 5 bp/side, real funding.
 
-**Invalidation** : ce qui fait abandonner la stratégie — pas un mauvais mois,
-un critère précis.
-  ex. drawdown > 1,5 × le drawdown max du backtest, ou 6 mois sans nouveau
-  plus-haut de capital
+**Invalidation**: what makes one abandon the strategy — not a bad month,
+a precise criterion.
+  e.g. drawdown > 1.5 × the backtest's max drawdown, or 6 months without a new
+  equity high
 ```
 
-## Le test « est-ce codable »
+## The "can it be coded" test
 
-Pour chaque condition, pose-toi : **sur la bougie t, avec seulement les données ≤ t, puis-je répondre oui ou non ?** Si la réponse demande un jugement, ce n'est pas une règle.
+For each condition, ask yourself: **on candle t, with only the data ≤ t, can I answer yes or no?** If the answer requires judgement, it is not a rule.
 
-| Prose (refusée) | Règle (acceptée) |
+| Prose (refused) | Rule (accepted) |
 |---|---|
-| « quand la tendance s'inverse » | `MM20 croise au-dessus de MM50` |
-| « avec confirmation du volume » | `volume > 1,5 × MM20(volume)` |
-| « quand le momentum s'épuise » | `RSI(14) < 50 après avoir dépassé 70` |
-| « près d'un support » | `close < 1,01 × plus-bas des 20 dernières bougies` |
-| « si le marché est favorable » | `close > MM200` |
-| « prendre des profits progressivement » | `sortir 50 % à +2R, le reste au stop suiveur de 1 ATR` |
+| "when the trend reverses" | `MA20 crosses above MA50` |
+| "with volume confirmation" | `volume > 1.5 × MA20(volume)` |
+| "when momentum fades" | `RSI(14) < 50 after having exceeded 70` |
+| "near a support" | `close < 1.01 × low of the last 20 candles` |
+| "if the market is favourable" | `close > MA200` |
+| "take profits progressively" | `exit 50% at +2R, the rest on a 1 ATR trailing stop` |
 
-## Ce qui est interdit dans une condition
+## What is forbidden in a condition
 
-- **Une donnée future** : le close de la bougie du signal pour l'exécution, un plus-haut « des 20 prochaines bougies », une moyenne centrée. Voir `anti-fuite`.
-- **Un paramètre non déclaré** : tout seuil chiffré est un paramètre, il compte dans le budget (`budget-de-parametres`).
-- **Une condition sur un actif dont tu n'as pas les données.**
+- **Future data**: the close of the signal candle for execution, a high "of the next 20 candles", a centred average. See `anti-fuite`.
+- **An undeclared parameter**: every numeric threshold is a parameter, it counts in the budget (`budget-de-parametres`).
+- **A condition on an asset for which you do not have the data.**
 
-## Ensuite
+## Then
 
-Une spécification complète se traduit en un fichier de stratégie de dix lignes, puis se teste :
+A complete specification translates into a ten-line strategy file, then gets tested:
 
 ```python
 # strategies/tendance_4h.py
@@ -82,13 +82,13 @@ def stop_distance(df: pd.DataFrame, atr: int = 14) -> pd.Series:
     return 2 * (df["high"] - df["low"]).rolling(atr).mean()
 ```
 
-puis `Backtest(data=…, strategy="strategies/tendance_4h.py", periods_per_year=2190)`.
+then `Backtest(data=…, strategy="strategies/tendance_4h.py", periods_per_year=2190)`.
 
-Tant que la spécification n'est pas testée, tu ne dis pas qu'elle « devrait bien fonctionner » : tu dis qu'elle est prête à être testée.
+As long as the specification is not tested, you do not say it "should work well": you say it is ready to be tested.
 
-## Lié
+## Related
 
-- `conception-strategie` : la démarche d'ensemble.
-- `budget-de-cout` : l'avantage doit couvrir les frictions.
-- `budget-de-parametres` : combien de seuils on s'autorise.
-- `plan-backtest`, `anti-fuite` : la mise à l'épreuve.
+- `conception-strategie`: the overall approach.
+- `budget-de-cout`: the edge must cover the frictions.
+- `budget-de-parametres`: how many thresholds we allow ourselves.
+- `plan-backtest`, `anti-fuite`: putting it to the test.

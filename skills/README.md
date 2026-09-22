@@ -1,53 +1,53 @@
-# Vos compétences
+# Your skills
 
-Elles vont dans `~/.bytnode-ai/skills/` (ce dossier du dépôt n'est plus lu : il documente le
-format). Un dossier par compétence, avec un `SKILL.md` :
+They go in `~/.bytnode-ai/skills/` (this folder of the repo is no longer read: it documents the
+format). One folder per skill, with a `SKILL.md`:
 
 ```
 ~/.bytnode-ai/skills/
   analyse-funding/
-    SKILL.md          ← obligatoire
-    exemple.csv       ← ce que vous voulez : le dossier est copié en entier
+    SKILL.md          ← required
+    exemple.csv       ← whatever you want: the folder is copied whole
 ```
 
-Le `SKILL.md` commence par un en-tête :
+The `SKILL.md` starts with a header:
 
 ```markdown
 ---
 name: analyse-funding
-description: Lire le funding d'un perpétuel et en déduire le positionnement — c'est cette ligne que l'agent lit pour décider s'il ouvre la compétence
+description: Read the funding of a perpetual and infer positioning from it — this is the line the agent reads to decide whether to open the skill
 ---
 
-# Analyse du funding
+# Funding analysis
 
-Les consignes, en markdown. Ce que l'agent doit faire, dans quel ordre,
-ce qu'il doit éviter, la forme attendue de la réponse.
+The instructions, in markdown. What the agent must do, in what order,
+what it must avoid, the expected form of the answer.
 ```
 
-`description` est la seule ligne que l'agent voit en permanence : elle doit
-dire **quand** ouvrir la compétence, pas seulement de quoi elle parle.
+`description` is the only line the agent sees at all times: it must
+say **when** to open the skill, not just what it is about.
 
-## Qui les voit
+## Who sees them
 
-- **Tous les agents**, quel que soit leur accès aux modèles. La liste (nom +
-  description) est dans leur prompt à chaque tour ; le corps est chargé quand
-  ils en ont besoin.
-- Les agents **par clé OpenRouter** les lisent ici même, par l'outil `Skill`.
-- Les agents **par abonnement** (Claude, OpenAI, Gemini, Copilot, Grok,
-  Mistral) en reçoivent une copie dans `.agents/skills/` et `.claude/skills/`
-  de leur dossier de travail, où leurs propres mécanismes de skills les
-  trouvent. La copie est refaite quand vous modifiez le `SKILL.md`, et une
-  compétence retirée d'ici disparaît de leur dossier.
+- **Every agent**, whatever their access to models. The list (name +
+  description) is in their prompt every turn; the body is loaded when
+  they need it.
+- Agents **by OpenRouter key** read them right here, through the `Skill` tool.
+- Agents **by subscription** (Claude, OpenAI, Gemini, Copilot, Grok)
+  receive a copy in `.agents/skills/` and `.claude/skills/`
+  of their workspace, where their own skill mechanisms find them. The
+  copy is redone when you edit the `SKILL.md`, and a skill removed
+  from here disappears from their folder.
 
-En cas de même nom, la compétence de la profession (`professions/<métier>/skills/`)
-passe avant celle-ci.
+On a name clash, the profession's skill (`professions/<profession>/skills/`)
+takes precedence over this one.
 
-## Les autres emplacements
+## The other locations
 
-- `professions/<métier>/skills/` — propre à un métier, livré avec l'application.
-- `professions/_commun/skills/` — partagé par tous les métiers.
-- `<dossier de travail>/skills/` — propre à un seul agent, écrit à la main.
-- `~/.agents/skills/` — partagé avec vos autres outils.
+- `professions/<profession>/skills/` — specific to one profession, shipped with the application.
+- `professions/_commun/skills/` — shared by every profession.
+- `<workspace>/skills/` — specific to a single agent, hand-written.
+- `~/.agents/skills/` — shared with your other tools.
 
-Une compétence ajoutée pendant qu'une conversation est ouverte apparaît au
-message suivant.
+A skill added while a conversation is open appears at the next
+message.

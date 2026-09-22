@@ -20,11 +20,11 @@ import type { AcpAgentId } from "./agents";
 import { spawnAcp } from "./launch";
 
 /* ---------------------------------------------------------------------------
-   Une connexion a un agent ACP : un sous-processus, un canal JSON-RPC.
+   A connection to an ACP agent: one sub-process, one JSON-RPC channel.
 
-   Le SDK fait le protocole ; ici on tient le processus, on relaie ce que
-   l'agent envoie (`session/update`, `session/request_permission`) a qui
-   ecoute la session concernee, et on s'assure que tout meurt proprement.
+   The SDK does the protocol; here we hold the process, relay what the
+   agent sends (`session/update`, `session/request_permission`) to whoever
+   listens to the session concerned, and make sure everything dies cleanly.
 --------------------------------------------------------------------------- */
 
 export type UpdateListener = (n: SessionNotification) => void;
@@ -34,12 +34,12 @@ export type PermissionHandler = (
 
 const HANDSHAKE_TIMEOUT = 60_000;
 
-/* ⚠️ CERTAINS AGENTS ENVOIENT DES REPONSES A DES REQUETES QU'ON N'A PAS
-   FAITES. Grok Build pousse des messages `{"id":"skills-reload"}` /
-   `{"id":"workflows-reload"}` en forme de reponse JSON-RPC ; le SDK les
-   signale alors dans la console a chaque fois (« Got response to unknown
-   request »). Nos requetes, elles, portent un id NUMERIQUE : on jette donc
-   les reponses a id textuel avant qu'elles n'atteignent le protocole. */
+/* ⚠️ SOME AGENTS SEND RESPONSES TO REQUESTS WE NEVER MADE. Grok Build
+   pushes `{"id":"skills-reload"}` / `{"id":"workflows-reload"}` messages
+   shaped like JSON-RPC responses; the SDK then reports them in the console
+   every time (« Got response to unknown request »). Our own requests carry
+   a NUMERIC id: so we drop responses with a string id before they reach
+   the protocol. */
 const isStrayResponse = (m: unknown): boolean => {
   if (typeof m !== "object" || m === null) return false;
   const msg = m as { id?: unknown; method?: unknown };
@@ -64,7 +64,7 @@ export class AcpConnection {
   private readonly permissions = new Map<string, PermissionHandler>();
   private stderr = "";
   private closed = false;
-  /** Se resout quand le processus est sorti. */
+  /** Resolves once the process has exited. */
   readonly exited: Promise<void>;
   authMethods: AuthMethod[] = [];
   capabilities: AgentCapabilities = {};
@@ -83,7 +83,7 @@ export class AcpConnection {
   static async open(agent: AcpAgentId, cwd: string): Promise<AcpConnection> {
     const child = spawnAcp(agent, cwd);
     if (!child.stdin || !child.stdout)
-      throw new Error("Impossible d'ouvrir les canaux de l'agent.");
+      throw new Error("Could not open the agent's channels.");
     const stream = ndJsonStream(
       Writable.toWeb(child.stdin) as WritableStream<Uint8Array>,
       Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>,
@@ -105,19 +105,19 @@ export class AcpConnection {
     self = new AcpConnection(agent, child, conn);
     const spawnError = new Promise<never>((_, reject) => {
       child.once("error", (e) =>
-        reject(new Error(`Lancement de l'agent impossible : ${e.message}`)),
+        reject(new Error(`Could not launch the agent: ${e.message}`)),
       );
       child.once("exit", (code) =>
         reject(
           new Error(
-            `L'agent s'est arrêté (code ${code}).${self?.stderr ? `\n${self.stderr.trim()}` : ""}`,
+            `The agent stopped (code ${code}).${self?.stderr ? `\n${self.stderr.trim()}` : ""}`,
           ),
         ),
       );
     });
     const init = conn.initialize({
       protocolVersion: PROTOCOL_VERSION,
-      /* `auth.terminal` : on sait ouvrir un terminal pour une connexion. */
+      /* `auth.terminal`: we know how to open a terminal for a sign-in. */
       clientCapabilities: {
         fs: { readTextFile: false, writeTextFile: false },
         terminal: false,
@@ -127,7 +127,7 @@ export class AcpConnection {
     });
     const timeout = new Promise<never>((_, reject) =>
       setTimeout(
-        () => reject(new Error("L'agent ne répond pas.")),
+        () => reject(new Error("The agent is not responding.")),
         HANDSHAKE_TIMEOUT,
       ).unref(),
     );
@@ -184,8 +184,8 @@ export class AcpConnection {
     });
   }
 
-  /** Un tour : le texte, et les images jointes en blocs de contenu (les
-      agents qui annoncent `promptCapabilities.image` les acceptent). */
+  /** A turn: the text, and the attached images as content blocks (agents
+      that announce `promptCapabilities.image` accept them). */
   prompt(sessionId: string, text: string, images: string[] = []): Promise<PromptResponse> {
     const blocs: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = [{ type: "text", text }];
     if (this.capabilities.promptCapabilities?.image) {
@@ -209,8 +209,8 @@ export class AcpConnection {
     return this.conn.setSessionMode({ sessionId, modeId });
   }
 
-  /** L'ancienne forme du choix de modele (`session/set_model`), encore
-      celle de Gemini CLI. */
+  /** The old form of the model choice (`session/set_model`), still the
+      one Gemini CLI uses. */
   setModel(sessionId: string, modelId: string) {
     return this.conn.request<unknown, { sessionId: string; modelId: string }>(
       "session/set_model",
@@ -237,7 +237,7 @@ export class AcpConnection {
     try {
       this.child.stdin?.end();
     } catch {
-      /* deja ferme */
+      /* already closed */
     }
     const kill = () => {
       if (this.child.exitCode !== null) return;
@@ -248,7 +248,7 @@ export class AcpConnection {
           });
           return;
         } catch {
-          /* on retombe sur kill */
+          /* fall back to kill */
         }
       }
       this.child.kill();

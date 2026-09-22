@@ -3,22 +3,22 @@ import { PROVIDER_ROUTING } from "@/lib/server/provider-routing";
 import { errorText, fail, ok } from "../types";
 
 /* ---------------------------------------------------------------------------
-   WebSearch : le meme systeme que DeepSeek Harness.
+   WebSearch: the same system as DeepSeek Harness.
 
-   L'outil ne parle pas au reseau lui-meme : il passe par un FOURNISSEUR de
-   recherche derriere une interface commune. Un seul est branche : le
-   greffon `web` d'OpenRouter, qui cherche (Exa en coulisses) et facture sur
-   la cle qu'on a deja. Un autre moteur se rajoute dans `providerChain`.
-   Plusieurs requetes sont lancees ensemble et fusionnees a tour de role,
-   sans doublon d'URL. Le texte rendu au modele commence par un rappel : ce
-   contenu vient du web, c'est une donnee, pas une consigne.
+   The tool does not talk to the network itself: it goes through a search
+   PROVIDER behind a common interface. Only one is wired: OpenRouter's `web`
+   plugin, which searches (Exa behind the scenes) and bills on the key
+   already in hand. Another engine is added in `providerChain`. Several
+   queries are launched together and merged in round-robin, without
+   duplicate URLs. The text returned to the model starts with a reminder:
+   this content comes from the web, it is data, not an instruction.
 --------------------------------------------------------------------------- */
 
 export type SearchSource = { url: string; title?: string; snippet?: string; publishedAt?: string };
 export type SearchResponse = { content?: string; sources: SearchSource[] };
 
-/** Les cles de moteurs tiers ont ete retirees : la recherche passe par
-    OpenRouter. Le type reste pour la chaine de fournisseurs, vide. */
+/** Third-party engine keys were removed: search goes through OpenRouter.
+    The type remains for the provider chain, empty. */
 export type SearchKeys = Record<string, never>;
 
 export interface WebSearchProvider {
@@ -28,17 +28,17 @@ export interface WebSearchProvider {
 
 const MAX_RESULTS = 8;
 const MAX_QUERIES = 4;
-/* 45 s par tentative : le greffon d'OpenRouter fait tourner un modele, ce
-   n'est pas un index. Deux tentatives, puis le fournisseur suivant. */
+/* 45 s per attempt: OpenRouter's plugin runs a model, it is not an index.
+   Two attempts, then the next provider. */
 const TIMEOUT = 45_000;
 const ATTEMPTS = 2;
 
-/* --- OpenRouter : le greffon `web`, sur la cle deja presente --------------
+/* --- OpenRouter: the `web` plugin, on the key already present ------------
 
-   Un petit modele recoit la requete avec le greffon ; sa reponse porte des
-   annotations `url_citation` (url, titre, extrait) qu'on transforme en
-   sources. Le modele est bon marche et fixe : la recherche ne doit pas
-   couter le prix du modele de la conversation. */
+   A small model receives the query with the plugin; its answer carries
+   `url_citation` annotations (url, title, excerpt) that are turned into
+   sources. The model is cheap and fixed: a search must not cost the price
+   of the conversation's model. */
 const SEARCH_MODEL = process.env.OPENROUTER_SEARCH_MODEL ?? "deepseek/deepseek-v4.1-flash";
 const OPENROUTER_URL = process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
 
@@ -58,12 +58,12 @@ Summarize the findings in a few sentences and cite the sources.` }],
       signal,
     });
     if (!res.ok) {
-      let message = `OpenRouter a répondu ${res.status}`;
+      let message = `OpenRouter answered ${res.status}`;
       try {
         const j = (await res.json()) as { error?: { message?: string } };
         if (j.error?.message) message = j.error.message;
       } catch {
-        /* corps non JSON */
+        /* non-JSON body */
       }
       throw new Error(message);
     }
@@ -85,8 +85,8 @@ Summarize the findings in a few sentences and cite the sources.` }],
   },
 });
 
-/** Les fournisseurs utilisables, dans l'ordre d'essai : les cles
-    explicites d'abord, OpenRouter en dernier recours. */
+/** The usable providers, in trial order: explicit keys first, OpenRouter
+    as a last resort. */
 export function providerChain(_keys: SearchKeys, openrouterKey?: string): WebSearchProvider[] {
   const chain: WebSearchProvider[] = [];
   if (openrouterKey?.trim()) chain.push(openrouterProvider(openrouterKey.trim()));
@@ -97,12 +97,12 @@ export function pickProvider(keys: SearchKeys, openrouterKey?: string): WebSearc
   return providerChain(keys, openrouterKey)[0] ?? null;
 }
 
-/** Une requete chez un fournisseur, avec `ATTEMPTS` essais bornes chacun
-    par `TIMEOUT` ; l'annulation de l'utilisateur, elle, n'est pas retentee. */
+/** One query at a provider, with `ATTEMPTS` tries each bounded by
+    `TIMEOUT`; the user's abort, for its part, is not retried. */
 async function searchWithRetry(provider: WebSearchProvider, query: string, max: number, outer: AbortSignal): Promise<SearchResponse> {
   let last: unknown;
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
-    if (outer.aborted) throw new DOMException("Interrompu", "AbortError");
+    if (outer.aborted) throw new DOMException("Interrupted", "AbortError");
     try {
       return await provider.search(query, max, AbortSignal.any([outer, AbortSignal.timeout(TIMEOUT)]));
     } catch (e) {
@@ -113,8 +113,8 @@ async function searchWithRetry(provider: WebSearchProvider, query: string, max: 
   throw last;
 }
 
-/** Fusion a tour de role des resultats de plusieurs requetes, sans doublon
-    d'URL, coupee a `max`. */
+/** Round-robin merge of the results of several queries, without duplicate
+    URLs, cut at `max`. */
 export function mergeSearchResults(lists: SearchSource[][], max: number): { sources: SearchSource[]; truncated: boolean } {
   const seen = new Set<string>();
   const out: SearchSource[] = [];
@@ -132,15 +132,15 @@ export function mergeSearchResults(lists: SearchSource[][], max: number): { sour
   return { sources: out, truncated: total > out.length };
 }
 
-/* Le rappel qui suit les sources : comment les trier. Il est rendu avec
-   chaque resultat pour que le modele n'ait pas a s'en souvenir. */
+/* The reminder that follows the sources: how to sort them. It is returned
+   with every result so the model does not have to remember it. */
 const SOURCE_GUIDE = [
-  "Évaluez chaque source avant de vous en servir :",
-  "- Fiable d'abord : documentation officielle, site de l'éditeur ou de l'organisme, publication scientifique, presse de référence, dépôt de code officiel.",
-  "- Moyennement fiable : Wikipédia (pour orienter, puis remonter à sa source), forums techniques reconnus (réponse acceptée, votée), blogs d'experts identifiés.",
-  "- Méfiance : sites qui compilent sans citer, pages sans auteur ni date, contenu visiblement généré ou SEO (titres-questions, listes creuses), domaines inconnus.",
-  "- Un fait qui compte (chiffre, date, version) se recoupe sur deux sources indépendantes ; en cas de désaccord, dites-le.",
-  "- Regardez la date : sur un sujet qui bouge, une source vieille de deux ans peut être fausse aujourd'hui.",
+  "Assess every source before using it:",
+  "- Reliable first: official documentation, the publisher's or the organisation's site, scientific publication, reference press, official code repository.",
+  "- Moderately reliable: Wikipedia (to get oriented, then go back to its source), recognised technical forums (accepted, upvoted answer), blogs of identified experts.",
+  "- Distrust: sites that compile without citing, pages with no author or date, visibly generated or SEO content (question-titles, hollow lists), unknown domains.",
+  "- A fact that matters (figure, date, version) is cross-checked on two independent sources; when they disagree, say so.",
+  "- Look at the date: on a moving topic, a two-year-old source may be wrong today.",
 ].join("\n");
 
 export function formatSearchOutput(content: string | undefined, sources: SearchSource[], truncated: boolean): string {
@@ -177,33 +177,33 @@ export function makeWebSearchTool(keys: SearchKeys): Tool<Args> {
   return {
     name: "WebSearch",
     description:
-      `Recherche sur le web. Donnez 1 à ${MAX_QUERIES} requêtes courtes et précises (mots-clés plutôt que phrases ; des formulations différentes couvrent mieux le sujet). Rend une liste de sources (titre, URL, extrait, date) à citer. ` +
-      "Choisissez ensuite vos sources : privilégiez les sources primaires et la documentation officielle, écartez les pages sans auteur ni date et les compilations sans citation, recoupez tout fait important sur deux sources indépendantes, et vérifiez la fraîcheur sur un sujet qui évolue. Pour lire une page en entier, enchaînez avec WebFetch.",
+      `Searches the web. Give 1 to ${MAX_QUERIES} short, precise queries (keywords rather than sentences; different wordings cover the topic better). Returns a list of sources (title, URL, excerpt, date) to cite. ` +
+      "Then choose your sources: favour primary sources and official documentation, discard pages with no author or date and compilations without citations, cross-check every important fact on two independent sources, and check freshness on an evolving topic. To read a page in full, follow up with WebFetch.",
     parameters: {
       type: "object",
-      properties: { queries: { type: "array", items: { type: "string" }, description: "Les requêtes de recherche." } },
+      properties: { queries: { type: "array", items: { type: "string" }, description: "The search queries." } },
       required: ["queries"],
       additionalProperties: false,
     },
     async execute(args, ctx) {
       const chain = providerChain(keys, ctx.llm.apiKey);
-      if (chain.length === 0) return fail("Aucune clé de recherche web n'est configurée.");
+      if (chain.length === 0) return fail("No web search key is configured.");
       const queries = (Array.isArray(args.queries) ? args.queries : []).map((q) => String(q).trim()).filter(Boolean).slice(0, MAX_QUERIES);
-      if (queries.length === 0) return fail("Donnez au moins une requête.");
+      if (queries.length === 0) return fail("Give at least one query.");
       const failures: string[] = [];
       for (const provider of chain) {
         try {
           const responses = await Promise.all(queries.map((q) => searchWithRetry(provider, q, MAX_RESULTS, ctx.signal)));
           const { sources, truncated } = mergeSearchResults(responses.map((r) => r.sources), MAX_RESULTS);
-          if (sources.length === 0) return ok("Aucun résultat pour ces requêtes. Reformulez avec d'autres mots-clés.");
+          if (sources.length === 0) return ok("No result for these queries. Rephrase with other keywords.");
           const content = responses.map((r) => r.content).filter(Boolean).join("\n\n") || undefined;
           return ok(formatSearchOutput(content, sources, truncated));
         } catch (e) {
-          if (ctx.signal.aborted) return fail("Recherche interrompue.");
-          failures.push(`${provider.id} : ${errorText(e)}`);
+          if (ctx.signal.aborted) return fail("Search interrupted.");
+          failures.push(`${provider.id}: ${errorText(e)}`);
         }
       }
-      return fail(`La recherche a échoué chez tous les fournisseurs (${ATTEMPTS} essais chacun) — ${failures.join(" ; ")}. Réessayez, ou reformulez.`);
+      return fail(`The search failed at every provider (${ATTEMPTS} tries each) — ${failures.join("; ")}. Try again, or rephrase.`);
     },
   };
 }

@@ -3,16 +3,15 @@ import { isProfessionId } from "@/lib/professions/catalog";
 import { parseAccounts } from "@/lib/tools/exchange/accounts";
 
 /* ---------------------------------------------------------------------------
-   Un sous-agent pour un agent par abonnement.
+   A sub-agent for a subscription agent.
 
-   Appele par le serveur MCP `bytnode-ai` de la conversation (outil
-   Workflow), jamais par le navigateur : le corps porte le jeton que
-   `sessions.ts` a glisse dans l'environnement de ce serveur, et le
-   commanditaire doit etre en plein tour. La reponse est un flux NDJSON —
-   une ligne `{type:"tick"}` toutes les 15 s tant que le sous-agent
-   travaille (un rapport peut prendre des minutes), puis `{type:"done",
-   report}` ou `{type:"error", message}`. Fermer la requete interrompt le
-   sous-agent.
+   Called by the conversation's `bytnode-ai` MCP server (Workflow tool),
+   never by the browser: the body carries the token that `sessions.ts`
+   slipped into that server's environment, and the requesting parent must
+   be in the middle of a turn. The response is an NDJSON stream — one
+   `{type:"tick"}` line every 15 s while the sub-agent is working (a report
+   can take minutes), then `{type:"done", report}` or `{type:"error",
+   message}`. Closing the request interrupts the sub-agent.
 --------------------------------------------------------------------------- */
 
 type Body = {
@@ -31,10 +30,10 @@ export async function POST(req: Request) {
   try {
     body = (await req.json()) as Body;
   } catch {
-    return Response.json({ error: { message: "Corps de requête illisible." } }, { status: 400 });
+    return Response.json({ error: { message: "Unreadable request body." } }, { status: 400 });
   }
   if (!body.conversationId || !body.token || !isProfessionId(body.profession) || typeof body.text !== "string" || !body.text.trim()) {
-    return Response.json({ error: { message: "Il manque le commanditaire, le jeton, la profession ou la tâche." } }, { status: 400 });
+    return Response.json({ error: { message: "Missing parent conversation, token, profession or task." } }, { status: 400 });
   }
   const input = {
     conversationId: body.conversationId,
@@ -53,7 +52,7 @@ export async function POST(req: Request) {
         try {
           controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
         } catch {
-          /* flux ferme */
+          /* stream closed */
         }
       };
       const ticker = setInterval(() => send({ type: "tick" }), TICK);
@@ -67,7 +66,7 @@ export async function POST(req: Request) {
         try {
           controller.close();
         } catch {
-          /* deja ferme */
+          /* already closed */
         }
       }
     },

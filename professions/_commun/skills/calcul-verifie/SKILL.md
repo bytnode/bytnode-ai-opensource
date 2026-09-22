@@ -1,17 +1,17 @@
 ---
 name: calcul-verifie
-description: À ouvrir dès qu'un chiffre doit apparaître dans la réponse — variation, moyenne, annualisation, points de base, taille de position : comment le calculer en l'exécutant plutôt que de tête, et le contrôler
+description: Open this as soon as a number must appear in the answer — a change, an average, an annualisation, basis points, a position size: how to compute it by executing it rather than in your head, and how to check it
 ---
 
-# Aucun chiffre de tête
+# No numbers from your head
 
-Tu es solide en raisonnement et faible en arithmétique : une variation en pourcentage, une composition sur douze mois, une annualisation, un enchaînement de deux opérations — c'est là que tu te trompes, et le chiffre faux passe inaperçu parce que le raisonnement autour est juste.
+You are strong at reasoning and weak at arithmetic: a percentage change, twelve months of compounding, an annualisation, two operations chained together — that is where you go wrong, and the wrong number goes unnoticed because the reasoning around it is sound.
 
-**Règle : tout nombre qui apparaît dans ta réponse sort soit d'un champ lu tel quel dans une réponse d'outil, soit d'un calcul que tu as exécuté.** Jamais d'un calcul mental.
+**Rule: every number that appears in your answer comes either from a field read as-is in a tool response, or from a calculation you executed.** Never from mental arithmetic.
 
-## Comment exécuter
+## How to execute
 
-Un calcul court : une commande.
+A short calculation: one command.
 
 ```bash
 python -c "
@@ -20,39 +20,39 @@ print(f'variation {100*(a/b-1):.2f} %')
 "
 ```
 
-Une série, un tableau, plusieurs actifs : les données dans un fichier (`SaveMarketData`), puis pandas. Un backtest : l'outil `Backtest`, jamais un moteur maison.
+A series, a table, several assets: the data in a file (`SaveMarketData`), then pandas. A backtest: the `Backtest` tool, never a home-made engine.
 
-Si tu ne peux pas exécuter (outil refusé, pas de Python), tu ne donnes pas le chiffre : tu dis ce qu'il faudrait calculer et tu proposes de le faire.
+If you cannot execute (tool refused, no Python), you do not give the number: you say what would need to be computed and offer to do it.
 
-## Les formules qui se trompent le plus
+## The formulas that go wrong most often
 
-| Ce qu'on veut | Formule | Piège |
+| What you want | Formula | Trap |
 |---|---|---|
-| Variation | `(fin / debut - 1)` | −50 % puis +50 % ne revient pas au point de départ |
-| Retour au point initial après −x | `1/(1-x) - 1` | −20 % exige +25 %, pas +20 % |
-| Composition de n variations | `prod(1 + r_i) - 1` | jamais la somme |
-| Annualiser un rendement sur p périodes/an | `(1 + r)**p - 1` | `r * p` est faux dès que r est grand |
-| Annualiser une volatilité | `sigma * sqrt(p)` | `sigma * p` est faux |
-| Points de base | `1 bp = 0,01 % = 0,0001` | 25 bp ≠ 0,25 bp |
-| Funding 8 h → annualisé | `f * 3 * 365` | un funding « 0,01 % » est ~10,95 %/an |
-| Moyenne de pourcentages | moyenne **géométrique** pour des rendements | la moyenne arithmétique surestime |
-| Taille de position au risque r | `capital * r / distance_au_stop` | la distance est en prix, pas en % du capital |
+| Change | `(end / start - 1)` | −50% then +50% does not get back to the starting point |
+| Return to the initial point after −x | `1/(1-x) - 1` | −20% requires +25%, not +20% |
+| Compounding n changes | `prod(1 + r_i) - 1` | never the sum |
+| Annualising a return over p periods/year | `(1 + r)**p - 1` | `r * p` is wrong as soon as r is large |
+| Annualising a volatility | `sigma * sqrt(p)` | `sigma * p` is wrong |
+| Basis points | `1 bp = 0.01% = 0.0001` | 25 bp ≠ 0.25 bp |
+| Funding 8h → annualised | `f * 3 * 365` | a "0.01%" funding is ~10.95%/year |
+| Average of percentages | **geometric** mean for returns | the arithmetic mean overestimates |
+| Position size at risk r | `capital * r / distance_to_stop` | the distance is in price, not in % of capital |
 
-## Le contrôle avant d'écrire
+## The check before writing
 
-Trois questions, à chaque fois :
+Three questions, every time:
 
-1. **Ordre de grandeur** : le résultat est-il plausible ? Un actif ne fait pas +4 000 % en une journée ; un Sharpe de 12 n'existe pas ; un drawdown ne dépasse pas −100 %.
-2. **Unité et signe** : pourcentage ou fraction ? par jour ou par an ? long ou short ? Écris l'unité à côté du nombre dans le code même.
-3. **Deux chemins** : pour un chiffre qui porte une conclusion, recalcule-le autrement (somme des parties vs total, ou deux fenêtres qui doivent coïncider).
+1. **Order of magnitude**: is the result plausible? An asset does not do +4,000% in a day; a Sharpe of 12 does not exist; a drawdown does not exceed −100%.
+2. **Unit and sign**: percentage or fraction? per day or per year? long or short? Write the unit next to the number in the code itself.
+3. **Two paths**: for a number that carries a conclusion, recompute it another way (sum of the parts vs total, or two windows that must coincide).
 
-## La précision affichée
+## The precision displayed
 
-N'affiche pas plus de précision que la donnée n'en porte. Un prix : la précision du marché. Un pourcentage : deux décimales. Un Sharpe : deux décimales. `0,0347281 %` est une fausse précision — écris `0,03 %`.
+Do not display more precision than the data carries. A price: the market's precision. A percentage: two decimals. A Sharpe: two decimals. `0.0347281%` is false precision — write `0.03%`.
 
-Arrondis **à la fin**, jamais en cours de calcul.
+Round **at the end**, never mid-calculation.
 
-## Lié
+## Related
 
-- `horodatage` : d'où viennent les chiffres et à quelle heure.
-- `citer-ou-se-taire` : comment les présenter.
+- `horodatage`: where the numbers come from and at what time.
+- `citer-ou-se-taire`: how to present them.

@@ -22,20 +22,20 @@ type Props = {
   onRenameConversation: (id: string, title: string) => void;
   onSettings: () => void;
   onTheme: (theme: Settings["theme"]) => void;
-  /** Cliquer sur la marque replie la colonne. */
+  /** Clicking the brand collapses the column. */
   onCollapse: () => void;
-  /** La poignee du bord droit, en pixels. */
+  /** The right-edge handle, in pixels. */
   onResize: (width: number) => void;
 };
 
 /* ---------------------------------------------------------------------------
-   La colonne de gauche : les agents.
+   The left column: the agents.
 
-   Chaque agent est une ligne, repliee. Cliquer dessus le rend courant ET le
-   deplie : ses conversations apparaissent dessous, « Nouvelle conversation »
-   en tete ; un second clic le replie. Rien ne se deplie tout seul — pas meme
-   l'agent courant au lancement — et plusieurs peuvent rester deplies. En haut,
-   la marque et « Nouvel agent » ; en bas, vous et les reglages du compte.
+   Each agent is a row, folded. Clicking it makes it current AND unfolds it:
+   its conversations appear underneath, "New conversation" on top; a second
+   click folds it. Nothing unfolds on its own — not even the current agent at
+   launch — and several can stay unfolded. At the top, the brand and "New
+   agent"; at the bottom, you and the account settings.
 --------------------------------------------------------------------------- */
 export function Sidebar({
   settings,
@@ -56,11 +56,11 @@ export function Sidebar({
   onCollapse,
   onResize,
 }: Props) {
-  const who = settings.profile.firstName.trim() || "Vous";
+  const who = settings.profile.firstName.trim() || "You";
   const aside = useRef<HTMLElement>(null);
 
-  /* La poignee : on suit la souris jusqu'au relachement, et la largeur est
-     la distance entre le bord gauche de la colonne et le curseur. */
+  /* The handle: we follow the mouse until release, and the width is the
+     distance between the column's left edge and the cursor. */
   const startResize = (e: ReactMouseEvent) => {
     e.preventDefault();
     const left = aside.current?.getBoundingClientRect().left ?? 0;
@@ -74,22 +74,22 @@ export function Sidebar({
     document.addEventListener("mousemove", move);
     document.addEventListener("mouseup", up);
   };
-  /* Les agents deplies : un etat de la colonne, distinct de l'agent
-     courant. Plusieurs peuvent l'etre en meme temps — on compare deux
-     agents sans refermer le premier. */
+  /* The unfolded agents: a state of the column, distinct from the current
+     agent. Several can be unfolded at once — we compare two agents without
+     closing the first. */
   const [expanded, setExpanded] = useState<string[]>([]);
 
-  /* Replier l'agent courant ne change pas ce qu'on lit : la conversation
-     ouverte reste ouverte. Seul un AUTRE agent devient courant. */
+  /* Folding the current agent does not change what we are reading: the
+     open conversation stays open. Only ANOTHER agent becomes current. */
   const toggle = (id: string) => {
     if (id !== activeAgentId) onSelectAgent(id);
     setExpanded((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
   return (
-    <aside ref={aside} className={`sb${open ? " is-open" : ""}`} aria-label="Agents et conversations">
+    <aside ref={aside} className={`sb${open ? " is-open" : ""}`} aria-label="Agents and conversations">
       <div className="sb-head">
-        <button type="button" className="sb-brand" onClick={onCollapse} title="Replier la colonne">
+        <button type="button" className="sb-brand" onClick={onCollapse} title="Collapse the column">
           BytNode-AI
         </button>
         <ThemeToggle theme={settings.theme} onChange={onTheme} />
@@ -97,12 +97,12 @@ export function Sidebar({
 
       <button type="button" className="sb-new" onClick={onNewAgent}>
         <Plus />
-        Nouvel agent
+        New agent
       </button>
 
       <nav className="sb-list">
         {settings.agents.length === 0 ? (
-          <p className="sb-empty">Créez un premier agent pour commencer.</p>
+          <p className="sb-empty">Create a first agent to get started.</p>
         ) : (
           settings.agents.map((agent) => {
             const openHere = expanded.includes(agent.id);
@@ -120,17 +120,17 @@ export function Sidebar({
                   >
                     <ChevronDown className="sb-agent-chevron" />
                     <span className="sb-agent-text">
-                      <span className="sb-agent-name">{agent.name || "Sans nom"}</span>
+                      <span className="sb-agent-name">{agent.name || "Unnamed"}</span>
                       <span className="sb-agent-meta">
-                        {professionInfo(agent.profession).label} · {own.length === 0 ? "aucune conversation" : `${own.length} conversation${own.length > 1 ? "s" : ""}`}
+                        {professionInfo(agent.profession).label} · {own.length === 0 ? "no conversation" : `${own.length} conversation${own.length > 1 ? "s" : ""}`}
                       </span>
                     </span>
                   </button>
                   <span className="sb-agent-actions">
-                    <button type="button" className="sb-mini" onClick={() => onEditAgent(agent)} aria-label={`Modifier ${agent.name}`}>
+                    <button type="button" className="sb-mini" onClick={() => onEditAgent(agent)} aria-label={`Edit ${agent.name}`}>
                       <Pencil />
                     </button>
-                    <button type="button" className="sb-mini" onClick={() => onRemoveAgent(agent)} aria-label={`Supprimer ${agent.name}`}>
+                    <button type="button" className="sb-mini" onClick={() => onRemoveAgent(agent)} aria-label={`Delete ${agent.name}`}>
                       <Trash />
                     </button>
                   </span>
@@ -144,7 +144,7 @@ export function Sidebar({
                       onClick={onNewConversation}
                     >
                       <Plus />
-                      Nouvelle conversation
+                      New conversation
                     </button>
                     {own.map((c) => (
                       <ConversationRow
@@ -166,20 +166,20 @@ export function Sidebar({
 
       <div className="sb-foot">
         <span className="sb-who">{who}</span>
-        <button type="button" className="sb-settings" onClick={onSettings} aria-label="Réglages du compte" title="Réglages du compte">
+        <button type="button" className="sb-settings" onClick={onSettings} aria-label="Account settings" title="Account settings">
           <SettingsIcon />
         </button>
       </div>
 
-      <div className="sb-resize" onMouseDown={startResize} role="separator" aria-orientation="vertical" aria-label="Largeur de la colonne" />
+      <div className="sb-resize" onMouseDown={startResize} role="separator" aria-orientation="vertical" aria-label="Column width" />
     </aside>
   );
 }
 
 /* ---------------------------------------------------------------------------
-   Une conversation dans la colonne : son titre, et trois points qui ouvrent
-   un petit menu — renommer (le titre devient un champ, Entree valide,
-   Echap annule), supprimer.
+   A conversation in the column: its title, and three dots that open a small
+   menu — rename (the title becomes a field, Enter confirms, Escape cancels),
+   delete.
 --------------------------------------------------------------------------- */
 type RowProps = {
   conversation: Conversation;
@@ -195,7 +195,7 @@ function ConversationRow({ conversation, active, onSelect, onRemove, onRename }:
   const root = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
 
-  /* Le menu se ferme au clic ailleurs et a Echap. */
+  /* The menu closes on a click elsewhere and on Escape. */
   useEffect(() => {
     if (!menu) return;
     const onDown = (e: MouseEvent) => {
@@ -212,8 +212,8 @@ function ConversationRow({ conversation, active, onSelect, onRemove, onRename }:
     };
   }, [menu]);
 
-  /* Tout selectionner a l'ouverture du champ seulement — pas a chaque
-     frappe, sinon chaque lettre remplace la precedente. */
+  /* Select all only when the field opens — not on every keystroke,
+     otherwise each letter replaces the previous one. */
   const isEditing = editing !== null;
   useEffect(() => {
     if (isEditing) input.current?.select();
@@ -238,7 +238,7 @@ function ConversationRow({ conversation, active, onSelect, onRemove, onRename }:
           onChange={(e) => setEditing(e.target.value)}
           onBlur={commit}
           onKeyDown={onKey}
-          aria-label="Nouveau titre"
+          aria-label="New title"
         />
       ) : (
         <button type="button" className="sb-conv-btn" onClick={onSelect} title={conversation.title}>
@@ -252,7 +252,7 @@ function ConversationRow({ conversation, active, onSelect, onRemove, onRename }:
           onClick={() => setMenu(!menu)}
           aria-haspopup="menu"
           aria-expanded={menu}
-          aria-label={`Options de « ${conversation.title} »`}
+          aria-label={`Options for "${conversation.title}"`}
         >
           <Dots />
         </button>
@@ -268,7 +268,7 @@ function ConversationRow({ conversation, active, onSelect, onRemove, onRename }:
             }}
           >
             <Pencil />
-            Renommer
+            Rename
           </button>
           <button
             type="button"
@@ -280,7 +280,7 @@ function ConversationRow({ conversation, active, onSelect, onRemove, onRename }:
             }}
           >
             <Trash />
-            Supprimer
+            Delete
           </button>
         </div>
       )}

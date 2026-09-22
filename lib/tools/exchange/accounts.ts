@@ -1,18 +1,18 @@
 import type { ExchangeAccount } from "@/lib/domain/types";
 
 /* ---------------------------------------------------------------------------
-   Les comptes d'exchange, vus des outils.
+   Exchange accounts, as the tools see them.
 
-   Ils arrivent du navigateur (en-tete `x-exchange-accounts`, ou corps de
-   la requete ACP, ou env du serveur MCP), deja filtres : ce sont ceux que
-   L'AGENT a le droit de piloter. Ici on les lit sans confiance, on en
-   choisit un par son label, et on les decrit pour le prompt. Pur.
+   They come from the browser (`x-exchange-accounts` header, or the ACP
+   request body, or the MCP server's env), already filtered: they are the
+   ones THE AGENT is allowed to drive. Here we read them without trust,
+   pick one by its label, and describe them for the prompt. Pure.
 --------------------------------------------------------------------------- */
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 
-/** Ne garde que les comptes complets : id, exchange, label. */
+/** Keeps only complete accounts: id, exchange, label. */
 export function parseAccounts(value: unknown): ExchangeAccount[] {
   if (!Array.isArray(value)) return [];
   const out: ExchangeAccount[] = [];
@@ -27,19 +27,19 @@ export function parseAccounts(value: unknown): ExchangeAccount[] {
   return out;
 }
 
-/** L'en-tete a envoyer : du JSON encode en URI, parce qu'un en-tete HTTP
-    n'accepte que du Latin-1 et qu'un label peut porter « € » ou un emoji. */
+/** The header to send: URI-encoded JSON, because an HTTP header only
+    accepts Latin-1 and a label may carry "€" or an emoji. */
 export const encodeAccountsHeader = (accounts: ExchangeAccount[]): string => encodeURIComponent(JSON.stringify(accounts));
 
-/** L'en-tete tel qu'il arrive : JSON encode (ou brut, pour l'env du
-    serveur MCP), ou rien. */
+/** The header as it arrives: encoded JSON (or raw, for the MCP server's
+    env), or nothing. */
 export function parseAccountsHeader(raw: string | null | undefined): ExchangeAccount[] {
   if (!raw) return [];
   for (const text of [raw, safeDecode(raw)]) {
     try {
       return parseAccounts(JSON.parse(text));
     } catch {
-      /* forme suivante */
+      /* next form */
     }
   }
   return [];
@@ -53,34 +53,34 @@ function safeDecode(raw: string): string {
   }
 }
 
-/** Les comptes qu'un agent peut piloter, dans l'ordre des reglages. */
+/** The accounts an agent may drive, in settings order. */
 export const allowedAccounts = (all: ExchangeAccount[], ids: string[] | undefined): ExchangeAccount[] =>
   ids?.length ? all.filter((a) => ids.includes(a.id)) : [];
 
 const labels = (accounts: ExchangeAccount[]) => accounts.map((a) => a.label).join(", ");
 
-/** Le compte vise par un appel : implicite s'il n'y en a qu'un, sinon par
-    label (sans la casse) ou par id. */
+/** The account a call targets: implicit if there is only one, otherwise by
+    label (case-insensitive) or by id. */
 export function pickAccount(accounts: ExchangeAccount[], name: string | undefined): { account: ExchangeAccount } | { error: string } {
-  if (accounts.length === 0) return { error: "Aucun compte exchange n'est rattaché à cet agent." };
+  if (accounts.length === 0) return { error: "No exchange account is attached to this agent." };
   if (!name?.trim()) {
     if (accounts.length === 1) return { account: accounts[0] };
-    return { error: `Plusieurs comptes : précise \`account\` parmi ${labels(accounts)}.` };
+    return { error: `Several accounts: specify \`account\` among ${labels(accounts)}.` };
   }
   const wanted = name.trim().toLowerCase();
   const found = accounts.find((a) => a.label.toLowerCase() === wanted || a.id === name.trim());
-  return found ? { account: found } : { error: `Compte inconnu : « ${name.trim()} ». Comptes disponibles : ${labels(accounts)}.` };
+  return found ? { account: found } : { error: `Unknown account: "${name.trim()}". Available accounts: ${labels(accounts)}.` };
 }
 
-/** Pour le prompt : « Binance-main (binance, RÉEL), Bybit-test (bybit, testnet) ». */
+/** For the prompt: "Binance-main (binance, LIVE), Bybit-test (bybit, testnet)". */
 export const describeAccounts = (accounts: ExchangeAccount[]): string =>
-  accounts.map((a) => `${a.label} (${a.exchange}, ${a.testnet ? "testnet" : "RÉEL"})`).join(", ");
+  accounts.map((a) => `${a.label} (${a.exchange}, ${a.testnet ? "testnet" : "LIVE"})`).join(", ");
 
-/** Le secret tel que ccxt l'attend. Une cle CDP Coinbase est une cle
-    privee EC en PEM : collee depuis le JSON, elle arrive avec des `\\n`
-    litteraux ; collee dans un champ d'une ligne, aplatie. On rend un PEM
-    propre (en-tete, corps replie a 64 colonnes, pied) ; tout autre secret
-    est rendu tel quel. Pur. */
+/** The secret as ccxt expects it. A Coinbase CDP key is an EC private key
+    in PEM: pasted from the JSON, it arrives with literal `\\n`; pasted into
+    a single-line field, flattened. We return a clean PEM (header, body
+    wrapped at 64 columns, footer); any other secret is returned as is.
+    Pure. */
 export function pemSecret(secret: string): string {
   if (!secret.includes("-----BEGIN")) return secret;
   const unescaped = secret.replace(/\\n/g, "\n").trim();
@@ -91,5 +91,5 @@ export function pemSecret(secret: string): string {
   return `${m[1]}\n${lines.join("\n")}\n${m[3]}\n`;
 }
 
-/** Un compte au moins engage de l'argent reel ? */
+/** Does at least one account put real money at stake? */
 export const anyLive = (accounts: ExchangeAccount[]): boolean => accounts.some((a) => !a.testnet);

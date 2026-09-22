@@ -3,9 +3,9 @@ import { todoTool } from "./todo";
 import type { ToolContext } from "./types";
 import type { AgentEvent } from "@/lib/agent/events";
 
-/* La liste de taches de l'agent : ce qu'il envoie est affiche dans le fil
-   (le meme bloc « plan » que les agents par abonnement) et lui revient en
-   texte, pour qu'il sache ou il en est. */
+/* The agent's task list: what it sends is shown in the thread (the same
+   "plan" block as the subscription agents) and comes back to it as text,
+   so it knows where it stands. */
 
 const ctx = (events: AgentEvent[]): ToolContext => ({
   workspace: "C:/w",
@@ -19,14 +19,14 @@ const ctx = (events: AgentEvent[]): ToolContext => ({
 });
 
 describe("TodoWrite", () => {
-  test("publie la liste comme un plan et la rend au modele", async () => {
+  test("publishes the list as a plan and returns it to the model", async () => {
     const events: AgentEvent[] = [];
     const res = await todoTool.execute(
       {
         todos: [
-          { content: "Lire les CSV", status: "completed" },
-          { content: "Lancer le backtest", status: "in_progress" },
-          { content: "Tracer la courbe", status: "pending" },
+          { content: "Read the CSVs", status: "completed" },
+          { content: "Run the backtest", status: "in_progress" },
+          { content: "Plot the curve", status: "pending" },
         ],
       },
       ctx(events),
@@ -36,42 +36,42 @@ describe("TodoWrite", () => {
       {
         type: "plan",
         entries: [
-          { content: "Lire les CSV", status: "completed" },
-          { content: "Lancer le backtest", status: "in_progress" },
-          { content: "Tracer la courbe", status: "pending" },
+          { content: "Read the CSVs", status: "completed" },
+          { content: "Run the backtest", status: "in_progress" },
+          { content: "Plot the curve", status: "pending" },
         ],
       },
     ]);
-    expect(res.output).toBe("Liste à jour (1/3 faite) :\n[x] Lire les CSV\n[>] Lancer le backtest\n[ ] Tracer la courbe");
+    expect(res.output).toBe("List updated (1/3 done):\n[x] Read the CSVs\n[>] Run the backtest\n[ ] Plot the curve");
   });
 
-  test("refuse une entree sans contenu ou avec un statut inconnu, sans rien publier", async () => {
+  test("refuses an entry without content or with an unknown status, publishing nothing", async () => {
     const events: AgentEvent[] = [];
-    const vide = await todoTool.execute({ todos: [{ content: "  ", status: "pending" }] }, ctx(events));
-    expect(vide.ok).toBe(false);
-    expect(vide.output).toContain("todos[0].content");
-    const statut = await todoTool.execute({ todos: [{ content: "x", status: "done" }] }, ctx(events));
-    expect(statut.ok).toBe(false);
-    expect(statut.output).toContain("todos[0].status");
+    const empty = await todoTool.execute({ todos: [{ content: "  ", status: "pending" }] }, ctx(events));
+    expect(empty.ok).toBe(false);
+    expect(empty.output).toContain("todos[0].content");
+    const status = await todoTool.execute({ todos: [{ content: "x", status: "done" }] }, ctx(events));
+    expect(status.ok).toBe(false);
+    expect(status.output).toContain("todos[0].status");
     expect(events).toEqual([]);
   });
 
-  test("refuse plusieurs taches en cours a la fois", async () => {
+  test("refuses several tasks in progress at once", async () => {
     const events: AgentEvent[] = [];
     const res = await todoTool.execute(
       { todos: [{ content: "a", status: "in_progress" }, { content: "b", status: "in_progress" }] },
       ctx(events),
     );
     expect(res.ok).toBe(false);
-    expect(res.output).toContain("Une seule tâche");
+    expect(res.output).toContain("Only one task");
     expect(events).toEqual([]);
   });
 
-  test("une liste vide efface le plan", async () => {
+  test("an empty list clears the plan", async () => {
     const events: AgentEvent[] = [];
     const res = await todoTool.execute({ todos: [] }, ctx(events));
     expect(res.ok).toBe(true);
     expect(events).toEqual([{ type: "plan", entries: [] }]);
-    expect(res.output).toBe("Liste vidée.");
+    expect(res.output).toBe("List cleared.");
   });
 });

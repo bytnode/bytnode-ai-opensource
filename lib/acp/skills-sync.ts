@@ -2,30 +2,29 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { SkillInfo } from "@/lib/tools/skills/skill";
 
-/* Deposer les competences dans le dossier de travail, la ou les agents
-   externes les cherchent : `.agents/skills/` (Codex, Gemini, Grok) et
-   `.claude/skills/` (Claude Code). Une copie fidele du dossier de chaque
-   competence — celles de la profession et celles du dossier `skills/` du
-   projet, les votres.
+/* Drop the skills into the workspace, where the external agents look for
+   them: `.agents/skills/` (Codex, Gemini, Grok) and `.claude/skills/`
+   (Claude Code). A faithful copy of each skill's folder — the profession's
+   and those of the project's `skills/` folder, your own.
 
-   Idempotent, et JAMAIS par-dessus une competence ecrite a la main dans le
-   dossier de travail : on ne remplace que les notres, marquees d'un fichier
-   `.bytnode-ai`. En cas de meme nom, la premiere de la liste gagne (la
-   profession passe avant le dossier du projet). */
+   Idempotent, and NEVER over a skill hand-written in the workspace: we
+   only replace our own, marked with a `.bytnode-ai` file. On a name
+   collision, the first of the list wins (the profession comes before the
+   project folder). */
 
 const HOMES = [".agents/skills", ".claude/skills"];
 const MARK = ".bytnode-ai";
 
 export async function syncSkills(workspace: string, skills: SkillInfo[]): Promise<void> {
-  /* Un seul dossier par nom : la premiere occurrence. */
+  /* One folder per name: the first occurrence. */
   const wanted = new Map<string, SkillInfo>();
   for (const s of skills) if (!wanted.has(s.name)) wanted.set(s.name, s);
 
   for (const home of HOMES) {
     const root = path.join(workspace, ...home.split("/"));
     await fs.mkdir(root, { recursive: true });
-    /* Une competence retiree du projet disparait aussi d'ici — sinon un
-       agent continuerait de suivre une consigne supprimee. */
+    /* A skill removed from the project disappears from here too —
+       otherwise an agent would keep following a deleted instruction. */
     for (const dir of await fs.readdir(root).catch(() => [] as string[])) {
       if (wanted.has(dir)) continue;
       if (await exists(path.join(root, dir, MARK))) await fs.rm(path.join(root, dir), { recursive: true, force: true });
@@ -38,13 +37,13 @@ export async function syncSkills(workspace: string, skills: SkillInfo[]): Promis
       if (ours && !(await changed(src, dst))) continue;
       await fs.rm(dst, { recursive: true, force: true });
       await fs.cp(src, dst, { recursive: true });
-      await fs.writeFile(path.join(dst, MARK), "Copié par BytNode-AI. Modifiez l'original (professions/ ou skills/).\n");
+      await fs.writeFile(path.join(dst, MARK), "Copied by BytNode-AI. Edit the original (professions/ or skills/).\n");
     }
   }
 }
 
-/** Le SKILL.md a-t-il change depuis la copie ? (on evite de reecrire a
-    chaque tour de conversation) */
+/** Has the SKILL.md changed since the copy? (we avoid rewriting at every
+    conversation turn) */
 async function changed(src: string, dst: string): Promise<boolean> {
   try {
     const [a, b] = await Promise.all([fs.stat(path.join(src, "SKILL.md")), fs.stat(path.join(dst, "SKILL.md"))]);

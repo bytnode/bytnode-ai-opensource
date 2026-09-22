@@ -1,26 +1,26 @@
 /* ---------------------------------------------------------------------------
-   Les erreurs de ccxt, dites en français.
+   ccxt errors, said in plain English.
 
-   ccxt nomme ses erreurs par leur classe (`error.name`) ; on ne les
-   importe pas ici, pour rester pur. Le texte brut de l'exchange suit
-   toujours : c'est lui qui dit le code (-2019, marge insuffisante…).
+   ccxt names its errors by their class (`error.name`); we do not import
+   them here, to stay pure. The exchange's raw text always follows: it is
+   what carries the code (-2019, insufficient margin…).
 --------------------------------------------------------------------------- */
 
 const MESSAGES: Record<string, string> = {
-  InsufficientFunds: "Fonds insuffisants.",
-  InvalidOrder: "Ordre refusé par l'exchange.",
-  OrderNotFound: "Ordre introuvable (déjà exécuté ou annulé ?).",
-  BadSymbol: "Marché inconnu sur cet exchange.",
-  BadRequest: "Requête refusée par l'exchange.",
-  AuthenticationError: "Clé API refusée : vérifiez le compte dans Authentification (bouton Tester).",
-  PermissionDenied: "La clé API n'a pas ce droit sur l'exchange.",
-  AccountSuspended: "Compte suspendu par l'exchange.",
-  RateLimitExceeded: "Trop de requêtes : l'exchange demande de ralentir.",
-  DDoSProtection: "Trop de requêtes : l'exchange demande de ralentir.",
-  NetworkError: "L'exchange est injoignable.",
-  RequestTimeout: "L'exchange n'a pas répondu à temps.",
-  ExchangeNotAvailable: "L'exchange est indisponible (maintenance ?).",
-  NotSupported: "Cette opération n'est pas prise en charge par cet exchange.",
+  InsufficientFunds: "Insufficient funds.",
+  InvalidOrder: "Order refused by the exchange.",
+  OrderNotFound: "Order not found (already filled or canceled?).",
+  BadSymbol: "Unknown market on this exchange.",
+  BadRequest: "Request refused by the exchange.",
+  AuthenticationError: "API key refused: check the account in Authentication (Test button).",
+  PermissionDenied: "The API key does not have this permission on the exchange.",
+  AccountSuspended: "Account suspended by the exchange.",
+  RateLimitExceeded: "Too many requests: the exchange asks to slow down.",
+  DDoSProtection: "Too many requests: the exchange asks to slow down.",
+  NetworkError: "The exchange is unreachable.",
+  RequestTimeout: "The exchange did not answer in time.",
+  ExchangeNotAvailable: "The exchange is unavailable (maintenance?).",
+  NotSupported: "This operation is not supported by this exchange.",
 };
 
 const TRANSIENT = new Set(["RateLimitExceeded", "DDoSProtection", "NetworkError", "RequestTimeout", "ExchangeNotAvailable"]);
@@ -30,9 +30,9 @@ const textOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export const isTransientExchangeError = (e: unknown) => TRANSIENT.has(nameOf(e));
 
-/* Un decalage d'horloge : l'exchange refuse une requete datee de plus de
-   `recv_window` avant son heure a lui. Ce n'est ni la cle ni le reseau —
-   c'est l'heure du PC — et le texte brut (10002, -1021) ne le dit pas. */
+/* A clock skew: the exchange refuses a request dated more than
+   `recv_window` before its own time. It is neither the key nor the network
+   — it is the PC's clock — and the raw text (10002, -1021) does not say so. */
 const CLOCK = /recv_?window|timestamp for this request|server timestamp/i;
 const STAMPS = /req_timestamp\[(\d+)\].*?server_timestamp\[(\d+)\]/;
 
@@ -40,16 +40,16 @@ function clockSkew(text: string): string | null {
   if (!CLOCK.test(text)) return null;
   const m = text.match(STAMPS);
   const gap = m ? Math.round(Math.abs(Number(m[2]) - Number(m[1])) / 1000) : null;
-  return `L'horloge de cet ordinateur est décalée${gap !== null ? ` d'environ ${gap} s` : ""} par rapport à l'exchange : synchronisez l'heure du système.`;
+  return `This computer's clock is off${gap !== null ? ` by about ${gap} s` : ""} from the exchange's: synchronize the system time.`;
 }
 
 export function describeExchangeError(e: unknown): string {
   const text = textOf(e);
-  const head = clockSkew(text) ?? MESSAGES[nameOf(e)] ?? "L'exchange a répondu par une erreur.";
-  return `${head} Exchange : ${text}`;
+  const head = clockSkew(text) ?? MESSAGES[nameOf(e)] ?? "The exchange answered with an error.";
+  return `${head} Exchange: ${text}`;
 }
 
-/** Un second essai, une seule fois, sur une erreur passagere. */
+/** A second attempt, once only, on a transient error. */
 export async function withRetry<T>(fn: () => Promise<T>, wait = 1000): Promise<T> {
   try {
     return await fn();

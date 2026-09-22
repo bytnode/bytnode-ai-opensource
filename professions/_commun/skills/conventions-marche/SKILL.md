@@ -1,74 +1,74 @@
 ---
 name: conventions-marche
-description: À ouvrir quand une donnée porte une unité ou une convention de marché — funding, perpétuel contre spot, points de base, volume base ou quote, mark contre index, liquidation — pour ne pas lire un chiffre juste de travers
+description: Open this when a data point carries a unit or a market convention — funding, perpetual versus spot, basis points, base or quote volume, mark versus index, liquidation — so as not to misread a correct number
 ---
 
-# Lire un chiffre de marché sans le déformer
+# Reading a market number without distorting it
 
-Ces erreurs ne sont pas des erreurs de raisonnement : ce sont des unités mal lues. Elles produisent des conclusions fausses d'un facteur 3, 100 ou 1 000, sans que rien n'ait l'air anormal.
+These are not reasoning errors: they are misread units. They produce conclusions that are wrong by a factor of 3, 100 or 1,000, without anything looking abnormal.
 
-## Perpétuel, spot, future
+## Perpetual, spot, future
 
-BytNode couvre des **perpétuels marginés en USDT** (`BTCUSDT`, `ETHUSDT`…). Un perpétuel n'a pas d'échéance : il reste collé au spot par le **funding**, payé entre longs et shorts.
+BytNode covers **USDT-margined perpetuals** (`BTCUSDT`, `ETHUSDT`…). A perpetual has no expiry: it stays pinned to spot by the **funding**, paid between longs and shorts.
 
-- Le prix d'un perp n'est pas le prix spot. L'écart s'appelle la **base** : `(perp / spot - 1)`.
-- `USDCUSDT` et `USDTUSDC` sont des paires de stablecoins : une variation de 0,2 % y est un événement, pas du bruit. Ne les compare pas à du BTC.
-- Un « volume » de perp est du notionnel échangé, pas une quantité de coins détenus. Il ne dit rien de l'adoption.
+- The price of a perp is not the spot price. The gap is called the **basis**: `(perp / spot - 1)`.
+- `USDCUSDT` and `USDTUSDC` are stablecoin pairs: a 0.2% move there is an event, not noise. Do not compare them to BTC.
+- A perp "volume" is notional traded, not a quantity of coins held. It says nothing about adoption.
 
 ## Funding
 
-Publié **par période de financement** (8 h en général), en fraction ou en pourcentage — vérifie lequel.
+Published **per funding period** (generally 8h), as a fraction or a percentage — check which.
 
 ```
-funding 0,01 % / 8 h  →  0,03 % / jour  →  ~10,95 % / an
-annualisé = f * 3 * 365
+funding 0.01% / 8h  →  0.03% / day  →  ~10.95% / year
+annualised = f * 3 * 365
 ```
 
-- Signe positif : les longs paient les shorts (marché penché long). Négatif : l'inverse.
-- Sur une position tenue plusieurs jours, le funding est souvent le premier poste de coût — davantage que les frais. Il entre dans `budget-de-cout`.
-- Un funding extrême est un indicateur de positionnement, pas une prévision de direction.
+- Positive sign: longs pay shorts (market leaning long). Negative: the reverse.
+- On a position held several days, funding is often the first cost item — more than fees. It goes into `budget-de-cout`.
+- Extreme funding is a positioning indicator, not a forecast of direction.
 
-## Pourcentages et points de base
+## Percentages and basis points
 
-| Écriture | Valeur |
+| Notation | Value |
 |---|---|
-| 1 bp | 0,01 % = 0,0001 |
-| 25 bp | 0,25 % |
-| 100 bp | 1 % |
+| 1 bp | 0.01% = 0.0001 |
+| 25 bp | 0.25% |
+| 100 bp | 1% |
 
-Les frais d'échange s'expriment en bp par côté : 6 bp taker = 0,0006, et un aller-retour en coûte deux. Ne confonds jamais « la position a perdu 2 % » (variation de prix) et « 2 % du capital » (variation du compte, qui dépend de la taille).
+Exchange fees are expressed in bp per side: 6 bp taker = 0.0006, and a round trip costs two of them. Never confuse "the position lost 2%" (price change) with "2% of capital" (account change, which depends on size).
 
-## Volume base ou quote
+## Base or quote volume
 
-`volume` peut être en unités de l'actif (base) ou en USDT (quote), selon la source. 1 200 BTC et 1 200 USDT diffèrent d'un facteur cent mille. Repère la colonne (`volume`, `quote_volume`, `base_volume`) et écris l'unité dans ta réponse.
+`volume` can be in units of the asset (base) or in USDT (quote), depending on the source. 1,200 BTC and 1,200 USDT differ by a factor of one hundred thousand. Identify the column (`volume`, `quote_volume`, `base_volume`) and write the unit in your answer.
 
 ## Mark, index, last
 
-- **last** : prix de la dernière transaction — bruité, manipulable sur un carnet mince.
-- **index** : moyenne de plusieurs marchés spot — la référence.
-- **mark** : le prix qui sert au calcul du PnL et des **liquidations**, dérivé de l'index.
+- **last**: price of the last trade — noisy, manipulable on a thin book.
+- **index**: average of several spot markets — the reference.
+- **mark**: the price used to compute PnL and **liquidations**, derived from the index.
 
-Une liquidation se déclenche sur le **mark**, jamais sur le last. Un plus-bas de bougie en dessous de ton stop ne signifie pas forcément que le stop a été touché, et inversement.
+A liquidation is triggered on the **mark**, never on the last. A candle low below your stop does not necessarily mean the stop was hit, and vice versa.
 
-## Levier et liquidation
+## Leverage and liquidation
 
-Pour un long à levier `L`, la distance approximative à la liquidation est `1/L` (moins la marge de maintenance) : levier 10 → ~10 % de baisse. Un « stop à 15 % » sous levier 10 n'existe pas : la liquidation arrive avant.
+For a long at leverage `L`, the approximate distance to liquidation is `1/L` (minus maintenance margin): leverage 10 → ~10% drop. A "15% stop" under leverage 10 does not exist: liquidation comes first.
 
-La taille se déduit du risque et de la distance au stop, pas du levier disponible — voir `dimensionnement-et-ruine`.
+Size is derived from the risk and the distance to the stop, not from the available leverage — see `dimensionnement-et-ruine`.
 
-## Bougies et horizons
+## Candles and horizons
 
-`1 j`, `4 h`, `1 h` : le nombre de périodes par an change tout ce qui est annualisé.
+`1d`, `4h`, `1h`: the number of periods per year changes everything that is annualised.
 
-| Pas | Périodes/an |
+| Step | Periods/year |
 |---|---|
-| 1 j | 365 (la crypto ne ferme pas) |
-| 4 h | 2 190 |
-| 1 h | 8 760 |
+| 1d | 365 (crypto does not close) |
+| 4h | 2,190 |
+| 1h | 8,760 |
 
-Utiliser 252 (jours de bourse actions) sur de la crypto est une erreur classique : cela sous-estime la volatilité annualisée de ~20 %.
+Using 252 (equity trading days) on crypto is a classic error: it underestimates annualised volatility by ~20%.
 
-## Lié
+## Related
 
-- `calcul-verifie` : les formules de conversion.
-- `horodatage` : la bougie en cours, les fuseaux.
+- `calcul-verifie`: the conversion formulas.
+- `horodatage`: the current candle, time zones.

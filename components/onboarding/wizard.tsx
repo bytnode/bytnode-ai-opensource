@@ -11,18 +11,18 @@ import { StepAgent } from "./step-agent";
 import "./onboarding.css";
 
 /* ---------------------------------------------------------------------------
-   L'assistant de configuration : une feuille posee au centre du fond.
+   The setup wizard: a sheet laid at the centre of the backdrop.
 
-   Il ne sert plus qu'a la premiere ouverture : profil, acces aux modeles,
-   puis un premier agent. Ensuite, tout passe par le panneau de reglages
-   (`components/settings/settings-panel.tsx`), qui reprend ses briques.
-   La feuille travaille sur un BROUILLON et ne rend la main qu'a la fin —
-   quitter en cours de route ne laisse rien a moitie rempli.
+   It now only serves the first launch: profile, access to the models, then a
+   first agent. After that, everything goes through the settings panel
+   (`components/settings/settings-panel.tsx`), which reuses its bricks.
+   The sheet works on a DRAFT and only hands over at the end — leaving
+   midway leaves nothing half filled in.
 --------------------------------------------------------------------------- */
 
 export type StepId = "profil" | "auth" | "agent";
 
-const LABELS: Record<StepId, string> = { profil: "Profil", auth: "Authentification", agent: "Agent" };
+const LABELS: Record<StepId, string> = { profil: "Profile", auth: "Authentication", agent: "Agent" };
 
 export type WizardDraft = {
   profile: Profile;
@@ -35,13 +35,13 @@ export type WizardDraft = {
 type Props = {
   steps: StepId[];
   initial: WizardDraft;
-  /** Le libelle du dernier bouton : « Ouvrir le chat », « Créer l'agent »… */
+  /** The label of the last button: "Open the chat", "Create the agent"… */
   finishLabel: string;
   onDone: (draft: WizardDraft) => void;
-  /** Present quand l'assistant peut se fermer sans rien changer. */
+  /** Present when the wizard can close without changing anything. */
   onCancel?: () => void;
-  /** Le theme s'applique tout de suite, brouillon ou pas : on veut voir le
-      resultat avant de terminer. */
+  /** The theme applies right away, draft or not: we want to see the result
+      before finishing. */
   onTheme: (theme: Theme) => void;
 };
 
@@ -88,16 +88,16 @@ export function Wizard({ steps, initial, finishLabel, onDone, onCancel, onTheme 
               }}
             />
             {onCancel && (
-              <button type="button" className="ob-close" onClick={onCancel} aria-label="Fermer sans enregistrer">
+              <button type="button" className="ob-close" onClick={onCancel} aria-label="Close without saving">
                 <Close />
               </button>
             )}
           </div>
         </header>
 
-        {/* Une seule etape n'est pas une sequence : pas de barre. */}
+        {/* A single step is not a sequence: no bar. */}
         {steps.length > 1 && (
-          <ol className="ob-steps" aria-label="Étapes">
+          <ol className="ob-steps" aria-label="Steps">
             {steps.map((s, i) => (
               <li
                 key={s}
@@ -143,13 +143,13 @@ export function Wizard({ steps, initial, finishLabel, onDone, onCancel, onTheme 
           {index > 0 ? (
             <button type="button" className="btn btn-ghost" onClick={back}>
               <ArrowLeft />
-              Retour
+              Back
             </button>
           ) : (
             <span />
           )}
           <button type="button" className="btn btn-primary" onClick={next}>
-            {last ? finishLabel : "Suivant"}
+            {last ? finishLabel : "Next"}
             {!last && <ArrowRight />}
           </button>
         </footer>
@@ -162,19 +162,19 @@ export type StepErrors = Partial<Record<"firstName" | "openrouter" | "subscripti
 
 function validate(step: StepId, d: WizardDraft, subscribed: boolean): StepErrors {
   const e: StepErrors = {};
-  if (step === "profil" && !d.profile.firstName.trim()) e.firstName = "Un prénom, pour que l'agent sache à qui il parle.";
-  /* Il faut au moins un acces aux modeles : l'onglet ouvert dit lequel on
-     attend, mais l'autre suffit aussi. */
+  if (step === "profil" && !d.profile.firstName.trim()) e.firstName = "A first name, so the agent knows who it is talking to.";
+  /* At least one access to the models is needed: the open tab says which
+     one we expect, but the other one is enough too. */
   if (step === "auth" && !d.keys.openrouter.trim() && !subscribed) {
-    if (d.authMode === "keys") e.openrouter = "La clé est nécessaire pour dialoguer — ou connectez un abonnement.";
-    else e.subscription = "Connectez un abonnement pour continuer — ou saisissez une clé OpenRouter dans l'onglet Clés.";
+    if (d.authMode === "keys") e.openrouter = "The key is required to chat — or connect a subscription.";
+    else e.subscription = "Connect a subscription to continue — or enter an OpenRouter key in the Keys tab.";
   }
-  /* La cle BytNode n'est pas facultative : sans donnees de marche, l'agent
-     n'a rien a analyser. */
-  if (step === "auth" && !d.keys.bytnode.trim()) e.bytnode = "La clé BytNode est nécessaire : sans elle, les agents n'ont pas de données de marché.";
+  /* The BytNode key is not optional: without market data, the agent has
+     nothing to analyse. */
+  if (step === "auth" && !d.keys.bytnode.trim()) e.bytnode = "The BytNode key is required: without it, the agents have no market data.";
   if (step === "agent") {
-    if (!d.agent.name.trim()) e.name = "Donnez un nom à votre agent.";
-    if (!d.agent.providerId) e.providerId = "Choisissez un abonnement ou un éditeur.";
+    if (!d.agent.name.trim()) e.name = "Give your agent a name.";
+    if (!d.agent.providerId) e.providerId = "Choose a subscription or a vendor.";
   }
   return e;
 }

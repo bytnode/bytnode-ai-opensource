@@ -46,54 +46,52 @@ import { buildAcpPrompt } from "@/lib/acp/prompt";
 import type { WireEvent } from "@/lib/acp/wire";
 
 /* ---------------------------------------------------------------------------
-   Envoyer, recevoir, agir, interrompre.
+   Send, receive, act, interrupt.
 
-   Le fil vit dans le magasin ; ce crochet fait tourner la boucle de l'agent
-   pour le tour en cours et traduit ses evenements en PAS du dernier
-   message : le texte qui arrive, chaque appel d'outil, son resultat. Le
-   depot n'est ecrit qu'a la fin du tour.
+   The thread lives in the store; this hook runs the agent loop for the
+   current turn and translates its events into STEPS of the last message:
+   the text that arrives, each tool call, its result. The repository is only
+   written at the end of the turn.
 
-   ⚠️ LES EVENEMENTS SONT GROUPES PAR IMAGE. Un modele rapide en envoie des
-   dizaines par seconde ; ils s'accumulent et sont poses en une fois au
-   prochain `requestAnimationFrame`. Sauf ce qui attend une reponse — un
-   appel d'outil, une permission — pose tout de suite.
+   ⚠️ EVENTS ARE BATCHED PER FRAME. A fast model sends dozens per second;
+   they accumulate and are applied at once on the next
+   `requestAnimationFrame`. Except what waits for an answer — a tool call, a
+   permission — applied immediately.
 
-   ⚠️ LE TEXTE EST LISSE. Les jetons arrivent par rafales — quarante
-   caracteres d'un coup, puis rien pendant un cinquieme de seconde — et
-   affiches tels quels, ils sautent. On les garde dans une reserve et on en
-   revele une part reguliere a chaque image, plus grande si la reserve
-   grossit (on ne doit jamais prendre de retard visible) ; a la fin du flux,
-   tout ce qui reste est pose d'un coup.
+   ⚠️ THE TEXT IS SMOOTHED. Tokens arrive in bursts — forty characters at
+   once, then nothing for a fifth of a second — and displayed as is, they
+   jump. We keep them in a reserve and reveal a steady share on every frame,
+   larger if the reserve grows (we must never fall visibly behind); at the
+   end of the stream, whatever remains is applied at once.
 
-   En mode « demander », un outil qui agit (voir `GATED_TOOLS`) s'affiche
-   avec deux boutons et la boucle attend. `answer` tranche ; « toujours »
-   bascule l'agent en mode direct. Ce mode ne concerne QUE les agents sur
-   OpenRouter : un agent par abonnement a ses propres modes.
+   In "ask" mode, a tool that acts (see `GATED_TOOLS`) shows up with two
+   buttons and the loop waits. `answer` decides; "always" flips the agent to
+   direct mode. This mode ONLY concerns agents on OpenRouter: a subscription
+   agent has its own modes.
 
-   DEUX MOTEURS, UN SEUL FIL. Un agent sur OpenRouter fait tourner notre
-   boucle ici meme (modele + nos outils). Un agent par abonnement
-   (`acp:…`) delegue le tour au serveur, qui pilote l'agent externe (Claude
-   Code, Codex, Gemini CLI) et renvoie les memes evenements — plus les
-   demandes de permission de cet agent, qui prennent les memes boutons.
+   TWO ENGINES, ONE THREAD. An agent on OpenRouter runs our loop right here
+   (model + our tools). A subscription agent (`acp:…`) delegates the turn to
+   the server, which drives the external agent (Claude Code, Codex, Gemini
+   CLI) and sends back the same events — plus that agent's permission
+   requests, which take the same buttons.
 
-   ⚠️ LE CONTEXTE SE GERE TOUT SEUL (moteur OpenRouter). Un tour est un
-   `turn` ; `send` n'en est que la porte d'entree, et un tour peut en
-   enchainer un autre :
-   - le fil pese (jauge ≥ 70 %) → les vieux resultats d'outils sont elagues
-     au rejeu (`pruneToolOutputs`), le fil affiche garde tout ;
-   - la jauge est pleine (≥ 90 %) en fin de tour → un `/compact`
-     automatique, marque comme tel ;
-   - le fournisseur refuse le contexte (`isContextOverflow`) → compaction
-     « dure » puis rejeu du message (ou reprise, si le tour avait deja
-     travaille). Une seule recuperation par tour : pas de boucle.
+   ⚠️ CONTEXT MANAGES ITSELF (OpenRouter engine). A turn is a `turn`; `send`
+   is only its entry door, and a turn can chain another one:
+   - the thread is heavy (meter ≥ 70%) → old tool results are pruned on
+     replay (`pruneToolOutputs`), the displayed thread keeps everything;
+   - the meter is full (≥ 90%) at the end of the turn → an automatic
+     `/compact`, marked as such;
+   - the provider refuses the context (`isContextOverflow`) → "hard"
+     compaction then replay of the message (or resumption, if the turn had
+     already worked). A single recovery per turn: no loop.
 
-   ⚠️ LE COMPACTAGE EST UN TOUR CACHE (comme dans Claude Code). `/compact`
-   n'ajoute pas de message de l'utilisateur ; la reponse du modele s'ecrit
-   dans un message marque `compacting`, que le fil montre comme une ligne
-   d'etat « Compactage du fil… » et jamais comme une reponse. A la fin :
-   le resume remplace tout le fil (replie, a deplier), ou bien la ligne
-   disparait et l'echec est dit a part (`compactError`), avec de quoi
-   reessayer. Un arret volontaire ne laisse rien.
+   ⚠️ COMPACTION IS A HIDDEN TURN (like in Claude Code). `/compact` adds no
+   user message; the model's reply is written into a message flagged
+   `compacting`, which the thread shows as a status line "Compacting the
+   thread…" and never as a reply. At the end: the summary replaces the whole
+   thread (folded, to unfold), or else the line disappears and the failure is
+   reported separately (`compactError`), with a way to retry. A voluntary
+   stop leaves nothing.
 --------------------------------------------------------------------------- */
 
 type Options = {
@@ -102,25 +100,25 @@ type Options = {
   conversationId: string | null;
   modelId: string | null;
   effort: string | null;
-  /** Le mode de l'agent externe (abonnements) pour ce tour. */
+  /** The external agent's mode (subscriptions) for this turn. */
   mode: string | null;
-  /** La fenetre de contexte du modele (jetons), pour decider d'elaguer
-      et de compacter. `null` : inconnue, on ne compacte pas tout seul. */
+  /** The model's context window (tokens), to decide on pruning and
+      compacting. `null`: unknown, we do not compact on our own. */
   window: number | null;
   onConversationCreated: (id: string) => void;
-  /** Memoriser une regle d'autorisation pour cet agent (« Toujours »). */
+  /** Memorise an allow rule for this agent ("Always"). */
   onAllowRule: (rule: string) => void;
 };
 
 type ToolStep = Extract<Step, { type: "tool" }>;
 
-/** Ce qui accompagne un message : pieces jointes deposees, et la demande de
-    recherche approfondie. */
+/** What goes with a message: dropped attachments, and the deep research
+    request. */
 export type SendOptions = { attachments?: Attachment[]; research?: boolean };
 
-/** Ce qu'un tour enchaine sait de plus que `send` : qui a demande la
-    compaction, s'il faut elaguer fort, s'il s'agit deja d'une
-    recuperation (une seule), et quoi rejouer une fois compacte. */
+/** What a chained turn knows beyond `send`: who requested the compaction,
+    whether to prune hard, whether this is already a recovery (only one),
+    and what to replay once compacted. */
 type TurnOptions = SendOptions & {
   compactedBy?: CompactedBy;
   hardPrune?: boolean;
@@ -128,18 +126,17 @@ type TurnOptions = SendOptions & {
   thenReplay?: { text: string; opts: TurnOptions };
 };
 
-/* L'elagage : les 6 derniers resultats d'outils restent entiers, les
-   anciens sont reduits a 400 caracteres — ou, apres un debordement, tout
-   est reduit a 200. */
+/* Pruning: the 6 most recent tool results stay whole, older ones are cut to
+   400 characters — or, after an overflow, everything is cut to 200. */
 const SOFT_PRUNE = { keep: 6, head: 400 };
 const HARD_PRUNE = { keep: 0, head: 200 };
-const CONTINUE_PROMPT = "Continue : reprends la tâche où elle s'est arrêtée, en t'appuyant sur le résumé ci-dessus.";
-const COMPACT_HINT = "Tapez /compact pour résumer le fil, ou ouvrez une nouvelle conversation.";
+const CONTINUE_PROMPT = "Continue: pick the task up where it stopped, relying on the summary above.";
+const COMPACT_HINT = "Type /compact to summarise the thread, or open a new conversation.";
 
 const STORED_OUTPUT = 12_000;
 const STORED_LINES = 200;
-/** Le rapport d'un sous-agent garde dans le fil (la sortie complete de
-    l'appel, elle, est deja bornee par STORED_OUTPUT). */
+/** A sub-agent's report kept in the thread (the call's full output is
+    already bounded by STORED_OUTPUT). */
 const STORED_REPORT = 6_000;
 
 export function useChat({
@@ -154,19 +151,19 @@ export function useChat({
   onAllowRule,
 }: Options) {
   const [streamingId, setStreamingId] = useState<string | null>(null);
-  /* Un tour a la fois — lu par `send`, pas par les tours enchaines (la
-     compaction automatique, le rejeu), qui se suivent dans le meme appel. */
+  /* One turn at a time — read by `send`, not by chained turns (automatic
+     compaction, replay), which follow each other in the same call. */
   const busy = useRef(false);
   const abort = useRef<AbortController | null>(null);
   const waiting = useRef(
     new Map<string, (allow: boolean, always: boolean) => void>(),
   );
   const skipAll = useRef(false);
-  /* Ce que le tour consomme, pour la jauge du fil : le dernier decompte
-     connu et le debit mesure. Remplace par image, jamais mute. */
+  /* What the turn consumes, for the thread's meter: the last known count
+     and the measured rate. Replaced per frame, never mutated. */
   const [live, setLive] = useState<{ usage?: UsageInfo; rate: number | null; produced: number }>({ rate: null, produced: 0 });
-  /* Un compactage qui a echoue : le fil n'en garde aucune trace, c'est ici
-     qu'on le dit (et qu'on propose de reessayer). */
+  /* A compaction that failed: the thread keeps no trace of it, this is
+     where it is reported (and where a retry is offered). */
   const [compactError, setCompactError] = useState<{ conversationId: string; message: string } | null>(null);
   const dismissCompactError = useCallback(() => setCompactError(null), []);
 
@@ -177,16 +174,16 @@ export function useChat({
   }, []);
 
   const answer = useCallback((callId: string, allow: boolean, always = false) => {
-    /* « Toujours » ne bascule plus l'agent en execution directe : la regle
-       memorisee est celle de CET appel (voir `lib/tools/permissions.ts`), et
-       c'est la fonction d'attente qui l'enregistre. */
+    /* "Always" no longer flips the agent to direct execution: the
+       memorised rule is that of THIS call (see `lib/tools/permissions.ts`),
+       and the waiting function is what records it. */
     waiting.current.get(callId)?.(allow, always);
     waiting.current.delete(callId);
   }, []);
 
-  /* Enregistrer une regle « Toujours » : l'outil, ou le debut de la
-     commande pour un shell. Une commande dangereuse ne produit pas de
-     regle — `ruleFor` la refuse en amont. */
+  /* Record an "Always" rule: the tool, or the start of the command for a
+     shell. A dangerous command produces no rule — `ruleFor` refuses it
+     upstream. */
   const rememberRule = useCallback(
     (name: string, args: Record<string, unknown>) => {
       const rule = ruleFor(name, args);
@@ -203,40 +200,40 @@ export function useChat({
         const content = text.trim();
         if (!content && joints.length === 0) return;
 
-        /* `/compact` : l'agent resume le fil, et ce resume le remplace a la
-           fin du tour. Ce qu'on lui envoie n'est pas ce que l'utilisateur a
-           tape — c'est la demande de resume. */
+        /* `/compact`: the agent summarises the thread, and that summary
+           replaces it at the end of the turn. What we send it is not what
+           the user typed — it is the summary request. */
         const compact = isCompactCommand(content);
-        /* Ce que le modele recoit : la consigne de recherche approfondie, le
-           message, puis la note des pieces jointes (chemins dans le dossier de
-           travail). Ce que le fil affiche reste ce que l'utilisateur a tape. */
+        /* What the model receives: the deep research directive, the
+           message, then the attachments note (paths in the workspace). What
+           the thread displays stays what the user typed. */
         const prompt = compact
           ? buildCompactRequest(compact.instructions)
           : withDirectives(content, joints, opts.research === true);
 
         const now = Date.now();
         const stored = conversationId ? getConversation(conversationId) : null;
-        /* Rien a compacter : rien ne se passe (pas de fil « /compact »). */
+        /* Nothing to compact: nothing happens (no "/compact" thread). */
         if (compact && !stored?.messages.some((m) => m.content.trim() && !m.compacting)) return;
         busy.current = true;
         if (compact) setCompactError(null);
 
-        /* Un compactage laisse la par un rechargement en plein milieu n'a
-           plus de tour pour le retirer : on le fait ici. */
+        /* A compaction left behind by a mid-turn reload no longer has a
+           turn to remove it: we do it here. */
         const base: Conversation = stored
           ? { ...stored, messages: stored.messages.filter((m) => !m.compacting) }
           : blank(agent.id, modelId, now);
         const user: Message = {
           id: newId(),
           role: "user",
-          content: content || (joints.length ? "Regarde ce que je te joins." : ""),
+          content: content || (joints.length ? "Look at what I am attaching." : ""),
           createdAt: now,
           ...(joints.length ? { attachments: joints } : {}),
           ...(opts.research ? { research: true } : {}),
         };
-        /* Le compactage est un tour cache : pas de message de l'utilisateur,
-           et la reponse porte `compacting` — le fil la montre comme une
-           ligne d'etat, jamais comme une reponse. */
+        /* Compaction is a hidden turn: no user message, and the reply
+           carries `compacting` — the thread shows it as a status line,
+           never as a reply. */
         const reply: Message = {
           id: newId(),
           role: "assistant",
@@ -263,17 +260,18 @@ export function useChat({
         skipAll.current = agent.permissionMode === "skip";
         setStreamingId(conversation.id);
 
-        /* Les pas du message en cours, tenus ici et poses par image. */
+        /* The steps of the current message, held here and applied per
+           frame. */
         const steps: Step[] = [];
         let dirty = false;
         let frame = 0;
-        /* La reserve de texte pas encore revele, et son rythme. */
+        /* The reserve of text not yet revealed, and its pace. */
         let reserve = "";
         const reveal = (all = false) => {
           if (!reserve) return;
-          /* Une image = ~16 ms. On vise a ecouler la reserve en ~150 ms,
-             avec un minimum de deux caracteres par image, sans depasser ce
-             qu'on a. */
+          /* A frame = ~16 ms. We aim to drain the reserve in ~150 ms, with
+             a minimum of two characters per frame, without exceeding what
+             we have. */
           const n = all
             ? reserve.length
             : Math.min(
@@ -301,7 +299,7 @@ export function useChat({
               content: textOf(snapshot),
             }));
           }
-          /* Tant qu'il reste du texte en reserve, on continue image par image. */
+          /* As long as text remains in reserve, we carry on frame by frame. */
           if (reserve && !frame) frame = requestAnimationFrame(flush);
         };
         const mark = (immediate = false) => {
@@ -316,8 +314,8 @@ export function useChat({
         const tool = (id: string) =>
           steps.find((s): s is ToolStep => s.type === "tool" && s.id === id);
 
-        /* Le decompte du tour, et le debit : jetons produits depuis le
-           premier caractere, mesures a chaque image. */
+        /* The turn's count, and the rate: tokens produced since the first
+           character, measured on every frame. */
         let usage: UsageInfo | undefined;
         let produced = 0;
         let firstAt = 0;
@@ -335,7 +333,7 @@ export function useChat({
             case "retry":
               reserve += `
 
-_${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
+_${e.reason} — retrying ${e.attempt}/${e.of}…_
 
 `;
               if (!frame) frame = requestAnimationFrame(flush);
@@ -362,7 +360,7 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
               if (!frame) frame = requestAnimationFrame(flush);
               break;
             case "tool_call":
-              /* Le texte en reserve precede l'appel : on le pose avant. */
+              /* The text in reserve precedes the call: apply it first. */
               reveal(true);
               steps.push({
                 type: "tool",
@@ -382,9 +380,9 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
               break;
             }
             case "subagent": {
-              /* L'id est `<appel>:<index>` : l'etat du sous-agent se range
-                 sur l'appel Workflow, a son index. Le rapport est borne
-                 comme une sortie d'outil. */
+              /* The id is `<call>:<index>`: the sub-agent's state is filed
+                 on the Workflow call, at its index. The report is bounded
+                 like a tool output. */
               const t = tool(e.id.slice(0, e.id.lastIndexOf(":")));
               if (t) {
                 const report =
@@ -424,8 +422,8 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
         let caught: unknown;
         const acp = acpAgentOf(agent.providerId);
         try {
-          /* Les comptes exchange que CET agent peut piloter : ils partent
-             avec chaque requete d'outil, et decident des outils qu'il voit. */
+          /* The exchange accounts THIS agent may drive: they leave with
+             every tool request, and decide which tools it sees. */
           const exchangeAccounts = allowedAccounts(settings.keys.exchanges, agent.exchangeAccountIds);
           const unattachedExchanges = settings.keys.exchanges.length - exchangeAccounts.length;
           const [toolset, memory] = await Promise.all([
@@ -439,7 +437,7 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
             fetchMemory(agent.id, agent.workspace ?? ""),
           ]);
           if (acp) {
-            /* --- Par abonnement : le serveur pilote l'agent externe. --- */
+            /* --- By subscription: the server drives the external agent. --- */
             const system = [
               buildSystemPrompt(settings.profile, agent),
               toolset.profession.prompt,
@@ -455,8 +453,8 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
             ]
               .filter(Boolean)
               .join("\n\n");
-            /* Ce qui precede ce tour : sans la reponse en cours, ni le
-               message de l'utilisateur (un compactage n'en a pas). */
+            /* What precedes this turn: without the reply in progress, nor
+               the user's message (a compaction has none). */
             const previous = conversation.messages.slice(0, compact ? -1 : -2);
             const onEvent = (e: WireEvent) => {
               switch (e.type) {
@@ -486,7 +484,7 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
                     t = {
                       type: "tool",
                       id: e.id,
-                      name: e.title || "Outil",
+                      name: e.title || "Tool",
                       args: { title: e.title },
                       status: "pending",
                     };
@@ -524,9 +522,9 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
                 modelId: acpModelId(modelId),
                 effort,
                 mode,
-                /* Un agent par abonnement a ses propres modes (Plan, Ne pas
-                   demander, Contourner…) : quand il demande malgre tout, la
-                   demande est posee a l'ecran — on ne tranche pas pour lui. */
+                /* A subscription agent has its own modes (Plan, Don't ask,
+                   Bypass…): when it asks anyway, the request is put on
+                   screen — we do not decide for it. */
                 permissionMode: "ask",
                 sessionId: base.acpSessionId ?? null,
                 firstTurn: previous.length === 0,
@@ -561,12 +559,12 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
                 .filter((m) => m.content.length > 0 || (m.steps?.length ?? 0) > 0)
                 .flatMap(stepsToMessages),
             ];
-            /* Ce que le modele lit n'est pas toujours ce que l'utilisateur a
-               tape. Un compactage n'a pas de message de l'utilisateur dans le
-               fil : la demande de resume s'ajoute ici, en queue. Un message
-               avec pieces jointes ou recherche approfondie est deja dans
-               `history`, mais porte en plus la note des chemins et la
-               consigne. Les images, elles, restent. */
+            /* What the model reads is not always what the user typed. A
+               compaction has no user message in the thread: the summary
+               request is added here, at the tail. A message with
+               attachments or deep research is already in `history`, but
+               additionally carries the paths note and the directive. The
+               images, for their part, stay. */
             if (compact) history.push({ role: "user", content: prompt });
             else if (prompt !== content) {
               const dernier = history[history.length - 1];
@@ -579,8 +577,8 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
                   : { role: "user", content: prompt };
               }
             }
-            /* Le fil pese ? Les vieux resultats d'outils partent elagues. On
-               juge sur le dernier decompte exact, sinon sur une estimation. */
+            /* Is the thread heavy? Old tool results leave pruned. We judge
+               on the last exact count, otherwise on an estimate. */
             const lastUsage = [...base.messages].reverse().find((m) => m.role === "assistant" && m.usage)?.usage;
             const before = usageState(lastUsage, contextWindow, contextEstimate(conversation.messages));
             const replay = opts.hardPrune ? pruneToolOutputs(history, HARD_PRUNE) : before.level !== "ok" ? pruneToolOutputs(history, SOFT_PRUNE) : history;
@@ -606,9 +604,9 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
                   signal,
                 }),
               execute: (call, signal, em) => executeTool(call, exec, signal, em),
-              /* Un outil qui agit passe par l'accord de l'utilisateur — sauf
-                 en execution directe, ou si une regle deja memorisee le
-                 couvre (`Write`, `Bash(git status *)`…). */
+              /* A tool that acts goes through the user's permission — except
+                 in direct execution, or if an already memorised rule covers
+                 it (`Write`, `Bash(git status *)`…). */
               gated: (name) => alwaysAsks(name) || (!skipAll.current && isGated(name)),
               permission: (call: ToolCall) =>
                 new Promise<boolean>((resolve) => {
@@ -641,7 +639,7 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
             error =
               e instanceof Error && e.message
                 ? e.message
-                : "La réponse s'est interrompue. Vérifiez votre connexion.";
+                : "The reply was interrupted. Check your connection.";
         } finally {
           if (frame) cancelAnimationFrame(frame);
           frame = 0;
@@ -667,15 +665,15 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
           steps: m.steps?.map((s) =>
             s.type === "tool" &&
             (s.status === "running" || s.status === "pending")
-              ? { ...s, status: "failed", output: s.output ?? "[interrompu]" }
+              ? { ...s, status: "failed", output: s.output ?? "[interrupted]" }
               : s,
           ),
         });
-        /* Compactage : la ligne d'etat ne survit jamais au tour. Reussi, le
-           resume remplace tout le fil — pour un agent par abonnement, sa
-           session est fermee, la suivante repartira du resume au lieu de
-           l'historique complet. Arrete, il ne reste rien. Echoue, l'erreur
-           est dite a part, avec de quoi reessayer. */
+        /* Compaction: the status line never survives the turn. Successful,
+           the summary replaces the whole thread — for a subscription agent,
+           its session is closed, the next one will start again from the
+           summary instead of the full history. Stopped, nothing remains.
+           Failed, the error is reported separately, with a way to retry. */
         if (compact) {
           const aborted = controller.signal.aborted;
           const summary = last.content.trim();
@@ -687,21 +685,21 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
               acpSessionId: undefined,
               messages: [compactionMessage(summary, newId(), Date.now(), opts.compactedBy ?? "user")],
             });
-            /* Le decompte du tour de compactage mesurait l'ANCIEN fil : la
-               jauge repart de l'estimation du nouveau. */
+            /* The compaction turn's count measured the OLD thread: the
+               meter starts again from the new one's estimate. */
             setLive({ rate: null, produced: 0 });
             if (opts.thenReplay) await turn(conversation.id, opts.thenReplay.text, opts.thenReplay.opts);
             return;
           }
           saveConversation({ ...finished, updatedAt: Date.now(), messages: finished.messages.slice(0, -1) });
           if (aborted) return;
-          /* La demande de resume deborde elle-meme du contexte : une fois,
-             en elaguant fort tous les resultats d'outils rejoues. */
+          /* The summary request itself overflows the context: once, pruning
+             hard every replayed tool result. */
           if (!acp && !opts.hardPrune && isContextOverflow(caught)) {
             await turn(conversation.id, text, { ...opts, hardPrune: true });
             return;
           }
-          const why = error ?? "L'agent n'a pas produit de résumé.";
+          const why = error ?? "The agent produced no summary.";
           setCompactError({
             conversationId: conversation.id,
             message: opts.compactedBy && opts.compactedBy !== "user" ? `${why} ${COMPACT_HINT}` : why,
@@ -709,10 +707,10 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
           return;
         }
 
-        /* Le fournisseur a refuse le contexte : on compacte « dur », puis on
-           rejoue. Un tour qui n'avait rien produit est retire et son message
-           renvoye tel quel ; un tour qui avait deja travaille reste (le
-           resume couvre l'« En cours ») et la tache reprend. */
+        /* The provider refused the context: we compact "hard", then replay.
+           A turn that had produced nothing is removed and its message sent
+           again as is; a turn that had already worked stays (the summary
+           covers the "In progress") and the task resumes. */
         const worked = last.content.length > 0 || (last.steps?.length ?? 0) > 0;
         const overflow =
           !acp && !stopped && !opts.recovered && isContextOverflow(caught) && (worked || finished.messages.length > 2);
@@ -720,7 +718,7 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
           const replay: TurnOptions = worked
             ? { recovered: true }
             : { attachments: joints, research: opts.research, recovered: true };
-          if (worked) error = "Fenêtre de contexte dépassée en cours de tâche : le fil est compacté, puis la tâche reprend.";
+          if (worked) error = "Context window exceeded mid-task: the thread is compacted, then the task resumes.";
           saveConversation({
             ...finished,
             updatedAt: Date.now(),
@@ -747,9 +745,8 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
               ),
         });
 
-        /* Jauge pleine en fin de tour propre : on compacte pendant que
-           l'utilisateur lit, plutot que de le faire attendre au prochain
-           message. */
+        /* Meter full at the end of a clean turn: we compact while the user
+           reads, rather than making them wait at the next message. */
         if (!acp && !error && !stopped) {
           const after = usageState(usage, contextWindow, contextEstimate(getConversation(conversation.id)?.messages ?? []));
           if (after.level === "full") await turn(conversation.id, "/compact", { compactedBy: "auto" });
@@ -770,8 +767,8 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
     ],
   );
 
-  /* Reprendre apres une erreur : le dernier echange (question, reponse en
-     erreur) est retire du fil et la question est renvoyee telle quelle. */
+  /* Resume after an error: the last exchange (question, failed reply) is
+     removed from the thread and the question is sent again as is. */
   const retry = useCallback(() => {
     if (!conversationId || streamingId) return;
     const c = getConversation(conversationId);
@@ -797,8 +794,8 @@ _${e.reason} — nouvelle tentative ${e.attempt}/${e.of}…_
   };
 }
 
-/* La memoire de l'agent, relue a chaque tour (elle change pendant la
-   conversation). Sans serveur, pas de memoire — jamais bloquant. */
+/* The agent's memory, re-read on every turn (it changes during the
+   conversation). Without a server, no memory — never blocking. */
 async function fetchMemory(
   agentId: string,
   workspace: string,
@@ -824,7 +821,7 @@ const blank = (
 ): Conversation => ({
   id: newId(),
   agentId,
-  title: "Nouvelle conversation",
+  title: "New conversation",
   modelId,
   createdAt: now,
   updatedAt: now,

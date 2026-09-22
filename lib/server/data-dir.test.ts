@@ -3,16 +3,16 @@ import path from "node:path";
 import { agentsDir, dataDir, userSkillsDir, workspacesDir } from "./data-dir";
 
 describe("dataDir", () => {
-  it("est ~/.bytnode-ai par defaut", () => {
+  it("is ~/.bytnode-ai by default", () => {
     expect(dataDir({}, "/home/u")).toBe(path.join("/home/u", ".bytnode-ai"));
   });
-  it("se surcharge par BYTNODE_AI_HOME", () => {
+  it("is overridden by BYTNODE_AI_HOME", () => {
     expect(dataDir({ BYTNODE_AI_HOME: "/tmp/bn" }, "/home/u")).toBe(path.resolve("/tmp/bn"));
   });
-  it("ignore une variable vide", () => {
+  it("ignores an empty variable", () => {
     expect(dataDir({ BYTNODE_AI_HOME: "  " }, "/home/u")).toBe(path.join("/home/u", ".bytnode-ai"));
   });
-  it("derive les sous-dossiers", () => {
+  it("derives the subfolders", () => {
     const env = { BYTNODE_AI_HOME: "/tmp/bn" };
     expect(workspacesDir(env)).toBe(path.resolve("/tmp/bn", "workspaces"));
     expect(userSkillsDir(env)).toBe(path.resolve("/tmp/bn", "skills"));

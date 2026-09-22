@@ -1,19 +1,19 @@
 "use client";
 
 /* ---------------------------------------------------------------------------
-   Capturer l'ecran, et reduire une image, dans le navigateur.
+   Capture the screen, and downscale an image, in the browser.
 
-   ⚠️ LA CAPTURE NE SE FAIT PAS SUR LE SERVEUR. Photographier l'ecran en
-   PowerShell (`CopyFromScreen`) est le motif exact des voleurs de donnees :
-   l'antivirus de Windows bloque le script avant qu'il ne tourne
-   (« ScriptContainedMaliciousContent »). Le navigateur, lui, a une API faite
-   pour ça — et elle est meilleure : c'est l'utilisateur qui choisit la
-   fenetre ou l'ecran a partager, dans un dialogue qu'il reconnait.
+   ⚠️ THE CAPTURE IS NOT DONE ON THE SERVER. Photographing the screen in
+   PowerShell (`CopyFromScreen`) is the exact pattern of infostealers:
+   Windows' antivirus blocks the script before it runs
+   (« ScriptContainedMaliciousContent »). The browser, on the other hand,
+   has an API made for this — and it is better: the user picks the window
+   or screen to share, in a dialog they recognise.
 
-   ⚠️ ET ON REDUIT AVANT D'ENVOYER. Un bureau de 6 400 px pese 6 Mo ; les
-   services redimensionnent de toute façon vers ~1 600 px de grand cote, et
-   le fil vit dans `localStorage`. Un JPEG reduit est lisible, leger, et
-   joignable.
+   ⚠️ AND WE DOWNSCALE BEFORE SENDING. A 6,400 px desktop weighs 6 MB; the
+   services resize to ~1,600 px on the long edge anyway, and the thread
+   lives in `localStorage`. A downscaled JPEG is legible, light, and
+   attachable.
 --------------------------------------------------------------------------- */
 
 export const LONG_EDGE = 1_600;
@@ -23,17 +23,17 @@ export class CaptureError extends Error {}
 
 const horodatage = () => new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 
-/** Ouvre le selecteur de partage d'ecran, prend UNE image, et referme tout
-    de suite : rien ne continue d'etre capture ensuite. */
+/** Opens the screen-share picker, takes ONE frame, and closes everything
+    right away: nothing keeps being captured afterwards. */
 export async function captureScreen(): Promise<{ name: string; blob: Blob }> {
   if (!navigator.mediaDevices?.getDisplayMedia) {
-    throw new CaptureError("Ce navigateur ne sait pas capturer l'écran.");
+    throw new CaptureError("This browser cannot capture the screen.");
   }
   let stream: MediaStream;
   try {
     stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 1 }, audio: false });
   } catch (e) {
-    /* L'utilisateur a ferme le dialogue : ce n'est pas une erreur. */
+    /* The user closed the dialog: that is not an error. */
     if (e instanceof DOMException && (e.name === "NotAllowedError" || e.name === "AbortError")) throw new CaptureError("");
     throw new CaptureError(e instanceof Error ? e.message : String(e));
   }
@@ -42,11 +42,11 @@ export async function captureScreen(): Promise<{ name: string; blob: Blob }> {
     video.srcObject = stream;
     video.muted = true;
     await video.play();
-    /* Une image noire sort si l'on dessine avant la premiere frame. */
+    /* A black frame comes out if we draw before the first frame. */
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const w = video.videoWidth;
     const h = video.videoHeight;
-    if (!w || !h) throw new CaptureError("L'écran partagé n'a rien rendu.");
+    if (!w || !h) throw new CaptureError("The shared screen rendered nothing.");
     const blob = await drawToJpeg(video, w, h);
     video.pause();
     video.srcObject = null;
@@ -56,8 +56,8 @@ export async function captureScreen(): Promise<{ name: string; blob: Blob }> {
   }
 }
 
-/** Une image (fichier choisi, ou capture) ramenee a `maxEdge` de grand cote,
-    en JPEG. Rend `null` si la source n'est pas une image lisible. */
+/** An image (chosen file, or capture) brought down to `maxEdge` on the long
+    edge, as JPEG. Returns `null` if the source is not a readable image. */
 export async function downscaleToJpeg(source: Blob, maxEdge = LONG_EDGE): Promise<Blob | null> {
   try {
     const bitmap = await createImageBitmap(source);
@@ -77,16 +77,16 @@ async function drawToJpeg(source: CanvasImageSource, w: number, h: number, maxEd
   canvas.width = Math.max(1, Math.round(w * ratio));
   canvas.height = Math.max(1, Math.round(h * ratio));
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new CaptureError("Impossible de préparer l'image.");
+  if (!ctx) throw new CaptureError("Could not prepare the image.");
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
   const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", QUALITY));
-  if (!blob) throw new CaptureError("Encodage de l'image impossible.");
+  if (!blob) throw new CaptureError("Could not encode the image.");
   return blob;
 }
 
-/** Le contenu d'un fichier en base64, pour la route de dépôt. */
+/** A file's content in base64, for the upload route. */
 export async function toBase64(blob: Blob): Promise<string> {
   const buf = await blob.arrayBuffer();
   let bin = "";

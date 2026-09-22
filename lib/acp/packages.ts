@@ -1,47 +1,45 @@
 import type { AcpAgentId } from "./agents";
 
 /* ---------------------------------------------------------------------------
-   D'ou vient chaque agent par abonnement, et comment on le lance.
+   Where each subscription agent comes from, and how we launch it.
 
-   Rien n'est embarque dans BytNode-AI : « Installer » pose un paquet npm
-   (ou un binaire du registre ACP) dans `~/.bytnode-ai/agents/<id>/`, et
-   trois agents qui parlent ACP nativement sont aussi reconnus s'ils sont
-   deja sur le PATH (`gemini`, `copilot`, `grok`). Claude et Codex passent
-   toujours par leur adaptateur : c'est lui qui embarque le produit.
+   Nothing is bundled in BytNode-AI: « Install » puts an npm package (or a
+   binary from the ACP registry) in `~/.bytnode-ai/agents/<id>/`, and three
+   agents that speak ACP natively are also recognised if they are already
+   on the PATH (`gemini`, `copilot`, `grok`). Claude and Codex always go
+   through their adapter: it is the adapter that embeds the product.
 
-   Ce fichier est partage navigateur / serveur : rien de Node ici.
+   This file is shared browser / server: nothing from Node here.
 --------------------------------------------------------------------------- */
 
 export type NpmSource = {
   kind: "npm";
   pkg: string;
-  /** Plage `^x.y.z` : relevee a chaque version de BytNode-AI qui a besoin
-      d'un adaptateur plus recent (nouveaux modeles, efforts…). */
+  /** `^x.y.z` range: raised by each version of BytNode-AI that needs a
+      newer adapter (new models, efforts…). */
   version: string;
-  /** Repris dans le package.json d'installation. Le SDK Claude : sans cet
-      override, l'adaptateur epingle un SDK 0.2 dont la liste des modeles
-      s'arrete a Sonnet/Haiku/Opus. */
+  /** Copied into the install package.json. The Claude SDK: without this
+      override, the adapter pins an SDK 0.2 whose model list stops at
+      Sonnet/Haiku/Opus. */
   overrides?: Record<string, string>;
-  /** Point d'entree ACP, relatif a `node_modules/<pkg>`, et ses arguments. */
+  /** ACP entry point, relative to `node_modules/<pkg>`, and its arguments. */
   acp: { entry: string[]; args: string[] };
-  /** Le CLI du produit (connexion, etat du compte), s'il en a un ; `pkg`
-      quand il vit dans un autre paquet (dependance de l'adaptateur). */
+  /** The product's CLI (sign-in, account state), if it has one; `pkg` when
+      it lives in another package (a dependency of the adapter). */
   cli?: { pkg?: string; entry: string[] };
-  /** Le meme agent, deja installe globalement par l'utilisateur. */
+  /** The same agent, already installed globally by the user. */
   global?: { command: string; args: string[] };
 };
 
 export type DownloadSource = {
   kind: "download";
   registryId: string;
-  /** Nom de l'executable (`.exe` ajoute sous Windows). */
+  /** Executable name (`.exe` appended on Windows). */
   exe: string;
   fallback: Record<string, string>;
 };
 
 export type AgentSource = NpmSource | DownloadSource;
-
-const MISTRAL = "https://github.com/mistralai/mistral-vibe/releases/download/v2.24.1";
 
 export const AGENT_SOURCES: Record<AcpAgentId, AgentSource> = {
   claude: {
@@ -82,23 +80,11 @@ export const AGENT_SOURCES: Record<AcpAgentId, AgentSource> = {
     cli: { entry: ["bin", "grok"] },
     global: { command: "grok", args: ["agent", "stdio"] },
   },
-  mistral: {
-    kind: "download",
-    registryId: "mistral-vibe",
-    exe: "vibe-acp",
-    fallback: {
-      "windows-x86_64": `${MISTRAL}/vibe-acp-windows-x86_64-2.24.1.zip`,
-      "darwin-aarch64": `${MISTRAL}/vibe-acp-darwin-aarch64-2.24.1.tar.gz`,
-      "darwin-x86_64": `${MISTRAL}/vibe-acp-darwin-x86_64-2.24.1.tar.gz`,
-      "linux-x86_64": `${MISTRAL}/vibe-acp-linux-x86_64-2.24.1.tar.gz`,
-      "linux-aarch64": `${MISTRAL}/vibe-acp-linux-aarch64-2.24.1.tar.gz`,
-    },
-  },
 };
 
 type InstallManifest = { private: true; dependencies: Record<string, string>; overrides?: Record<string, string> };
 
-/** Le package.json ecrit dans `~/.bytnode-ai/agents/<id>/` avant `npm install`. */
+/** The package.json written into `~/.bytnode-ai/agents/<id>/` before `npm install`. */
 export function installPackageJson(src: NpmSource): InstallManifest {
   const out: InstallManifest = { private: true, dependencies: { [src.pkg]: src.version } };
   if (src.overrides && Object.keys(src.overrides).length) out.overrides = src.overrides;
@@ -110,9 +96,9 @@ const parse = (v: string): [number, number, number] | null => {
   return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
 };
 
-/** `installed` satisfait-il la plage `^a.b.c` ? Le strict necessaire de
-    semver (nos plages sont toutes des carets) — une preversion `x.y.z-…`
-    compte comme inferieure a `x.y.z`. */
+/** Does `installed` satisfy the `^a.b.c` range? The bare minimum of
+    semver (all our ranges are carets) — a pre-release `x.y.z-…` counts as
+    lower than `x.y.z`. */
 export function satisfiesCaret(installed: string, range: string): boolean {
   const min = parse(range.replace(/^\^/, ""));
   const got = parse(installed);

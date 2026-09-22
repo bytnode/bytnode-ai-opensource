@@ -4,9 +4,9 @@ import type { ExchangeAccount } from "@/lib/domain/types";
 import type { ToolContext } from "../types";
 import type { AgentEvent } from "@/lib/agent/events";
 
-/* Le decor des tests d'outils exchange : un faux client ccxt, jamais de
-   reseau. `clientFor` est remplace par `vi.mock("./client")` dans chaque
-   fichier de test, puis pointe sur `fakeExchange(...)`. */
+/* The stage set for the exchange tool tests: a fake ccxt client, never any
+   network. `clientFor` is replaced by `vi.mock("./client")` in each test
+   file, then pointed at `fakeExchange(...)`. */
 
 export const MAIN: ExchangeAccount = { id: "x1", exchange: "binance", label: "Binance-main", apiKey: "a", secret: "b", password: "", testnet: false };
 export const TESTNET: ExchangeAccount = { id: "x2", exchange: "bybit", label: "Bybit-test", apiKey: "c", secret: "d", password: "", testnet: true };
@@ -27,8 +27,8 @@ export const ccxtError = (name: string, message = name) => Object.assign(new Err
 
 type Overrides = Partial<Record<string, unknown>>;
 
-/** Un exchange factice : BTC/USDT et son perp, precision 5 decimales,
-    minimum 0.0001. Chaque methode est un `vi.fn` remplacable. */
+/** A fake exchange: BTC/USDT and its perp, 5-decimal precision, minimum
+    0.0001. Every method is a replaceable `vi.fn`. */
 export function fakeExchange(over: Overrides = {}): Exchange {
   const market = (symbol: string, swap: boolean) => ({
     symbol,

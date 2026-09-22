@@ -5,14 +5,14 @@ import { ChevronDown } from "./icons";
 import { SearchPanel } from "./search-panel";
 
 /* ---------------------------------------------------------------------------
-   Un choix parmi quelques valeurs, a la place d'un `<select>` natif.
+   A choice among a few values, in place of a native `<select>`.
 
-   La liste native est dessinee par le systeme, hors de notre palette et de
-   notre typographie — sous Windows, une boite grise a fleches sur un fond
-   bleu nuit. Ici : le declencheur d'un champ, et le panneau de recherche de
-   l'application (sans barre de recherche : la liste est courte), avec ses
-   fleches, son Echap et son clic a cote. Memes briques que le choix du
-   fournisseur ou du modele, donc meme allure partout.
+   The native list is drawn by the system, outside our palette and our
+   typography — on Windows, a grey box with arrows on a midnight-blue
+   background. Here: a field's trigger, and the application's search panel
+   (without a search bar: the list is short), with its arrows, its Escape and
+   its click-outside. Same bricks as the provider or model choice, hence the
+   same look everywhere.
 --------------------------------------------------------------------------- */
 
 export type SelectOption = { value: string; label: string; meta?: string };
@@ -22,12 +22,12 @@ type Props = {
   value: string;
   options: SelectOption[];
   onChange: (value: string) => void;
-  /** Le nom de la liste, pour les lecteurs d'ecran. */
+  /** The list's name, for screen readers. */
   label: string;
   placeholder?: string;
 };
 
-export function Select({ id, value, options, onChange, label, placeholder = "Choisir" }: Props) {
+export function Select({ id, value, options, onChange, label, placeholder = "Choose" }: Props) {
   const [open, setOpen] = useState(false);
   const current = options.find((o) => o.value === value);
   return (

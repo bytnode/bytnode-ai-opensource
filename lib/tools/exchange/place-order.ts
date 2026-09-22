@@ -5,12 +5,12 @@ import { ACCOUNT_PROP, MARKET_PROP, SYMBOL_PROP, attempt, futuresActionError, he
 import { n8 } from "./format";
 
 /* ---------------------------------------------------------------------------
-   PlaceOrder : un ordre, spot ou futures.
+   PlaceOrder: one order, spot or futures.
 
-   ⚠️ DEMANDE TOUJOURS L'ACCORD DE L'UTILISATEUR (`ALWAYS_ASK`). Avant de
-   toucher l'exchange : une seule quantite (base ou quote), le prix qu'exige
-   le type, l'arrondi a la precision du marche, le minimum, et pas de hedge
-   mode. Ce qui est refuse ici l'est sans un appel a l'exchange.
+   ⚠️ ALWAYS ASKS THE USER'S CONSENT (`ALWAYS_ASK`). Before touching the
+   exchange: a single quantity (base or quote), the price the type
+   requires, rounding to the market's precision, the minimum, and no hedge
+   mode. What is refused here is refused without a call to the exchange.
 --------------------------------------------------------------------------- */
 
 type OrderType = "market" | "limit" | "stop" | "stop_limit" | "take_profit";
@@ -34,22 +34,22 @@ type MarketInfo = { base?: string; quote?: string; limits?: { amount?: { min?: n
 export const placeOrderTool: Tool<Args> = {
   name: "PlaceOrder",
   description:
-    "Passe un ordre sur un compte exchange (spot ou futures). Types : `market`, `limit` (exige `price`), `stop` (market déclenché à `stopPrice`), `stop_limit` (`price` + `stopPrice`), `take_profit` (market déclenché à `stopPrice`). " +
-    "Quantité : `amount` en actif de base (0.05 BTC) OU `quoteAmount` en devise de cotation (200 USDT, converti au prix courant). En futures : `reduceOnly` pour ne faire que réduire une position, `leverage` pour régler le levier avant l'ordre. " +
-    "L'utilisateur doit autoriser chaque ordre : attends le résultat avant d'en passer un autre.",
+    "Places an order on an exchange account (spot or futures). Types: `market`, `limit` (requires `price`), `stop` (market triggered at `stopPrice`), `stop_limit` (`price` + `stopPrice`), `take_profit` (market triggered at `stopPrice`). " +
+    "Quantity: `amount` in base asset (0.05 BTC) OR `quoteAmount` in quote currency (200 USDT, converted at the current price). On futures: `reduceOnly` to only ever reduce a position, `leverage` to set the leverage before the order. " +
+    "The user must authorize each order: wait for the result before placing another.",
   parameters: {
     type: "object",
     properties: {
       symbol: SYMBOL_PROP,
       side: { type: "string", enum: ["buy", "sell"] },
       type: { type: "string", enum: ["market", "limit", "stop", "stop_limit", "take_profit"] },
-      amount: { type: "number", minimum: 0, description: "Quantité en actif de base." },
-      quoteAmount: { type: "number", minimum: 0, description: "Montant en devise de cotation, à la place de `amount`." },
-      price: { type: "number", minimum: 0, description: "Prix limite (limit, stop_limit)." },
-      stopPrice: { type: "number", minimum: 0, description: "Prix de déclenchement (stop, stop_limit, take_profit)." },
-      reduceOnly: { type: "boolean", description: "Futures : l'ordre ne peut que réduire la position." },
-      leverage: { type: "integer", minimum: 1, maximum: 125, description: "Futures : levier à appliquer avant l'ordre." },
-      postOnly: { type: "boolean", description: "Limit : rejeté s'il s'exécuterait tout de suite." },
+      amount: { type: "number", minimum: 0, description: "Quantity in base asset." },
+      quoteAmount: { type: "number", minimum: 0, description: "Amount in quote currency, instead of `amount`." },
+      price: { type: "number", minimum: 0, description: "Limit price (limit, stop_limit)." },
+      stopPrice: { type: "number", minimum: 0, description: "Trigger price (stop, stop_limit, take_profit)." },
+      reduceOnly: { type: "boolean", description: "Futures: the order can only reduce the position." },
+      leverage: { type: "integer", minimum: 1, maximum: 125, description: "Futures: leverage to apply before the order." },
+      postOnly: { type: "boolean", description: "Limit: rejected if it would execute immediately." },
       timeInForce: { type: "string", enum: ["GTC", "IOC", "FOK"] },
       account: ACCOUNT_PROP,
       market: MARKET_PROP,
@@ -68,10 +68,10 @@ export const placeOrderTool: Tool<Args> = {
     const info = (r.ex.markets?.[symbol] ?? {}) as MarketInfo;
 
     if ((args.amount === undefined) === (args.quoteAmount === undefined)) {
-      return fail(`Donne \`amount\` (en ${info.base ?? "actif de base"}) ou \`quoteAmount\` (en ${info.quote ?? "devise de cotation"}), pas les deux.`);
+      return fail(`Give \`amount\` (in ${info.base ?? "base asset"}) or \`quoteAmount\` (in ${info.quote ?? "quote currency"}), not both.`);
     }
-    if ((args.type === "limit" || args.type === "stop_limit") && args.price === undefined) return fail(`Un ordre \`${args.type}\` exige \`price\`.`);
-    if ((args.type === "stop" || args.type === "stop_limit" || args.type === "take_profit") && args.stopPrice === undefined) return fail(`Un ordre \`${args.type}\` exige \`stopPrice\`.`);
+    if ((args.type === "limit" || args.type === "stop_limit") && args.price === undefined) return fail(`A \`${args.type}\` order requires \`price\`.`);
+    if ((args.type === "stop" || args.type === "stop_limit" || args.type === "take_profit") && args.stopPrice === undefined) return fail(`A \`${args.type}\` order requires \`stopPrice\`.`);
 
     return attempt(async () => {
       if (r.market === "futures") {
@@ -106,26 +106,26 @@ export const placeOrderTool: Tool<Args> = {
       } else if (args.type === "take_profit") params.takeProfitPrice = stop;
 
       const o = (await r.ex.createOrder(symbol, type, args.side, amount, limit, params)) as Order;
-      const parts = [`Ordre #${o.id} ${o.status ?? "envoyé"}`, `${args.side.toUpperCase()} ${n8(o.amount ?? amount)} ${symbol} ${args.type}${limit ? ` @ ${n8(limit)}` : ""}`];
-      if (o.average) parts.push(`moyen ${n8(o.average)}`);
-      if (o.filled) parts.push(`rempli ${n8(o.filled)}`);
+      const parts = [`Order #${o.id} ${o.status ?? "sent"}`, `${args.side.toUpperCase()} ${n8(o.amount ?? amount)} ${symbol} ${args.type}${limit ? ` @ ${n8(limit)}` : ""}`];
+      if (o.average) parts.push(`average ${n8(o.average)}`);
+      if (o.filled) parts.push(`filled ${n8(o.filled)}`);
       return ok(parts.join(" · "));
     });
   },
 };
 
-/** La quantite en base, arrondie, au-dessus du minimum. */
+/** The quantity in base, rounded, above the minimum. */
 async function sizeOf(r: Resolved, symbol: string, info: MarketInfo, args: Args): Promise<{ amount: number } | { error: string }> {
   let raw = args.amount;
   if (raw === undefined) {
     const t = (await r.ex.fetchTicker(symbol)) as { last?: number };
-    if (!t.last) return { error: `Pas de prix courant pour ${symbol} : donne \`amount\`.` };
+    if (!t.last) return { error: `No current price for ${symbol}: give \`amount\`.` };
     raw = (args.quoteAmount ?? 0) / t.last;
   }
   const amount = Number(r.ex.amountToPrecision(symbol, raw));
   const min = info.limits?.amount?.min;
   if (!(amount > 0) || (min !== undefined && amount < min)) {
-    return { error: `Quantité ${n8(amount)} sous le minimum du marché (${n8(min)} ${info.base ?? ""}).`.replace(/\s+\)/, ")") };
+    return { error: `Quantity ${n8(amount)} below the market minimum (${n8(min)} ${info.base ?? ""}).`.replace(/\s+\)/, ")") };
   }
   return { amount };
 }

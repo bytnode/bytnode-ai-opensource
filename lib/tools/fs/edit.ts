@@ -4,12 +4,12 @@ import { errorText, fail, ok } from "../types";
 import { OutsideWorkspaceError, displayPath, resolvePath } from "../paths";
 
 /* ---------------------------------------------------------------------------
-   Edit : remplacer une chaine exacte dans un fichier.
+   Edit: replace an exact string in a file.
 
-   ⚠️ LA CHAINE DOIT ETRE UNIQUE. Si elle apparait deux fois, on ne devine
-   pas laquelle : on refuse, on dit combien, et le modele elargit son extrait
-   — ou demande `replace_all`. C'est ce qui rend l'outil sur : il ne modifie
-   jamais un endroit qu'on n'a pas designe.
+   ⚠️ THE STRING MUST BE UNIQUE. If it appears twice, there is no guessing
+   which one: it is refused, the count is given, and the model widens its
+   excerpt — or asks for `replace_all`. That is what makes the tool safe: it
+   never modifies a place that was not designated.
 --------------------------------------------------------------------------- */
 
 type Args = { file_path: string; old_string: string; new_string: string; replace_all?: boolean };
@@ -30,14 +30,14 @@ export function applyEdit(content: string, oldString: string, newString: string,
 export const editTool: Tool<Args> = {
   name: "Edit",
   description:
-    "Remplace une chaîne exacte dans un fichier existant. `old_string` doit être unique dans le fichier (élargissez l'extrait avec du contexte autour), sauf avec `replace_all: true` qui remplace toutes les occurrences. Lisez le fichier avant de le modifier.",
+    "Replaces an exact string in an existing file. `old_string` must be unique in the file (widen the excerpt with surrounding context), unless `replace_all: true`, which replaces every occurrence. Read the file before modifying it.",
   parameters: {
     type: "object",
     properties: {
-      file_path: { type: "string", description: "Chemin du fichier (relatif au dossier de travail ou absolu)." },
-      old_string: { type: "string", description: "Le texte exact à remplacer, indentation comprise." },
-      new_string: { type: "string", description: "Le texte de remplacement." },
-      replace_all: { type: "boolean", description: "Remplacer toutes les occurrences. Par défaut : false." },
+      file_path: { type: "string", description: "Path of the file (relative to the workspace or absolute)." },
+      old_string: { type: "string", description: "The exact text to replace, indentation included." },
+      new_string: { type: "string", description: "The replacement text." },
+      replace_all: { type: "boolean", description: "Replace every occurrence. Default: false." },
     },
     required: ["file_path", "old_string", "new_string"],
     additionalProperties: false,
@@ -55,23 +55,23 @@ export const editTool: Tool<Args> = {
     try {
       content = await fs.readFile(target, "utf8");
     } catch (e) {
-      return fail(`Impossible de lire ${shown} : ${errorText(e)}`);
+      return fail(`Could not read ${shown}: ${errorText(e)}`);
     }
     const out = applyEdit(content, args.old_string, args.new_string, args.replace_all === true);
     if (!out.ok) {
       const why = {
-        empty: "old_string est vide.",
-        same: "old_string et new_string sont identiques.",
-        not_found: `old_string n'apparaît pas dans ${shown}. Relisez le fichier : l'extrait doit être exact, espaces et indentation compris.`,
-        ambiguous: `old_string apparaît ${out.count} fois dans ${shown}. Élargissez l'extrait pour le rendre unique, ou passez replace_all: true.`,
+        empty: "old_string is empty.",
+        same: "old_string and new_string are identical.",
+        not_found: `old_string does not appear in ${shown}. Re-read the file: the excerpt must be exact, spaces and indentation included.`,
+        ambiguous: `old_string appears ${out.count} times in ${shown}. Widen the excerpt to make it unique, or pass replace_all: true.`,
       }[out.reason];
       return fail(why);
     }
     try {
       await fs.writeFile(target, out.content, "utf8");
     } catch (e) {
-      return fail(`Impossible d'écrire ${shown} : ${errorText(e)}`);
+      return fail(`Could not write ${shown}: ${errorText(e)}`);
     }
-    return ok(`${shown} : ${out.count} remplacement${out.count > 1 ? "s" : ""}.`);
+    return ok(`${shown}: ${out.count} replacement${out.count > 1 ? "s" : ""}.`);
   },
 };

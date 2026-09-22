@@ -14,9 +14,9 @@ type Props = {
   value: AgentConfig;
   errors: StepErrors;
   isNew: boolean;
-  /** L'onglet choisi a l'authentification : la source proposee d'abord. */
+  /** The tab chosen at authentication: the source offered first. */
   authMode: AuthMode;
-  /** Les comptes exchange du compte : l'agent choisit ceux qu'il pilote. */
+  /** The account's exchange accounts: the agent picks the ones it drives. */
   exchanges: ExchangeAccount[];
   onChange: (agent: AgentConfig) => void;
 };
@@ -25,8 +25,8 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
   const picked = value.exchangeAccountIds ?? [];
   const toggleAccount = (id: string) => set({ exchangeAccountIds: picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id] });
   const set = (patch: Partial<AgentConfig>) => onChange({ ...value, ...patch });
-  /* La source des modeles : deduite du fournisseur deja choisi, sinon celle
-     de l'authentification. En changer vide le fournisseur. */
+  /* The source of the models: derived from the provider already chosen,
+     otherwise the authentication's. Changing it clears the provider. */
   const [source, setSource] = useState<ProviderSource>(
     value.providerId
       ? isAcpProvider(value.providerId)
@@ -42,15 +42,15 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
   return (
     <>
       <h1 id="ob-title" className="ob-title">
-        {isNew ? "Un nouvel agent" : value.name}
+        {isNew ? "A new agent" : value.name}
       </h1>
       <p className="ob-lede">
-        Un nom, un fournisseur de modèles, et ce qu&apos;il doit savoir avant de
-        vous répondre. Vous choisirez le modèle exact dans chaque conversation.
+        A name, a model provider, and what it should know before answering
+        you. You will choose the exact model in each conversation.
       </p>
 
       <div className="ob-form">
-        <Field id="agentName" label="Nom" error={errors.name}>
+        <Field id="agentName" label="Name" error={errors.name}>
           <input
             id="agentName"
             className="field-input"
@@ -62,11 +62,11 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
         </Field>
 
         <div className="field">
-          <span className="field-label">Accès aux modèles</span>
+          <span className="field-label">Access to the models</span>
           <div
             className="ob-choice"
             role="radiogroup"
-            aria-label="Source des modèles"
+            aria-label="Source of the models"
           >
             <button
               type="button"
@@ -75,11 +75,11 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
               className={`ob-choice-btn${source === "subscription" ? " is-on" : ""}`}
               onClick={() => chooseSource("subscription")}
             >
-              <span className="ob-choice-title">Par abonnement</span>
+              <span className="ob-choice-title">By subscription</span>
               <span className="ob-choice-desc">
-                Claude, OpenAI, Gemini, GitHub Copilot, Grok, Mistral :
-                l&apos;agent de l&apos;éditeur, sur votre compte, sans jeton
-                supplémentaire.
+                Claude, OpenAI, Gemini, GitHub Copilot, Grok:
+                the vendor&apos;s agent, on your account, with no extra
+                token.
               </span>
             </button>
             <button
@@ -89,10 +89,10 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
               className={`ob-choice-btn${source === "keys" ? " is-on" : ""}`}
               onClick={() => chooseSource("keys")}
             >
-              <span className="ob-choice-title">Par clé OpenRouter</span>
+              <span className="ob-choice-title">By OpenRouter key</span>
               <span className="ob-choice-desc">
-                Tous les éditeurs du catalogue OpenRouter, avec les outils de
-                BytNode-AI, facturé à l&apos;usage sur votre clé.
+                Every vendor in the OpenRouter catalog, with the BytNode-AI
+                tools, billed per use on your key.
               </span>
             </button>
           </div>
@@ -100,7 +100,7 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
 
         <Field
           id="provider"
-          label={source === "subscription" ? "Abonnement" : "Éditeur"}
+          label={source === "subscription" ? "Subscription" : "Vendor"}
           error={errors.providerId}
         >
           <ProviderPicker
@@ -116,7 +116,7 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
           <div
             className="ob-choice ob-choice-4"
             role="radiogroup"
-            aria-label="Profession de l'agent"
+            aria-label="Agent's profession"
           >
             {PROFESSIONS.map((p) => (
               <button
@@ -133,22 +133,22 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
             ))}
           </div>
           <p className="field-hint">
-            La profession donne à l&apos;agent son prompt système et ses
-            compétences (dossier <span className="mono">professions/</span>). Le
-            contexte ci-dessous s&apos;y ajoute.
+            The profession gives the agent its system prompt and its
+            skills (<span className="mono">professions/</span> folder). The
+            context below is added to it.
           </p>
         </div>
 
         <Field
           id="contextText"
-          label="Contexte"
+          label="Context"
           optional
-          hint="Ce que l'agent doit savoir : son rôle, votre activité, des consignes. Transmis au début de chaque conversation."
+          hint="What the agent should know: its role, your activity, instructions. Passed on at the start of every conversation."
         >
           <textarea
             id="contextText"
             className="field-input"
-            placeholder="Tu es l'assistant de …"
+            placeholder="You are the assistant of …"
             value={value.contextText}
             onChange={(e) => set({ contextText: e.target.value })}
           />
@@ -156,7 +156,7 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
 
         <div className="field">
           <span className="field-label">
-            Fichiers de référence<small>facultatif</small>
+            Reference files<small>optional</small>
           </span>
           <ContextFiles
             value={value.contextFiles}
@@ -166,9 +166,9 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
 
         <Field
           id="workspace"
-          label="Dossier de travail"
+          label="Workspace"
           optional
-          hint="Là où l'agent démarre ses commandes et résout les chemins relatifs. Vide : un dossier ~/.bytnode-ai/workspaces/<id>."
+          hint="Where the agent starts its commands and resolves relative paths. Empty: a ~/.bytnode-ai/workspaces/<id> folder."
         >
           <FolderField
             id="workspace"
@@ -178,11 +178,11 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
         </Field>
 
         <div className="field">
-          <span className="field-label">Périmètre</span>
+          <span className="field-label">Scope</span>
           <div
             className="ob-choice"
             role="radiogroup"
-            aria-label="Périmètre des outils fichiers"
+            aria-label="Scope of the file tools"
           >
             <button
               type="button"
@@ -192,13 +192,13 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
               onClick={() => set({ scope: "workspace" })}
             >
               <span className="ob-choice-title">
-                Dossier de travail seulement
+                Workspace only
               </span>
               <span className="ob-choice-desc">
-                Les outils fichiers refusent tout chemin extérieur, et une
-                commande shell qui en désigne un est refusée avant de partir
-                (garde sur le texte de la commande — combinez avec « Demande
-                avant d&apos;agir » pour un vrai filet).
+                The file tools refuse any outside path, and a shell command
+                that names one is refused before it runs (a guard on the
+                command&apos;s text — combine with &quot;Ask before
+                acting&quot; for a real safety net).
               </span>
             </button>
             <button
@@ -208,10 +208,10 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
               className={`ob-choice-btn${value.scope === "disk" ? " is-on" : ""}`}
               onClick={() => set({ scope: "disk" })}
             >
-              <span className="ob-choice-title">Tout le disque</span>
+              <span className="ob-choice-title">Whole disk</span>
               <span className="ob-choice-desc">
-                N&apos;importe quel chemin absolu est accepté. Le dossier de
-                travail n&apos;est que le point de départ.
+                Any absolute path is accepted. The workspace is only the
+                starting point.
               </span>
             </button>
           </div>
@@ -220,11 +220,11 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
         {source === "keys" && (
           <>
             <div className="field">
-              <span className="field-label">Outils</span>
+              <span className="field-label">Tools</span>
               <div
                 className="ob-choice"
                 role="radiogroup"
-                aria-label="Mode d'exécution des outils"
+                aria-label="Tool execution mode"
               >
                 <button
                   type="button"
@@ -234,11 +234,11 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
                   onClick={() => set({ permissionMode: "ask" })}
                 >
                   <span className="ob-choice-title">
-                    Demande avant d&apos;agir
+                    Ask before acting
                   </span>
                   <span className="ob-choice-desc">
-                    Chaque commande shell et chaque modification de fichier
-                    attend votre accord.
+                    Every shell command and every file change waits for
+                    your permission.
                   </span>
                 </button>
                 <button
@@ -248,11 +248,11 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
                   className={`ob-choice-btn${value.permissionMode === "skip" ? " is-on" : ""}`}
                   onClick={() => set({ permissionMode: "skip" })}
                 >
-                  <span className="ob-choice-title">Exécution directe</span>
+                  <span className="ob-choice-title">Direct execution</span>
                   <span className="ob-choice-desc">
-                    Tous les outils s&apos;exécutent sans demander. Plus rapide,
-                    sans filet. Les ordres, fermetures et transferts sur un
-                    exchange demandent quand même.
+                    Every tool runs without asking. Faster, with no safety
+                    net. Orders, closes and transfers on an exchange still
+                    ask.
                   </span>
                 </button>
               </div>
@@ -260,20 +260,20 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
           </>
         )}
 
-        {/* Pour TOUS les agents, par cle ou par abonnement : les agents
-            par abonnement recoivent les memes outils par le serveur MCP. */}
+        {/* For ALL agents, by key or by subscription: subscription agents
+            receive the same tools through the MCP server. */}
         <div className="field">
-          <span className="field-label">Comptes exchange</span>
+          <span className="field-label">Exchange accounts</span>
           {exchanges.length === 0 ? (
-            <p className="field-hint">Ajoutez un compte dans Réglages → Auth pour que cet agent puisse trader.</p>
+            <p className="field-hint">Add an account in Settings → Auth so this agent can trade.</p>
           ) : (
             <>
-              <p className="field-hint">Les comptes que cet agent peut lire et piloter. Aucun : pas d&apos;outil exchange.</p>
+              <p className="field-hint">The accounts this agent can read and drive. None: no exchange tool.</p>
               <div className="xch-pick">
                 {exchanges.map((a) => (
                   <label key={a.id}>
                     <input type="checkbox" checked={picked.includes(a.id)} onChange={() => toggleAccount(a.id)} />
-                    <span className={`xch-badge${a.testnet ? "" : " is-live"}`}>{a.testnet ? "TESTNET" : "RÉEL"}</span>
+                    <span className={`xch-badge${a.testnet ? "" : " is-live"}`}>{a.testnet ? "TESTNET" : "LIVE"}</span>
                     <span>{a.label}</span>
                     <span className="xch-exchange">{a.exchange}</span>
                   </label>

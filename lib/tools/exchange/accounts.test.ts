@@ -7,17 +7,17 @@ const main: ExchangeAccount = { id: "x1", exchange: "binance", label: "Binance-m
 const test1: ExchangeAccount = { id: "x2", exchange: "bybit", label: "Bybit-test", apiKey: "c", secret: "d", password: "", testnet: true };
 
 describe("parseAccounts", () => {
-  test("garde les comptes complets, ecarte le reste", () => {
-    expect(parseAccounts([main, { id: "x", label: "sans exchange" }, null, "x"])).toEqual([main]);
-    expect(parseAccounts("pas une liste")).toEqual([]);
+  test("keeps complete accounts, drops the rest", () => {
+    expect(parseAccounts([main, { id: "x", label: "no exchange" }, null, "x"])).toEqual([main]);
+    expect(parseAccounts("not a list")).toEqual([]);
   });
-  test("depuis un en-tete : JSON illisible ou vide → aucun compte", () => {
+  test("from a header: unreadable or empty JSON → no account", () => {
     expect(parseAccountsHeader(JSON.stringify([main, test1]))).toEqual([main, test1]);
     expect(parseAccountsHeader("{oops")).toEqual([]);
     expect(parseAccountsHeader(null)).toEqual([]);
     expect(parseAccountsHeader("")).toEqual([]);
   });
-  test("aller-retour par l'en-tete encode, meme avec un label hors Latin-1", () => {
+  test("round trip through the encoded header, even with a non-Latin-1 label", () => {
     const euro = { ...main, label: "Binance €/🚀" };
     const header = encodeAccountsHeader([euro, test1]);
     expect(/^[\x00-\x7f]*$/.test(header)).toBe(true);
@@ -26,28 +26,28 @@ describe("parseAccounts", () => {
 });
 
 describe("pickAccount", () => {
-  test("un seul compte : implicite", () => {
+  test("a single account: implicit", () => {
     expect(pickAccount([main], undefined)).toEqual({ account: main });
   });
-  test("plusieurs comptes sans nom : erreur qui liste les labels", () => {
+  test("several accounts without a name: error listing the labels", () => {
     const r = pickAccount([main, test1], undefined);
-    expect("error" in r && r.error).toBe("Plusieurs comptes : précise `account` parmi Binance-main, Bybit-test.");
+    expect("error" in r && r.error).toBe("Several accounts: specify `account` among Binance-main, Bybit-test.");
   });
-  test("par label (insensible a la casse) ou par id", () => {
+  test("by label (case-insensitive) or by id", () => {
     expect(pickAccount([main, test1], "bybit-test")).toEqual({ account: test1 });
     expect(pickAccount([main, test1], "x1")).toEqual({ account: main });
   });
-  test("inconnu : erreur", () => {
+  test("unknown: error", () => {
     const r = pickAccount([main, test1], "Kraken");
-    expect("error" in r && r.error).toBe("Compte inconnu : « Kraken ». Comptes disponibles : Binance-main, Bybit-test.");
+    expect("error" in r && r.error).toBe('Unknown account: "Kraken". Available accounts: Binance-main, Bybit-test.');
   });
-  test("aucun compte : erreur", () => {
-    expect(pickAccount([], undefined)).toEqual({ error: "Aucun compte exchange n'est rattaché à cet agent." });
+  test("no account: error", () => {
+    expect(pickAccount([], undefined)).toEqual({ error: "No exchange account is attached to this agent." });
   });
 });
 
 describe("allowedAccounts", () => {
-  test("ne rend que les comptes de la liste de l'agent, dans l'ordre des reglages", () => {
+  test("returns only the accounts on the agent's list, in settings order", () => {
     expect(allowedAccounts([main, test1], ["x2"])).toEqual([test1]);
     expect(allowedAccounts([main, test1], ["x9", "x1"])).toEqual([main]);
     expect(allowedAccounts([main, test1], undefined)).toEqual([]);
@@ -55,21 +55,21 @@ describe("allowedAccounts", () => {
 });
 
 describe("describeAccounts", () => {
-  test("une ligne pour le prompt", () => {
-    expect(describeAccounts([main, test1])).toBe("Binance-main (binance, RÉEL), Bybit-test (bybit, testnet)");
+  test("one line for the prompt", () => {
+    expect(describeAccounts([main, test1])).toBe("Binance-main (binance, LIVE), Bybit-test (bybit, testnet)");
   });
 });
 
 describe("pemSecret", () => {
   const body = "MHcCAQEEIExampleExampleExampleExampleExampleExampleExampleExampleoAoGCCqGSM49AwEHoUQDQgAEexampleexampleexampleexampleexampleexampleexampleexampleexampleexampleexampleexamplex";
-  test("une cle qui n'est pas un PEM est rendue telle quelle", () => {
+  test("a key that is not a PEM is returned as is", () => {
     expect(pemSecret("abc123")).toBe("abc123");
   });
-  test("les \\n litteraux d'un JSON CDP redeviennent des sauts de ligne", () => {
+  test("the literal \\n of a CDP JSON become line breaks again", () => {
     const pasted = `-----BEGIN EC PRIVATE KEY-----\\n${body}\\n-----END EC PRIVATE KEY-----\\n`;
     expect(pemSecret(pasted)).toBe(`-----BEGIN EC PRIVATE KEY-----\n${body.slice(0, 64)}\n${body.slice(64, 128)}\n${body.slice(128)}\n-----END EC PRIVATE KEY-----\n`);
   });
-  test("un PEM aplati sur une ligne est recompose (corps replie a 64)", () => {
+  test("a PEM flattened on one line is rebuilt (body wrapped at 64)", () => {
     const flat = `-----BEGIN EC PRIVATE KEY----- ${body} -----END EC PRIVATE KEY-----`;
     const out = pemSecret(flat);
     const lines = out.split("\n");
@@ -78,7 +78,7 @@ describe("pemSecret", () => {
     expect(lines.slice(1, -2).every((l) => l.length <= 64)).toBe(true);
     expect(lines.slice(1, -2).join("")).toBe(body);
   });
-  test("un PEM deja bien forme ne change pas", () => {
+  test("an already well-formed PEM does not change", () => {
     const good = `-----BEGIN EC PRIVATE KEY-----\n${body.slice(0, 64)}\n${body.slice(64, 128)}\n${body.slice(128)}\n-----END EC PRIVATE KEY-----\n`;
     expect(pemSecret(good)).toBe(good);
   });

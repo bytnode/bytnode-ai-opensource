@@ -6,21 +6,21 @@ type Props = {
   optional?: boolean;
   hint?: string;
   error?: string | null;
-  /** Un lien sous le champ, toujours visible, meme en erreur (ou obtenir
-      la cle, par exemple). */
+  /** A link under the field, always visible, even in error state (where to
+      get the key, for example). */
   link?: { href: string; label: string };
   children: ReactNode;
 };
 
-/* L'enveloppe d'un champ : etiquette, controle, puis une aide ou une erreur.
-   Le controle lui-meme est passe en enfant pour que la meme enveloppe serve a
-   un `input`, un `textarea` ou un bouton qui ouvre un panneau. */
+/* The wrapper of a field: label, control, then a hint or an error.
+   The control itself is passed as a child so the same wrapper serves an
+   `input`, a `textarea` or a button that opens a panel. */
 export function Field({ id, label, optional, hint, error, link, children }: Props) {
   return (
     <div className="field">
       <label className="field-label" htmlFor={id}>
         {label}
-        {optional && <small>facultatif</small>}
+        {optional && <small>optional</small>}
       </label>
       {children}
       {error ? (

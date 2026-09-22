@@ -3,17 +3,17 @@ import { fail, ok } from "../types";
 import { exchangeInfo } from "./catalog";
 import { ACCOUNT_PROP, SYMBOL_PROP, attempt, futuresActionError, resolve, symbolOn } from "./common";
 
-/* SetLeverage : le levier (et le mode de marge) d'une paire futures. Gated. */
+/* SetLeverage: the leverage (and the margin mode) of a futures pair. Gated. */
 
 type Args = { account?: string; symbol: string; leverage: number; marginMode?: "isolated" | "cross" };
 
-/** Certains exchanges refusent de « changer » un mode deja en place :
-    ce n'est pas une erreur pour nous. */
+/** Some exchanges refuse to "change" a mode already in place: that is not
+    an error for us. */
 const ALREADY = /no need to change|already|not modified|same as/i;
 
 export const setLeverageTool: Tool<Args> = {
   name: "SetLeverage",
-  description: "Règle le levier d'une paire futures (1 à 125), et le mode de marge (`isolated` ou `cross`) si donné. Le levier s'applique aux ordres suivants.",
+  description: "Sets the leverage of a futures pair (1 to 125), and the margin mode (`isolated` or `cross`) if given. The leverage applies to subsequent orders.",
   parameters: {
     type: "object",
     properties: {
@@ -34,7 +34,7 @@ export const setLeverageTool: Tool<Args> = {
     if ("error" in s) return fail(s.error);
     if (args.marginMode && !r.ex.has["setMarginMode"]) {
       const label = exchangeInfo(r.account.exchange)?.label ?? r.ex.id;
-      return fail(`${label} ne permet pas de changer le mode de marge par l'API : réglez-le sur l'exchange, puis relance sans \`marginMode\`.`);
+      return fail(`${label} does not allow changing the margin mode through the API: set it on the exchange, then run again without \`marginMode\`.`);
     }
     return attempt(async () => {
       if (args.marginMode) {
@@ -45,7 +45,7 @@ export const setLeverageTool: Tool<Args> = {
         }
       }
       await r.ex.setLeverage(args.leverage, s.symbol);
-      return ok(`${s.symbol} : levier ×${args.leverage}${args.marginMode ? ` (${args.marginMode})` : ""}.`);
+      return ok(`${s.symbol}: leverage ×${args.leverage}${args.marginMode ? ` (${args.marginMode})` : ""}.`);
     });
   },
 };

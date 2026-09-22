@@ -3,11 +3,12 @@ import type { AcpAgentId } from "./agents";
 import type { WireEvent } from "./wire";
 
 /* ---------------------------------------------------------------------------
-   Ce que le navigateur voit d'un tour par abonnement.
+   What the browser sees of a subscription turn.
 
-   Un tour = une requete qui reste ouverte et raconte (NDJSON). Les demandes
-   de permission arrivent dans ce flux et se repondent par une autre
-   requete ; interrompre = fermer le flux (le serveur annule chez l'agent).
+   A turn = one request that stays open and narrates (NDJSON). Permission
+   requests arrive in this stream and are answered through another request;
+   interrupting = closing the stream (the server cancels on the agent's
+   side).
 --------------------------------------------------------------------------- */
 
 export type AcpTurnInput = {
@@ -41,12 +42,12 @@ export async function runAcpTurn(input: AcpTurnInput, onEvent: (e: WireEvent) =>
     signal,
   });
   if (!res.ok || !res.body) {
-    let message = `Le serveur a répondu ${res.status}.`;
+    let message = `The server answered ${res.status}.`;
     try {
       const json = (await res.json()) as { error?: { message?: string } };
       if (json.error?.message) message = json.error.message;
     } catch {
-      /* pas de JSON */
+      /* no JSON */
     }
     throw new AcpError(message);
   }

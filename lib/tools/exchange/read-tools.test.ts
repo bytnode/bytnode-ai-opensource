@@ -12,7 +12,7 @@ const mocked = vi.mocked(clientFor);
 beforeEach(() => mocked.mockReset());
 
 describe("ExchangeBalance", () => {
-  test("soldes avec estimation USD : stable a 1, cote via fetchTickers, sans marche sans prix", async () => {
+  test("balances with USD estimate: stable at 1, quoted via fetchTickers, unpriced market left out", async () => {
     const ex = fakeExchange({
       fetchBalance: vi.fn(async (params?: { type?: string }) =>
         params?.type ? { total: {}, free: {}, used: {} } : { total: { USDT: 2000, BTC: 0.05, DOGE: 10, ZERO: 0 }, free: { USDT: 1500, BTC: 0.05, DOGE: 10 }, used: { USDT: 500, BTC: 0, DOGE: 0 } },
@@ -23,11 +23,11 @@ describe("ExchangeBalance", () => {
     const r = await balanceTool.execute({}, ctx());
     expect(r.ok).toBe(true);
     expect(r.output).toBe(
-      ["Binance-main · spot", "USDT : 2000 (libre 1500, bloqué 500) ≈ 2000 USD", "BTC : 0.05 (libre 0.05) ≈ 3371.6 USD", "DOGE : 10 (libre 10)", "Total ≈ 5371.6 USD (hors actifs sans prix)"].join("\n"),
+      ["Binance-main · spot", "USDT: 2000 (free 1500, locked 500) ≈ 2000 USD", "BTC: 0.05 (free 0.05) ≈ 3371.6 USD", "DOGE: 10 (free 10)", "Total ≈ 5371.6 USD (excluding unpriced assets)"].join("\n"),
     );
     expect(ex.fetchTickers).toHaveBeenCalledWith(["BTC/USDT"]);
   });
-  test("portefeuille Funding (Bybit) : lu a part, et signale quand le trading est vide", async () => {
+  test("Funding wallet (Bybit): read separately, and reported when trading is empty", async () => {
     const ex = fakeExchange({
       id: "bybit",
       fetchBalance: vi.fn(async (params?: { type?: string }) =>
@@ -38,28 +38,28 @@ describe("ExchangeBalance", () => {
     const r = await balanceTool.execute({}, ctx([TESTNET]));
     expect(ex.fetchBalance).toHaveBeenCalledWith({ type: "funding" });
     expect(r.output).toBe(
-      ["Bybit-test · spot", "Aucun solde.", "Portefeuille Funding (hors trading) : USDC : 40 (libre 40) ≈ 40 USD", "Ces fonds ne sont pas utilisables pour trader tant qu'ils ne sont pas transférés vers le compte de trading (Transfer, from: funding)."].join("\n"),
+      ["Bybit-test · spot", "No balance.", "Funding wallet (outside trading): USDC: 40 (free 40) ≈ 40 USD", "These funds cannot be used for trading until they are transferred to the trading account (Transfer, from: funding)."].join("\n"),
     );
   });
-  test("sans portefeuille Funding distinct (Kraken) : un seul appel", async () => {
+  test("without a separate Funding wallet (Kraken): a single call", async () => {
     const ex = fakeExchange({ id: "kraken" });
     mocked.mockResolvedValue(ex);
     await balanceTool.execute({}, ctx([{ ...MAIN, exchange: "kraken", label: "Kraken-main" }]));
     expect(ex.fetchBalance).toHaveBeenCalledTimes(1);
   });
-  test("cle refusee : erreur en francais", async () => {
+  test("key refused: readable error", async () => {
     mocked.mockResolvedValue(fakeExchange({ fetchBalance: vi.fn(async () => { throw ccxtError("AuthenticationError", "bad key"); }) }));
     const r = await balanceTool.execute({}, ctx());
     expect(r.ok).toBe(false);
-    expect(r.output).toBe("Clé API refusée : vérifiez le compte dans Authentification (bouton Tester). Exchange : bad key");
+    expect(r.output).toBe("API key refused: check the account in Authentication (Test button). Exchange: bad key");
   });
-  test("deux comptes sans `account` : erreur, sans appel", async () => {
+  test("two accounts without `account`: error, no call", async () => {
     const r = await balanceTool.execute({}, ctx([MAIN, TESTNET]));
     expect(r.ok).toBe(false);
-    expect(r.output).toBe("Plusieurs comptes : précise `account` parmi Binance-main, Bybit-test.");
+    expect(r.output).toBe("Several accounts: specify `account` among Binance-main, Bybit-test.");
     expect(mocked).not.toHaveBeenCalled();
   });
-  test("le marche futures ouvre un client futures", async () => {
+  test("the futures market opens a futures client", async () => {
     mocked.mockResolvedValue(fakeExchange());
     await balanceTool.execute({ market: "futures" }, ctx());
     expect(mocked).toHaveBeenCalledWith(MAIN, "futures");
@@ -67,7 +67,7 @@ describe("ExchangeBalance", () => {
 });
 
 describe("ExchangePositions", () => {
-  test("toujours en futures, filtre par symbole normalise", async () => {
+  test("always on futures, filtered by normalized symbol", async () => {
     const ex = fakeExchange({
       fetchPositions: vi.fn(async () => [{ symbol: "BTC/USDT:USDT", side: "long", contracts: 0.05, contractSize: 1, entryPrice: 65000, markPrice: 67000, unrealizedPnl: 100, percentage: 3.08, leverage: 5, liquidationPrice: 52000, marginMode: "isolated" }]),
     });
@@ -75,31 +75,31 @@ describe("ExchangePositions", () => {
     const r = await positionsTool.execute({ symbol: "btc/usdt" }, ctx());
     expect(mocked).toHaveBeenCalledWith(MAIN, "futures");
     expect(ex.fetchPositions).toHaveBeenCalledWith(["BTC/USDT:USDT"]);
-    expect(r.output).toBe("BTC/USDT:USDT · LONG 0.05 · entrée 65000 · mark 67000 · PnL +100 (+3.08 %) · ×5 isolated · liquidation 52000 (−22.39 %)");
+    expect(r.output).toBe("BTC/USDT:USDT · LONG 0.05 · entry 65000 · mark 67000 · PnL +100 (+3.08 %) · ×5 isolated · liquidation 52000 (−22.39 %)");
   });
-  test("aucune position", async () => {
+  test("no position", async () => {
     mocked.mockResolvedValue(fakeExchange());
-    expect((await positionsTool.execute({}, ctx())).output).toBe("Aucune position ouverte.");
+    expect((await positionsTool.execute({}, ctx())).output).toBe("No open position.");
   });
-  test("marche inconnu", async () => {
+  test("unknown market", async () => {
     mocked.mockResolvedValue(fakeExchange());
     const r = await positionsTool.execute({ symbol: "XYZ/USDT" }, ctx());
     expect(r.ok).toBe(false);
-    expect(r.output).toBe("Marché inconnu sur binance : XYZ/USDT:USDT.");
+    expect(r.output).toBe("Unknown market on binance: XYZ/USDT:USDT.");
   });
 });
 
 describe("ExchangeOrders", () => {
-  test("ordres ouverts", async () => {
+  test("open orders", async () => {
     const ex = fakeExchange({
       fetchOpenOrders: vi.fn(async () => [{ id: "123", symbol: "BTC/USDT", type: "limit", side: "buy", price: 60000, amount: 0.1, filled: 0.04, status: "open", timestamp: 1700000000000, fee: { cost: 0.12, currency: "USDT" } }]),
     });
     mocked.mockResolvedValue(ex);
     const r = await ordersTool.execute({ status: "open", symbol: "BTC/USDT", since: "2023-11-01T00:00:00Z", limit: 10 }, ctx());
     expect(ex.fetchOpenOrders).toHaveBeenCalledWith("BTC/USDT", Date.parse("2023-11-01T00:00:00Z"), 10);
-    expect(r.output).toBe("2023-11-14T22:13:20Z · #123 · BTC/USDT · BUY limit 0.1 @ 60000 · rempli 0.04 · open · frais 0.12 USDT");
+    expect(r.output).toBe("2023-11-14T22:13:20Z · #123 · BTC/USDT · BUY limit 0.1 @ 60000 · filled 0.04 · open · fee 0.12 USDT");
   });
-  test("ordres clos : repli sur fetchOrders quand l'exchange n'a pas fetchClosedOrders", async () => {
+  test("closed orders: falls back on fetchOrders when the exchange has no fetchClosedOrders", async () => {
     const ex = fakeExchange({
       has: { fetchClosedOrders: false },
       fetchOrders: vi.fn(async () => [{ id: "1", symbol: "BTC/USDT", type: "market", side: "sell", amount: 1, status: "closed", timestamp: 1700000000000 }, { id: "2", symbol: "BTC/USDT", type: "limit", side: "buy", amount: 1, status: "open" }]),
@@ -108,14 +108,14 @@ describe("ExchangeOrders", () => {
     const r = await ordersTool.execute({ status: "closed" }, ctx());
     expect(r.output).toBe("2023-11-14T22:13:20Z · #1 · BTC/USDT · SELL market 1 · closed");
   });
-  test("aucun ordre", async () => {
+  test("no order", async () => {
     mocked.mockResolvedValue(fakeExchange());
-    expect((await ordersTool.execute({ status: "open" }, ctx())).output).toBe("Aucun ordre.");
+    expect((await ordersTool.execute({ status: "open" }, ctx())).output).toBe("No order.");
   });
 });
 
 describe("ExchangeTicker", () => {
-  test("futures : ticker, carnet, funding", async () => {
+  test("futures: ticker, order book, funding", async () => {
     const ex = fakeExchange({
       fetchTicker: vi.fn(async () => ({ symbol: "BTC/USDT:USDT", last: 67000, bid: 66999, ask: 67001, baseVolume: 12345.6, percentage: 1.2 })),
       fetchOrderBook: vi.fn(async () => ({ bids: [[66999, 1.5], [66998, 2]], asks: [[67001, 0.8], [67002, 1]] })),
@@ -124,9 +124,9 @@ describe("ExchangeTicker", () => {
     mocked.mockResolvedValue(ex);
     const r = await tickerTool.execute({ symbol: "BTC/USDT", market: "futures", depth: 1 }, ctx());
     expect(ex.fetchOrderBook).toHaveBeenCalledWith("BTC/USDT:USDT", 20);
-    expect(r.output).toBe(["BTC/USDT:USDT · last 67000 · bid 66999 / ask 67001 · 24 h +1.2 % · volume 12345.6", "Funding 0.01 % · prochain 2023-11-14T22:13:20Z", "Carnet :", "  ask 67001 × 0.8", "  bid 66999 × 1.5"].join("\n"));
+    expect(r.output).toBe(["BTC/USDT:USDT · last 67000 · bid 66999 / ask 67001 · 24 h +1.2 % · volume 12345.6", "Funding 0.01 % · next 2023-11-14T22:13:20Z", "Order book:", "  ask 67001 × 0.8", "  bid 66999 × 1.5"].join("\n"));
   });
-  test("spot sans carnet : une ligne ; un carnet qui echoue n'empeche rien", async () => {
+  test("spot without order book: one line; a failing order book blocks nothing", async () => {
     const ex = fakeExchange({ fetchTicker: vi.fn(async () => ({ symbol: "BTC/USDT", last: 50000 })), fetchOrderBook: vi.fn(async () => { throw ccxtError("NetworkError"); }) });
 
     mocked.mockResolvedValue(ex);

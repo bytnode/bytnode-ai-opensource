@@ -5,12 +5,12 @@ import { findBash } from "./shells";
 import { findOutsideReferences, outsideMessage } from "./guard";
 
 /* ---------------------------------------------------------------------------
-   Monitor : surveiller une commande, ou un WebSocket, ligne a ligne.
+   Monitor: watch a command, or a WebSocket, line by line.
 
-   Chaque ligne est envoyee a l'ecran au moment ou elle sort (evenement
-   `tool_line`), et l'outil rend la main au modele quand un motif `until`
-   apparait, quand le processus se termine, ou au bout du temps limite.
-   C'est une surveillance BORNEE : rien ne survit au tour.
+   Every line is sent to the screen the moment it comes out (`tool_line`
+   event), and the tool hands control back to the model when an `until`
+   pattern appears, when the process ends, or when the time limit is
+   reached. It is a BOUNDED watch: nothing survives the turn.
 --------------------------------------------------------------------------- */
 
 type Args = { command?: string; url?: string; until?: string; timeout?: number; description?: string };
@@ -22,15 +22,15 @@ const MAX_LINES = 500;
 export const monitorTool: Tool<Args> = {
   name: "Monitor",
   description:
-    "Surveille une commande (`command`) ou un WebSocket (`url` ws:// ou wss://) et rend chaque ligne ou message reçu. S'arrête quand une ligne correspond à `until` (expression régulière), quand le processus se termine, ou après `timeout` ms (défaut 60000, max 600000). Utile pour attendre qu'un serveur soit prêt, qu'un build finisse, ou observer un flux.",
+    "Watches a command (`command`) or a WebSocket (`url` ws:// or wss://) and returns every line or message received. Stops when a line matches `until` (regular expression), when the process ends, or after `timeout` ms (default 60000, max 600000). Useful to wait for a server to be ready, for a build to finish, or to observe a stream.",
   parameters: {
     type: "object",
     properties: {
-      command: { type: "string", description: "Commande shell à surveiller (bash)." },
-      url: { type: "string", description: "Adresse WebSocket à écouter (à la place de command)." },
-      until: { type: "string", description: "Motif qui met fin à la surveillance." },
-      timeout: { type: "integer", description: "Temps limite en millisecondes." },
-      description: { type: "string", description: "Ce qu'on attend, en quelques mots." },
+      command: { type: "string", description: "Shell command to watch (bash)." },
+      url: { type: "string", description: "WebSocket address to listen to (instead of command)." },
+      until: { type: "string", description: "Pattern that ends the watch." },
+      timeout: { type: "integer", description: "Time limit in milliseconds." },
+      description: { type: "string", description: "What is being waited for, in a few words." },
     },
     additionalProperties: false,
   },
@@ -41,7 +41,7 @@ export const monitorTool: Tool<Args> = {
       try {
         until = new RegExp(args.until);
       } catch (e) {
-        return fail(`Motif until invalide : ${errorText(e)}`);
+        return fail(`Invalid until pattern: ${errorText(e)}`);
       }
     }
     const lines: string[] = [];
@@ -51,14 +51,14 @@ export const monitorTool: Tool<Args> = {
     };
 
     if (args.url) return watchSocket(args.url, until, timeoutMs, ctx.signal, push, lines);
-    if (!args.command) return fail("Donnez `command` ou `url`.");
+    if (!args.command) return fail("Give `command` or `url`.");
     if (ctx.scope === "workspace") {
       const refs = findOutsideReferences(args.command, ctx.workspace);
       if (refs.length) return fail(outsideMessage(refs));
     }
 
     const bash = findBash();
-    if (!bash) return fail("Aucun bash trouvé sur cette machine.");
+    if (!bash) return fail("No bash found on this machine.");
     try {
       const r = await run(bash, ["-lc", args.command], {
         cwd: ctx.workspace,
@@ -70,7 +70,7 @@ export const monitorTool: Tool<Args> = {
       });
       return ok(describeRun({ ...r, stdout: lines.join("\n"), stderr: "" }, "Monitor"));
     } catch (e) {
-      return fail(`Monitor a échoué : ${errorText(e)}`);
+      return fail(`Monitor failed: ${errorText(e)}`);
     }
   },
 };
@@ -89,7 +89,7 @@ function watchSocket(
     try {
       ws = new WebSocket(url);
     } catch (e) {
-      resolve(fail(`Connexion impossible à ${url} : ${errorText(e)}`));
+      resolve(fail(`Could not connect to ${url}: ${errorText(e)}`));
       return;
     }
     let settled = false;
@@ -101,20 +101,20 @@ function watchSocket(
       try {
         ws.close();
       } catch {
-        /* deja fermee */
+        /* already closed */
       }
-      const body = `${lines.join("\n")}\n[WebSocket ${url} ${status} en ${((Date.now() - started) / 1000).toFixed(1)} s, ${lines.length} message${lines.length > 1 ? "s" : ""}]`;
+      const body = `${lines.join("\n")}\n[WebSocket ${url} ${status} in ${((Date.now() - started) / 1000).toFixed(1)} s, ${lines.length} message${lines.length > 1 ? "s" : ""}]`;
       resolve(failed ? fail(body) : ok(body));
     };
-    const timer = setTimeout(() => finish("arrêté : temps limite dépassé"), timeoutMs);
-    const onAbort = () => finish("interrompu");
+    const timer = setTimeout(() => finish("stopped: time limit exceeded"), timeoutMs);
+    const onAbort = () => finish("interrupted");
     signal.addEventListener("abort", onAbort, { once: true });
     ws.onmessage = (ev) => {
-      const text = typeof ev.data === "string" ? ev.data : "[message binaire]";
+      const text = typeof ev.data === "string" ? ev.data : "[binary message]";
       push(text);
-      if (until?.test(text)) finish("arrêté : motif rencontré");
+      if (until?.test(text)) finish("stopped: pattern matched");
     };
-    ws.onerror = () => finish("en erreur", true);
-    ws.onclose = () => finish("fermé par le serveur");
+    ws.onerror = () => finish("in error", true);
+    ws.onclose = () => finish("closed by the server");
   });
 }

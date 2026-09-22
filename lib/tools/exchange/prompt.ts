@@ -2,62 +2,63 @@ import type { ExchangeAccount } from "@/lib/domain/types";
 import { anyLive, describeAccounts } from "./accounts";
 import { exchangeInfo } from "./catalog";
 
-/* La section du prompt qui presente les comptes exchange de l'agent et la
-   discipline qui va avec. Partagee : agents OpenRouter (`tools-prompt.ts`)
-   et agents par abonnement (`lib/acp/prompt.ts`). Vide sans compte. Pur. */
+/* The prompt section that presents the agent's exchange accounts and the
+   discipline that goes with them. Shared: OpenRouter agents
+   (`tools-prompt.ts`) and subscription agents (`lib/acp/prompt.ts`). Empty
+   without an account. Pure. */
 
 export function exchangePromptSection(
   accounts: ExchangeAccount[] | undefined,
   via: "natif" | "mcp",
   unattached = 0,
-  /** Un sous-agent : les cinq outils de lecture seulement, rien qui agit. */
+  /** A sub-agent: the five read-only tools only, nothing that acts. */
   readOnly = false,
 ): string[] {
-  /* Des comptes existent mais aucun n'est rattache a cet agent : qu'il le
-     dise, au lieu de chercher une cle dans le dossier ou d'ecrire un
-     script — il n'a AUCUN outil exchange, et c'est un choix de
-     l'utilisateur, reversible dans les reglages. */
+  /* Accounts exist but none is attached to this agent: let it say so,
+     instead of looking for a key in the folder or writing a script — it
+     has NO exchange tool, and that is the user's choice, reversible in the
+     settings. */
   if (!accounts?.length) {
     if (unattached <= 0) return [];
     return [
       "",
-      "## Comptes exchange",
+      "## Exchange accounts",
       "",
-      `L'utilisateur a configuré ${unattached} compte${unattached > 1 ? "s" : ""} exchange dans BytNode-AI, mais aucun n'est rattaché à toi : tu n'as pas d'outil exchange dans cette conversation. S'il te demande de lire ou d'agir sur un compte, réponds qu'il doit cocher le compte dans Réglages → Agents → Modifier → « Comptes exchange », puis renvoyer son message. Ne cherche pas de clé dans le dossier de travail, n'écris pas de script d'accès à l'exchange, ne demande jamais de clé dans la conversation.`,
+      `The user has configured ${unattached} exchange account${unattached > 1 ? "s" : ""} in BytNode-AI, but none is attached to you: you have no exchange tool in this conversation. If they ask you to read or act on an account, answer that they must tick the account in Settings → Agents → Edit → "Exchange accounts", then send their message again. Do not look for a key in the workspace, do not write a script to access the exchange, never ask for a key in the conversation.`,
     ];
   }
   if (readOnly) {
     return [
       "",
-      "## Comptes exchange (lecture seule)",
+      "## Exchange accounts (read-only)",
       "",
-      `Tu peux lire ${accounts.length > 1 ? "ces comptes" : "ce compte"} : ${describeAccounts(accounts)}.`,
-      `Outils${via === "mcp" ? " (serveur MCP `bytnode-ai`)" : ""} : ExchangeBalance, ExchangePositions, ExchangeOrders, ExchangeTicker, ExchangeWatch. Aucun outil d'action : tu n'as ni ordre, ni fermeture, ni transfert — tu rapportes ce que tu observes et recommandes.`,
-      "- S'il y a plusieurs comptes, nomme toujours `account`. Précise `market: futures` pour les perpétuels.",
-      "- ExchangeWatch est borné à 10 minutes, relance-le si besoin.",
+      `You can read ${accounts.length > 1 ? "these accounts" : "this account"}: ${describeAccounts(accounts)}.`,
+      `Tools${via === "mcp" ? " (MCP server `bytnode-ai`)" : ""}: ExchangeBalance, ExchangePositions, ExchangeOrders, ExchangeTicker, ExchangeWatch. No action tool: you have no order, no close, no transfer — you report what you observe and recommend.`,
+      "- If there are several accounts, always name `account`. Specify `market: futures` for perpetuals.",
+      "- ExchangeWatch is bounded to 10 minutes, run it again if needed.",
     ];
   }
   const lines = [
     "",
-    "## Comptes exchange",
+    "## Exchange accounts",
     "",
-    `Tu peux agir sur ${accounts.length > 1 ? "ces comptes" : "ce compte"} : ${describeAccounts(accounts)}.${anyLive(accounts) ? " ⚠️ Les comptes marqués RÉEL engagent de l'argent réel." : ""}`,
+    `You can act on ${accounts.length > 1 ? "these accounts" : "this account"}: ${describeAccounts(accounts)}.${anyLive(accounts) ? " ⚠️ Accounts marked LIVE put real money at stake." : ""}`,
     via === "mcp"
-      ? "Les outils viennent du serveur MCP `bytnode-ai` : ExchangeBalance, ExchangePositions, ExchangeOrders, ExchangeTicker, ExchangeWatch (lecture), PlaceOrder, CancelOrder, ClosePosition, Transfer, SetLeverage (action)."
-      : "Outils : ExchangeBalance, ExchangePositions, ExchangeOrders, ExchangeTicker, ExchangeWatch (lecture, sans permission) ; PlaceOrder, CancelOrder, ClosePosition, Transfer, SetLeverage (action, avec permission).",
+      ? "The tools come from the MCP server `bytnode-ai`: ExchangeBalance, ExchangePositions, ExchangeOrders, ExchangeTicker, ExchangeWatch (read), PlaceOrder, CancelOrder, ClosePosition, Transfer, SetLeverage (action)."
+      : "Tools: ExchangeBalance, ExchangePositions, ExchangeOrders, ExchangeTicker, ExchangeWatch (read, no permission); PlaceOrder, CancelOrder, ClosePosition, Transfer, SetLeverage (action, with permission).",
     ...limitsOf(accounts),
-    "Discipline :",
-    "- Avant un ordre : ExchangeBalance puis ExchangeTicker sur l'exchange du compte ; calcule la quantité en actif de base, ou donne `quoteAmount`.",
-    "- Un ordre, une fermeture ou un transfert demande TOUJOURS l'accord de l'utilisateur : attends le résultat, ne les enchaîne pas à l'aveugle. Après un ordre, confirme avec ExchangeOrders.",
-    "- S'il y a plusieurs comptes, nomme toujours `account`. Précise `market: futures` pour les perpétuels.",
-    "- Aucun retrait vers une adresse externe n'existe ; Transfer ne bouge que les portefeuilles d'un même compte (spot ↔ futures, et funding → trading là où les dépôts arrivent dans un portefeuille Funding : Bybit, OKX, KuCoin, Binance). Si ExchangeBalance signale des fonds en Funding, propose ce transfert avant tout ordre.",
-    "- Pour suivre une position dans le temps, ExchangeWatch avec une condition `until` ; il est borné à 10 minutes, relance-le si besoin.",
-    "- Charge la compétence `trading-execution` avant de passer un ordre, `trade-review` pour analyser des positions ou un historique.",
+    "Discipline:",
+    "- Before an order: ExchangeBalance then ExchangeTicker on the account's exchange; compute the quantity in base asset, or give `quoteAmount`.",
+    "- An order, a close or a transfer ALWAYS requires the user's consent: wait for the result, do not chain them blindly. After an order, confirm with ExchangeOrders.",
+    "- If there are several accounts, always name `account`. Specify `market: futures` for perpetuals.",
+    "- No withdrawal to an external address exists; Transfer only moves between the wallets of a single account (spot ↔ futures, and funding → trading where deposits land in a Funding wallet: Bybit, OKX, KuCoin, Binance). If ExchangeBalance reports funds in Funding, propose that transfer before any order.",
+    "- To follow a position over time, ExchangeWatch with an `until` condition; it is bounded to 10 minutes, run it again if needed.",
+    "- Load the `trading-execution` skill before placing an order, `trade-review` to analyze positions or a history.",
   ];
   return lines;
 }
 
-/** Ce que chaque exchange present ne permet pas, une ligne par exchange. */
+/** What each exchange present does not allow, one line per exchange. */
 function limitsOf(accounts: ExchangeAccount[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -66,10 +67,10 @@ function limitsOf(accounts: ExchangeAccount[]): string[] {
     if (!info || seen.has(info.id)) continue;
     seen.add(info.id);
     const limits = [
-      info.futures === "none" ? "spot seulement" : info.futures === "read" ? "futures en lecture seule (pas d'ordre)" : null,
-      !info.transfer ? "pas de Transfer" : null,
+      info.futures === "none" ? "spot only" : info.futures === "read" ? "futures read-only (no orders)" : null,
+      !info.transfer ? "no Transfer" : null,
     ].filter(Boolean);
-    if (limits.length) out.push(`- ${info.label} : ${limits.join(", ")}.${info.note ? ` ${info.note}` : ""}`);
+    if (limits.length) out.push(`- ${info.label}: ${limits.join(", ")}.${info.note ? ` ${info.note}` : ""}`);
   }
-  return out.length ? ["Limites :", ...out] : [];
+  return out.length ? ["Limits:", ...out] : [];
 }

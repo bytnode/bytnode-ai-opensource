@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 
-/* Un executable deja present sur la machine : parcours du PATH, avec les
-   extensions de PATHEXT sous Windows (`gemini.cmd` pose par `npm i -g`).
-   Tout est injectable pour les tests ; rien n'est lance. */
+/* An executable already present on the machine: walk the PATH, with the
+   PATHEXT extensions on Windows (`gemini.cmd` put there by `npm i -g`).
+   Everything is injectable for the tests; nothing is launched. */
 
 type Options = { env?: Record<string, string | undefined>; platform?: NodeJS.Platform; exists?: (p: string) => boolean };
 

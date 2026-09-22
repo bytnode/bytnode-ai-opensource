@@ -7,8 +7,8 @@ import type { ExchangeAccount } from "@/lib/domain/types";
 import { encodeAccountsHeader } from "./exchange/accounts";
 
 /* ---------------------------------------------------------------------------
-   Les outils, vus du navigateur : leurs specifications d'un cote, leur
-   execution de l'autre — les deux par les routes du serveur.
+   The tools, seen from the browser: their specifications on one side, their
+   execution on the other — both through the server's routes.
 --------------------------------------------------------------------------- */
 
 export type Toolset = {
@@ -37,7 +37,7 @@ export async function fetchToolset(
     `/api/tools?agentId=${encodeURIComponent(agentId)}&workspace=${encodeURIComponent(workspace)}&profession=${encodeURIComponent(profession)}`,
     { headers: { ...(bytnodeKey ? { "x-bytnode-key": bytnodeKey } : {}), ...exchangeHeader(exchangeAccounts) } },
   );
-  if (!res.ok) throw new Error("Impossible de charger les outils.");
+  if (!res.ok) throw new Error("Could not load the tools.");
   const set = (await res.json()) as Toolset;
   cache.set(key, set);
   return set;
@@ -55,11 +55,11 @@ export type ExecuteParams = {
   exchangeAccounts: ExchangeAccount[];
 };
 
-/** Les comptes exchange de l'agent, en en-tete — rien si aucun. */
+/** The agent's exchange accounts, as a header — nothing when there are none. */
 const exchangeHeader = (accounts: ExchangeAccount[]): Record<string, string> =>
   accounts.length ? { "x-exchange-accounts": encodeAccountsHeader(accounts) } : {};
 
-/** Execute un outil sur le serveur et relaie ce qu'il raconte en chemin. */
+/** Executes a tool on the server and relays what it reports along the way. */
 export async function executeTool(call: ToolCall, p: ExecuteParams, signal: AbortSignal, emit: (e: AgentEvent) => void): Promise<ToolResult> {
   const res = await fetch("/api/tools/execute", {
     method: "POST",
@@ -78,12 +78,12 @@ export async function executeTool(call: ToolCall, p: ExecuteParams, signal: Abor
     signal,
   });
   if (!res.ok || !res.body) {
-    let message = `Le serveur a répondu ${res.status}.`;
+    let message = `The server answered ${res.status}.`;
     try {
       const json = (await res.json()) as { error?: { message?: string } };
       if (json.error?.message) message = json.error.message;
     } catch {
-      /* corps non JSON */
+      /* non-JSON body */
     }
     return { ok: false, output: message };
   }
@@ -110,5 +110,5 @@ export async function executeTool(call: ToolCall, p: ExecuteParams, signal: Abor
       else emit(obj);
     }
   }
-  return result ?? { ok: false, output: "L'outil s'est arrêté sans répondre." };
+  return result ?? { ok: false, output: "The tool stopped without answering." };
 }

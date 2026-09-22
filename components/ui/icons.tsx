@@ -1,7 +1,7 @@
 import type { SVGProps } from "react";
 
-/* Un jeu de pictogrammes au trait, tous sur la meme grille 24 : ils heritent
-   la couleur du texte et l'epaisseur du trait est fixee par le parent. */
+/* A set of line icons, all on the same 24 grid: they inherit the text
+   colour and the stroke width is set by the parent. */
 
 type P = SVGProps<SVGSVGElement>;
 

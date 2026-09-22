@@ -1,68 +1,68 @@
 import type { Step, UsageInfo } from "./events";
 
 /* ---------------------------------------------------------------------------
-   Ce qu'un tour a consomme, et ou en est la fenetre de contexte.
+   What a turn consumed, and where the context window stands.
 
-   ⚠️ CETTE INFORMATION ARRIVE DEJA, ELLE ETAIT JETEE. OpenRouter met le
-   decompte de jetons et le prix dans le dernier morceau du flux ; un agent
-   par abonnement envoie des `usage_update` avec le contexte occupe, la
-   taille de sa fenetre et le cout. Sans affichage, l'utilisateur ne sait ni
-   ce qu'il depense, ni quand compacter — il decouvre le mur.
+   ⚠️ THIS INFORMATION WAS ALREADY ARRIVING, IT WAS BEING THROWN AWAY.
+   OpenRouter puts the token count and the price in the last chunk of the
+   stream; a subscription agent sends `usage_update`s with the context
+   used, the size of its window and the cost. Without a display, the user
+   knows neither what they spend, nor when to compact — they hit the wall.
 
-   Pur : la mise en forme et les seuils, testes. Le fil s'en sert pour la
-   jauge en bas a droite.
+   Pure: the formatting and the thresholds, tested. The thread uses it for
+   the meter at the bottom right.
 --------------------------------------------------------------------------- */
 
-/** Un ordre de grandeur, quand le vrai decompte n'est pas encore arrive :
-    ~3,6 caracteres par jeton en français (un peu moins qu'en anglais). */
+/** An order of magnitude, when the real count has not arrived yet:
+    ~3.6 characters per token in French (a little less than in English). */
 export const estimateTokens = (text: string) => Math.round(text.length / 3.6);
 
-/** Le dernier decompte connu, champ par champ. `addCost` cumule le prix des
-    tours successifs au lieu de le remplacer. */
+/** The last known count, field by field. `addCost` accumulates the price
+    of successive turns instead of replacing it. */
 export function mergeUsage(prev: UsageInfo | undefined, next: UsageInfo, opts: { addCost?: boolean } = {}): UsageInfo {
   const out: UsageInfo = { ...prev, ...next };
   if (opts.addCost && typeof prev?.cost === "number" && typeof next.cost === "number") out.cost = prev.cost + next.cost;
   return out;
 }
 
-/** Le poids du prompt systeme, des specifications d'outils et de la liste
-    des competences : ce qui part a chaque tour AVANT les messages. Mesure
-    sur notre jeu d'outils (~8 900 jetons d'entree pour une conversation
-    vide) ; c'est un ordre de grandeur, affiche avec un `~`. */
+/** The weight of the system prompt, the tool specifications and the skill
+    list: what goes out at every turn BEFORE the messages. Measured on our
+    tool set (~8,900 input tokens for an empty conversation); it is an
+    order of magnitude, displayed with a `~`. */
 export const PROMPT_OVERHEAD = 8_500;
 
-/** Le contexte estime : ce que pese le fil, plus l'ossature. Sert tant
-    qu'aucun decompte exact n'est arrive, et pendant qu'une reponse
-    s'ecrit. */
+/** The estimated context: what the thread weighs, plus the skeleton. Used
+    as long as no exact count has arrived, and while a reply is being
+    written. */
 export function contextEstimate(messages: Array<{ content: string; steps?: Step[] }>, overhead = PROMPT_OVERHEAD): number {
   return overhead + messages.reduce((n, m) => n + estimateTokens(replayedText(m)), 0);
 }
 
-/** Ce qui repart au modele d'un message : son texte, et les sorties de ses
-    outils (rejouees par `history.ts`) — pas le raisonnement ni le plan. */
+/** What goes back to the model from a message: its text, and its tools'
+    outputs (replayed by `history.ts`) — not the reasoning nor the plan. */
 function replayedText(m: { content: string; steps?: Step[] }): string {
   if (!m.steps?.length) return m.content;
   return m.steps.map((s) => (s.type === "tool" ? `${JSON.stringify(s.args)}${s.output ?? ""}` : s.type === "text" ? s.text : "")).join("");
 }
 
 export type UsageState = {
-  /** Jetons occupes par le fil, tel qu'il repartira au prochain tour. */
+  /** Tokens used by the thread, as it will go out at the next turn. */
   context: number | null;
   window: number | null;
-  /** Part de la fenetre occupee, entre 0 et 1. */
+  /** Share of the window used, between 0 and 1. */
   part: number | null;
   level: "ok" | "warn" | "full";
   cost: number | null;
   provider: string | null;
-  /** Le contexte affiche est une estimation, pas un decompte du service. */
+  /** The displayed context is an estimate, not a count from the service. */
   estimated: boolean;
 };
 
 const WARN = 0.7;
 const FULL = 0.9;
 
-/** L'etat de la jauge. `windowFallback` vient du catalogue (longueur de
-    contexte du modele) quand l'agent ne l'annonce pas lui-meme. */
+/** The meter's state. `windowFallback` comes from the catalog (the model's
+    context length) when the agent does not announce it itself. */
 export function usageState(usage: UsageInfo | undefined, windowFallback: number | null, estimate?: number | null): UsageState {
   const exact =
     typeof usage?.context === "number"
@@ -84,24 +84,24 @@ export function usageState(usage: UsageInfo | undefined, windowFallback: number 
   };
 }
 
-/** Jetons par seconde. `null` tant que la mesure n'est pas significative :
-    en dessous d'un cinquieme de seconde, le chiffre danse. */
+/** Tokens per second. `null` as long as the measure is not meaningful:
+    under a fifth of a second, the figure jumps around. */
 export function rate(tokens: number, elapsedMs: number): number | null {
   if (elapsedMs < 200) return null;
   return Math.round((tokens / elapsedMs) * 1000);
 }
 
 export function fmtTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(".", ",")}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(".", ",")}k`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
   return String(Math.round(n));
 }
 
-/** Le prix, ou `null` s'il n'y a rien a dire : un « 0,00 $ » laisse croire
-    que c'est gratuit. */
+/** The price, or `null` if there is nothing to say: a « $0.00 » suggests
+    it is free. */
 export function fmtCost(cost: number | null | undefined): string | null {
   if (typeof cost !== "number" || cost <= 0) return null;
-  if (cost < 0.001) return "< 0,001 $";
-  if (cost < 1) return `${cost.toFixed(3).replace(".", ",")} $`;
-  return `${cost.toFixed(2).replace(".", ",")} $`;
+  if (cost < 0.001) return "< $0.001";
+  if (cost < 1) return `$${cost.toFixed(3)}`;
+  return `$${cost.toFixed(2)}`;
 }

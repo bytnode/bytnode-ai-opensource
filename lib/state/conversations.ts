@@ -10,8 +10,8 @@ const repo = new ConversationsRepository(new BrowserStorage());
 
 const store = createStore<Conversation[]>([], () => repo.list());
 
-/** Vrai quand la derniere sauvegarde n'a pas tenu dans le stockage : le fil
-    affiche ce qui s'est passe, mais un rechargement le perdrait. */
+/** True when the last save did not fit in storage: the thread shows what
+    happened, but a reload would lose it. */
 const full = createStore<boolean>(false);
 
 export function useConversations(): Conversation[] {
@@ -29,8 +29,8 @@ export function saveConversation(conversation: Conversation) {
     store.set(repo.list());
   } catch (e) {
     if (!(e instanceof StorageFullError)) throw e;
-    /* Pas ecrit, mais pas perdu a l'ecran : la liste en memoire prend la
-       conversation telle quelle, et le fil previent. */
+    /* Not written, but not lost on screen: the in-memory list takes the
+       conversation as is, and the thread gives notice. */
     full.set(true);
     store.set((list) => [conversation, ...list.filter((c) => c.id !== conversation.id)].sort((a, b) => b.updatedAt - a.updatedAt));
   }
@@ -48,16 +48,16 @@ export function removeConversation(id: string) {
   store.set(repo.list());
 }
 
-/** Un agent supprime emporte ses conversations : elles n'ont plus de
-    contexte ni de fournisseur pour continuer. */
+/** A removed agent takes its conversations with it: they no longer have a
+    context or a provider to continue with. */
 export function removeConversationsOfAgent(agentId: string) {
   for (const c of repo.list()) if (c.agentId === agentId) repo.remove(c.id);
   store.set(repo.list());
 }
 
-/** Remplace le dernier message d'une conversation (celui qui se remplit
-    pendant un flux) sans relire le depot a chaque delta : la persistance
-    n'a lieu qu'a la fin. */
+/** Replaces the last message of a conversation (the one filling up during a
+    stream) without re-reading the repository at every delta: persistence
+    only happens at the end. */
 export function patchLastMessage(id: string, patch: (m: Message) => Message) {
   store.set((list) =>
     list.map((c) => {

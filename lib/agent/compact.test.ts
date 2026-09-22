@@ -6,15 +6,15 @@ const user = (content: string): Message => ({ id: content, role: "user", content
 const agent = (content: string): Message => ({ id: content, role: "assistant", content, createdAt: 2 });
 
 describe("isCompactCommand", () => {
-  it("reconnait la commande, seule ou avec des consignes", () => {
+  it("recognises the command, alone or with instructions", () => {
     expect(isCompactCommand("/compact")).toEqual({ instructions: "" });
     expect(isCompactCommand("  /compact  ")).toEqual({ instructions: "" });
-    expect(isCompactCommand("/compact garde les niveaux de prix")).toEqual({ instructions: "garde les niveaux de prix" });
+    expect(isCompactCommand("/compact keep the price levels")).toEqual({ instructions: "keep the price levels" });
     expect(isCompactCommand("/COMPACT")).toEqual({ instructions: "" });
   });
 
-  it("ne se declenche pas sur du texte qui la mentionne", () => {
-    expect(isCompactCommand("explique-moi /compact")).toBeNull();
+  it("does not trigger on text that mentions it", () => {
+    expect(isCompactCommand("explain /compact to me")).toBeNull();
     expect(isCompactCommand("compact")).toBeNull();
     expect(isCompactCommand("/compacter")).toBeNull();
     expect(isCompactCommand("")).toBeNull();
@@ -22,61 +22,61 @@ describe("isCompactCommand", () => {
 });
 
 describe("buildCompactRequest", () => {
-  it("demande un resume structure", () => {
+  it("asks for a structured summary", () => {
     const r = buildCompactRequest("");
-    expect(r).toContain("résumé");
-    expect(r).toMatch(/décisions|Décisions/);
+    expect(r).toContain("summary");
+    expect(r).toMatch(/decisions|Decisions/);
   });
 
-  it("ajoute les consignes de l'utilisateur quand il y en a", () => {
-    expect(buildCompactRequest("garde les niveaux")).toContain("garde les niveaux");
-    expect(buildCompactRequest("")).not.toContain("Consigne");
+  it("adds the user's instructions when there are any", () => {
+    expect(buildCompactRequest("keep the levels")).toContain("keep the levels");
+    expect(buildCompactRequest("")).not.toContain("instruction for this summary");
   });
 });
 
 describe("transcriptOf", () => {
-  it("rend un fil lisible, roles nommes", () => {
+  it("renders a readable thread, roles named", () => {
     const t = transcriptOf([user("salut"), agent("bonjour")]);
-    expect(t).toBe("Utilisateur : salut\n\nAgent : bonjour");
+    expect(t).toBe("User: salut\n\nAgent: bonjour");
   });
 
-  it("saute les messages vides et borne la longueur", () => {
+  it("skips empty messages and bounds the length", () => {
     const long = [user("a".repeat(20_000)), agent("fin")];
     const t = transcriptOf(long, 500);
     expect(t.length).toBeLessThanOrEqual(520);
     expect(t.startsWith("[…]")).toBe(true);
     expect(t).toContain("fin");
-    expect(transcriptOf([user(""), agent("seul")])).toBe("Agent : seul");
+    expect(transcriptOf([user(""), agent("seul")])).toBe("Agent: seul");
   });
 
-  it("ignore un compactage en cours (resume partiel)", () => {
-    const t = transcriptOf([user("salut"), { ...agent("1. Demande…"), compacting: true }]);
-    expect(t).toBe("Utilisateur : salut");
+  it("ignores a compaction in progress (partial summary)", () => {
+    const t = transcriptOf([user("salut"), { ...agent("1. Request…"), compacting: true }]);
+    expect(t).toBe("User: salut");
   });
 });
 
 describe("compactionMessage", () => {
-  it("porte le marqueur et le resume", () => {
-    const m = compactionMessage("résumé du fil", "m1", 42);
-    expect(m).toMatchObject({ id: "m1", role: "assistant", content: "résumé du fil", compaction: true, createdAt: 42 });
-    expect(m.steps).toEqual([{ type: "text", text: "résumé du fil" }]);
+  it("carries the marker and the summary", () => {
+    const m = compactionMessage("thread summary", "m1", 42);
+    expect(m).toMatchObject({ id: "m1", role: "assistant", content: "thread summary", compaction: true, createdAt: 42 });
+    expect(m.steps).toEqual([{ type: "text", text: "thread summary" }]);
   });
 
-  it("retient qui a compacte, et le libelle suit", () => {
+  it("remembers who compacted, and the label follows", () => {
     expect(compactionMessage("r", "m", 1).compactedBy).toBe("user");
     expect(compactionMessage("r", "m", 1, "auto").compactedBy).toBe("auto");
-    expect(compactLabel(compactionMessage("r", "m", 1))).toBe("Conversation compactée");
-    expect(compactLabel(compactionMessage("r", "m", 1, "auto"))).toBe("Conversation compactée automatiquement — fenêtre pleine");
-    expect(compactLabel(compactionMessage("r", "m", 1, "overflow"))).toBe("Conversation compactée automatiquement — contexte dépassé");
+    expect(compactLabel(compactionMessage("r", "m", 1))).toBe("Conversation compacted");
+    expect(compactLabel(compactionMessage("r", "m", 1, "auto"))).toBe("Conversation compacted automatically — window full");
+    expect(compactLabel(compactionMessage("r", "m", 1, "overflow"))).toBe("Conversation compacted automatically — context exceeded");
   });
 });
 
-/* L'erreur « contexte depasse » n'est pas transitoire : relancer tel quel
-   echouerait pareil. Il faut la reconnaitre pour compacter puis rejouer. */
+/* The « context exceeded » error is not transient: retrying as is would
+   fail the same way. It has to be recognised so as to compact then replay. */
 describe("isContextOverflow", () => {
   const err = (message: string, status?: number) => Object.assign(new Error(message), status === undefined ? {} : { status });
 
-  it("reconnait les formulations des fournisseurs", () => {
+  it("recognises the providers' wordings", () => {
     expect(isContextOverflow(err("This endpoint's maximum context length is 128000 tokens. However, you requested about 131000 tokens", 400))).toBe(true);
     expect(isContextOverflow(err("prompt is too long: 213000 tokens > 200000 maximum", 400))).toBe(true);
     expect(isContextOverflow(err("This model's maximum context length is 8192 tokens", 400))).toBe(true);
@@ -84,15 +84,15 @@ describe("isContextOverflow", () => {
     expect(isContextOverflow(err("Request too large: too many tokens", 413))).toBe(true);
   });
 
-  it("ne confond pas un autre 400, une autre erreur, ni un arret volontaire", () => {
+  it("does not confuse another 400, another error, nor a deliberate stop", () => {
     expect(isContextOverflow(err("Invalid model id", 400))).toBe(false);
     expect(isContextOverflow(err("context length exceeded", 500))).toBe(false);
-    expect(isContextOverflow(err("Le fournisseur a répondu 400.", 400))).toBe(false);
-    expect(isContextOverflow(new DOMException("Interrompu", "AbortError"))).toBe(false);
+    expect(isContextOverflow(err("The provider answered 400.", 400))).toBe(false);
+    expect(isContextOverflow(new DOMException("Interrupted", "AbortError"))).toBe(false);
     expect(isContextOverflow(null)).toBe(false);
   });
 
-  it("accepte le message seul quand le statut manque", () => {
+  it("accepts the message alone when the status is missing", () => {
     expect(isContextOverflow(err("maximum context length is 32000 tokens"))).toBe(true);
   });
 });

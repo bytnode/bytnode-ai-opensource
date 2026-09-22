@@ -4,20 +4,20 @@ import type { Tool } from "../types";
 import { errorText, fail, ok } from "../types";
 import { OutsideWorkspaceError, displayPath, resolvePath } from "../paths";
 
-/* Write : creer un fichier, ou le remplacer entierement. Les dossiers
-   manquants sont crees. Pour changer une partie d'un fichier, c'est Edit. */
+/* Write: create a file, or replace it entirely. Missing folders are
+   created. To change part of a file, that is Edit. */
 
 type Args = { file_path: string; content: string };
 
 export const writeTool: Tool<Args> = {
   name: "Write",
   description:
-    "Crée un fichier ou remplace entièrement son contenu. Les dossiers intermédiaires sont créés. Pour une modification partielle, préférez Edit.",
+    "Creates a file or replaces its content entirely. Intermediate folders are created. For a partial change, prefer Edit.",
   parameters: {
     type: "object",
     properties: {
-      file_path: { type: "string", description: "Chemin du fichier (relatif au dossier de travail ou absolu)." },
-      content: { type: "string", description: "Le contenu complet du fichier." },
+      file_path: { type: "string", description: "Path of the file (relative to the workspace or absolute)." },
+      content: { type: "string", description: "The complete content of the file." },
     },
     required: ["file_path", "content"],
     additionalProperties: false,
@@ -41,9 +41,9 @@ export const writeTool: Tool<Args> = {
       await fs.mkdir(path.dirname(target), { recursive: true });
       await fs.writeFile(target, args.content, "utf8");
       const lines = args.content.split("\n").length;
-      return ok(`${shown} ${existed ? "remplacé" : "créé"} (${lines} ligne${lines > 1 ? "s" : ""}).`);
+      return ok(`${shown} ${existed ? "replaced" : "created"} (${lines} line${lines > 1 ? "s" : ""}).`);
     } catch (e) {
-      return fail(`Impossible d'écrire ${shown} : ${errorText(e)}`);
+      return fail(`Could not write ${shown}: ${errorText(e)}`);
     }
   },
 };

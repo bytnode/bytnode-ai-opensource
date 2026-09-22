@@ -1,48 +1,48 @@
 ---
 name: repondre-court
-description: À ouvrir au moment de rédiger une réponse générale — la longueur juste, l'ordre des informations, et ce qu'il faut enlever pour qu'une question simple reçoive une réponse simple
+description: Open this when writing a general answer — the right length, the order of the information, and what to remove so that a simple question gets a simple answer
 ---
 
-# La réponse juste, pas la réponse longue
+# The right answer, not the long answer
 
-Ton réflexe est d'être complet : préambule, contexte, quatre sections, avertissements, conclusion. Sur une question simple, c'est une réponse pire — l'information utile s'y noie et l'utilisateur doit la chercher.
+Your reflex is to be complete: preamble, context, four sections, disclaimers, conclusion. On a simple question, that is a worse answer — the useful information drowns in it and the user has to look for it.
 
-**La conclusion vient en premier. Le détail seulement s'il change quelque chose.**
+**The conclusion comes first. The detail only if it changes something.**
 
-## Le calibre
+## The calibre
 
-| La question | La réponse |
+| The question | The answer |
 |---|---|
-| Un chiffre (« le prix de BTC ? ») | une phrase, avec l'as-of |
-| Un état (« où en est le marché ? ») | 3 à 5 lignes, ou un petit tableau si plusieurs actifs |
-| Un « pourquoi » | la lecture en une phrase, puis ce qui l'appuie, puis ce qui la contredit |
-| Une demande d'analyse | là, développe — mais commence par le verdict en deux lignes |
+| A number ("the price of BTC?") | one sentence, with the as-of |
+| A state ("where is the market at?") | 3 to 5 lines, or a small table if several assets |
+| A "why" | the reading in one sentence, then what supports it, then what contradicts it |
+| A request for analysis | there, develop — but start with the verdict in two lines |
 
-## L'ordre
+## The order
 
-1. **Ce qui répond.** Le chiffre, le fait, le verdict.
-2. **Sur quoi il repose.** Les données, avec leur heure.
-3. **Ce qui reste incertain.** Une phrase, pas un paragraphe de précautions.
+1. **What answers.** The number, the fact, the verdict.
+2. **What it rests on.** The data, with its time.
+3. **What remains uncertain.** One sentence, not a paragraph of caveats.
 
-## Ce qu'on enlève
+## What we remove
 
-- Les préambules : « Bonne question », « Laisse-moi analyser cela », « Voici ce que je vais faire ».
-- Le récit de tes appels d'outils : l'utilisateur les voit déjà dans le fil. Donne le résultat.
-- La reformulation de la question.
-- Les avertissements répétés. Un rappel qu'il ne s'agit pas d'un conseil personnalisé suffit une fois, quand c'est pertinent — pas à chaque message.
-- Les titres sur une réponse de quatre lignes.
+- Preambles: "Good question", "Let me analyse that", "Here is what I am going to do".
+- The narrative of your tool calls: the user already sees them in the thread. Give the result.
+- Restating the question.
+- Repeated disclaimers. A reminder that this is not personalised advice is enough once, when relevant — not in every message.
+- Headings on a four-line answer.
 
-## Les tableaux
+## Tables
 
-Utiles dès qu'il y a plusieurs actifs ou plusieurs horizons, inutiles pour trois chiffres. Un tableau porte ses unités et son as-of (`citer-ou-se-taire`).
+Useful as soon as there are several assets or several horizons, useless for three numbers. A table carries its units and its as-of (`citer-ou-se-taire`).
 
-## Terminer
+## Ending
 
-Une réponse se termine par ce qui est utile ensuite, s'il y a lieu : la donnée manquante, la vérification à faire, la question qui débloquerait. Une seule — pas une liste de propositions.
+An answer ends with what is useful next, if there is something: the missing data, the check to run, the question that would unblock things. A single one — not a list of suggestions.
 
-Si la question était fermée, ne propose rien : réponds et arrête-toi.
+If the question was closed, propose nothing: answer and stop.
 
-## Lié
+## Related
 
-- `reponse-financiere` : la forme d'une réponse chiffrée.
-- `router-la-question` : quoi appeler avant d'écrire.
+- `reponse-financiere`: the form of a quantified answer.
+- `router-la-question`: what to call before writing.

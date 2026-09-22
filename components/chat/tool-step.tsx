@@ -20,11 +20,11 @@ type Props = {
 };
 
 /* ---------------------------------------------------------------------------
-   Un appel d'outil dans le fil.
+   A tool call in the thread.
 
-   Une ligne : le nom de l'outil, l'argument qui le resume, l'etat. Elle se
-   deplie sur les arguments complets et la sortie, en mono. Quand l'accord
-   est attendu, la ligne porte deux boutons et le reste attend.
+   One row: the tool's name, the argument that summarises it, the status. It
+   unfolds onto the full arguments and the output, in mono. When permission
+   is awaited, the row carries two buttons and the rest waits.
 --------------------------------------------------------------------------- */
 export function ToolStepView({ step, onAnswer, fileUrl }: Props) {
   const [open, setOpen] = useState(false);
@@ -76,14 +76,14 @@ export function ToolStepView({ step, onAnswer, fileUrl }: Props) {
 }
 
 /* ---------------------------------------------------------------------------
-   Les sous-agents d'un Workflow.
+   The sub-agents of a Workflow.
 
-   Une ligne par tache — son metier, son titre, son etat — qui se deplie
-   sur le rapport rendu. Les lignes naissent des arguments de l'appel (on
-   les voit pendant que l'accord est attendu), s'animent avec les
-   evenements `subagent` (agents a cle), et, quand rien n'a ete emis en
-   route (appel MCP d'un agent par abonnement), se lisent dans la sortie
-   decoupee sur ses en-tetes.
+   One row per task — its profession, its title, its status — that unfolds
+   onto the returned report. The rows are born from the call's arguments
+   (they are visible while permission is awaited), come alive with the
+   `subagent` events (key agents), and, when nothing was emitted along the
+   way (MCP call from a subscription agent), are read from the output split
+   on its headings.
 --------------------------------------------------------------------------- */
 type Row = { index: number; title: string; profession?: string; status: SubagentState["status"] | "pending"; report?: string };
 
@@ -99,7 +99,7 @@ function workflowRows(step: ToolStep): Row[] {
     const t = tasks[i];
     const ev = events.find((e) => e.index === i);
     const p = parsed[i];
-    const title = ev?.title ?? p?.title ?? (typeof t?.title === "string" && t.title.trim() ? t.title : `Tâche ${i + 1}`);
+    const title = ev?.title ?? p?.title ?? (typeof t?.title === "string" && t.title.trim() ? t.title : `Task ${i + 1}`);
     const profession = ev?.profession ?? p?.profession ?? (typeof t?.profession === "string" ? t.profession : undefined);
     const status = ev?.status ?? (p ? (p.failed ? "failed" : "done") : fallback);
     rows.push({ index: i, title, profession, status, report: ev?.report ?? p?.body });
@@ -131,7 +131,7 @@ function WorkflowRow({ row }: { row: Row }) {
         </span>
         {label && <span className="wf-prof">{label}</span>}
         <span className="wf-title">{row.title}</span>
-        {canOpen && <span className="wf-hint">{open ? "masquer le rapport" : "voir le rapport"}</span>}
+        {canOpen && <span className="wf-hint">{open ? "hide the report" : "view the report"}</span>}
       </button>
       {open && row.report && (
         <div className="wf-report md">
@@ -143,17 +143,17 @@ function WorkflowRow({ row }: { row: Row }) {
 }
 
 /* ---------------------------------------------------------------------------
-   La demande d'accord.
+   The permission prompt.
 
-   ⚠️ « TOUJOURS » N'OUVRE PLUS TOUT. Il memorise une regle : cet outil, ou
-   ce debut de commande (`git status …`). Le bouton le dit, pour qu'on sache
-   ce qu'on accorde. Et une commande irreversible — effacement recursif,
-   formatage, poussee forcee — n'a pas de « Toujours » du tout : elle
-   redemandera a chaque fois.
+   ⚠️ "ALWAYS" NO LONGER OPENS EVERYTHING. It memorises a rule: this tool,
+   or this start of command (`git status …`). The button says so, so we know
+   what we are granting. And an irreversible command — recursive deletion,
+   formatting, force-push — has no "Always" at all: it will ask again every
+   time.
 --------------------------------------------------------------------------- */
 function Ask({ step, onAnswer }: { step: ToolStep; onAnswer: (allow: boolean, always?: boolean) => void }) {
   const dangereux = isDangerous(step.name, step.args);
-  /* Un ordre, une fermeture, un transfert : jamais de « Toujours ». */
+  /* An order, a close, a transfer: never an "Always". */
   const fonds = alwaysAsks(step.name) || isAlwaysAskTitle(step.name);
   const rule = dangereux || fonds ? null : ruleFor(step.name, step.args);
   return (
@@ -161,31 +161,31 @@ function Ask({ step, onAnswer }: { step: ToolStep; onAnswer: (allow: boolean, al
       <span className="ts-ask-text">
         {(isExchangeTool(step.name) || fonds) && <ExchangeBadge account={typeof step.args.account === "string" ? step.args.account : undefined} />}
         {fonds
-          ? "Cette action engage des fonds. À autoriser une fois, en connaissance de cause."
+          ? "This action commits funds. Allow it once, knowingly."
           : dangereux
-            ? "Cette commande est irréversible. À autoriser une fois, en connaissance de cause."
-            : "L’agent veut exécuter cet outil."}
+            ? "This command is irreversible. Allow it once, knowingly."
+            : "The agent wants to run this tool."}
       </span>
       <button type="button" className="btn btn-sm btn-primary" onClick={() => onAnswer(true)}>
-        Autoriser
+        Allow
       </button>
       {rule && (
-        <button type="button" className="btn btn-sm" onClick={() => onAnswer(true, true)} title={`Cet accord sera mémorisé pour cet agent : ${rule}`}>
+        <button type="button" className="btn btn-sm" onClick={() => onAnswer(true, true)} title={`This permission will be remembered for this agent: ${rule}`}>
           {ruleLabel(rule)}
         </button>
       )}
       <button type="button" className="btn btn-sm btn-ghost" onClick={() => onAnswer(false)}>
-        Refuser
+        Deny
       </button>
     </div>
   );
 }
 
-/** RÉEL ou TESTNET, d'apres le compte vise. Un compte ambigu (plusieurs
-    comptes, aucun nomme) vaut RÉEL : on se trompe du cote prudent. */
+/** LIVE or TESTNET, from the targeted account. An ambiguous account (several
+    accounts, none named) counts as LIVE: we err on the cautious side. */
 export function ExchangeBadge({ account }: { account?: string }) {
   const { settings } = useSettings();
   const picked = pickAccount(settings.keys.exchanges, account);
   const live = !("account" in picked) || !picked.account.testnet;
-  return <span className={`xch-badge${live ? " is-live" : ""}`}>{live ? "RÉEL" : "TESTNET"}</span>;
+  return <span className={`xch-badge${live ? " is-live" : ""}`}>{live ? "LIVE" : "TESTNET"}</span>;
 }

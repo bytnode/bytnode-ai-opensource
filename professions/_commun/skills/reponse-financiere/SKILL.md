@@ -1,36 +1,36 @@
 ---
 name: reponse-financiere
-description: La forme d'une réponse financière — faits datés et sourcés, raisonnement visible, incertitude dite, et ce qu'on ne dit jamais
+description: The form of a financial answer — dated and sourced facts, visible reasoning, stated uncertainty, and what is never said
 ---
 
-# La forme d'une réponse financière
+# The form of a financial answer
 
-Une réponse sur les marchés se juge à trois choses : d'où viennent les chiffres, comment on passe des chiffres à la conclusion, et à quel point on en est sûr. La forme sert à rendre ces trois choses visibles.
+An answer about markets is judged on three things: where the numbers come from, how one gets from the numbers to the conclusion, and how sure one is. The form serves to make these three things visible.
 
 ## Structure
 
-1. **La réponse d'abord**, en une ou deux phrases. La personne doit pouvoir s'arrêter là.
-2. **Les faits**, datés et sourcés : « BTC à 63 200 $ le 11/09 à 14 h UTC (BytNode) ; funding à 0,012 % / 8 h ». Un chiffre = une date = une source.
-3. **Le raisonnement** : ce que ces faits impliquent et pourquoi. Une déduction par étape, pas un saut.
-4. **L'incertitude** : ce qui ferait changer d'avis, ce qu'on ne sait pas. Formule-la avec un niveau : *faible / modéré / élevé* — et dis ce qui le justifie.
-5. **La suite** si utile : ce qu'il faudrait regarder, calculer ou attendre pour trancher.
+1. **The answer first**, in one or two sentences. The person must be able to stop there.
+2. **The facts**, dated and sourced: "BTC at $63,200 on 09/11 at 14:00 UTC (BytNode); funding at 0.012% / 8h". One number = one date = one source.
+3. **The reasoning**: what these facts imply and why. One deduction per step, no leaps.
+4. **The uncertainty**: what would change your mind, what is unknown. Phrase it with a level: *low / moderate / high* — and say what justifies it.
+5. **What comes next**, if useful: what would need to be looked at, computed or awaited to settle it.
 
-Un tableau quand on compare des actifs ou des dates ; une liste quand on énumère des conditions ; du texte quand on raisonne. Pas de titres pour trois lignes.
+A table when comparing assets or dates; a list when enumerating conditions; text when reasoning. No headings for three lines.
 
-## Le vocabulaire
+## The vocabulary
 
-- Une **tendance** se dit avec son horizon (« haussière sur 3 mois, en range sur 5 jours »). Sans horizon, le mot est vide.
-- **Corrélation** n'est pas causalité ; écris « évolue avec », pas « à cause de », sauf mécanisme identifié.
-- Un **scénario** a une condition et une invalidation : « si X tient, alors Y ; invalidé sous Z ».
-- Les unités toujours : $, %, bps, contrats, BTC. Les pourcentages disent sur quelle base.
+- A **trend** is stated with its horizon ("bullish over 3 months, ranging over 5 days"). Without a horizon, the word is empty.
+- **Correlation** is not causation; write "moves with", not "because of", unless a mechanism has been identified.
+- A **scenario** has a condition and an invalidation: "if X holds, then Y; invalidated below Z".
+- Units always: $, %, bps, contracts, BTC. Percentages state their base.
 
-## Ce qu'on ne dit jamais
+## What is never said
 
-- Une prédiction de prix nue (« BTC ira à 100 k »). On donne des scénarios conditionnels avec leur invalidation.
-- « Achète » / « vends » à une personne dont on ne connaît ni la situation, ni l'horizon, ni la tolérance au risque. On décrit, on compare, on chiffre le risque ; la décision lui appartient — et on le dit sans lourdeur, une fois, pas à chaque paragraphe.
-- Un chiffre de mémoire présenté comme actuel. Si BytNode ou le web ne l'a pas confirmé, on le date (« à ma connaissance, en 2025… ») ou on ne le donne pas.
-- Une certitude qu'on n'a pas. Le marché punit ceux qui confondent conviction et preuve ; la réponse ne doit pas le faire non plus.
+- A naked price prediction ("BTC will go to 100k"). We give conditional scenarios with their invalidation.
+- "Buy" / "sell" to a person whose situation, horizon and risk tolerance we do not know. We describe, we compare, we quantify the risk; the decision is theirs — and we say so without heaviness, once, not in every paragraph.
+- A number from memory presented as current. If BytNode or the web has not confirmed it, we date it ("as far as I know, in 2025…") or we do not give it.
+- A certainty we do not have. The market punishes those who confuse conviction with proof; the answer must not do so either.
 
-## Longueur
+## Length
 
-Proportionnée à la question. « Où en est ETH ? » tient en cinq lignes avec les chiffres du jour. Une analyse demandée explicitement peut tenir une page — structurée, jamais délayée.
+Proportionate to the question. "Where is ETH at?" fits in five lines with the day's numbers. An explicitly requested analysis can run to a page — structured, never padded.

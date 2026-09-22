@@ -17,17 +17,18 @@ import { syncSkills } from "./skills-sync";
 import { DEFAULT_MODEL, effortsOfConfig, eventsOfUpdate, modelConfigId, modesOfSession, pickPermissionOption, type AgentModes } from "./translate";
 
 /* ---------------------------------------------------------------------------
-   Une session ACP par conversation.
+   One ACP session per conversation.
 
-   Le sous-processus de l'agent vit tant que la conversation est active et
-   meurt apres un quart d'heure de silence. S'il est mort quand on revient,
-   la session est rechargee (`session/load`) : l'agent rejoue son historique
-   — qu'on ignore, le fil l'a deja — et reprend ou il en etait.
+   The agent's sub-process lives as long as the conversation is active and
+   dies after a quarter of an hour of silence. If it is dead when we come
+   back, the session is reloaded (`session/load`): the agent replays its
+   history — which we ignore, the thread already has it — and resumes
+   where it was.
 
-   Un tour = un `session/prompt`. Pendant le tour, l'agent raconte
-   (`session/update`) et demande parfois la permission d'agir ; ces demandes
-   sont posees a l'ecran et attendent la reponse de l'utilisateur, arrivee
-   par une autre requete (`answerPermission`).
+   A turn = one `session/prompt`. During the turn, the agent narrates
+   (`session/update`) and sometimes asks for permission to act; those
+   requests are shown on screen and wait for the user's answer, which
+   arrives through another request (`answerPermission`).
 --------------------------------------------------------------------------- */
 
 import type { WireEvent } from "./wire";
@@ -39,35 +40,35 @@ export type TurnInput = {
   conversationId: string;
   agent: AcpAgentId;
   workspace: string;
-  /** L'origine du serveur (`http://localhost:3777`) : le serveur MCP y
-      renvoie les taches de Workflow. */
+  /** The server's origin (`http://localhost:3777`): the MCP server sends
+      Workflow tasks back to it. */
   origin: string;
   bytnodeKey: string;
-  /** Les comptes exchange que l'agent peut piloter, pour le serveur MCP. */
+  /** The exchange accounts the agent may drive, for the MCP server. */
   exchangeAccounts: ExchangeAccount[];
-  /** Le prompt systeme de BytNode-AI (profil, profession, environnement). */
+  /** BytNode-AI's system prompt (profile, profession, environment). */
   system: string;
   text: string;
-  /** L'id de modele tel que l'agent le connait (sans prefixe), ou null. */
+  /** The model id as the agent knows it (no prefix), or null. */
   modelId: string | null;
   effort: string | null;
-  /** Le mode de l'agent externe demande pour ce tour, s'il en publie. */
+  /** The external agent's mode requested for this turn, if it publishes any. */
   mode: string | null;
   permissionMode: "ask" | "skip";
-  /** La session memorisee par la conversation, a recharger si possible. */
+  /** The session remembered by the conversation, to reload if possible. */
   sessionId: string | null;
-  /** Vrai au premier message de la conversation. */
+  /** True on the conversation's first message. */
   firstTurn: boolean;
-  /** Les images jointes au message, en URL de donnees. */
+  /** The images attached to the message, as data URLs. */
   images?: string[];
-  /** Le fil precedent en texte, pour un agent qui ne sait pas recharger. */
+  /** The previous thread as text, for an agent that cannot reload. */
   history?: string;
 };
 
 type Pending = {
   options: PermissionOption[];
   resolve: (optionId: string | null) => void;
-  /** Le titre de l'appel : un outil qui engage des fonds n'accepte pas « toujours ». */
+  /** The call's title: a tool that commits funds does not accept « always ». */
   title: string;
 };
 
@@ -77,25 +78,25 @@ type Live = {
   sessionId: string;
   cwd: string;
   configOptions: SessionConfigOption[];
-  /** L'ancien champ `models` (Gemini CLI) : le modele courant, s'il y en a. */
+  /** The old `models` field (Gemini CLI): the current model, if any. */
   legacyModel: string | null;
-  /** Les modes que la session publie, et celui qui est actif. */
+  /** The modes the session publishes, and the active one. */
   modes: AgentModes | null;
-  /** L'effort applique a la creation (Claude) : un changement exige une
-      nouvelle session. */
+  /** The effort applied at creation (Claude): a change requires a new
+      session. */
   effort: string | null;
-  /** Les serveurs MCP donnes a la creation : s'ils changent (cle BytNode
-      saisie, nouveaux outils), la session est refaite — un agent ne
-      decouvre pas de serveur en cours de route. */
+  /** The MCP servers given at creation: if they change (BytNode key
+      entered, new tools), the session is recreated — an agent does not
+      discover a server mid-way. */
   serversKey: string;
-  /** Le prompt systeme pose a la creation : s'il change (profession,
-      contexte, competences), la session est refaite, sinon l'agent
-      continuerait avec l'ancien metier. */
+  /** The system prompt set at creation: if it changes (profession,
+      context, skills), the session is recreated, otherwise the agent
+      would carry on with the old profession. */
   system: string;
   lastUsed: number;
   busy: boolean;
   pending: Map<string, Pending>;
-  /** Vrai pendant `session/load` : les mises a jour rejouees sont ignorees. */
+  /** True during `session/load`: the replayed updates are ignored. */
   loading: boolean;
 };
 
@@ -120,13 +121,13 @@ function armReaper() {
   }, 60_000).unref();
 }
 
-/* Les serveurs MCP donnes a l'agent externe : BytNode (donnees) et les
-   outils financiers de BytNode-AI (SaveMarketData, Chart, Backtest, Memory),
-   servis par un petit processus stdio dans le dossier de travail. */
-/* La version du code des outils : la date du fichier le plus recent. Elle
-   entre dans l'environnement du serveur, donc dans la cle de session — une
-   modification des outils recree la session, et l'agent relance le serveur
-   avec le code a jour au lieu de garder l'ancien processus. */
+/* The MCP servers given to the external agent: BytNode (data) and
+   BytNode-AI's finance tools (SaveMarketData, Chart, Backtest, Memory),
+   served by a small stdio process in the workspace. */
+/* The version of the tools' code: the date of the most recent file. It
+   goes into the server's environment, hence into the session key — a
+   change to the tools recreates the session, and the agent restarts the
+   server with the up-to-date code instead of keeping the old process. */
 function toolsVersion(): string {
   let latest = 0;
   const visit = (d: string) => {
@@ -137,30 +138,29 @@ function toolsVersion(): string {
     }
   };
   try {
-    /* Tout ce que le serveur MCP embarque : les outils (finance, exchange,
-       leur tronc commun) et le serveur lui-meme. */
+    /* Everything the MCP server embeds: the tools (finance, exchange,
+       their shared trunk) and the server itself. */
     visit(path.join(PROJECT_ROOT, "lib", "tools"));
     visit(path.join(PROJECT_ROOT, "lib", "mcp"));
   } catch {
-    /* pas grave : la cle ne bougera pas */
+    /* no big deal: the key just will not move */
   }
   return String(Math.floor(latest));
 }
 
-/* Ou passe le temps du premier tour : chaque etape est ecrite dans le
-   terminal de `next dev` (`[acp] …`). Un premier message lent, c'est
-   presque toujours l'ouverture de session — Claude Code attend que
-   chaque serveur MCP reponde, dont BytNode a distance — ou la reflexion
-   du modele avant le premier mot. */
+/* Where the first turn's time goes: each step is written to the `next dev`
+   terminal (`[acp] …`). A slow first message is almost always the session
+   opening — Claude Code waits for every MCP server to answer, including
+   the remote BytNode — or the model's thinking before the first word. */
 const clock = () => {
   const t0 = Date.now();
   return () => `${((Date.now() - t0) / 1000).toFixed(1)} s`;
 };
 const trace = (msg: string) => console.info(`[acp] ${msg}`);
 
-/* Le jeton qui autorise le serveur MCP d'une conversation a lancer des
-   sous-agents en son nom : stable tant que le serveur tourne (il entre
-   dans la cle de session), inconnu de tout autre processus. */
+/* The token that authorises a conversation's MCP server to launch
+   sub-agents on its behalf: stable as long as the server runs (it goes
+   into the session key), unknown to any other process. */
 const tokens = new Map<string, string>();
 const tokenFor = (conversationId: string) => {
   let t = tokens.get(conversationId);
@@ -168,9 +168,9 @@ const tokenFor = (conversationId: string) => {
   return t;
 };
 
-/** Le serveur MCP d'un agent principal (profondeur 0, avec Workflow et de
-    quoi rappeler le serveur) ou d'un sous-agent (profondeur 1 : ni
-    Workflow, ni outil qui engage des fonds). */
+/** The MCP server of a main agent (depth 0, with Workflow and what it
+    takes to call the server back) or of a sub-agent (depth 1: neither
+    Workflow nor any tool that commits funds). */
 type Depth = { depth: 0; conversationId: string; agent: AcpAgentId; origin: string } | { depth: 1 };
 
 const mcpServersFor = (workspace: string, bytnodeKey: string, exchangeAccounts: ExchangeAccount[], depth: Depth): McpServer[] => {
@@ -189,9 +189,9 @@ const mcpServersFor = (workspace: string, bytnodeKey: string, exchangeAccounts: 
       command: process.execPath,
       args: [
         path.join(PROJECT_ROOT, "node_modules", "tsx", "dist", "cli.mjs"),
-        /* Le tsconfig du projet, explicitement : l'agent lance ce serveur
-           dans le dossier de travail, et les alias `@/` doivent se resoudre
-           depuis le projet — pas depuis la ou le processus demarre. */
+        /* The project's tsconfig, explicitly: the agent launches this
+           server in the workspace, and the `@/` aliases must resolve from
+           the project — not from where the process starts. */
         "--tsconfig",
         path.join(PROJECT_ROOT, "tsconfig.json"),
         path.join(PROJECT_ROOT, "lib", "mcp", "finance-server.ts"),
@@ -212,15 +212,15 @@ const mcpServersFor = (workspace: string, bytnodeKey: string, exchangeAccounts: 
   return servers;
 };
 
-/** Ce que chaque agent accepte a la creation d'une session, hors protocole. */
+/** What each agent accepts at session creation, outside the protocol. */
 function sessionMeta(agent: AcpAgentId, input: Pick<TurnInput, "system" | "modelId" | "effort">): Record<string, unknown> | undefined {
   if (agent !== "claude") return undefined;
-  /* Sans les reglages personnels de l'utilisateur (`~/.claude/settings.json`) :
-     leurs regles d'autorisation et leur modele ne doivent pas s'appliquer
-     ici — c'est BytNode-AI qui decide, avec ses deux modes. */
-  /* Et seulement NOS serveurs MCP : sans `strictMcpConfig`, Claude Code
-     charge aussi les connecteurs du compte claude.ai de l'utilisateur
-     (Gmail, agenda…) — hors sujet ici, et des dizaines d'outils de bruit. */
+  /* Without the user's personal settings (`~/.claude/settings.json`):
+     their allow rules and their model must not apply here — BytNode-AI
+     decides, with its two modes. */
+  /* And only OUR MCP servers: without `strictMcpConfig`, Claude Code also
+     loads the connectors of the user's claude.ai account (Gmail,
+     calendar…) — off-topic here, and dozens of tools of noise. */
   const options: Record<string, unknown> = { settingSources: ["project", "local"], strictMcpConfig: true };
   if (input.modelId) options.model = input.modelId;
   if (input.effort) options.effort = input.effort;
@@ -247,7 +247,7 @@ async function ensureSession(input: TurnInput): Promise<{ l: Live; fresh: boolea
   await prepareWorkspace(input.agent, input.workspace);
   const opened = clock();
   const conn = await AcpConnection.open(input.agent, input.workspace);
-  trace(`${input.agent} : processus lancé en ${opened()}`);
+  trace(`${input.agent}: process launched in ${opened()}`);
   const meta = sessionMeta(input.agent, input);
   const l: Live = {
     agent: input.agent,
@@ -277,7 +277,7 @@ async function ensureSession(input: TurnInput): Promise<{ l: Live; fresh: boolea
       l.modes = modesOfSession(res as Parameters<typeof modesOfSession>[0]);
       loaded = true;
     } catch {
-      /* session inconnue de l'agent : on en ouvre une neuve */
+      /* session unknown to the agent: we open a fresh one */
     } finally {
       l.loading = false;
       conn.listen(input.sessionId, null, null);
@@ -287,7 +287,7 @@ async function ensureSession(input: TurnInput): Promise<{ l: Live; fresh: boolea
     try {
       const created = clock();
       const res = await conn.newSession(input.workspace, servers, meta);
-      trace(`${input.agent} : session ouverte en ${created()} (serveurs MCP : ${servers.map((s) => s.name).join(", ") || "aucun"})`);
+      trace(`${input.agent}: session opened in ${created()} (MCP servers: ${servers.map((s) => s.name).join(", ") || "none"})`);
       l.sessionId = res.sessionId;
       l.configOptions = res.configOptions ?? [];
       l.legacyModel = legacyModelOf(res);
@@ -310,12 +310,12 @@ const legacyModelOf = (res: unknown): string | null => {
 function describe(e: unknown, conn: AcpConnection): Error {
   const msg = e instanceof Error ? e.message : String(e);
   const detail = conn.lastStderr;
-  if (/auth/i.test(msg)) return new Error(`${acpAgentInfo(conn.agent).label} demande une connexion au compte : ouvrez Authentification → Abonnement.`);
+  if (/auth/i.test(msg)) return new Error(`${acpAgentInfo(conn.agent).label} asks for an account sign-in: open Auth → Subscription.`);
   return new Error(detail ? `${msg}\n${detail}` : msg);
 }
 
-/** Applique modele et effort par les options de session, quand l'agent les
-    publie ; sans bruit si rien ne change. */
+/** Applies model and effort through the session options, when the agent
+    publishes them; silently if nothing changes. */
 async function applyConfig(l: Live, input: Pick<TurnInput, "modelId" | "effort" | "mode">) {
   const modelCfg = modelConfigId(l.configOptions);
   const effortCfg = effortsOfConfig(l.configOptions);
@@ -336,8 +336,8 @@ async function applyConfig(l: Live, input: Pick<TurnInput, "modelId" | "effort" 
       const res = await l.conn.setConfig(l.sessionId, effortCfg.configId, input.effort);
       l.configOptions = res.configOptions ?? l.configOptions;
     }
-    /* Le mode : par l'option de configuration quand l'agent en a une,
-       sinon par `session/set_mode`. */
+    /* The mode: through the config option when the agent has one,
+       otherwise through `session/set_mode`. */
     const modes = l.modes;
     if (modes && input.mode && input.mode !== modes.current && modes.options.some((o) => o.value === input.mode)) {
       if (modes.configId) {
@@ -347,26 +347,26 @@ async function applyConfig(l: Live, input: Pick<TurnInput, "modelId" | "effort" 
       l.modes = { ...modes, current: input.mode };
     }
   } catch {
-    /* un reglage refuse n'empeche pas le tour */
+    /* a refused setting does not block the turn */
   }
 }
 
 export async function runTurn(input: TurnInput, emit: (e: WireEvent) => void, signal: AbortSignal): Promise<void> {
   const { l, fresh } = await ensureSession(input);
-  if (l.busy) throw new Error("Cette conversation a déjà un tour en cours.");
+  if (l.busy) throw new Error("This conversation already has a turn in progress.");
   l.busy = true;
   l.lastUsed = Date.now();
   emit({ type: "session", sessionId: l.sessionId });
   const configured = clock();
   await applyConfig(l, input);
-  trace(`${input.agent} : réglages appliqués en ${configured()} (modèle ${input.modelId ?? "par défaut"}, effort ${input.effort ?? "-"})`);
+  trace(`${input.agent}: settings applied in ${configured()} (model ${input.modelId ?? "default"}, effort ${input.effort ?? "-"})`);
 
   let text = input.text;
   if (input.agent !== "claude" && (input.firstTurn || fresh)) {
-    const system = input.history && !input.firstTurn ? `${input.system}\n\n## Fil précédent\n${input.history}` : input.system;
+    const system = input.history && !input.firstTurn ? `${input.system}\n\n## Previous thread\n${input.history}` : input.system;
     text = wrapContext(system, text);
   } else if (input.agent === "claude" && fresh && !input.firstTurn && input.history) {
-    text = `<fil_precedent>\n${input.history}\n</fil_precedent>\n\n${text}`;
+    text = `<previous_thread>\n${input.history}\n</previous_thread>\n\n${text}`;
   }
 
   const onAbort = () => {
@@ -384,13 +384,12 @@ export async function runTurn(input: TurnInput, emit: (e: WireEvent) => void, si
       if (l.loading) return;
       if (!firstWord && n.update.sessionUpdate === "agent_message_chunk") {
         firstWord = true;
-        trace(`${input.agent} : premier mot après ${answered()}`);
+        trace(`${input.agent}: first word after ${answered()}`);
       }
       for (const e of eventsOfUpdate(n.update)) emit(e);
     },
     async (req) => {
-      /* Un ordre, une fermeture, un transfert : on demande meme en
-         execution directe. */
+      /* An order, a close, a transfer: we ask even in direct execution. */
       const auto = input.permissionMode === "skip" && !isAlwaysAskTitle(req.toolCall.title ?? "");
       const id = req.toolCall.toolCallId;
       if (auto) {
@@ -421,7 +420,7 @@ export async function runTurn(input: TurnInput, emit: (e: WireEvent) => void, si
   }
 }
 
-/** La reponse de l'utilisateur a une demande de permission. */
+/** The user's answer to a permission request. */
 export function answerPermission(conversationId: string, callId: string, allow: boolean, always: boolean): boolean {
   const l = live.get(conversationId);
   const p = l?.pending.get(callId);
@@ -446,15 +445,14 @@ export function closeConversation(conversationId: string): void {
 }
 
 /* ---------------------------------------------------------------------------
-   Un sous-agent par abonnement.
+   A subscription sub-agent.
 
-   Le serveur MCP du parent (Workflow) rappelle le serveur ; on ouvre une
-   session JETABLE du meme agent, dans le meme dossier, avec le prompt de la
-   profession demandee, le modele choisi par le parent pour la tache, et
-   ses propres serveurs MCP a la profondeur 1. Personne ne peut repondre a
-   ses demandes de permission : elles sont accordees — sauf ce qui engage
-   des fonds, refuse. Le texte qu'il produit est son rapport ; la session
-   est fermee aussitot.
+   The parent's MCP server (Workflow) calls the server back; we open a
+   THROWAWAY session of the same agent, in the same folder, with the
+   requested profession's prompt, the model the parent chose for the task,
+   and its own MCP servers at depth 1. Nobody can answer its permission
+   requests: they are granted — except what commits funds, refused. The
+   text it produces is its report; the session is closed right away.
 --------------------------------------------------------------------------- */
 
 export type SubagentInput = {
@@ -462,7 +460,7 @@ export type SubagentInput = {
   token: string;
   profession: ProfessionId;
   text: string;
-  /** L'id de modele tel que l'agent le connait, ou null pour le courant. */
+  /** The model id as the agent knows it, or null for the current one. */
   modelId: string | null;
   bytnodeKey: string;
   exchangeAccounts: ExchangeAccount[];
@@ -470,25 +468,24 @@ export type SubagentInput = {
 
 const SUBAGENT_TIMEOUT = 10 * 60_000;
 
-/* Les competences deposees dans le dossier pour les sous-agents : celles
-   des QUATRE professions (trois sous-agents de metiers differents tournent
-   en meme temps dans le meme dossier — chacun ne doit pas retirer celles
-   des autres), puis celles du projet. Le parent remet les siennes a son
-   prochain tour. */
+/* The skills dropped into the folder for the sub-agents: those of the FOUR
+   professions (three sub-agents of different professions run at the same
+   time in the same folder — none must remove the others'), then the
+   project's. The parent puts its own back at its next turn. */
 async function subagentSkillSet(): Promise<SkillInfo[]> {
   const all = await Promise.all(PROFESSIONS.map((p) => loadProfession(PROJECT_ROOT, p.id)));
   return [...all.flatMap((p) => p.skills), ...(await userSkills())];
 }
 
-/* Trois sous-agents demarrent ensemble et deposent la meme liste dans le
-   meme dossier : un a la fois, sinon l'un copie ce que l'autre efface. */
+/* Three sub-agents start together and drop the same list into the same
+   folder: one at a time, otherwise one copies what the other deletes. */
 let skillsLock: Promise<void> = Promise.resolve();
 const syncSubagentSkills = (workspace: string, skills: SkillInfo[]) => (skillsLock = skillsLock.then(() => syncSkills(workspace, skills)).catch(() => {}));
 
 export async function runSubagent(input: SubagentInput, signal: AbortSignal): Promise<string> {
   const parent = live.get(input.conversationId);
-  if (!parent || tokens.get(input.conversationId) !== input.token) throw new Error("Commanditaire inconnu.");
-  if (!parent.busy) throw new Error("Le tour du commanditaire est terminé.");
+  if (!parent || tokens.get(input.conversationId) !== input.token) throw new Error("Unknown requester.");
+  if (!parent.busy) throw new Error("The requester's turn is over.");
   const { agent, cwd: workspace } = parent;
 
   const [prof, skillSet, project, bytnode] = await Promise.all([
@@ -500,7 +497,7 @@ export async function runSubagent(input: SubagentInput, signal: AbortSignal): Pr
           (infos) => ({ ok: true, count: infos.length }),
           (e: unknown) => ({ ok: false, count: 0, message: e instanceof Error ? e.message : String(e) }),
         )
-      : Promise.resolve({ ok: false, count: 0, message: "clé absente" }),
+      : Promise.resolve({ ok: false, count: 0, message: "no key" }),
   ]);
   await syncSubagentSkills(workspace, skillSet);
   const system = [
@@ -515,7 +512,7 @@ export async function runSubagent(input: SubagentInput, signal: AbortSignal): Pr
   const conn = await AcpConnection.open(agent, workspace);
   try {
     const res = await conn.newSession(workspace, servers, sessionMeta(agent, config));
-    trace(`${agent} : sous-agent ${input.profession} ouvert en ${opened()} (modèle ${input.modelId ?? "courant"})`);
+    trace(`${agent}: sub-agent ${input.profession} opened in ${opened()} (model ${input.modelId ?? "current"})`);
     const l: Live = {
       agent,
       conn,
@@ -541,7 +538,7 @@ export async function runSubagent(input: SubagentInput, signal: AbortSignal): Pr
         if (n.update.sessionUpdate === "agent_message_chunk" && n.update.content.type === "text") chunks.push(n.update.content.text);
       },
       async (req) => {
-        /* Personne pour repondre : oui, sauf pour engager des fonds. */
+        /* Nobody to answer: yes, except to commit funds. */
         if (isAlwaysAskTitle(req.toolCall.title ?? "")) return { outcome: { outcome: "cancelled" } };
         const optionId = pickPermissionOption(req.options, true, false);
         return optionId ? { outcome: { outcome: "selected", optionId } } : { outcome: { outcome: "cancelled" } };
@@ -563,8 +560,8 @@ export async function runSubagent(input: SubagentInput, signal: AbortSignal): Pr
       signal.removeEventListener("abort", cancel);
       conn.listen(l.sessionId, null, null);
     }
-    if (signal.aborted) throw new Error("Sous-agent interrompu.");
-    if (timedOut) throw new Error(`Délai dépassé (${SUBAGENT_TIMEOUT / 60_000} min).`);
+    if (signal.aborted) throw new Error("Sub-agent interrupted.");
+    if (timedOut) throw new Error(`Timed out (${SUBAGENT_TIMEOUT / 60_000} min).`);
     return chunks.join("").trim();
   } finally {
     conn.close();

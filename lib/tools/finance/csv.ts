@@ -1,9 +1,9 @@
 /* ---------------------------------------------------------------------------
-   Des tableaux : lire et ecrire du CSV, trouver les lignes dans une reponse
-   JSON quelconque, reconnaitre les colonnes d'une serie de prix.
+   Tables: reading and writing CSV, finding the rows in an arbitrary JSON
+   response, recognising the columns of a price series.
 
-   Pur — pas de disque, pas de reseau — pour etre teste a fond : c'est la
-   couche sur laquelle reposent SaveMarketData, Chart et Backtest.
+   Pure — no disk, no network — so it can be tested thoroughly: it is the
+   layer SaveMarketData, Chart and Backtest are built on.
 --------------------------------------------------------------------------- */
 
 export type Cell = string | number | boolean | null;
@@ -37,7 +37,7 @@ export function parseCsv(text: string): Table {
 }
 
 function splitLines(text: string): string[] {
-  /* Un retour a la ligne entre guillemets ne coupe pas la ligne. */
+  /* A newline inside quotes does not break the line. */
   const out: string[] = [];
   let cur = "";
   let quoted = false;

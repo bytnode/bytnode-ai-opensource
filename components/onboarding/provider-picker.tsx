@@ -13,15 +13,15 @@ export type ProviderSource = "subscription" | "keys";
 type Props = {
   id: string;
   value: string;
-  /** Ce qu'on liste : les abonnements (Claude, OpenAI, Gemini… — grises
-      tant qu'on n'y est pas connecte) ou les editeurs presents sur
-      OpenRouter, avec la recherche. */
+  /** What we list: the subscriptions (Claude, OpenAI, Gemini… — greyed out
+      until signed in) or the vendors present on OpenRouter, with the
+      search. */
   source: ProviderSource;
   onChange: (providerId: string) => void;
 };
 
-/* Le choix du fournisseur : un bouton a la taille d'un champ, qui ouvre la
-   liste de la source choisie, barre de recherche en tete. */
+/* The provider choice: a field-sized button that opens the list of the
+   chosen source, search bar on top. */
 export function ProviderPicker({ id, value, source, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -36,8 +36,8 @@ export function ProviderPicker({ id, value, source, onChange }: Props) {
   const statusOf = (agent: AcpAgentId) => auth.agents.find((a) => a.agent === agent);
   const [busy, setBusy] = useState<AcpAgentId | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  /* Se connecter (ou installer) sans quitter la liste : la ligne devient
-     un choix des que l'etat repasse a « connecté ». */
+  /* Sign in (or install) without leaving the list: the row becomes a
+     choice as soon as the state goes back to "signed in". */
   const act = async (agent: AcpAgentId, install: boolean) => {
     setBusy(agent);
     setFailure(null);
@@ -62,7 +62,7 @@ export function ProviderPicker({ id, value, source, onChange }: Props) {
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        <span>{current ? current.name : value || (source === "subscription" ? "Choisir un abonnement" : "Choisir un éditeur")}</span>
+        <span>{current ? current.name : value || (source === "subscription" ? "Choose a subscription" : "Choose a vendor")}</span>
         <ChevronDown />
       </button>
 
@@ -71,12 +71,12 @@ export function ProviderPicker({ id, value, source, onChange }: Props) {
         onClose={() => setOpen(false)}
         query={query}
         onQuery={setQuery}
-        placeholder={source === "subscription" ? "Rechercher un abonnement" : "Rechercher un éditeur"}
-        label="Fournisseurs"
+        placeholder={source === "subscription" ? "Search a subscription" : "Search a vendor"}
+        label="Providers"
         align="end"
         width={440}
       >
-        {source === "subscription" && subs.length === 0 && <SearchPanel.Empty>Aucun abonnement ne correspond à « {query} ».</SearchPanel.Empty>}
+        {source === "subscription" && subs.length === 0 && <SearchPanel.Empty>No subscription matches &quot;{query}&quot;.</SearchPanel.Empty>}
         {subs.length > 0 && (
           <>
             {subs.map((a) => {
@@ -97,13 +97,13 @@ export function ProviderPicker({ id, value, source, onChange }: Props) {
               const toInstall = !!st && !st.available;
               const waiting = busy === a.id || !!st?.connecting || !!st?.installing;
               const meta = loading
-                ? "Lecture…"
+                ? "Reading…"
                 : st?.installing
-                  ? `Installation de ${a.product}…`
+                  ? `Installing ${a.product}…`
                   : st?.connecting
-                    ? "Connexion en cours — terminez dans la fenêtre ouverte."
+                    ? "Signing in — finish in the window that opened."
                     : st && !st.available && !toInstall
-                      ? (st.message ?? "Indisponible sur cette installation.")
+                      ? (st.message ?? "Unavailable on this installation.")
                       : `${a.plan} · via ${a.product}`;
               return (
                 <SearchPanel.Row
@@ -118,7 +118,7 @@ export function ProviderPicker({ id, value, source, onChange }: Props) {
                       onClick={() => void act(a.id, toInstall)}
                     >
                       {waiting ? <Spinner /> : null}
-                      {st?.installing ? "Installation" : st?.connecting ? "En attente" : toInstall ? "Installer" : "Se connecter"}
+                      {st?.installing ? "Installing" : st?.connecting ? "Waiting" : toInstall ? "Install" : "Sign in"}
                     </button>
                   }
                 />
@@ -128,17 +128,17 @@ export function ProviderPicker({ id, value, source, onChange }: Props) {
           </>
         )}
         {source === "keys" && (catalog.status === "loading" || catalog.status === "idle" ? (
-          <SearchPanel.Empty>Lecture du catalogue OpenRouter…</SearchPanel.Empty>
+          <SearchPanel.Empty>Reading the OpenRouter catalog…</SearchPanel.Empty>
         ) : catalog.status === "error" ? (
           <SearchPanel.Empty>
             {catalog.message}
             <br />
             <button type="button" className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => loadCatalog(true)}>
-              Recharger
+              Reload
             </button>
           </SearchPanel.Empty>
         ) : results.length === 0 ? (
-          <SearchPanel.Empty>Aucun éditeur ne correspond à « {query} ».</SearchPanel.Empty>
+          <SearchPanel.Empty>No vendor matches &quot;{query}&quot;.</SearchPanel.Empty>
         ) : (
           <>
             {results.map((p) => (
@@ -153,7 +153,7 @@ export function ProviderPicker({ id, value, source, onChange }: Props) {
                     <Check />
                   ) : (
                     <span className="sp-item-count">
-                      {p.modelCount} modèle{p.modelCount > 1 ? "s" : ""}
+                      {p.modelCount} model{p.modelCount > 1 ? "s" : ""}
                     </span>
                   )
                 }

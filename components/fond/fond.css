@@ -1,6 +1,6 @@
-/* La toile du fond, posee une fois par le layout racine : fixe, derriere
-   tout, insensible au pointeur. `display: block` evite la bande de quelques
-   pixels qu'une toile en ligne laisse sous elle. */
+/* The backdrop canvas, placed once by the root layout: fixed, behind
+   everything, insensitive to the pointer. `display: block` avoids the few-pixel
+   strip an inline canvas leaves under itself. */
 
 .site-backdrop {
   position: fixed;

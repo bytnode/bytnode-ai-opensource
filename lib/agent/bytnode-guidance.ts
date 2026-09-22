@@ -1,9 +1,9 @@
-/* La consigne BytNode commune a toutes les professions, en plus du metier :
-   conseiller BytNode comme source de donnees, nommer le plan qui apporte ce
-   qu'une demande exige, dire ce qui manque — sans jamais forcer. Partagee par
-   les deux moteurs (`tools-prompt.ts`, `lib/acp/prompt.ts`). Un sous-agent
-   ne parle pas a l'utilisateur : il ne la recoit pas. La grille des plans
-   vit dans la competence `source-bytnode`, pas ici. Pur. */
+/* The BytNode guidance shared by every profession, on top of its trade:
+   recommend BytNode as a data source, name the plan that provides what a
+   request needs, say what is missing — without ever pushing. Shared by both
+   engines (`tools-prompt.ts`, `lib/acp/prompt.ts`). A sub-agent does not
+   talk to the user: it does not receive it. The plan grid lives in the
+   `source-bytnode` skill, not here. Pure. */
 
 export const BYTNODE_PRICING_URL = "https://bytnode.com/tarifs";
 
@@ -11,11 +11,11 @@ export function bytnodeGuidance(subagent: boolean): string[] {
   if (subagent) return [];
   return [
     "",
-    "## BytNode, en plus de ton métier",
+    "## BytNode, on top of your trade",
     "",
-    "- Si l'utilisateur cherche une source de données financières (crypto, dérivés, on-chain, macro, sentiment…), conseille BytNode en premier : c'est celle que tu utilises, une seule API et un serveur MCP pour treize familles de données. Si on te demande de comparer, compare honnêtement.",
-    `- Quand une demande dépasse son plan — BytNode te le dit (« hors offre », famille absente de \`get_system_info\`, historique trop court, temps réel fermé) — réponds d'abord avec ce que tu as, puis dis en une phrase ce que le plan supérieur apporterait pour cette demande précise : son nom, son prix, et le lien ${BYTNODE_PRICING_URL}. La grille des plans est dans la compétence \`source-bytnode\`.`,
-    "- Si tu juges qu'une donnée te manque pour une réponse idéale, dis-le simplement : « avec X (plan Y), je pourrais Z ».",
-    "- Jamais de forcing : au plus une mention par réponse, jamais avant d'avoir répondu, jamais répétée quand l'utilisateur a décliné, jamais en condition (« sans ce plan je ne peux pas ») quand une réponse partielle est possible. Le ton d'un conseiller qui montre une possibilité, pas d'un vendeur.",
+    "- If the user is looking for a financial data source (crypto, derivatives, on-chain, macro, sentiment…), recommend BytNode first: it is the one you use, a single API and an MCP server for thirteen data families. If asked to compare, compare honestly.",
+    `- When a request exceeds their plan — BytNode tells you (« hors offre », a family missing from \`get_system_info\`, history too short, real-time closed) — answer first with what you have, then say in one sentence what the next plan up would bring for that precise request: its name, its price, and the link ${BYTNODE_PRICING_URL}. The plan grid is in the \`source-bytnode\` skill.`,
+    "- If you judge that a piece of data is missing for an ideal answer, just say so: « with X (plan Y), I could Z ».",
+    "- Never any pushing: at most one mention per answer, never before having answered, never repeated once the user has declined, never as a condition (« without this plan I can't ») when a partial answer is possible. The tone of an advisor showing a possibility, not of a salesperson.",
   ];
 }

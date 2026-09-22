@@ -1,29 +1,29 @@
 import { describe, expect, it } from "vitest";
 import { allowedForSubagent, alwaysAsks, isAlwaysAskTitle, isExchangeTool, isGated, isWorkflowName, summarizeCall } from "./names";
 
-describe("outils exchange : qui demande", () => {
-  it("les cinq outils d'ecriture sont gated ; trois demandent toujours", () => {
+describe("exchange tools: who asks", () => {
+  it("the five write tools are gated; three always ask", () => {
     for (const n of ["PlaceOrder", "CancelOrder", "ClosePosition", "Transfer", "SetLeverage"]) expect(isGated(n)).toBe(true);
     expect(isGated("ExchangeBalance")).toBe(false);
     expect(alwaysAsks("PlaceOrder")).toBe(true);
     expect(alwaysAsks("Transfer")).toBe(true);
     expect(alwaysAsks("CancelOrder")).toBe(false);
   });
-  it("reconnait un titre d'agent externe", () => {
+  it("recognises an external agent's title", () => {
     expect(isAlwaysAskTitle("mcp__bytnode-ai__PlaceOrder")).toBe(true);
     expect(isAlwaysAskTitle("Read file")).toBe(false);
   });
-  it("un sous-agent ne recoit jamais un outil qui engage des fonds", () => {
+  it("a sub-agent never receives a tool that commits funds", () => {
     for (const n of ["PlaceOrder", "CancelOrder", "ClosePosition", "Transfer", "SetLeverage", "Workflow"]) expect(allowedForSubagent(n)).toBe(false);
     for (const n of ["ExchangeBalance", "ExchangeTicker", "Bash", "Write"]) expect(allowedForSubagent(n)).toBe(true);
   });
-  it("reconnait un appel Workflow, natif ou servi en MCP", () => {
+  it("recognises a Workflow call, native or served over MCP", () => {
     for (const n of ["Workflow", "mcp__bytnode-ai__Workflow", "bytnode-ai/Workflow", "bytnode-ai.Workflow"]) expect(isWorkflowName(n)).toBe(true);
     for (const n of ["Workflows", "MyWorkflow", "Bash", "workflow"]) expect(isWorkflowName(n)).toBe(false);
-    expect(summarizeCall("mcp__bytnode-ai__Workflow", { tasks: [{}, {}] })).toBe("2 sous-agents");
-    expect(summarizeCall("Workflow", { tasks: [{}] })).toBe("1 sous-agent");
+    expect(summarizeCall("mcp__bytnode-ai__Workflow", { tasks: [{}, {}] })).toBe("2 sub-agents");
+    expect(summarizeCall("Workflow", { tasks: [{}] })).toBe("1 sub-agent");
   });
-  it("reconnait les outils exchange pour le badge", () => {
+  it("recognises the exchange tools for the badge", () => {
     expect(isExchangeTool("ExchangeTicker")).toBe(true);
     expect(isExchangeTool("SetLeverage")).toBe(true);
     expect(isExchangeTool("Bash")).toBe(false);
@@ -31,15 +31,15 @@ describe("outils exchange : qui demande", () => {
 });
 
 describe("summarizeCall (exchange)", () => {
-  it("PlaceOrder dit tout ce qu'on va autoriser", () => {
+  it("PlaceOrder says everything that is about to be authorised", () => {
     expect(summarizeCall("PlaceOrder", { account: "Binance-main", side: "buy", amount: 0.05, symbol: "BTC/USDT", type: "market", leverage: 5, reduceOnly: true })).toBe(
       "Binance-main · BUY 0.05 BTC/USDT market ×5 reduceOnly",
     );
     expect(summarizeCall("PlaceOrder", { side: "sell", quoteAmount: 200, symbol: "ETH/USDT", type: "limit", price: 3000 })).toBe("SELL 200 (quote) ETH/USDT limit @ 3000");
   });
-  it("les autres", () => {
+  it("the others", () => {
     expect(summarizeCall("CancelOrder", { orderId: "42" })).toBe("#42");
-    expect(summarizeCall("CancelOrder", { symbol: "BTC/USDT", all: true })).toBe("tous les ordres BTC/USDT");
+    expect(summarizeCall("CancelOrder", { symbol: "BTC/USDT", all: true })).toBe("all BTC/USDT orders");
     expect(summarizeCall("ClosePosition", { account: "A", symbol: "BTC/USDT", fraction: 0.5 })).toBe("A · BTC/USDT 50 %");
     expect(summarizeCall("ClosePosition", { symbol: "BTC/USDT" })).toBe("BTC/USDT");
     expect(summarizeCall("Transfer", { amount: 100, asset: "USDT", from: "spot", to: "futures" })).toBe("100 USDT spot → futures");

@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------------
-   Le vocabulaire de l'application. Rien ici ne depend de React, du navigateur
-   ni d'OpenRouter : ce sont les formes que tout le reste manipule.
+   The application's vocabulary. Nothing here depends on React, the browser
+   or OpenRouter: these are the shapes everything else handles.
 --------------------------------------------------------------------------- */
 
 import type { Step, UsageInfo } from "@/lib/agent/events";
@@ -11,38 +11,37 @@ export type Profile = {
   firstName: string;
   lastName: string;
   email: string;
-  /** Quelques lignes sur soi, transmises a chaque agent. */
+  /** A few lines about oneself, passed to every agent. */
   bio: string;
 };
 
-/** Un compte sur un exchange centralise, pilote par ccxt. Les cles restent
-    dans le navigateur et voyagent par en-tete a chaque requete d'outil —
-    jamais sur le disque du serveur. */
+/** An account on a centralised exchange, driven by ccxt. The keys stay in
+    the browser and travel by header with every tool request — never on
+    the server's disk. */
 export type ExchangeAccount = {
   id: string;
-  /** L'id ccxt : `binance`, `bybit`, `okx`… (voir `lib/tools/exchange/catalog.ts`). */
+  /** The ccxt id: `binance`, `bybit`, `okx`… (see `lib/tools/exchange/catalog.ts`). */
   exchange: string;
-  /** Le nom que l'agent emploie pour designer ce compte : « Binance-main ». */
+  /** The name the agent uses to refer to this account: « Binance-main ». */
   label: string;
   apiKey: string;
   secret: string;
-  /** La passphrase, pour les exchanges qui en demandent (OKX, KuCoin, Bitget). */
+  /** The passphrase, for the exchanges that require one (OKX, KuCoin, Bitget). */
   password: string;
-  /** Vrai : le compte est sur le reseau de test de l'exchange. */
+  /** True: the account is on the exchange's test network. */
   testnet: boolean;
 };
 
-/** Une cle par service : OpenRouter pour dialoguer (et chercher sur le
-    web), BytNode pour les donnees de marche, et les comptes d'exchanges
-    sur lesquels les agents peuvent agir. */
+/** One key per service: OpenRouter to chat (and search the web), BytNode
+    for market data, and the exchange accounts the agents may act on. */
 export type ApiKeys = {
   openrouter: string;
   bytnode: string;
   exchanges: ExchangeAccount[];
 };
 
-/** Un fichier depose dans le contexte de l'agent : lu une fois cote client,
-    conserve en texte. */
+/** A file dropped into the agent's context: read once client-side, kept
+    as text. */
 export type ContextFile = {
   id: string;
   name: string;
@@ -54,48 +53,47 @@ export type AgentConfig = {
   id: string;
   createdAt: number;
   name: string;
-  /** Le metier de l'agent : son prompt systeme et ses competences. */
+  /** The agent's profession: its system prompt and its skills. */
   profession: ProfessionId;
-  /** L'editeur choisi (`anthropic`, `openai`…) : le prefixe des ids de modeles
-      OpenRouter. Ou un abonnement, `acp:claude` / `acp:openai` / `acp:gemini`
-      (voir `lib/acp/agents.ts`). */
+  /** The chosen vendor (`anthropic`, `openai`…): the prefix of OpenRouter
+      model ids. Or a subscription, `acp:claude` / `acp:openai` / `acp:gemini`
+      (see `lib/acp/agents.ts`). */
   providerId: string;
-  /** Le modele propose a l'ouverture d'une conversation. `null` tant que le
-      catalogue n'a pas ete lu. */
+  /** The model proposed when a conversation opens. `null` until the
+      catalog has been read. */
   defaultModelId: string | null;
-  /** L'effort propose a l'ouverture d'une conversation, s'il est accepte par
-      le modele du moment. */
+  /** The effort proposed when a conversation opens, if the current model
+      accepts it. */
   defaultEffort?: string | null;
-  /** Le mode propose a l'ouverture d'une conversation (agents par
-      abonnement : « Plan », « Accepter les modifications »…). */
+  /** The mode proposed when a conversation opens (subscription agents:
+      « Plan », « Accept edits »…). */
   defaultMode?: string | null;
   contextText: string;
   contextFiles: ContextFile[];
-  /** Le dossier de travail de l'agent : sa sandbox. Vide = `sandboxes/<id>`
-      dans le projet. */
+  /** The agent's workspace: its sandbox. Empty = `sandboxes/<id>` in the
+      project. */
   workspace?: string;
-  /** `skip` : les outils s'executent sans demander. `ask` : chaque commande
-      shell et chaque modification de fichier attend votre accord. */
+  /** `skip`: tools run without asking. `ask`: every shell command and every
+      file modification waits for your approval. */
   permissionMode?: "skip" | "ask";
-  /** `workspace` : les outils fichiers ne sortent pas du dossier de travail.
-      `disk` : tout le disque. */
+  /** `workspace`: the file tools do not leave the workspace. `disk`: the
+      whole disk. */
   scope?: "workspace" | "disk";
-  /** Les autorisations memorisees par « Toujours » : un nom d'outil
-      (`Write`) ou un debut de commande (`Bash(git status *)`). Elles
-      remplacent l'ancien « tout autoriser » — voir
-      `lib/tools/permissions.ts`. */
+  /** The permissions remembered by « Always »: a tool name (`Write`) or the
+      start of a command (`Bash(git status *)`). They replace the old
+      « allow everything » — see `lib/tools/permissions.ts`. */
   allowRules?: string[];
-  /** Les comptes d'exchange (ids de `ApiKeys.exchanges`) que cet agent peut
-      piloter. Vide : aucun outil exchange dans son prompt. */
+  /** The exchange accounts (ids from `ApiKeys.exchanges`) this agent may
+      drive. Empty: no exchange tool in its prompt. */
   exchangeAccountIds?: string[];
 };
 
 export type Theme = "dark" | "light";
 
-/** Comment l'utilisateur se connecte aux modeles : par ses cles API, ou par
-    un abonnement (Claude, ChatGPT, Google) qui donne acces a l'agent de
-    l'editeur, pilote par ACP. Les deux peuvent coexister ; ce choix est
-    l'onglet ouvert par defaut dans la page Authentification. */
+/** How the user connects to the models: through their API keys, or through
+    a subscription (Claude, ChatGPT, Google) that gives access to the
+    vendor's agent, driven by ACP. Both can coexist; this choice is the tab
+    opened by default in the Authentication page. */
 export type AuthMode = "subscription" | "keys";
 
 export type Settings = {
@@ -105,9 +103,8 @@ export type Settings = {
   profile: Profile;
   authMode: AuthMode;
   keys: ApiKeys;
-  /** Autant d'agents qu'on veut, chacun avec son fournisseur et son contexte.
-      La colonne de gauche les liste ; les conversations sont rattachees a
-      l'un d'eux. */
+  /** As many agents as wanted, each with its provider and its context. The
+      left column lists them; conversations are attached to one of them. */
   agents: AgentConfig[];
   activeAgentId: string | null;
 };
@@ -119,33 +116,34 @@ export type Message = {
   role: Role;
   content: string;
   createdAt: number;
-  /** Le modele qui a produit la reponse (assistant seulement). */
+  /** The model that produced the reply (assistant only). */
   modelId?: string;
-  /** L'effort demande pour cette reponse, s'il etait fixe. */
+  /** The effort requested for this reply, if it was set. */
   effort?: string;
-  /** Une reponse interrompue par une erreur garde ce qu'elle a recu, et
-      l'erreur. */
+  /** A reply interrupted by an error keeps what it received, and the
+      error. */
   error?: string;
-  /** Les pas d'une reponse d'assistant qui a utilise des outils : texte et
-      appels, dans l'ordre. Absent pour une reponse en texte seul. */
+  /** The steps of an assistant reply that used tools: text and calls, in
+      order. Absent for a text-only reply. */
   steps?: Step[];
-  /** Ce qu'a coute la reponse : jetons, prix, fournisseur. */
+  /** What the reply cost: tokens, price, provider. */
   usage?: UsageInfo;
-  /** Les fichiers et captures joints par l'utilisateur a ce message. */
+  /** The files and captures the user attached to this message. */
   attachments?: Attachment[];
-  /** Ce message demandait une recherche approfondie. */
+  /** This message asked for deep research. */
   research?: boolean;
-  /** Ce message est le RESUME qui a remplace un fil compacte (`/compact`) :
-      le fil l'affiche comme tel, et l'historique le rejoue comme un rappel
-      de contexte plutot que comme une reponse. */
+  /** This message is the SUMMARY that replaced a compacted thread
+      (`/compact`): the thread shows it as such, and the history replays it
+      as a context reminder rather than as a reply. */
   compaction?: boolean;
-  /** Qui l'a declenchee : `user` (/compact), `auto` (jauge pleine en fin de
-      tour), `overflow` (le fournisseur a refuse le contexte). Absent sur
-      les fils anciens : vaut `user`. */
+  /** Who triggered it: `user` (/compact), `auto` (meter full at the end of
+      a turn), `overflow` (the provider refused the context). Absent on old
+      threads: means `user`. */
   compactedBy?: "user" | "auto" | "overflow";
-  /** Le compactage EN COURS : le resume s'ecrit dans ce message, que le fil
-      montre comme une ligne d'etat et jamais comme une reponse. Il est
-      retire a la fin du tour (remplace par le resume, ou supprime). */
+  /** The compaction IN PROGRESS: the summary is being written into this
+      message, which the thread shows as a status line and never as a
+      reply. It is removed at the end of the turn (replaced by the summary,
+      or deleted). */
   compacting?: boolean;
 };
 
@@ -154,40 +152,40 @@ export type Conversation = {
   agentId: string;
   title: string;
   modelId: string;
-  /** L'effort de raisonnement demande, ou `null` pour laisser le modele a
-      son reglage par defaut. */
+  /** The reasoning effort requested, or `null` to leave the model at its
+      default setting. */
   effort?: string | null;
-  /** Le mode de l'agent externe pour cette conversation. */
+  /** The external agent's mode for this conversation. */
   mode?: string | null;
-  /** Pour un agent par abonnement : la session ACP qui porte cette
-      conversation chez l'agent externe, a recharger apres un redemarrage. */
+  /** For a subscription agent: the ACP session that carries this
+      conversation at the external agent, to reload after a restart. */
   acpSessionId?: string;
   createdAt: number;
   updatedAt: number;
   messages: Message[];
 };
 
-/** Un modele du catalogue OpenRouter, reduit a ce dont l'interface a besoin. */
+/** A model from the OpenRouter catalog, reduced to what the interface needs. */
 export type Model = {
   id: string;
   name: string;
   providerId: string;
-  /** Date de sortie, en secondes Unix (telle que fournie par OpenRouter). */
+  /** Release date, in Unix seconds (as provided by OpenRouter). */
   created: number;
   contextLength: number | null;
-  /** Le suffixe apres `:` (`free`, `batch`, `thinking`…) : une declinaison
-      d'un modele de base, pas un modele nouveau. */
+  /** The suffix after `:` (`free`, `batch`, `thinking`…): a variant of a
+      base model, not a new model. */
   variant: string | null;
-  /** Vrai pour les ids `~editeur/…-latest` : un alias mobile que OpenRouter
-      fait pointer vers le dernier modele, pas une sortie. */
+  /** True for `~vendor/…-latest` ids: a moving alias that OpenRouter points
+      at the latest model, not a release. */
   alias: boolean;
-  /** Les niveaux d'effort de raisonnement que le modele accepte, dans l'ordre
-      publie par OpenRouter (`max`, `xhigh`, `high`, `medium`, `low`,
-      `minimal`, `none`). Vide si le modele ne raisonne pas. */
+  /** The reasoning effort levels the model accepts, in the order published
+      by OpenRouter (`max`, `xhigh`, `high`, `medium`, `low`, `minimal`,
+      `none`). Empty if the model does not reason. */
   efforts: string[];
   defaultEffort: string | null;
-  /** Vrai quand le modele raisonne toujours : on peut regler l'effort, pas
-      le couper. */
+  /** True when the model always reasons: the effort can be set, not
+      switched off. */
   reasoningMandatory: boolean;
 };
 

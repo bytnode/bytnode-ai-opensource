@@ -8,12 +8,12 @@ import { Select } from "@/components/ui/select";
 import { Check, Eye, EyeOff, Spinner } from "@/components/ui/icons";
 
 /* ---------------------------------------------------------------------------
-   Les comptes d'exchange : la liste, et le formulaire pour en ajouter un.
+   The exchange accounts: the list, and the form to add one.
 
-   Un compte = un exchange, un label que l'agent emploiera, une cle et son
-   secret (une passphrase pour certains), et « reseau de test » quand
-   l'exchange en a un. Tout reste dans le navigateur ; « Tester » ouvre une
-   connexion cote serveur et lit le solde, sans rien garder.
+   An account = an exchange, a label the agent will use, a key and its
+   secret (a passphrase for some), and "test network" when the exchange has
+   one. Everything stays in the browser; "Test" opens a server-side
+   connection and reads the balance, keeping nothing.
 --------------------------------------------------------------------------- */
 
 type Props = { value: ExchangeAccount[]; onChange: (accounts: ExchangeAccount[]) => void };
@@ -24,9 +24,9 @@ async function testAccount(account: ExchangeAccount): Promise<Check> {
   try {
     const res = await fetch("/api/exchange/check", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ account }) });
     const json = (await res.json()) as { ok?: boolean; message?: string };
-    return json.ok ? { state: "ok", label: json.message ?? "" } : { state: "bad", message: json.message ?? "Compte refusé." };
+    return json.ok ? { state: "ok", label: json.message ?? "" } : { state: "bad", message: json.message ?? "Account refused." };
   } catch {
-    return { state: "bad", message: "Impossible de joindre le serveur." };
+    return { state: "bad", message: "Could not reach the server." };
   }
 }
 
@@ -35,8 +35,8 @@ export function ExchangeAccounts({ value, onChange }: Props) {
   return (
     <div className="xch">
       <div className="xch-head">
-        <span className="field-label">Comptes exchange</span>
-        <span className="field-hint">Binance, Bybit, OKX… Les agents que vous y rattachez pourront lire les soldes, passer des ordres et déplacer des fonds entre spot et futures — chaque ordre vous est demandé.</span>
+        <span className="field-label">Exchange accounts</span>
+        <span className="field-hint">Binance, Bybit, OKX… The agents you attach to them will be able to read balances, place orders and move funds between spot and futures — every order is submitted to you first.</span>
       </div>
       {value.length > 0 && (
         <ul className="xch-list">
@@ -56,7 +56,7 @@ export function ExchangeAccounts({ value, onChange }: Props) {
         />
       ) : (
         <button type="button" className="btn btn-sm" onClick={() => setAdding(true)}>
-          Ajouter un compte
+          Add an account
         </button>
       )}
     </div>
@@ -69,7 +69,7 @@ function AccountRow({ account, onRemove }: { account: ExchangeAccount; onRemove:
   const info = exchangeInfo(account.exchange);
   return (
     <li className="xch-row">
-      <span className={`xch-badge${account.testnet ? "" : " is-live"}`}>{account.testnet ? "TESTNET" : "RÉEL"}</span>
+      <span className={`xch-badge${account.testnet ? "" : " is-live"}`}>{account.testnet ? "TESTNET" : "LIVE"}</span>
       <span className="xch-label">{account.label}</span>
       <span className="xch-exchange">{info?.label ?? account.exchange}</span>
       <span className="xch-status">
@@ -86,20 +86,20 @@ function AccountRow({ account, onRemove }: { account: ExchangeAccount; onRemove:
         }}
       >
         {check.state === "checking" ? <Spinner /> : check.state === "ok" ? <Check /> : null}
-        Tester
+        Test
       </button>
       {confirm ? (
         <>
           <button type="button" className="btn btn-sm btn-danger" onClick={onRemove}>
-            Supprimer
+            Delete
           </button>
           <button type="button" className="btn btn-sm btn-ghost" onClick={() => setConfirm(false)}>
-            Garder
+            Keep
           </button>
         </>
       ) : (
         <button type="button" className="btn btn-sm btn-ghost" onClick={() => setConfirm(true)}>
-          Retirer
+          Remove
         </button>
       )}
     </li>
@@ -115,7 +115,7 @@ function AddForm({ existing, onAdd, onCancel }: { existing: ExchangeAccount[]; o
   const [testnet, setTestnet] = useState(false);
   const [shown, setShown] = useState(false);
   const info = exchangeInfo(exchange);
-  /* Le nom propose suit l'exchange choisi : « Bybit-main » pour Bybit. */
+  /* The suggested name follows the chosen exchange: "Bybit-main" for Bybit. */
   const suggested = `${info?.label ?? exchange}-main`;
   const cleanLabel = label.trim();
   const duplicate = existing.some((a) => a.label.toLowerCase() === cleanLabel.toLowerCase());
@@ -123,7 +123,7 @@ function AddForm({ existing, onAdd, onCancel }: { existing: ExchangeAccount[]; o
 
   const submit = () => {
     if (!valid) return;
-    /* L'id est pose ici, au clic — jamais pendant le rendu. */
+    /* The id is stamped here, on click — never during render. */
     onAdd({ id: crypto.randomUUID(), exchange, label: cleanLabel, apiKey: apiKey.trim(), secret: secret.trim(), password: password.trim(), testnet: !!info?.testnet && testnet });
   };
 
@@ -139,7 +139,7 @@ function AddForm({ existing, onAdd, onCancel }: { existing: ExchangeAccount[]; o
             label: e.label,
             meta:
               [
-                e.futures === "none" ? "spot seulement" : e.futures === "read" ? "futures en lecture seule" : "spot + futures",
+                e.futures === "none" ? "spot only" : e.futures === "read" ? "futures read-only" : "spot + futures",
                 e.testnet ? "testnet" : null,
                 e.password ? "passphrase" : null,
               ]
@@ -152,13 +152,13 @@ function AddForm({ existing, onAdd, onCancel }: { existing: ExchangeAccount[]; o
           }}
         />
       </Field>
-      <Field id="xch-label" label="Nom du compte" hint={`Celui que l'agent emploiera : « ${suggested} ».`} error={duplicate ? "Un compte porte déjà ce nom." : undefined}>
+      <Field id="xch-label" label="Account name" hint={`The one the agent will use: "${suggested}".`} error={duplicate ? "An account already has this name." : undefined}>
         <input id="xch-label" className="field-input" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={suggested} />
       </Field>
-      <Field id="xch-key" label="Clé API">
+      <Field id="xch-key" label="API key">
         <div className="ob-key">
           <input id="xch-key" className="field-input mono" type={shown ? "text" : "password"} autoComplete="off" spellCheck={false} value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
-          <button type="button" className="ob-key-eye" onClick={() => setShown(!shown)} aria-label={shown ? "Masquer" : "Afficher"}>
+          <button type="button" className="ob-key-eye" onClick={() => setShown(!shown)} aria-label={shown ? "Hide" : "Show"}>
             {shown ? <EyeOff /> : <Eye />}
           </button>
         </div>
@@ -173,14 +173,14 @@ function AddForm({ existing, onAdd, onCancel }: { existing: ExchangeAccount[]; o
       )}
       <label className={`xch-check${info?.testnet ? "" : " is-off"}`}>
         <input type="checkbox" checked={testnet} disabled={!info?.testnet} onChange={(e) => setTestnet(e.target.checked)} />
-        Réseau de test (testnet){info?.testnet ? "" : " — pas proposé par cet exchange"}
+        Test network (testnet){info?.testnet ? "" : " — not offered by this exchange"}
       </label>
       <div className="xch-actions">
         <button type="button" className="btn btn-sm btn-primary" disabled={!valid} onClick={submit}>
-          Ajouter
+          Add
         </button>
         <button type="button" className="btn btn-sm btn-ghost" onClick={onCancel}>
-          Annuler
+          Cancel
         </button>
       </div>
     </div>

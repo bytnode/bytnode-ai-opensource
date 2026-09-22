@@ -1,25 +1,25 @@
 import path from "node:path";
 
 /* ---------------------------------------------------------------------------
-   Les chemins, et le perimetre.
+   Paths, and the scope.
 
-   Un chemin relatif se resout dans le dossier de travail de l'agent. Ce
-   qu'on fait d'un chemin qui en sort depend du PERIMETRE de l'agent :
-     - `workspace` : refuse. L'agent ne lit ni n'ecrit rien dehors.
-     - `disk`      : accepte. Tout le disque, comme un outil de developpement.
-   La comparaison ignore `..`, les prefixes trompeurs (`/work` contre
-   `/work2`) et, sous Windows, la casse.
+   A relative path resolves inside the agent's workspace. What happens to a
+   path that leaves it depends on the agent's SCOPE:
+     - `workspace`: refused. The agent neither reads nor writes anything outside.
+     - `disk`     : accepted. The whole disk, like a development tool.
+   The comparison ignores `..`, misleading prefixes (`/work` versus
+   `/work2`) and, on Windows, letter case.
 
-   ⚠️ CE PERIMETRE NE VAUT QUE POUR LES OUTILS FICHIERS. Un shell demarre dans
-   le dossier de travail mais rien ne l'empeche d'en sortir — c'est dit au
-   modele, et c'est le mode « demander avant d'agir » qui protege la.
+   ⚠️ THIS SCOPE ONLY APPLIES TO THE FILE TOOLS. A shell starts in the
+   workspace but nothing stops it from leaving — the model is told so, and
+   it is the "ask before acting" mode that protects there.
 --------------------------------------------------------------------------- */
 
 export type Scope = "workspace" | "disk";
 
 export class OutsideWorkspaceError extends Error {
   constructor(public readonly requested: string) {
-    super(`Chemin hors du dossier de travail : ${requested}. Le périmètre de cet agent est limité à son dossier de travail.`);
+    super(`Path outside the workspace: ${requested}. This agent's scope is limited to its workspace.`);
     this.name = "OutsideWorkspaceError";
   }
 }
@@ -37,8 +37,8 @@ export function resolvePath(workspace: string, requested: string, scope: Scope =
   return target;
 }
 
-/** Le chemin tel qu'on le montre : relatif au dossier de travail quand il y
-    est, absolu sinon. Toujours avec des barres obliques. */
+/** The path as it is shown: relative to the workspace when it sits inside,
+    absolute otherwise. Always with forward slashes. */
 export function displayPath(workspace: string, absolute: string): string {
   const rel = path.relative(workspace, absolute);
   if (rel === "") return ".";

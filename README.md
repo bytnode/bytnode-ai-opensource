@@ -1,347 +1,344 @@
 # BytNode-AI
 
-Des agents IA financiers, en local : chacun a un métier (Standard, Analyste, Stratégique,
-Quantitatif), des outils (fichiers, shells, web, sous-agents) et une source de données de marché,
-BytNode, interrogée par MCP. Les modèles viennent d'OpenRouter (par clé) ou de votre **abonnement**
-— Claude, OpenAI, Gemini, GitHub Copilot, Grok, Mistral — dans ce cas c'est
-l'agent de l'éditeur (Claude Code, Codex, Gemini CLI, Copilot CLI, Grok Build, Mistral Vibe) qui tourne, habillé par BytNode-AI, via le protocole ACP.
+Local AI finance agents: each one has a profession (Standard, Analyst, Strategic,
+Quantitative), tools (files, shells, web, sub-agents) and a market-data source, BytNode,
+queried over MCP. Models come from OpenRouter (by key) or from your **subscription**
+— Claude, OpenAI, Gemini, GitHub Copilot, Grok — in which case it is the
+vendor's own agent (Claude Code, Codex, Gemini CLI, Copilot CLI, Grok Build) that runs, dressed by BytNode-AI, through the ACP protocol.
 
-**Next.js 16 (App Router) · React 19 · TypeScript strict · CSS écrit à la main · Vitest.**
-Le fond est celui de BytNode (`components/fond`), avec les mêmes tokens (`--ink`, `--paper`,
-`--voile`) et les mêmes polices (Geist, Inter, IBM Plex Mono).
+**Next.js 16 (App Router) · React 19 · strict TypeScript · hand-written CSS · Vitest.**
+The background is BytNode's (`components/fond`), with the same tokens (`--ink`, `--paper`,
+`--voile`) and the same fonts (Geist, Inter, IBM Plex Mono).
 
-## Installer
+## Install
 
 ```bash
-npx bytnode-ai        # une fois : installe la commande bytnode-ai, puis démarre http://localhost:3777
-bytnode-ai            # les fois suivantes
-npx bytnode-ai@latest # mise à jour
+npx bytnode-ai        # once: installs the bytnode-ai command, then starts http://localhost:3777
+bytnode-ai            # every time after that
+npx bytnode-ai@latest # update
 ```
 
-Prérequis : Node ≥ 20.9. Optionnels : Python + pandas (outil Backtest), `zenity` sous Linux
-(sélecteur de dossier). Les données — dossiers de travail, agents par abonnement, compétences
-personnelles — vivent dans `~/.bytnode-ai/` (`BYTNODE_AI_HOME` pour changer) ; les clés et les
-conversations dans le `localStorage` du navigateur. Fermer : Ctrl-C dans le terminal.
-Options : `--port N`, `--no-open` ; `--no-install` pour que `npx` ne pose pas la commande.
+Requirements: Node ≥ 20.9. Optional: Python + pandas (Backtest tool), `zenity` on Linux
+(folder picker). Data — workspaces, subscription agents, personal skills — lives in
+`~/.bytnode-ai/` (`BYTNODE_AI_HOME` to change it); keys and conversations in the browser's
+`localStorage`. To quit: Ctrl-C in the terminal.
+Options: `--port N`, `--no-open`; `--no-install` so that `npx` does not install the command.
 
-Les six agents par abonnement ne sont pas embarqués : un agent déjà installé sur la machine
-(`gemini`, `copilot`, `grok`) est reconnu ; les autres s'installent au premier clic sur
-« Installer », dans `~/.bytnode-ai/agents/<id>/`.
+The six subscription agents are not bundled: an agent already installed on the machine
+(`gemini`, `copilot`, `grok`) is recognised; the others install on the first click on
+"Install", into `~/.bytnode-ai/agents/<id>/`.
 
-## Développer
+## Develop
 
 ```bash
 npm install
-npm run dev        # http://localhost:3777 (le port 3000 est laissé libre)
+npm run dev        # http://localhost:3777 (port 3000 is left free)
 ```
 
-Au premier lancement, l'assistant de configuration s'ouvre au-dessus du fond : profil (dont
-quelques mots sur vous, transmis à tous les agents), **Authentification** (onglet Abonnement :
-six éditeurs, bouton Se connecter — ou Installer pour ceux qui se téléchargent ; onglet Clés :
-OpenRouter ; la clé BytNode dans les deux cas), puis un premier agent (nom, fournisseur, profession, contexte texte + fichiers, dossier
-de travail choisi dans l'explorateur, périmètre, mode des outils). La colonne de gauche liste ensuite vos **agents** ;
-celui qu'on ouvre montre ses conversations. « Nouvel agent » ne redemande ni le profil ni la
-clé. Le crayon modifie un agent, la corbeille le supprime avec ses conversations, l'engrenage
-en bas rouvre le compte (profil + clé). Tout est mémorisé dans `localStorage`
-(`agentchat:settings`, `agentchat:conversations`) ; rien ne quitte l'ordinateur sauf ce qui
-part vers OpenRouter.
+On first launch, the setup wizard opens over the background: profile (including a few words
+about you, passed to every agent), **Authentication** (Subscription tab: six vendors, a
+Sign in button — or Install for those that download; Keys tab: OpenRouter; the BytNode key in
+both cases), then a first agent (name, provider, profession, text + file context, workspace
+picked in the file explorer, scope, tool mode). The left column then lists your **agents**;
+the one you open shows its conversations. "New agent" asks neither for the profile nor for
+the key again. The pencil edits an agent, the bin deletes it along with its conversations,
+the cog at the bottom reopens the account (profile + key). Everything is remembered in
+`localStorage` (`agentchat:settings`, `agentchat:conversations`); nothing leaves the computer
+except what goes to OpenRouter.
 
 ```bash
-npm test           # Vitest sur lib/
+npm test           # Vitest on lib/
 npm run typecheck  # tsc --noEmit
 npm run lint       # eslint
 npm run build      # next build
-npm run smoke:pack # le paquet tel qu'un utilisateur le reçoit (npm pack, install, démarrage)
-npm pack --dry-run # prepack : build propre + contrôle de l'archive (rien d'interdit, aucune clé)
-npm run vierge     # comme au premier lancement : données temporaires, aucun agent reconnu, port neuf (localStorage vide) ; --no-build, --no-open
+npm run smoke:pack # the package as a user receives it (npm pack, install, start)
+npm pack --dry-run # prepack: clean build + archive check (nothing forbidden, no key)
+npm run vierge     # as on first launch: temporary data, no agent recognised, fresh port (empty localStorage); --no-build, --no-open
 ```
 
-`OPENROUTER_BASE_URL` (serveur) redirige les appels vers un autre hôte — un relais, ou un faux
-OpenRouter pour tester le flux sans clé.
+`OPENROUTER_BASE_URL` (server) redirects the calls to another host — a relay, or a fake
+OpenRouter to test the flow without a key.
 
-### Chez quel fournisseur part la requête
+### Which provider the request goes to
 
-Un même modèle est servi par plusieurs fournisseurs, et leurs latences n'ont rien à voir : par
-défaut OpenRouter répartit la charge, et le même tour peut répondre en 3 s ou en 34 s selon qui le
-reçoit (mesuré). Toutes nos requêtes portent donc `provider: { sort: "latency", ignore: ["parasail"] }`
-(`lib/server/provider-routing.ts`). Réglable par variables d'environnement :
+The same model is served by several providers, and their latencies have nothing in common: by
+default OpenRouter load-balances, and the same turn can answer in 3 s or in 34 s depending on
+who receives it (measured). All our requests therefore carry `provider: { sort: "latency", ignore: ["parasail"] }`
+(`lib/server/provider-routing.ts`). Adjustable through environment variables:
 
-| Variable | Défaut | Effet |
+| Variable | Default | Effect |
 |---|---|---|
-| `OPENROUTER_PROVIDER_SORT` | `latency` | `latency`, `throughput` ou `price` |
-| `OPENROUTER_IGNORE_PROVIDERS` | `parasail` | liste à écarter ; vide = personne |
-| `OPENROUTER_PROVIDER_ORDER` | — | ordre explicite ; prime sur le tri |
-| `OPENROUTER_ALLOW_FALLBACKS` | `1` | `0` interdit tout autre fournisseur (risque d'échec) |
+| `OPENROUTER_PROVIDER_SORT` | `latency` | `latency`, `throughput` or `price` |
+| `OPENROUTER_IGNORE_PROVIDERS` | `parasail` | list to exclude; empty = nobody |
+| `OPENROUTER_PROVIDER_ORDER` | — | explicit order; takes precedence over the sort |
+| `OPENROUTER_ALLOW_FALLBACKS` | `1` | `0` forbids any other provider (risk of failure) |
 
-### Par abonnement (ACP)
+### By subscription (ACP)
 
-Rien n'est embarqué (`lib/acp/packages.ts` dit d'où vient chacun). Cinq agents sont des paquets
-npm (Claude Code, Codex, Gemini CLI, Copilot CLI, Grok Build) : `Installer` écrit un `package.json`
-dans `~/.bytnode-ai/agents/<id>/` et y lance `npm install` (`lib/acp/install.ts`) ; `gemini`,
-`copilot` et `grok` déjà installés globalement sont reconnus sur le PATH (`lib/acp/detect.ts`).
-Mistral Vibe est un binaire par plateforme : `Installer` lit l'entrée du registre ACP
-(github.com/agentclientprotocol/registry), télécharge l'archive de la machine et l'extrait au même
-endroit. Quand une version de BytNode-AI relève la plage d'un adaptateur, le bouton devient
-`Mettre à jour`.
-`Se connecter` ouvre le navigateur sur la page de l'éditeur (Claude et Copilot : dans une fenêtre de
-terminal ; OpenAI : `codex login` ; les autres : la méthode `authenticate` que l'agent annonce —
-compte personnel, jamais une clé API), et l'état se relit tout seul. Pour les agents sans CLI
-d'état, « connecté » = une session d'essai acceptée (`lib/acp/auth.ts`, cache 90 s).
+Nothing is bundled (`lib/acp/packages.ts` says where each one comes from). The five agents are npm
+packages (Claude Code, Codex, Gemini CLI, Copilot CLI, Grok Build): `Install` writes a `package.json`
+in `~/.bytnode-ai/agents/<id>/` and runs `npm install` there (`lib/acp/install.ts`); `gemini`,
+`copilot` and `grok` already installed globally are recognised on the PATH (`lib/acp/detect.ts`).
+When a BytNode-AI release raises an adapter's range, the button becomes `Update`.
+`Sign in` opens the browser on the vendor's page (Claude and Copilot: in a terminal window;
+OpenAI: `codex login`; the others: the `authenticate` method the agent announces — a personal
+account, never an API key), and the state re-reads itself. For agents without a status CLI,
+"signed in" = a probe session accepted (`lib/acp/auth.ts`, 90 s cache).
 
-Un agent dont le fournisseur est `acp:claude` / `acp:openai` / `acp:gemini` ne fait pas tourner
-notre boucle : le serveur (`lib/acp/`) lance l'agent externe en sous-processus (JSON-RPC sur stdio),
-**une session par conversation** (`session/new`, rechargée par `session/load` après un redémarrage,
-tuée après 15 min de silence), lui passe **BytNode comme serveur MCP HTTP**, dépose les compétences
-de la profession dans `.agents/skills/` et `.claude/skills/` du dossier de travail, et lui donne le
-prompt BytNode-AI (Claude : en complément du prompt système ; Codex / Gemini : en tête du premier
-message). Ses outils sont les siens ; ses demandes de permission prennent nos boutons Autoriser /
-Toujours / Refuser (mode Demande) ou sont acceptées (mode Direct). Les modèles et l'effort viennent
-des options de session de l'agent (`lib/acp/models.ts`, cache 1 h).
+An agent whose provider is `acp:claude` / `acp:openai` / `acp:gemini` does not run our loop:
+the server (`lib/acp/`) launches the external agent as a subprocess (JSON-RPC over stdio),
+**one session per conversation** (`session/new`, reloaded by `session/load` after a restart,
+killed after 15 min of silence), passes it **BytNode as an HTTP MCP server**, drops the
+profession's skills into `.agents/skills/` and `.claude/skills/` of the workspace, and gives it
+the BytNode-AI prompt (Claude: on top of the system prompt; Codex / Gemini: at the head of the
+first message). Its tools are its own; its permission requests take our Allow / Always / Deny
+buttons (Ask mode) or are accepted (Direct mode). Models and effort come from the agent's
+session options (`lib/acp/models.ts`, 1 h cache).
 
-Les clés `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` sont retirées de l'environnement des sous-processus :
-c'est l'abonnement qui doit être facturé, pas l'API. Pour Claude, un `.claude/settings.local.json`
-est posé dans le dossier de travail (`permissions.defaultMode: default`) et les réglages personnels
-de l'utilisateur ne sont pas chargés.
+The `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` keys are stripped from the subprocesses' environment:
+the subscription must be billed, not the API. For Claude, a `.claude/settings.local.json` is
+placed in the workspace (`permissions.defaultMode: default`) and the user's personal settings
+are not loaded.
 
 ## Architecture
 
 ```
 app/
-  layout.tsx, page.tsx            shell : assistant en overlay si non configuré, sinon le chat
-  api/chat/route.ts               POST → relaie une completion en flux (SSE) depuis OpenRouter, outils compris
-  api/tools/route.ts              GET → dossier de travail résolu, spécifications des outils, compétences
-  api/tools/execute/route.ts      POST → exécute un outil, flux NDJSON (lignes, sous-agents, résultat)
-  api/openrouter/models/route.ts  GET → catalogue (cache 1 h, pas de clé requise)
-  api/openrouter/key/route.ts     GET → vérifie une clé
-  api/bytnode/key/route.ts        GET → vérifie une clé BytNode (connexion MCP)
-  api/acp/auth|models|prompt|permission|cancel   les agents par abonnement (voir ci-dessus)
-  api/system/pick-folder/route.ts POST → le sélecteur de dossier natif
+  layout.tsx, page.tsx            shell: wizard as an overlay when not configured, otherwise the chat
+  api/chat/route.ts               POST → relays a streamed completion (SSE) from OpenRouter, tools included
+  api/tools/route.ts              GET → resolved workspace, tool specifications, skills
+  api/tools/execute/route.ts      POST → runs a tool, NDJSON stream (lines, sub-agents, result)
+  api/openrouter/models/route.ts  GET → catalog (1 h cache, no key required)
+  api/openrouter/key/route.ts     GET → checks a key
+  api/bytnode/key/route.ts        GET → checks a BytNode key (MCP connection)
+  api/acp/auth|models|prompt|permission|cancel   the subscription agents (see above)
+  api/system/pick-folder/route.ts POST → the native folder picker
 components/
-  fond/        FondMarine (porté de BytNode)
-  onboarding/  Wizard, StepProfil, StepAuth (Abonnement | Clés), StepAgent, ProviderPicker, ContextFiles, FolderField
+  fond/        FondMarine (ported from BytNode)
+  onboarding/  Wizard, StepProfil, StepAuth (Subscription | Keys), StepAgent, ProviderPicker, ContextFiles, FolderField
   chat/        ChatShell, Sidebar, Thread, Message, Composer, ModelPicker, useChat
-  ui/          Field, SearchPanel (liste + recherche, partagé), ThemeToggle, icônes
+  ui/          Field, SearchPanel (list + search, shared), ThemeToggle, icons
 lib/
   domain/      types (Profile, ApiKeys, AgentConfig[], Conversation{agentId}, Message{steps}, Model, Provider)
-  llm/         interface LlmClient { streamChat() } + OpenRouterClient + lecteur SSE (texte, tool_calls)
-  agent/       loop.ts (la boucle modèle → outils → modèle, isomorphe), history.ts (pas → messages),
-               tool-calls.ts (recollage des fragments), events.ts, prompt.ts, tools-prompt.ts
-  acp/         agents.ts (catalogue, partagé), launch.ts, install.ts, connection.ts, sessions.ts, translate.ts,
-               auth.ts, models.ts, prompt.ts, skills-sync.ts, prepare.ts, client.ts + use-auth.ts (navigateur)
-  tools/       ← LE DOSSIER DES OUTILS : types.ts (interface Tool), registry.ts, names.ts (outils gardés)
-    fs/        Read (texte, images, PDF, .ipynb), Write, Edit (chaîne unique), NotebookEdit, Glob, Grep (ripgrep embarqué)
-    exec/      run.ts (spawn borné), shells.ts (Bash via Git bash, PowerShell), monitor.ts (commande ou WebSocket, borné)
-    web/       search.ts (greffon web d'OpenRouter, 45 s × 2), fetch.ts (turndown + GFM, garde SSRF)
-    agents/    subagent.ts (pur : schéma, prompt, rapport), workflow.ts (sous-agents par profession, côté serveur)
-    skills/    skill.ts (skills/<nom>/SKILL.md : dossier de travail, projet, ~/.agents/skills)
-    client.ts  ce que le navigateur en voit (specs + exécution par la route)
-  catalog/     modèles OpenRouter → fournisseurs, « derniers sortis », recherche
-  storage/     interface Storage + BrowserStorage/MemoryStorage ; repositories
-  agent/       buildSystemPrompt(profil, agent)
-  state/       magasins (useSyncExternalStore) : settings, conversations, catalogue
-  server/      ce que les routes savent d'OpenRouter
+  llm/         interface LlmClient { streamChat() } + OpenRouterClient + SSE reader (text, tool_calls)
+  agent/       loop.ts (the model → tools → model loop, isomorphic), history.ts (steps → messages),
+               tool-calls.ts (reassembling fragments), events.ts, prompt.ts, tools-prompt.ts
+  acp/         agents.ts (catalog, shared), launch.ts, install.ts, connection.ts, sessions.ts, translate.ts,
+               auth.ts, models.ts, prompt.ts, skills-sync.ts, prepare.ts, client.ts + use-auth.ts (browser)
+  tools/       ← THE TOOLS FOLDER: types.ts (interface Tool), registry.ts, names.ts (gated tools)
+    fs/        Read (text, images, PDF, .ipynb), Write, Edit (single string), NotebookEdit, Glob, Grep (bundled ripgrep)
+    exec/      run.ts (bounded spawn), shells.ts (Bash via Git bash, PowerShell), monitor.ts (command or WebSocket, bounded)
+    web/       search.ts (OpenRouter's web plugin, 45 s × 2), fetch.ts (turndown + GFM, SSRF guard)
+    agents/    subagent.ts (pure: schema, prompt, report), workflow.ts (sub-agents by profession, server-side)
+    skills/    skill.ts (skills/<name>/SKILL.md: workspace, project, ~/.agents/skills)
+    client.ts  what the browser sees of them (specs + execution through the route)
+  catalog/     OpenRouter models → providers, "latest releases", search
+  storage/     interface Storage + BrowserStorage/MemoryStorage; repositories
+  agent/       buildSystemPrompt(profile, agent)
+  state/       stores (useSyncExternalStore): settings, conversations, catalog
+  server/      what the routes know about OpenRouter
 ```
 
-### Les professions
+### The professions
 
-`professions/<id>/PROMPT.md` est le prompt système du métier, `professions/<id>/skills/<nom>/SKILL.md`
-ses compétences propres, `professions/_commun/skills/` celles que tous partagent (`source-bytnode` :
-comment interroger la source ; `reponse-financiere` : la forme d'une réponse). Tout est du fichier,
-modifiable à la main. Le prompt final d'un agent = profil utilisateur + prompt de profession +
-contexte de l'agent + section Environnement (outils, périmètre, état de BytNode, compétences).
+`professions/<id>/PROMPT.md` is the profession's system prompt, `professions/<id>/skills/<name>/SKILL.md`
+its own skills, `professions/_commun/skills/` the ones shared by all (`source-bytnode`:
+how to query the source; `reponse-financiere`: the shape of an answer). Everything is a file,
+editable by hand. An agent's final prompt = user profile + profession prompt +
+agent context + Environment section (tools, scope, BytNode status, skills).
 
-| Profession | Prompt | Compétences propres |
+| Profession | Prompt | Own skills |
 |---|---|---|
-| Standard | généraliste finance/crypto, premier interlocuteur | lecture-marche |
-| Analyste | données → tendances et scénarios, macro intégrée | analyse-tendance, contexte-macro, rapport-analyse |
-| Stratégique | stratégies complètes et testables, axées crypto | conception-strategie, gestion-risque, plan-backtest |
-| Quantitatif | maths, stats, Python, backtests honnêtes | python-quant, validation-statistique, backtest-python |
+| Standard | finance/crypto generalist, first point of contact | lecture-marche |
+| Analyst | data → trends and scenarios, macro built in | analyse-tendance, contexte-macro, rapport-analyse |
+| Strategic | complete, testable strategies, crypto-focused | conception-strategie, gestion-risque, plan-backtest |
+| Quantitative | maths, stats, Python, honest backtests | python-quant, validation-statistique, backtest-python |
 
-### BytNode (source de données)
+### BytNode (data source)
 
-Serveur MCP distant (`https://api.bytnode.com/mcp`, surchargeable par `BYTNODE_MCP_URL`), en-tête
-`X-API-KEY`, clé saisie dans la page Clés (bouton Vérifier). Ses outils (`get_system_info`,
-`get_market_data`, `get_history`, `get_market_indicators`, `get_market_emotions`…) sont découverts à la
-connexion (`lib/mcp/bytnode.ts`) et donnés à tous les agents en plus des outils de base, jamais soumis
-à permission (lecture seule). Sans clé, les agents le savent et le disent.
+Remote MCP server (`https://api.bytnode.com/mcp`, overridable with `BYTNODE_MCP_URL`),
+`X-API-KEY` header, key entered on the Keys page (Check button). Its tools (`get_system_info`,
+`get_market_data`, `get_history`, `get_market_indicators`, `get_market_emotions`…) are discovered at
+connection time (`lib/mcp/bytnode.ts`) and given to every agent on top of the base tools, never
+subject to permission (read-only). Without a key, the agents know it and say so.
 
-### Les outils
+### The tools
 
-Tous les agents ont le même jeu de base : Read, Write, Edit, NotebookEdit, Glob, Grep, Bash,
-PowerShell, Monitor, WebSearch, WebFetch, Workflow, Skill — plus quatre outils financiers
-(`lib/tools/finance/`) :
+All agents share the same base set: Read, Write, Edit, NotebookEdit, Glob, Grep, Bash,
+PowerShell, Monitor, WebSearch, WebFetch, Workflow, Skill — plus four finance tools
+(`lib/tools/finance/`):
 
-- **SaveMarketData** : un outil BytNode → un CSV dans le dossier de travail, sans faire transiter
-  les lignes par le modèle (le tableau est trouvé dans la réponse JSON, quelle que soit sa forme).
-- **Chart** : un graphique PNG (bougies ou ligne, volume, colonnes superposées, marqueurs, niveaux)
-  depuis un CSV, rendu en SVG puis rasterisé (`@resvg/resvg-js`) ; l'image est jointe au résultat
-  (le modèle la voit) et affichée dans le fil (servie par `/api/files`, jamais hors du dossier).
-- **Backtest** : le moteur standard `py/backtest.py` (Python + pandas) — l'agent n'écrit que
-  `signal(df)` / `stop_distance(df)` ; exécution à la bougie suivante, frais, slippage, funding,
-  taille par le risque, in/out-of-sample, métriques par période et par année, acheter-et-garder,
-  courbe de capital. Soumis à permission (il exécute le Python de l'agent).
-- **Memory** : des notes datées dans `.bytnode-ai/memory.jsonl` du dossier de travail ; les 25
-  dernières sont glissées dans le prompt de chaque tour (`/api/memory`).
-- **TodoWrite** : la liste de tâches de l'agent sur une demande longue, envoyée en entier à chaque
-  appel et affichée dans le fil (le même bloc « plan » que les agents par abonnement).
+- **SaveMarketData**: a BytNode tool → a CSV in the workspace, without the rows going
+  through the model (the table is found in the JSON response, whatever its shape).
+- **Chart**: a PNG chart (candles or line, volume, overlaid columns, markers, levels)
+  from a CSV, rendered as SVG then rasterised (`@resvg/resvg-js`); the image is attached to the
+  result (the model sees it) and shown in the thread (served by `/api/files`, never outside the folder).
+- **Backtest**: the standard engine `py/backtest.py` (Python + pandas) — the agent only writes
+  `signal(df)` / `stop_distance(df)`; next-candle execution, fees, slippage, funding,
+  risk-based sizing, in/out-of-sample, metrics per period and per year, buy-and-hold,
+  equity curve. Subject to permission (it runs the agent's Python).
+- **Memory**: dated notes in `.bytnode-ai/memory.jsonl` of the workspace; the last 25
+  are slipped into the prompt of every turn (`/api/memory`).
+- **TodoWrite**: the agent's task list on a long request, sent in full on every
+  call and shown in the thread (the same "plan" block as the subscription agents).
 
-Le contexte se gère tout seul (moteur OpenRouter) : au-delà de 70 % de la fenêtre du modèle, les
-anciens résultats d'outils sont élagués dans ce que le modèle reçoit (le fil affiché garde tout) ;
-à 90 % en fin de tour, le fil est compacté automatiquement ; si le fournisseur refuse le contexte,
-le fil est compacté puis votre message rejoué. Les arguments de chaque appel d'outil sont vérifiés
-contre son schéma avant toute exécution : un appel mal formé revient au modèle avec la raison.
+Context manages itself (OpenRouter engine): beyond 70 % of the model's window, old
+tool results are pruned from what the model receives (the displayed thread keeps everything);
+at 90 % at the end of a turn, the thread is compacted automatically; if the provider refuses the
+context, the thread is compacted and your message replayed. The arguments of every tool call are
+checked against its schema before any execution: an ill-formed call goes back to the model with the reason.
 
-Les agents par abonnement reçoivent les mêmes quatre outils par un serveur MCP stdio local
-(`lib/mcp/finance-server.ts`, lancé avec `tsx`), passé dans `session/new` à côté de BytNode. Chaque outil est un fichier de
-`lib/tools/` qui implémente `Tool { name, description, parameters, execute(args, ctx) }` ;
-`registry.ts` les assemble. Ajouter un outil = un fichier + une ligne dans le registre.
+Subscription agents receive the same four tools through a local stdio MCP server
+(`lib/mcp/finance-server.ts`, run with `tsx`), passed in `session/new` next to BytNode. Every tool is a file in
+`lib/tools/` that implements `Tool { name, description, parameters, execute(args, ctx) }`;
+`registry.ts` assembles them. Adding a tool = one file + one line in the registry.
 
-La boucle (`lib/agent/loop.ts`) tourne **dans le navigateur** pour l'agent principal (modèle via
-`/api/chat`, outils via `/api/tools/execute`, permissions demandées à l'écran) et **sur le
-serveur** pour les sous-agents de Workflow (tout en direct). Un message d'assistant mémorise ses
-*pas* (texte, appels, résultats) et `history.ts` les rejoue au format du fournisseur.
+The loop (`lib/agent/loop.ts`) runs **in the browser** for the main agent (model through
+`/api/chat`, tools through `/api/tools/execute`, permissions asked on screen) and **on the
+server** for Workflow sub-agents (everything in-process). An assistant message remembers its
+*steps* (text, calls, results) and `history.ts` replays them in the provider's format.
 
-- **Dossier de travail et périmètre** : chaque agent a un dossier (`~/.bytnode-ai/workspaces/<id>` par défaut,
-  ou choisi dans l'explorateur) où les shells démarrent et où les chemins relatifs se résolvent.
-  Périmètre `Dossier de travail seulement` (les outils fichiers refusent tout chemin extérieur ;
-  une commande shell qui en désigne un est refusée avant de partir) ou `Tout le disque`.
-- **Permissions** : par agent, `Demande avant d'agir` (Bash, PowerShell, Monitor, Write, Edit,
-  NotebookEdit, Workflow attendent un accord dans le fil ; « Toujours pour cet agent » bascule
-  en direct) ou `Exécution directe`. Basculable dans l'en-tête du chat.
-- **WebSearch** : le greffon `web` d'OpenRouter, sur la clé OpenRouter (modèle de recherche :
-  `OPENROUTER_SEARCH_MODEL`, par défaut `deepseek/deepseek-v4.1-flash`) ; 45 s, deux tentatives.
-- **Compétences** : `skills/<nom>/SKILL.md` (en-tête YAML `name`, `description`). Celles que vous
-  écrivez vont dans `skills/` à la racine (voir `skills/README.md`) : les agents sur OpenRouter les
-  lisent là, les agents par abonnement en reçoivent une copie dans `.agents/skills/` et
-  `.claude/skills/` de leur dossier de travail (`lib/acp/skills-sync.ts` : idempotent, ne touche pas
-  à ce que vous avez écrit à la main, retire ce que le projet ne fournit plus). Sont aussi lus le
-  dossier de travail de l'agent et `~/.agents/skills`. Tous sont listés dans le prompt et chargés
-  par l'outil Skill.
+- **Workspace and scope**: every agent has a folder (`~/.bytnode-ai/workspaces/<id>` by default,
+  or picked in the file explorer) where shells start and where relative paths resolve.
+  Scope `Workspace only` (file tools refuse any outside path;
+  a shell command that names one is refused before it runs) or `Whole disk`.
+- **Permissions**: per agent, `Ask before acting` (Bash, PowerShell, Monitor, Write, Edit,
+  NotebookEdit, Workflow wait for approval in the thread; "Always for this agent" switches
+  to direct) or `Run directly`. Toggleable in the chat header.
+- **WebSearch**: OpenRouter's `web` plugin, on the OpenRouter key (search model:
+  `OPENROUTER_SEARCH_MODEL`, default `deepseek/deepseek-v4.1-flash`); 45 s, two attempts.
+- **Skills**: `skills/<name>/SKILL.md` (YAML front-matter `name`, `description`). The ones you
+  write go in `skills/` at the root (see `skills/README.md`): agents on OpenRouter read them
+  there, subscription agents get a copy in `.agents/skills/` and
+  `.claude/skills/` of their workspace (`lib/acp/skills-sync.ts`: idempotent, does not touch
+  what you wrote by hand, removes what the project no longer provides). The agent's
+  workspace and `~/.agents/skills` are read too. All of them are listed in the prompt and loaded
+  by the Skill tool.
 
-### Trader sur un exchange
+### Trading on an exchange
 
-Dans **Authentification**, la section « Comptes exchange » accepte autant de comptes que vous voulez parmi Binance, Bybit, OKX, Coinbase, Kraken, Bitget, KuCoin, Gate.io, HTX et MEXC : un nom (celui que l'agent emploiera, « Binance-main »), la clé API, le secret, une passphrase pour ceux qui en demandent, et « réseau de test » quand l'exchange en a un. « Tester » ouvre la connexion et lit le solde. Les clés restent dans votre navigateur, comme les autres, et voyagent avec chaque requête d'outil. Créez-les côté exchange avec les droits que vous voulez accorder — l'application n'a de toute façon aucun outil de retrait.
+In **Authentication**, the "Exchange accounts" section accepts as many accounts as you want among Binance, Bybit, OKX, Coinbase, Kraken, Bitget, KuCoin, Gate.io, HTX and MEXC: a name (the one the agent will use, "Binance-main"), the API key, the secret, a passphrase for those that require one, and "testnet" when the exchange has one. "Test" opens the connection and reads the balance. The keys stay in your browser, like the others, and travel with every tool request. Create them on the exchange side with the rights you want to grant — the application has no withdrawal tool anyway.
 
-Chaque agent choisit ensuite, dans sa configuration, **quels comptes il peut piloter**. Sans compte rattaché, il n'a aucun outil exchange. Avec, il dispose de :
+Each agent then picks, in its configuration, **which accounts it may drive**. Without an attached account, it has no exchange tool. With one, it gets:
 
-- **lecture, sans permission** : `ExchangeBalance` (soldes, estimation USD), `ExchangePositions` (positions futures, PnL, liquidation), `ExchangeOrders` (ordres ouverts ou historique avec frais), `ExchangeTicker` (prix, carnet, funding sur *cet* exchange), `ExchangeWatch` (un relevé toutes les N secondes pendant 10 minutes au plus, arrêt sur `price>=…`, `pnl<…`, `liq<3%` ou `closed`) ;
-- **action, avec permission** : `PlaceOrder` (market, limit, stop, stop-limit, take-profit ; quantité en actif ou en devise de cotation ; `reduceOnly`, levier), `CancelOrder`, `ClosePosition` (tout ou une fraction), `Transfer` (spot ↔ futures d'un même compte), `SetLeverage`.
+- **read, without permission**: `ExchangeBalance` (balances, USD estimate), `ExchangePositions` (futures positions, PnL, liquidation), `ExchangeOrders` (open orders or history with fees), `ExchangeTicker` (price, order book, funding on *that* exchange), `ExchangeWatch` (a reading every N seconds for 10 minutes at most, stopping on `price>=…`, `pnl<…`, `liq<3%` or `closed`);
+- **action, with permission**: `PlaceOrder` (market, limit, stop, stop-limit, take-profit; amount in the asset or in the quote currency; `reduceOnly`, leverage), `CancelOrder`, `ClosePosition` (all or a fraction), `Transfer` (spot ↔ futures of the same account), `SetLeverage`.
 
-Un ordre, une fermeture de position ou un transfert **vous est toujours demandé** — même quand l'agent est en « Exécution directe », et sans bouton « Toujours ». Chaque demande porte un badge **RÉEL** (rouge) ou **TESTNET** qui dit sur quel argent porte l'action ; l'en-tête de la conversation ne signale que le **TESTNET** (un compte réel est le cas normal, pas une alerte permanente). Les futures sont gérés en one-way (une position par paire) ; un compte en hedge mode est refusé avec un message. Les agents par abonnement (Claude Code, Codex…) reçoivent les mêmes outils par le serveur MCP `bytnode-ai`.
+An order, a position close or a transfer **is always asked of you** — even when the agent is in "Run directly", and without an "Always" button. Every request carries a **LIVE** (red) or **TESTNET** badge that says which money the action is about; the conversation header only flags **TESTNET** (a live account is the normal case, not a permanent alert). Futures are handled one-way (one position per pair); an account in hedge mode is refused with a message. Subscription agents (Claude Code, Codex…) receive the same tools through the `bytnode-ai` MCP server.
 
-Deux compétences communes guident les agents : `trading-execution` (solde → prix → taille → ordre → confirmation) et `trade-review` (revue de positions et d'historique, seuils d'alerte).
+Two shared skills guide the agents: `trading-execution` (balance → price → size → order → confirmation) and `trade-review` (review of positions and history, alert thresholds).
 
-Chaque exchange a ses limites, relevées sur sa documentation et sur ccxt ; l'application les connaît et refuse avant tout appel, avec la raison — l'agent les lit aussi dans son prompt :
+Every exchange has its limits, taken from its documentation and from ccxt; the application knows them and refuses before any call, with the reason — the agent reads them in its prompt too:
 
-| Exchange | Futures | Transfert spot ↔ futures | Testnet | À savoir |
+| Exchange | Futures | Spot ↔ futures transfer | Testnet | Worth knowing |
 | --- | --- | --- | --- | --- |
-| Binance | oui | oui | oui | Les clés du testnet spot (testnet.binance.vision) et du testnet futures (testnet.binancefuture.com) sont distinctes. |
-| Bybit | oui | non — compte unifié, un seul solde | oui | Clés testnet créées sur testnet.bybit.com. |
-| OKX | oui | non — compte de trading unifié | oui (démo) | Passphrase ; clés démo créées en mode démo. |
-| Coinbase | non | non | non | Advanced Trade ; le secret est la clé privée EC de la clé CDP (collée telle quelle, avec ou sans `\n`). |
-| Kraken | non | non | non | Kraken Futures a ses propres clés, hors de cette intégration. |
-| Bitget | oui | oui | non | Passphrase ; le compte doit être en one-way (vérifié avant chaque ordre). |
-| KuCoin | oui | oui | non | Passphrase ; une même clé (permissions Spot + Futures) sert les deux marchés. |
-| Gate.io | oui | oui | oui | Pas de mode de marge par l'API (levier seulement). |
-| HTX | oui | non | non | Pas de mode de marge par l'API. |
-| MEXC | lecture seule | oui | non | MEXC a fermé le passage d'ordres futures par API (25/07/2022). |
+| Binance | yes | yes | yes | The spot testnet (testnet.binance.vision) and futures testnet (testnet.binancefuture.com) keys are distinct. |
+| Bybit | yes | no — unified account, a single balance | yes | Testnet keys created on testnet.bybit.com. |
+| OKX | yes | no — unified trading account | yes (demo) | Passphrase; demo keys created in demo mode. |
+| Coinbase | no | no | no | Advanced Trade; the secret is the EC private key of the CDP key (pasted as is, with or without `\n`). |
+| Kraken | no | no | no | Kraken Futures has its own keys, outside this integration. |
+| Bitget | yes | yes | no | Passphrase; the account must be one-way (checked before every order). |
+| KuCoin | yes | yes | no | Passphrase; a single key (Spot + Futures permissions) serves both markets. |
+| Gate.io | yes | yes | yes | No margin mode through the API (leverage only). |
+| HTX | yes | no | no | No margin mode through the API. |
+| MEXC | read-only | yes | no | MEXC closed futures order placement by API (25/07/2022). |
 
-Sur Bybit, OKX, KuCoin (et le portefeuille Funding de Binance), un dépôt n'arrive pas sur le compte de trading mais dans un portefeuille séparé : « Tester » et `ExchangeBalance` lisent les deux et disent où sont les fonds ; `Transfer` avec `from: funding` les rapatrie vers le trading (compte unifié sur Bybit).
+On Bybit, OKX, KuCoin (and Binance's Funding wallet), a deposit does not land on the trading account but in a separate wallet: "Test" and `ExchangeBalance` read both and say where the funds are; `Transfer` with `from: funding` brings them back to trading (unified account on Bybit).
 
-L'horloge du PC est compensée : ccxt mesure l'écart avec chaque exchange à l'ouverture (et toutes les dix minutes) et date les requêtes à *son* heure — Binance et Bybit refusent une requête datée plus d'une seconde après la leur. Un refus de ce type est nommé comme tel (« horloge décalée d'environ N s »).
+The PC clock is compensated: ccxt measures the gap with each exchange at opening (and every ten minutes) and dates the requests at *its* time — Binance and Bybit refuse a request dated more than one second after theirs. A refusal of that kind is named as such ("clock skewed by about N s").
 
-### Le « + » du bloc de saisie
+### The "+" in the composer
 
-Trois actions, et ce qu'elles font vraiment :
+Three actions, and what they really do:
 
-- **Ajouter des fichiers** — les fichiers choisis sont **déposés dans `entrees/` du dossier de
-  travail** de l'agent (`/api/files/upload`), et le message envoyé au modèle porte leurs chemins :
-  l'agent les lit avec ses outils. Rien n'est collé dans le prompt, donc un CSV de milliers de
-  lignes reste exploitable (`Read`, pandas, `Chart`, `Backtest`). Les **images** sont en plus
-  montrées au modèle : réduites côté navigateur (JPEG, 1 600 px de grand côté) pour ne pas gonfler
-  le fil, qui vit dans `localStorage`.
-- **Prendre une capture d'écran** — par l'API de partage d'écran du **navigateur**
-  (`lib/agent/capture.ts`) : c'est vous qui choisissez l'écran ou la fenêtre, une seule image est
-  prise, le flux est refermé aussitôt. Elle est réduite, déposée dans `entrees/` et montrée au
-  modèle. *Pourquoi pas côté serveur : capturer l'écran en PowerShell (`CopyFromScreen`) est le
-  motif exact des voleurs de données — l'antivirus de Windows bloque le script
-  (« ScriptContainedMaliciousContent »).*
-- **Recherche approfondie** — arme la consigne pour le message suivant : l'agent suit la compétence
-  `recherche-approfondie` (découper, chercher plusieurs fois autrement, remonter aux sources,
-  recouper deux sources indépendantes, garder les désaccords, tout dater).
+- **Add files** — the chosen files are **dropped into `entrees/` of the agent's
+  workspace** (`/api/files/upload`), and the message sent to the model carries their paths:
+  the agent reads them with its tools. Nothing is pasted into the prompt, so a CSV of thousands of
+  rows stays usable (`Read`, pandas, `Chart`, `Backtest`). **Images** are additionally
+  shown to the model: downscaled browser-side (JPEG, 1,600 px on the long side) so as not to bloat
+  the thread, which lives in `localStorage`.
+- **Take a screenshot** — through the **browser's** screen-sharing API
+  (`lib/agent/capture.ts`): you pick the screen or window, a single frame is
+  taken, the stream is closed right away. It is downscaled, dropped into `entrees/` and shown to the
+  model. *Why not server-side: capturing the screen in PowerShell (`CopyFromScreen`) is the
+  exact pattern of infostealers — Windows' antivirus blocks the script
+  ("ScriptContainedMaliciousContent").*
+- **Deep research** — arms the directive for the next message: the agent follows the
+  `recherche-approfondie` skill (break down, search several times differently, go back to the sources,
+  cross-check two independent sources, keep the disagreements, date everything).
 
-Ce qui est joint s'affiche en pastilles au-dessus du champ (retirables) puis au-dessus du message
-dans le fil.
+What is attached shows as chips above the field (removable) then above the message
+in the thread.
 
-### La jauge, le filet et les permissions
+### The meter, the safety net and permissions
 
-En bas à droite du fil : **contexte occupé / fenêtre du modèle**, **jetons par seconde** pendant la
-réponse, et **coût du tour**. L'infobulle détaille entrée, sortie, prix et fournisseur. La jauge
-passe à l'ambre à 70 % de la fenêtre, au rouge à 90 % — c'est le signal pour `/compact`. Les
-données viennent du décompte qu'OpenRouter met dans le dernier morceau du flux (`usage: { include: true }`)
-et des `usage_update` des agents par abonnement (`lib/agent/usage.ts`, pur et testé).
+Bottom-right of the thread: **context used / model window**, **tokens per second** during the
+answer, and **cost of the turn**. The tooltip details input, output, price and provider. The meter
+turns amber at 70 % of the window, red at 90 % — that is the signal for `/compact`. The
+data comes from the count OpenRouter puts in the last chunk of the stream (`usage: { include: true }`)
+and from the subscription agents' `usage_update` (`lib/agent/usage.ts`, pure and tested).
 
-La boucle a un filet (`lib/agent/resilience.ts`) : une erreur transitoire (429, 502, connexion
-coupée) est **relancée** jusqu'à trois fois avec attente croissante, tant que rien n'a encore été
-affiché ; et le même appel d'outil avec les mêmes arguments trois fois de suite n'est pas exécuté une
-quatrième — l'agent reçoit un refus qui lui dit de changer de voie.
+The loop has a safety net (`lib/agent/resilience.ts`): a transient error (429, 502, dropped
+connection) is **retried** up to three times with growing waits, as long as nothing has been
+displayed yet; and the same tool call with the same arguments three times in a row is not run a
+fourth time — the agent receives a refusal telling it to change approach.
 
-Les agents publient aussi leur **plan** et leur **raisonnement** : le plan s'affiche en liste cochée,
-la réflexion dans un bloc replié. Ni l'un ni l'autre n'est rejoué au modèle (`history.ts`).
+Agents also publish their **plan** and their **reasoning**: the plan shows as a checked list,
+the thinking in a folded block. Neither is replayed to the model (`history.ts`).
 
-**« Toujours » ne bascule plus l'agent en exécution directe.** Il mémorise une règle : l'outil
-(`Write`) ou le début de la commande (`Bash(git status *)`) — le bouton dit ce qu'il accorde, et la
-règle est gardée dans l'agent (`allowRules`). Une commande irréversible (effacement récursif,
-formatage, `git push --force`, tuyau vers un interpréteur…) n'a pas de bouton « Toujours » et
-redemande à chaque fois (`lib/tools/permissions.ts`).
+**"Always" no longer switches the agent to direct execution.** It remembers a rule: the tool
+(`Write`) or the start of the command (`Bash(git status *)`) — the button says what it grants, and the
+rule is kept in the agent (`allowRules`). An irreversible command (recursive delete,
+formatting, `git push --force`, pipe into an interpreter…) has no "Always" button and
+asks again every time (`lib/tools/permissions.ts`).
 
-### Compacter une conversation
+### Compacting a conversation
 
-`/compact` dans le champ de saisie demande à l'agent un résumé structuré — demande, fait, décisions,
-en cours, à ne pas refaire — puis **remplace le fil par ce résumé** (`lib/agent/compact.ts`, pur et
-testé). Comme dans Claude Code, tout se passe en coulisses : le fil montre une ligne
-« Compactage du fil… » le temps que l'agent écrive, puis une frontière « Conversation compactée »
-derrière laquelle le résumé reste consultable (« voir le résumé »). Rien n'apparaît comme une
-réponse. Si le compactage échoue, un bandeau le dit et propose de réessayer.
-`/compact garde les niveaux de prix` ajoute une consigne au résumé.
+`/compact` in the composer asks the agent for a structured summary — request, done, decisions,
+in progress, not to redo — then **replaces the thread with that summary** (`lib/agent/compact.ts`, pure and
+tested). As in Claude Code, everything happens behind the scenes: the thread shows a
+"Compacting the thread…" line while the agent writes, then a "Conversation compacted" boundary
+behind which the summary stays readable ("view the summary"). Nothing shows up as an
+answer. If the compaction fails, a banner says so and offers to retry.
+`/compact keep the price levels` adds an instruction to the summary.
 
-Les commandes se découvrent en tapant `/` : la liste de celles qui correspondent s'ouvre au-dessus
-du champ (`lib/agent/commands.ts`) — ↑↓ pour choisir, Tab pour compléter et ajouter des consignes,
-Entrée pour lancer, Échap pour fermer.
+Commands are discovered by typing `/`: the list of those that match opens above
+the field (`lib/agent/commands.ts`) — ↑↓ to choose, Tab to complete and add instructions,
+Enter to run, Esc to close.
 
-Le même geste sert aux deux moteurs : un agent sur OpenRouter retrouve le résumé en tête de son
-historique (rejoué comme contexte, pas comme une de ses réponses) ; un agent par abonnement voit sa
-session fermée, et la suivante repart du résumé au lieu de l'historique complet.
+The same gesture serves both engines: an agent on OpenRouter finds the summary at the head of its
+history (replayed as context, not as one of its answers); a subscription agent sees its
+session closed, and the next one starts from the summary instead of the full history.
 
-### Les sous-agents
+### Sub-agents
 
-Un agent — à clé ou par abonnement — peut déléguer avec l'outil `Workflow` : plusieurs tâches
-indépendantes, trois sous-agents à la fois, huit au plus, et il reçoit leurs rapports. **Chaque
-sous-agent est une des quatre professions** (standard, analyste, stratégique, quantitatif), rien
-d'autre : l'agent choisit le métier selon la nature de la tâche et le modèle selon sa difficulté
-(un modèle léger pour collecter ou mettre en forme, un modèle fort pour analyser). Le sous-agent
-reçoit le prompt et les compétences de sa profession, le même dossier de travail, les mêmes outils
-sauf `Workflow` et tout ce qui engage des fonds — il rapporte, il n'agit pas sur un compte — et ne
-demande aucune permission : c'est l'appel à `Workflow` qui est soumis à votre accord.
+An agent — by key or by subscription — can delegate with the `Workflow` tool: several
+independent tasks, three sub-agents at a time, eight at most, and it receives their reports. **Every
+sub-agent is one of the four professions** (standard, analyst, strategic, quantitative), nothing
+else: the agent picks the profession by the nature of the task and the model by its difficulty
+(a light model to collect or format, a strong model to analyse). The sub-agent
+gets the prompt and skills of its profession, the same workspace, the same tools
+except `Workflow` and anything that commits funds — it reports, it does not act on an account — and
+asks no permission: it is the call to `Workflow` that is subject to your approval.
 
-Dans le fil, l'appel montre une ligne par tâche (métier, titre, en cours / terminé / échec) qui se
-déplie sur le rapport rendu. Pour un agent à clé, chaque sous-agent est une boucle OpenRouter sur le
-serveur (`lib/tools/agents/workflow.ts`) ; pour un agent par abonnement, `Workflow` est servi par le
-serveur MCP `bytnode-ai` et chaque tâche ouvre une **session jetable du même agent** — même
-abonnement, donc même quota — avec la profession demandée (`lib/mcp/acp-workflow.ts` →
-`POST /api/acp/subagent` → `runSubagent` dans `lib/acp/sessions.ts`). Ce qui est commun aux deux
-moteurs — schéma, description, cadre du prompt, forme du rapport — vit dans
-`lib/tools/agents/subagent.ts` (pur, testé).
+In the thread, the call shows one row per task (profession, title, running / done / failed) that
+unfolds onto the returned report. For a key agent, each sub-agent is an OpenRouter loop on the
+server (`lib/tools/agents/workflow.ts`); for a subscription agent, `Workflow` is served by the
+`bytnode-ai` MCP server and each task opens a **throwaway session of the same agent** — same
+subscription, hence same quota — with the requested profession (`lib/mcp/acp-workflow.ts` →
+`POST /api/acp/subagent` → `runSubagent` in `lib/acp/sessions.ts`). What is common to both
+engines — schema, description, prompt frame, report shape — lives in
+`lib/tools/agents/subagent.ts` (pure, tested).
 
-### Les données
+### The data
 
-`Settings` v2 porte `agents: AgentConfig[]` et `activeAgentId` ; chaque `Conversation` porte
-son `agentId`. Les données v1 (un seul `agent`, conversations sans `agentId`) sont migrées à la
-lecture sous l'id fixe `agent-1` (`LEGACY_AGENT_ID`), sans réécriture tant qu'on n'enregistre rien.
+`Settings` v2 carries `agents: AgentConfig[]` and `activeAgentId`; every `Conversation` carries
+its `agentId`. v1 data (a single `agent`, conversations without `agentId`) is migrated on
+read under the fixed id `agent-1` (`LEGACY_AGENT_ID`), without rewriting as long as nothing is saved.
 
-### Le catalogue
+### The catalog
 
-OpenRouter ne publie pas de liste d'éditeurs : le fournisseur est dérivé du préfixe de l'id
-(`anthropic/claude-sonnet-5`). Deux formes d'id ne sont pas des modèles nouveaux et sont
-exclues des « derniers sortis » tout en restant cherchables : les déclinaisons
-(`openai/gpt-5:free`, `:batch`, `:thinking`…) et les alias mobiles (`~anthropic/claude-opus-latest`).
+OpenRouter publishes no list of vendors: the provider is derived from the id prefix
+(`anthropic/claude-sonnet-5`). Two id forms are not new models and are
+excluded from "latest releases" while staying searchable: the variants
+(`openai/gpt-5:free`, `:batch`, `:thinking`…) and the moving aliases (`~anthropic/claude-opus-latest`).

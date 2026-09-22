@@ -1,8 +1,8 @@
-/* Ce que le serveur sait d'OpenRouter : l'adresse, et les en-tetes que le
-   service demande pour attribuer le trafic a une application. */
+/* What the server knows about OpenRouter: the address, and the headers the
+   service requires to attribute traffic to an application. */
 
-/* Surchargeable par `OPENROUTER_BASE_URL` : un relais local, un serveur de
-   test qui rejoue des flux. Lu au demarrage, cote serveur seulement. */
+/* Overridable through `OPENROUTER_BASE_URL`: a local relay, a test server
+   that replays streams. Read at startup, server-side only. */
 export const OPENROUTER = process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
 
 export const KEY_HEADER = "x-openrouter-key";
@@ -17,5 +17,5 @@ export function openRouterHeaders(apiKey: string): HeadersInit {
 }
 
 export function missingKey() {
-  return Response.json({ error: { message: "Aucune clé OpenRouter fournie." } }, { status: 401 });
+  return Response.json({ error: { message: "No OpenRouter key provided." } }, { status: 401 });
 }

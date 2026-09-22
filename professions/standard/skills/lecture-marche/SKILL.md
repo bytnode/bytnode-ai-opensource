@@ -1,44 +1,44 @@
 ---
 name: lecture-marche
-description: Faire un point de marché rapide et complet sur un actif crypto — prix, dérivés, sentiment, contexte — en un tableau et cinq lignes
+description: Give a quick and complete market reading on a crypto asset — price, derivatives, sentiment, context — in one table and five lines
 ---
 
-# Lecture de marché
+# Market reading
 
-Pour répondre à « où en est BTC ? », « comment va le marché ? », « qu'est-ce qui se passe sur SOL ? ». L'objectif : un état des lieux daté, en moins d'une minute de lecture, qui dit ce qui se passe et ce qui compte.
+To answer "where is BTC at?", "how is the market doing?", "what is going on with SOL?". The goal: a dated snapshot, under a minute to read, that says what is happening and what matters.
 
-## Les données à prendre (BytNode)
+## The data to take (BytNode)
 
-Dans cet ordre, pour l'actif demandé (ou BTC et ETH si « le marché ») :
+In this order, for the requested asset (or BTC and ETH if "the market"):
 
-1. `get_market_data` — prix, variation 24 h et 7 j, volume 24 h.
-2. Dérivés — funding, open interest et sa variation, liquidations 24 h.
-3. Sentiment — `get_market_emotions` : indice peur/avidité, positionnement.
-4. `get_history` sur 30 jours en journalier — pour situer le prix dans son range récent (plus haut, plus bas, milieu).
+1. `get_market_data` — price, 24h and 7d change, 24h volume.
+2. Derivatives — funding, open interest and its change, 24h liquidations.
+3. Sentiment — `get_market_emotions`: fear/greed index, positioning.
+4. `get_history` over 30 days in daily — to locate the price within its recent range (high, low, middle).
 
-Si une famille n'est pas ouverte, saute-la et dis-le en une ligne.
+If a family is not open, skip it and say so in one line.
 
-## La lecture
+## The reading
 
-Réponds par un tableau puis cinq lignes au plus :
+Answer with a table then five lines at most:
 
-| | Valeur | Lecture |
+| | Value | Reading |
 |---|---|---|
-| Prix | 63 200 $ (+2,1 % / 24 h) | dans le tiers haut du range 30 j |
-| Volume 24 h | … | au-dessus / en dessous de la moyenne |
-| Funding | … | positif = longs paient, marché penché long |
-| Open interest | … | en hausse avec le prix = tendance alimentée ; en hausse contre le prix = fragilité |
-| Liquidations 24 h | … | longs ou shorts ? |
-| Sentiment | … | peur / neutre / avidité |
+| Price | $63,200 (+2.1% / 24h) | in the upper third of the 30d range |
+| 24h volume | … | above / below the average |
+| Funding | … | positive = longs pay, market leaning long |
+| Open interest | … | rising with price = trend fuelled; rising against price = fragility |
+| 24h liquidations | … | longs or shorts? |
+| Sentiment | … | fear / neutral / greed |
 
-Puis :
-- **Le fait dominant** : ce qui explique le mouvement du jour (un flux, une donnée macro, une liquidation en cascade) — s'il est identifiable ; sinon, dis que rien ne ressort.
-- **Le régime** : tendance (dans quel sens, depuis quand), range, ou transition.
-- **Les points d'attention** : niveaux du range, funding extrême, OI divergent, sentiment à un extrême.
-- **Ce qui manque** pour trancher, si quelque chose manque.
+Then:
+- **The dominant fact**: what explains the day's move (a flow, a macro release, a liquidation cascade) — if it is identifiable; otherwise, say that nothing stands out.
+- **The regime**: trend (in which direction, since when), range, or transition.
+- **Points of attention**: range levels, extreme funding, divergent OI, sentiment at an extreme.
+- **What is missing** to settle it, if something is missing.
 
-## Règles
+## Rules
 
-- Chaque chiffre porte sa date/heure (UTC) et vient de BytNode.
-- « Haussier » ou « baissier » se dit toujours avec un horizon.
-- Pas de cible de prix. Des niveaux de range, oui : ce sont des faits.
+- Every number carries its date/time (UTC) and comes from BytNode.
+- "Bullish" or "bearish" is always said with a horizon.
+- No price target. Range levels, yes: those are facts.

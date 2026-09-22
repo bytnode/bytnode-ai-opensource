@@ -1,28 +1,28 @@
 /* ---------------------------------------------------------------------------
-   Ce qu'on joint a un message : des fichiers, une capture d'ecran, et la
-   consigne de recherche approfondie.
+   What gets attached to a message: files, a screenshot, and the deep
+   research directive.
 
-   ⚠️ UN FICHIER JOINT N'EST PAS COLLE DANS LE PROMPT. Il est depose dans le
-   dossier de travail de l'agent (`entrees/`), et le message dit son chemin :
-   l'agent le lit avec ses outils, peut le relire plus tard, le charger dans
-   pandas, le tracer. Un CSV de deux mille lignes reste ainsi exploitable, ce
-   qu'il ne serait pas s'il passait par la conversation.
+   ⚠️ AN ATTACHED FILE IS NOT PASTED INTO THE PROMPT. It is dropped into the
+   agent's workspace (`entrees/`), and the message states its path: the
+   agent reads it with its tools, can read it again later, load it into
+   pandas, plot it. A two-thousand-line CSV thus stays usable, which it
+   would not be if it went through the conversation.
 
-   Les IMAGES font exception : elles sont aussi envoyees au modele, qui doit
-   les voir pour en parler.
+   IMAGES are the exception: they are also sent to the model, which has to
+   see them to talk about them.
 
-   Pur : partage navigateur / serveur, teste.
+   Pure: shared by browser and server, tested.
 --------------------------------------------------------------------------- */
 
 export type AttachmentKind = "image" | "file";
 
 export type Attachment = {
   name: string;
-  /** Chemin relatif au dossier de travail (`entrees/capture-….png`). */
+  /** Path relative to the workspace (`entrees/capture-….png`). */
   path: string;
   kind: AttachmentKind;
   size?: number;
-  /** Pour une image : de quoi la montrer au modele et dans le fil. */
+  /** For an image: what is needed to show it to the model and in the thread. */
   dataUrl?: string;
 };
 
@@ -32,12 +32,12 @@ export const isImageName = (name: string) => IMAGE_EXT.test(name);
 
 const MAX_NAME = 80;
 
-/** Un nom de fichier sur lequel on peut ecrire sans surprise : sans chemin,
-    sans caractere interdit, jamais vide, jamais cache, borne. */
+/** A file name that can be written to without surprises: no path, no
+    forbidden character, never empty, never hidden, bounded. */
 export function safeFileName(raw: string): string {
   const base = raw.split(/[/\\]/).pop() ?? "";
   let name = base.replace(/[<>:"|?*\x00-\x1f]/g, "").replace(/^\.+/, "").trim();
-  if (!name) name = `fichier-${Date.now().toString(36)}`;
+  if (!name) name = `file-${Date.now().toString(36)}`;
   if (name.length > MAX_NAME) {
     const m = name.match(/\.[A-Za-z0-9]{1,8}$/);
     const ext = m ? m[0] : "";
@@ -46,29 +46,29 @@ export function safeFileName(raw: string): string {
   return name;
 }
 
-/** La note qui dit a l'agent ce qui est joint, et ou. */
+/** The note that tells the agent what is attached, and where. */
 export function attachmentNote(attachments: Attachment[]): string {
   if (attachments.length === 0) return "";
-  const lignes = attachments.map((a) => `- \`${a.path}\`${a.kind === "image" ? " (image — elle t'est aussi montrée)" : ""}`);
+  const lignes = attachments.map((a) => `- \`${a.path}\`${a.kind === "image" ? " (image — it is also shown to you)" : ""}`);
   return [
-    attachments.length === 1 ? "Pièce jointe, dans mon dossier de travail :" : "Pièces jointes, dans mon dossier de travail :",
+    attachments.length === 1 ? "Attachment, in my workspace:" : "Attachments, in my workspace:",
     ...lignes,
-    "Lis-les avec tes outils (Read, ou pandas pour un CSV volumineux) plutôt que de me demander leur contenu.",
+    "Read them with your tools (Read, or pandas for a large CSV) rather than asking me for their content.",
   ].join("\n");
 }
 
 export const RESEARCH_DIRECTIVE = [
-  "Recherche approfondie demandée. Suis la compétence `recherche-approfondie` :",
-  "découpe la question en sous-questions, mène plusieurs recherches (WebSearch avec des formulations différentes,",
-  "WebFetch sur les sources qui comptent, BytNode pour tout chiffre de marché), recoupe au moins deux sources",
-  "indépendantes par affirmation, date chaque source, signale les désaccords, et termine par une synthèse sourcée",
-  "avec ce qui reste incertain. Prends le temps qu'il faut.",
+  "Deep research requested. Follow the `recherche-approfondie` skill:",
+  "break the question into sub-questions, run several searches (WebSearch with different phrasings,",
+  "WebFetch on the sources that matter, BytNode for any market figure), cross-check at least two independent",
+  "sources per claim, date each source, flag disagreements, and end with a sourced synthesis",
+  "stating what remains uncertain. Take the time it needs.",
 ].join(" ");
 
-/** Le texte envoye au modele : la consigne de recherche avant, la note des
-    pieces jointes apres. Ce que l'utilisateur a tape reste au milieu, intact. */
+/** The text sent to the model: the research directive before, the
+    attachment note after. What the user typed stays in the middle, intact. */
 export function withDirectives(text: string, attachments: Attachment[], research: boolean): string {
   const note = attachmentNote(attachments);
-  const corps = text.trim() || (note ? "Regarde ce que je te joins." : "");
+  const corps = text.trim() || (note ? "Look at what I am attaching." : "");
   return [research ? RESEARCH_DIRECTIVE : "", corps, note].filter(Boolean).join("\n\n");
 }

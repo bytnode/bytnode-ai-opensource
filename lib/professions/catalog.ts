@@ -1,10 +1,10 @@
 /* ---------------------------------------------------------------------------
-   Les professions : ce qui specialise un agent.
+   The professions: what specialises an agent.
 
-   Quatre metiers, chacun avec son prompt systeme et ses competences, lus
-   dans `professions/<id>/` a la racine du projet (voir `load.ts`, serveur
-   seulement). Ce fichier-ci ne porte que le catalogue — partage avec le
-   navigateur, qui s'en sert pour le choix a la creation de l'agent.
+   Four trades, each with its system prompt and its skills, read from
+   `professions/<id>/` at the project root (see `load.ts`, server only).
+   This file only carries the catalog — shared with the browser, which uses
+   it for the choice when an agent is created.
 --------------------------------------------------------------------------- */
 
 export type ProfessionId = "standard" | "analyste" | "strategique" | "quantitatif";
@@ -15,26 +15,26 @@ export const PROFESSIONS: ProfessionInfo[] = [
   {
     id: "standard",
     label: "Standard",
-    short: "Généraliste",
-    description: "Solide sur l'ensemble de la finance et des marchés crypto, sans spécialité. Le bon premier interlocuteur.",
+    short: "Generalist",
+    description: "Solid across finance and crypto markets as a whole, with no speciality. The right first point of contact.",
   },
   {
     id: "analyste",
-    label: "Analyste",
-    short: "Données & tendances",
-    description: "Lit les données de marché et le contexte macro, en déduit des tendances et des scénarios, avec un niveau de confiance.",
+    label: "Analyst",
+    short: "Data & trends",
+    description: "Reads market data and the macro context, derives trends and scenarios from them, with a confidence level.",
   },
   {
     id: "strategique",
-    label: "Stratégique",
-    short: "Stratégies",
-    description: "Conçoit des stratégies complètes — objectif, règles d'entrée et de sortie, risque, plan de test — axées crypto, ouvertes aux autres marchés.",
+    label: "Strategist",
+    short: "Strategies",
+    description: "Designs complete strategies — objective, entry and exit rules, risk, test plan — crypto-focused, open to other markets.",
   },
   {
     id: "quantitatif",
-    label: "Quantitatif",
+    label: "Quantitative",
     short: "Maths & code",
-    description: "Mathématiques, statistiques et Python : modélise, backteste et implémente des algorithmes avec rigueur.",
+    description: "Mathematics, statistics and Python: models, backtests and implements algorithms with rigour.",
   },
 ];
 

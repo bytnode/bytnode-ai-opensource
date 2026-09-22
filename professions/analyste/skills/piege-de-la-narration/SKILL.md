@@ -1,17 +1,17 @@
 ---
 name: piege-de-la-narration
-description: À ouvrir avant d'expliquer un mouvement de prix — comment vérifier qu'il y a quelque chose à expliquer, produire l'explication concurrente, et ne pas transformer une coïncidence en cause
+description: Open this before explaining a price move — how to check that there is something to explain, produce the competing explanation, and not turn a coincidence into a cause
 ---
 
-# Tu fabriques des causes
+# You manufacture causes
 
-C'est ta faiblesse la plus utile à connaître : donne-moi n'importe quel mouvement de prix et une liste d'actualités, je produirai une explication cohérente — dans les deux sens. « BTC baisse **parce que** les taux montent » et « BTC monte **malgré** la hausse des taux » se rédigent aussi bien l'une que l'autre. Cette facilité n'est pas de l'analyse : c'est de la narration, et elle donne à l'utilisateur une fausse impression de comprendre.
+This is your most useful weakness to know: give me any price move and a list of news items, and I will produce a coherent explanation — in both directions. "BTC falls **because** rates are rising" and "BTC rises **despite** rising rates" write equally well. This facility is not analysis: it is narration, and it gives the user a false impression of understanding.
 
-Trois garde-fous, dans l'ordre.
+Three guardrails, in order.
 
-## 1. Y a-t-il quelque chose à expliquer ?
+## 1. Is there something to explain?
 
-Avant toute cause, mesure l'anormalité du mouvement. Un −3 % sur un actif dont l'écart-type journalier est de 3 % est du bruit : il n'a pas de cause identifiable, et lui en chercher une est l'erreur.
+Before any cause, measure the abnormality of the move. A −3% on an asset whose daily standard deviation is 3% is noise: it has no identifiable cause, and looking for one is the error.
 
 ```python
 import pandas as pd
@@ -21,40 +21,40 @@ z = (r.iloc[-1] - r.tail(90).mean()) / r.tail(90).std()
 print(f"variation {100*r.iloc[-1]:.2f} % — z = {z:.2f} sur 90 j")
 ```
 
-| |z| | Ce que tu écris |
+| |z| | What you write |
 |---|---|
-| < 1 | « dans la volatilité habituelle » — pas d'explication causale |
-| 1 à 2 | « mouvement notable mais pas exceptionnel » — hypothèses au conditionnel |
-| > 2 | « mouvement anormal » — là, cherche, et compte combien de fois c'est arrivé sur un an |
+| < 1 | "within usual volatility" — no causal explanation |
+| 1 to 2 | "notable but not exceptional move" — hypotheses in the conditional |
+| > 2 | "abnormal move" — there, search, and count how many times it happened over a year |
 
-## 2. L'explication concurrente
+## 2. The competing explanation
 
-Quand tu avances une cause, tu en avances **deux**, et tu dis comment on les distingue par une observation.
+When you put forward a cause, you put forward **two**, and you say how one tells them apart through an observation.
 
-> La hausse s'accompagne d'un volume élevé. Deux lectures : accumulation (les acheteurs absorbent l'offre) ou distribution (les vendeurs écoulent dans la force). On distingue par le funding et l'open interest : une accumulation laisse le funding neutre et l'OI monter ; une distribution se voit à un funding qui s'emballe puis retombe.
+> The rise comes with high volume. Two readings: accumulation (buyers absorb the supply) or distribution (sellers unload into strength). One tells them apart through funding and open interest: accumulation leaves funding neutral and OI rising; distribution shows as funding that runs hot then falls back.
 
-Trois candidats à ne jamais oublier, parce qu'ils expliquent la majorité des mouvements sans aucune actualité :
+Three candidates never to forget, because they explain the majority of moves without any news:
 
-- **Le flux mécanique** : liquidations en cascade, expiration d'options, rééquilibrage.
-- **La corrélation** : l'actif suit BTC, ou BTC suit les actions technologiques. Vérifie-le avant d'inventer une cause propre.
-- **Rien** : la liquidité était mince (week-end, heures creuses), un ordre de taille moyenne a suffi.
+- **Mechanical flow**: cascading liquidations, options expiry, rebalancing.
+- **Correlation**: the asset follows BTC, or BTC follows tech equities. Check it before inventing a cause of its own.
+- **Nothing**: liquidity was thin (weekend, off-hours), a medium-sized order was enough.
 
-## 3. Ce qui interdit de dire « à cause de »
+## 3. What forbids saying "because of"
 
-- **L'ordre chronologique n'est pas une preuve.** Si la nouvelle est tombée *après* le mouvement, elle ne l'explique pas. Compare les horodatages, à la minute (`horodatage`).
-- **Un précédent unique n'est pas une régularité.** « La dernière fois que le funding était à ce niveau, le prix a chuté » : combien de fois le funding a-t-il atteint ce niveau sur deux ans, et dans quelle proportion des cas le prix a-t-il chuté ? Voir `taux-de-base`.
-- **Une corrélation se chiffre.** Si tu invoques un lien avec les taux, l'or ou le Nasdaq, donne le coefficient et la fenêtre — sinon c'est une impression.
+- **Chronological order is not proof.** If the news came out *after* the move, it does not explain it. Compare the timestamps, to the minute (`horodatage`).
+- **A single precedent is not a regularity.** "The last time funding was at this level, the price dropped": how many times did funding reach this level over two years, and in what proportion of cases did the price drop? See `taux-de-base`.
+- **A correlation is quantified.** If you invoke a link with rates, gold or the Nasdaq, give the coefficient and the window — otherwise it is an impression.
 
-## La forme
+## The form
 
-> **Fait** : ETHUSDT −4,8 % en 24 h (as-of …). z = −2,3 sur 90 j : anormal, arrivé 6 fois en un an.
-> **Lecture principale** : … parce que … — ce qui l'appuie : …
-> **Lecture concurrente** : … — ce qui la distinguerait : …
-> **Ce qui n'explique pas** : la publication de 14 h 30, postérieure au mouvement.
-> **Incertitude** : forte, l'échantillon est de 6 cas.
+> **Fact**: ETHUSDT −4.8% in 24h (as-of …). z = −2.3 over 90d: abnormal, happened 6 times in a year.
+> **Main reading**: … because … — what supports it: …
+> **Competing reading**: … — what would tell it apart: …
+> **What does not explain it**: the 14:30 release, which came after the move.
+> **Uncertainty**: high, the sample is 6 cases.
 
-## Lié
+## Related
 
-- `taux-de-base` : la fréquence historique avant l'interprétation.
-- `fenetre-honnete` : ne pas choisir l'horizon qui arrange.
-- `contradiction-obligatoire` : la même discipline appliquée à la thèse de l'utilisateur.
+- `taux-de-base`: the historical frequency before the interpretation.
+- `fenetre-honnete`: not choosing the convenient horizon.
+- `contradiction-obligatoire`: the same discipline applied to the user's thesis.

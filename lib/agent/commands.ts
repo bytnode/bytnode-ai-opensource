@@ -1,36 +1,36 @@
 /* ---------------------------------------------------------------------------
-   Les commandes du champ de saisie.
+   The composer's commands.
 
-   Un message qui commence par `/` peut etre une commande. Pendant qu'on la
-   tape, le bloc de saisie propose celles qui commencent pareil, avec un mot
-   d'explication — pour qui ne sait pas qu'elles existent. Des qu'une espace
-   suit le nom, la commande est complete (ce qui suit, ce sont ses
-   consignes) et la proposition disparait.
+   A message that starts with `/` may be a command. While it is being
+   typed, the composer proposes the ones that start the same way, with a
+   word of explanation — for whoever does not know they exist. As soon as
+   a space follows the name, the command is complete (what follows is its
+   instructions) and the proposal disappears.
 
-   Pur : la liste et la correspondance. L'execution reste dans
-   `use-chat.ts` (`isCompactCommand`).
+   Pure: the list and the matching. Execution stays in `use-chat.ts`
+   (`isCompactCommand`).
 --------------------------------------------------------------------------- */
 
 export type SlashCommand = {
-  /** Le nom, sans la barre : `compact`. */
+  /** The name, without the slash: `compact`. */
   name: string;
-  /** Ce qui peut suivre, tel qu'on le montre : `[consignes]`. */
+  /** What may follow, as shown: `[instructions]`. */
   args?: string;
-  /** Un mot d'explication, pour la liste. */
+  /** A word of explanation, for the list. */
   description: string;
 };
 
 export const COMMANDS: readonly SlashCommand[] = [
   {
     name: "compact",
-    args: "[consignes]",
-    description: "Remplacer le fil par un résumé : l'agent garde ce qui compte, la conversation s'allège",
+    args: "[instructions]",
+    description: "Replace the thread with a summary: the agent keeps what matters, the conversation gets lighter",
   },
 ];
 
-/** Les commandes a proposer pour ce qui est tape : `/`, `/c`, `/comp`…
-    Rien si le texte ne commence pas par `/`, ou des qu'une espace suit le
-    nom — la commande est alors complete. Insensible a la casse. */
+/** The commands to propose for what is typed: `/`, `/c`, `/comp`…
+    Nothing if the text does not start with `/`, or as soon as a space
+    follows the name — the command is then complete. Case-insensitive. */
 export function matchCommands(text: string, commands: readonly SlashCommand[] = COMMANDS): SlashCommand[] {
   const m = text.match(/^\/(\S*)$/);
   if (!m) return [];
@@ -38,18 +38,16 @@ export function matchCommands(text: string, commands: readonly SlashCommand[] = 
   return commands.filter((c) => c.name.startsWith(prefix));
 }
 
-/** Le texte est-il une commande connue (`/compact`, `/compact garde…`) ?
-    Une commande n'est pas un message : les pieces jointes et la recherche
-    approfondie ne la suivent pas. */
+/** Is the text a known command (`/compact`, `/compact keep…`)? A command
+    is not a message: attachments and deep research do not go with it. */
 export function isCommandText(text: string, commands: readonly SlashCommand[] = COMMANDS): boolean {
   const m = text.trim().match(/^\/(\S+)/);
   return !!m && commands.some((c) => c.name === m[1].toLowerCase());
 }
 
-/** Ce que devient le champ quand on complete une commande (Tab) : son nom,
-    et une espace pour y ajouter des consignes. */
+/** What the field becomes when a command is completed (Tab): its name,
+    and a space to add instructions. */
 export const completeCommand = (c: SlashCommand) => `/${c.name} `;
 
-/** Ce qu'on envoie quand on la lance depuis la liste (Entree) : la commande
-    seule. */
+/** What is sent when it is run from the list (Enter): the command alone. */
 export const runCommand = (c: SlashCommand) => `/${c.name}`;

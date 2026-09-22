@@ -23,7 +23,7 @@ const raw = {
     { id: "anthropic/claude-3-opus", name: "Anthropic: Claude 3 Opus", created: 1_700_000_000, context_length: 200000 },
     { id: "openai/gpt-4o", name: "OpenAI: GPT-4o", created: 1_700_000_200, context_length: 128000 },
     { id: "meta-llama/llama-3-70b", name: "Meta: Llama 3 70B", created: 1_700_000_050, context_length: null },
-    /* Une variante et un alias : cherchables, mais jamais « derniers sortis ». */
+    /* A variant and an alias: searchable, but never « latest releases ». */
     { id: "anthropic/claude-opus-4:batch", name: "Anthropic: Claude Opus 4 (batch)", created: 1_700_000_400, context_length: 200000 },
     { id: "~anthropic/claude-opus-latest", name: "Anthropic: Claude Opus Latest", created: 1_700_000_900, context_length: 200000 },
   ],

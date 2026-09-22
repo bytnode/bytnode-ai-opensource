@@ -2,15 +2,15 @@ import type { JsonSchema } from "../types";
 import { PROFESSIONS, isProfessionId, professionInfo, type ProfessionId } from "@/lib/professions/catalog";
 
 /* ---------------------------------------------------------------------------
-   Les sous-agents : ce que les deux moteurs partagent.
+   Sub-agents: what the two engines share.
 
-   Un sous-agent est TOUJOURS un des quatre metiers de BytNode-AI — le
-   parent choisit la profession selon la nature de la tache, et le modele
-   selon sa difficulte. Ce module porte ce que l'outil `Workflow` declare au
-   modele (schema, description), le cadre du prompt d'un sous-agent, et la
-   forme du rapport rendu au parent — la meme pour un agent a cle (la boucle
-   tourne sur le serveur) et pour un agent par abonnement (une session ACP
-   jetable). Pur, teste.
+   A sub-agent is ALWAYS one of BytNode-AI's four professions — the parent
+   picks the profession by the nature of the task, and the model by its
+   difficulty. This module carries what the `Workflow` tool declares to the
+   model (schema, description), the frame of a sub-agent's prompt, and the
+   shape of the report returned to the parent — the same for a key agent
+   (the loop runs on the server) and for a subscription agent (a throwaway
+   ACP session). Pure, tested.
 --------------------------------------------------------------------------- */
 
 export type SubagentTask = { title: string; prompt: string; profession: ProfessionId; model?: string };
@@ -18,56 +18,56 @@ export type SubagentTask = { title: string; prompt: string; profession: Professi
 export const CONCURRENCY = 3;
 export const MAX_TASKS = 8;
 
-/** Les modeles que le parent peut donner a une tache : n'importe quel id
-    OpenRouter (agents a cle), ou la liste de son agent (agents par
-    abonnement — vide quand elle n'a pas pu etre lue). */
+/** The models the parent may give a task: any OpenRouter id (key agents),
+    or its agent's list (subscription agents — empty when it could not be
+    read). */
 export type ModelChoice = { kind: "openrouter" } | { kind: "list"; ids: string[] };
 
-const PROFESSION_LINE = PROFESSIONS.map((p) => `${p.id} (${p.short.toLowerCase()} — ${p.description.replace(/\.$/, "")})`).join(" ; ");
+const PROFESSION_LINE = PROFESSIONS.map((p) => `${p.id} (${p.short.toLowerCase()} — ${p.description.replace(/\.$/, "")})`).join("; ");
 
 export function workflowDescription(models: ModelChoice): string {
   const modelRule =
     models.kind === "openrouter"
-      ? "`model` : un id de modèle OpenRouter — sans `model`, le tien."
+      ? "`model`: an OpenRouter model id — without `model`, yours."
       : models.ids.length
-        ? `\`model\` parmi : ${models.ids.join(", ")} — sans \`model\`, ton modèle courant.`
-        : "`model` : un des modèles de ton agent — sans `model`, ton modèle courant.";
+        ? `\`model\` among: ${models.ids.join(", ")} — without \`model\`, your current model.`
+        : "`model`: one of your agent's models — without `model`, your current model.";
   return (
-    `Confie des tâches indépendantes à des sous-agents qui travaillent en parallèle (${CONCURRENCY} à la fois, ${MAX_TASKS} au plus) et rend leurs rapports. ` +
-    `Chaque sous-agent EST un des quatre métiers de BytNode-AI, \`profession\` obligatoire : ${PROFESSION_LINE}. Choisis le métier selon la nature de la tâche. ` +
-    `Choisis le modèle selon la difficulté : un modèle plus léger et rapide pour une tâche simple (collecte, mise en forme), un modèle fort pour une tâche exigeante. ${modelRule} ` +
-    "Donne à chaque tâche un titre et un prompt complet et autonome : le sous-agent ne voit pas ta conversation. Il a tes outils, sauf Workflow et tout ce qui engage des fonds (il rapporte, il n'agit pas sur un compte)."
+    `Delegate independent tasks to sub-agents that work in parallel (${CONCURRENCY} at a time, ${MAX_TASKS} at most) and returns their reports. ` +
+    `Each sub-agent IS one of BytNode-AI's four professions, \`profession\` required: ${PROFESSION_LINE}. Pick the profession by the nature of the task. ` +
+    `Pick the model by difficulty: a lighter, faster model for a simple task (collection, formatting), a strong model for a demanding one. ${modelRule} ` +
+    "Give each task a title and a complete, self-contained prompt: the sub-agent does not see your conversation. It has your tools, except Workflow and anything that commits funds (it reports, it does not act on an account)."
   );
 }
 
 export function workflowParameters(models: ModelChoice): JsonSchema {
-  const model: Record<string, unknown> = { type: "string", description: "Le modèle de cette tâche, selon sa difficulté (facultatif)." };
+  const model: Record<string, unknown> = { type: "string", description: "The model for this task, by its difficulty (optional)." };
   if (models.kind === "list" && models.ids.length) model.enum = models.ids;
   return {
     type: "object",
     properties: {
       tasks: {
         type: "array",
-        description: "Les tâches à confier.",
+        description: "The tasks to delegate.",
         items: {
           type: "object",
           properties: {
-            title: { type: "string", description: "Titre court (3 à 6 mots)." },
-            profession: { type: "string", enum: PROFESSIONS.map((p) => p.id), description: "Le métier du sous-agent." },
-            prompt: { type: "string", description: "La consigne complète : contexte, but, forme attendue du rapport." },
+            title: { type: "string", description: "Short title (3 to 6 words)." },
+            profession: { type: "string", enum: PROFESSIONS.map((p) => p.id), description: "The sub-agent's profession." },
+            prompt: { type: "string", description: "The complete instruction: context, goal, expected shape of the report." },
             model,
           },
           required: ["title", "profession", "prompt"],
         },
       },
-      context: { type: "string", description: "Contexte commun ajouté au début de chaque tâche (facultatif)." },
+      context: { type: "string", description: "Shared context added at the start of every task (optional)." },
     },
     required: ["tasks"],
     additionalProperties: false,
   };
 }
 
-/** Les taches, CONCURRENCY a la fois, chaque resultat a l'index de sa tache. */
+/** The tasks, CONCURRENCY at a time, each result at its task's index. */
 export async function runInPool<T>(tasks: readonly SubagentTask[], run: (task: SubagentTask, index: number) => Promise<T>): Promise<T[]> {
   const results: T[] = new Array(tasks.length);
   let next = 0;
@@ -81,19 +81,19 @@ export async function runInPool<T>(tasks: readonly SubagentTask[], run: (task: S
   return results;
 }
 
-/** Les taches d'un appel, dans l'ordre et A LEUR INDEX (le fil les nomme
-    par lui), bornees a MAX_TASKS — ou la phrase a rendre au modele si l'une
-    d'elles est incomplete. Le schema a normalement deja tout refuse ; ici
-    on tient aussi le prompt vide. */
+/** The tasks of a call, in order and AT THEIR INDEX (the thread names them
+    by it), bounded to MAX_TASKS — or the sentence to return to the model
+    when one of them is incomplete. The schema has normally already refused
+    everything; here the empty prompt is caught too. */
 export function readTasks(raw: unknown): { tasks: SubagentTask[] } | { error: string } {
-  if (!Array.isArray(raw) || raw.length === 0) return { error: "Donnez au moins une tâche, avec un titre, une profession (standard, analyste, strategique, quantitatif) et un prompt." };
+  if (!Array.isArray(raw) || raw.length === 0) return { error: "Give at least one task, with a title, a profession (standard, analyste, strategique, quantitatif) and a prompt." };
   const tasks: SubagentTask[] = [];
   for (const [i, t] of raw.slice(0, MAX_TASKS).entries()) {
     const { title, prompt, profession, model } = (t && typeof t === "object" ? t : {}) as Record<string, unknown>;
-    if (!isProfessionId(profession)) return { error: `La tâche ${i + 1} n'a pas de profession valide (standard, analyste, strategique, quantitatif).` };
-    if (typeof prompt !== "string" || !prompt.trim()) return { error: `La tâche ${i + 1} n'a pas de prompt.` };
+    if (!isProfessionId(profession)) return { error: `Task ${i + 1} has no valid profession (standard, analyste, strategique, quantitatif).` };
+    if (typeof prompt !== "string" || !prompt.trim()) return { error: `Task ${i + 1} has no prompt.` };
     tasks.push({
-      title: typeof title === "string" && title.trim() ? title.trim() : `Tâche ${i + 1}`,
+      title: typeof title === "string" && title.trim() ? title.trim() : `Task ${i + 1}`,
       prompt,
       profession,
       ...(typeof model === "string" && model.trim() ? { model: model.trim() } : {}),
@@ -102,40 +102,44 @@ export function readTasks(raw: unknown): { tasks: SubagentTask[] } | { error: st
   return { tasks };
 }
 
-/** Le cadre du prompt systeme d'un sous-agent : son metier, puis ce qui le
-    distingue d'un agent complet — une tache, un rapport, pas de delegation,
-    pas de fonds engages. L'environnement (dossier, outils, competences)
-    vient ensuite, fourni par le moteur. */
+/** The frame of a sub-agent's system prompt: its profession, then what sets
+    it apart from a full agent — one task, one report, no delegation, no
+    funds committed. The environment (workspace, tools, skills) comes next,
+    supplied by the engine. */
 export function subagentFrame(profession: ProfessionId, professionPrompt: string, workspace: string): string {
   const info = professionInfo(profession);
   return [
-    `Tu es un sous-agent ${info.label} de BytNode-AI, chargé d'une tâche précise par un agent commanditaire. Dossier de travail : \`${workspace}\`.`,
+    `You are a ${info.label} sub-agent of BytNode-AI, given one specific task by a requesting agent. Workspace: \`${workspace}\`.`,
     professionPrompt.trim(),
     [
-      "## Ta mission",
+      "## Your mission",
       "",
-      "- Tu n'as que la tâche ci-dessous : pas la conversation de ton commanditaire, ni l'utilisateur pour te répondre. Si une information manque, dis-le dans ton rapport et fais au mieux.",
-      "- Tu ne délègues pas (pas de sous-agents) et tu n'engages jamais de fonds : pas d'ordre, de fermeture ni de transfert — tu rapportes ce que tu recommandes.",
-      "- Termine par un rapport clair et complet, dans la forme de ton métier : c'est tout ce que ton commanditaire verra. Chiffres, sources (outils appelés, fichiers écrits), limites.",
+      "- You only have the task below: not your requester's conversation, nor the user to answer you. If a piece of information is missing, say so in your report and do your best.",
+      "- You do not delegate (no sub-agents) and you never commit funds: no order, no close, no transfer — you report what you recommend.",
+      "- End with a clear and complete report, in the form of your profession: it is all your requester will see. Figures, sources (tools called, files written), limits.",
     ].join("\n"),
   ]
     .filter(Boolean)
     .join("\n\n");
 }
 
-/** Le message envoye au sous-agent : le contexte commun, puis sa tache. */
+/** The message sent to the sub-agent: the shared context, then its task. */
 export const subagentMessage = (task: SubagentTask, context?: string) => (context?.trim() ? `${context.trim()}\n\n${task.prompt}` : task.prompt);
 
-/* --- Le rapport rendu au parent -------------------------------------------
-   Une section par tache, en-tete `## <titre> — <Profession>`. Le fil la
-   redecoupe (`parseWorkflowReport`) pour montrer chaque sous-agent avec son
-   rapport, meme quand rien n'a ete emis en route (appel MCP). */
+/* --- The report returned to the parent --------------------------------------
+   One section per task, heading `## <title> — <Profession>`. The thread
+   splits it again (`parseWorkflowReport`) to show each sub-agent with its
+   report, even when nothing was emitted along the way (MCP call). */
 
-const HEAD = /^## (.+?) — (Standard|Analyste|Stratégique|Quantitatif)$/;
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-export const reportSection = (task: SubagentTask, body: string) => `## ${task.title.replace(/\n/g, " ")} — ${professionInfo(task.profession).label}\n\n${body.trim() || "(rapport vide)"}`;
+/* The heading matches the catalog's labels, whatever they are: the parser
+   stays in lockstep with what `reportSection` emits. */
+const HEAD = new RegExp(`^## (.+?) — (${PROFESSIONS.map((p) => escapeRe(p.label)).join("|")})$`);
 
-export const failureBody = (why: string) => `[échec : ${why}]`;
+export const reportSection = (task: SubagentTask, body: string) => `## ${task.title.replace(/\n/g, " ")} — ${professionInfo(task.profession).label}\n\n${body.trim() || "(empty report)"}`;
+
+export const failureBody = (why: string) => `[failed: ${why}]`;
 
 export type ReportSection = { title: string; profession: ProfessionId; body: string; failed: boolean };
 
@@ -146,7 +150,7 @@ export function parseWorkflowReport(output: string): ReportSection[] {
   const flush = () => {
     if (!current) return;
     const body = lines.join("\n").trim();
-    sections.push({ ...current, body, failed: /^\[échec : /.test(body) });
+    sections.push({ ...current, body, failed: /^\[failed: /.test(body) });
     lines.length = 0;
   };
   for (const line of output.split("\n")) {

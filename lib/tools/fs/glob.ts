@@ -4,8 +4,8 @@ import type { Tool } from "../types";
 import { errorText, fail, ok } from "../types";
 import { OutsideWorkspaceError, displayPath, resolvePath } from "../paths";
 
-/* Glob : trouver des fichiers par motif, les plus recemment modifies en
-   tete — c'est presque toujours ceux qu'on cherche. */
+/* Glob: find files by pattern, the most recently modified first — they
+   are almost always the ones being looked for. */
 
 type Args = { pattern: string; path?: string };
 
@@ -15,12 +15,12 @@ const IGNORE = ["**/node_modules/**", "**/.git/**", "**/.next/**", "**/dist/**",
 export const globTool: Tool<Args> = {
   name: "Glob",
   description:
-    "Recherche des fichiers par motif (`**/*.ts`, `src/**/*.test.tsx`, `*.md`…) dans un dossier. Rend les chemins, du plus récemment modifié au plus ancien. node_modules, .git, .next, dist et build sont ignorés.",
+    "Searches for files by pattern (`**/*.ts`, `src/**/*.test.tsx`, `*.md`…) in a folder. Returns the paths, from the most recently modified to the oldest. node_modules, .git, .next, dist and build are ignored.",
   parameters: {
     type: "object",
     properties: {
-      pattern: { type: "string", description: "Motif glob." },
-      path: { type: "string", description: "Dossier de départ. Par défaut : le dossier de travail." },
+      pattern: { type: "string", description: "Glob pattern." },
+      path: { type: "string", description: "Starting folder. Default: the workspace." },
     },
     required: ["pattern"],
     additionalProperties: false,
@@ -40,11 +40,11 @@ export const globTool: Tool<Args> = {
       );
       withTime.sort((a, b) => b.t - a.t);
       const list = withTime.slice(0, LIMIT).map(({ f }) => displayPath(ctx.workspace, f));
-      if (list.length === 0) return ok(`Aucun fichier ne correspond à ${args.pattern} dans ${displayPath(ctx.workspace, root)}.`);
-      const more = withTime.length > LIMIT ? `\n[… ${withTime.length - LIMIT} de plus]` : "";
+      if (list.length === 0) return ok(`No file matches ${args.pattern} in ${displayPath(ctx.workspace, root)}.`);
+      const more = withTime.length > LIMIT ? `\n[… ${withTime.length - LIMIT} more]` : "";
       return ok(list.join("\n") + more);
     } catch (e) {
-      return fail(`Glob a échoué : ${errorText(e)}`);
+      return fail(`Glob failed: ${errorText(e)}`);
     }
   },
 };

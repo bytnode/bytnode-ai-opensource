@@ -6,10 +6,10 @@ import { loadProfession } from "@/lib/professions/load";
 import { DEFAULT_PROFESSION, isProfessionId } from "@/lib/professions/catalog";
 import { parseAccountsHeader } from "@/lib/tools/exchange/accounts";
 
-/* Ce que le navigateur doit savoir avant un tour : le dossier de travail
-   resolu, les specifications des outils (base + BytNode), le prompt et les
-   competences de la profession, l'etat de la source de donnees. La cle
-   BytNode arrive dans un en-tete, jamais dans l'adresse. */
+/* What the browser needs to know before a turn: the resolved workspace,
+   the tool specifications (base + BytNode), the profession's prompt and
+   skills, the state of the data source. The BytNode key arrives in a
+   header, never in the URL. */
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const agentId = url.searchParams.get("agentId") ?? "";
@@ -24,9 +24,9 @@ export async function GET(req: Request) {
     loadProfession(PROJECT_ROOT, profession),
   ]);
   const skills = await listSkills(workspace, prof.skills);
-  /* Le premier appel connecte BytNode a distance (decouverte des outils,
-     puis en cache) : c'est lui qui peut prendre plusieurs secondes. */
-  console.info(`[tools] jeu d'outils prêt en ${((Date.now() - t0) / 1000).toFixed(1)} s (BytNode : ${bytnode.ok ? `${bytnode.count} outils` : (bytnode.message ?? "non")})`);
+  /* The first call connects to the remote BytNode (tool discovery, then
+     cached): that is the one that can take several seconds. */
+  console.info(`[tools] tool set ready in ${((Date.now() - t0) / 1000).toFixed(1)} s (BytNode: ${bytnode.ok ? `${bytnode.count} tools` : (bytnode.message ?? "no")})`);
   return Response.json({
     workspace,
     tools: toToolSpecs(tools),
@@ -38,6 +38,6 @@ export async function GET(req: Request) {
 }
 
 export const BYTNODE_HEADER = "x-bytnode-key";
-/** Les comptes exchange autorises pour l'agent, en JSON. Jamais journalise. */
+/** The exchange accounts the agent is allowed to use, as JSON. Never logged. */
 export const EXCHANGE_HEADER = "x-exchange-accounts";
 void KEY_HEADER;

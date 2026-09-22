@@ -1,31 +1,31 @@
 ---
 name: python-quant
-description: La façon de travailler en Python pour la recherche quantitative — structure d'un script d'expérience, chargement des données BytNode en pandas, contrôles de qualité, reproductibilité, exécution et sorties
+description: The way of working in Python for quantitative research — structure of an experiment script, loading BytNode data into pandas, quality checks, reproducibility, execution and outputs
 ---
 
-# Python pour la recherche quantitative
+# Python for quantitative research
 
-## Environnement
+## Environment
 
-- Vérifie d'abord : `python --version` et `python -c "import pandas, numpy, scipy, statsmodels, matplotlib"` (PowerShell ou Bash). Manque-t-il un paquet ? `pip install pandas numpy scipy statsmodels matplotlib` — et dis-le.
-- Un script `.py` par expérience, dans le dossier de travail, sous `research/` ; les données brutes sous `data/`, les sorties sous `out/`. Un notebook seulement si on te le demande (NotebookEdit).
+- Check first: `python --version` and `python -c "import pandas, numpy, scipy, statsmodels, matplotlib"` (PowerShell or Bash). Is a package missing? `pip install pandas numpy scipy statsmodels matplotlib` — and say so.
+- One `.py` script per experiment, in the workspace, under `research/`; raw data under `data/`, outputs under `out/`. A notebook only if asked for (NotebookEdit).
 
-## Structure d'un script d'expérience
+## Structure of an experiment script
 
 ```python
-"""exp_<nom>.py — <hypothèse en une phrase>."""
+"""exp_<name>.py — <hypothesis in one sentence>."""
 from __future__ import annotations
 import json, sys
 from pathlib import Path
 import numpy as np, pandas as pd
 
-# --- Paramètres, en tête, tous nommés ---
+# --- Parameters, at the top, all named ---
 ASSET = "BTC"; TIMEFRAME = "1d"; LOOKBACK = 20; SEED = 42
 OUT = Path("out") / "exp_<nom>"; OUT.mkdir(parents=True, exist_ok=True)
 rng = np.random.default_rng(SEED)
 
 def load(asset: str, timeframe: str) -> pd.DataFrame:
-    """Lit data/<asset>_<timeframe>.csv écrit depuis BytNode (voir ci-dessous)."""
+    """Reads data/<asset>_<timeframe>.csv written from BytNode (see below)."""
     df = pd.read_csv(f"data/{asset}_{timeframe}.csv", parse_dates=["ts"]).set_index("ts").sort_index()
     return check(df)
 
@@ -39,7 +39,7 @@ def check(df: pd.DataFrame) -> pd.DataFrame:
 
 def main() -> None:
     df = load(ASSET, TIMEFRAME)
-    # ... calculs ...
+    # ... calculations ...
     results = {"n": len(df), "...": ...}
     (OUT / "results.json").write_text(json.dumps(results, indent=2))
     print(json.dumps(results, indent=2))
@@ -48,19 +48,19 @@ if __name__ == "__main__":
     main()
 ```
 
-## Les données BytNode → CSV
+## BytNode data → CSV
 
-BytNode se lit par tes outils (`get_history`, `get_market_data`…), pas depuis Python. La chaîne :
-1. Appelle `get_history` pour l'actif, le pas de temps et la période ; la réponse est du texte/JSON.
-2. Écris-la avec `Write` en `data/<asset>_<timeframe>.csv` (colonnes `ts,open,high,low,close,volume`, et `funding`, `oi` si présents ; `ts` en ISO 8601 UTC).
-3. Le script lit le CSV. Note dans `out/…/results.json` la date de récupération et les bornes de la série.
-Si l'historique demandé dépasse ce que BytNode rend en un appel, découpe par périodes et concatène ; vérifie l'absence de doublons au raccord.
+BytNode is read through your tools (`get_history`, `get_market_data`…), not from Python. The chain:
+1. Call `get_history` for the asset, the timeframe and the period; the response is text/JSON.
+2. Write it with `Write` to `data/<asset>_<timeframe>.csv` (columns `ts,open,high,low,close,volume`, plus `funding`, `oi` if present; `ts` in ISO 8601 UTC).
+3. The script reads the CSV. Note in `out/…/results.json` the retrieval date and the bounds of the series.
+If the requested history exceeds what BytNode returns in one call, split by periods and concatenate; check for the absence of duplicates at the join.
 
-## Règles
+## Rules
 
-- **Tout en UTC**, index `DatetimeIndex` tz-aware. Les rendements en log (`np.log(close).diff()`) pour l'agrégation, en simple pour l'affichage.
-- **Pas de fuite du futur** : tout signal à t n'utilise que des données ≤ t ; les `rolling` sont causaux par défaut, `shift(1)` avant d'agir sur le signal.
-- **Vectorise** ; une boucle Python sur les bougies n'est acceptable que pour un backtest événementiel explicite.
-- **Reproductible** : graine fixée, paramètres en tête, versions imprimées (`pd.__version__`).
-- **Montre** : exécute le script, colle la sortie ; enregistre les figures en PNG dans `out/` et lis-les avec Read pour les commenter.
-- Une expérience = une question. Si tu en as trois, trois scripts.
+- **Everything in UTC**, tz-aware `DatetimeIndex` index. Log returns (`np.log(close).diff()`) for aggregation, simple for display.
+- **No look-ahead leakage**: every signal at t uses only data ≤ t; `rolling` is causal by default, `shift(1)` before acting on the signal.
+- **Vectorise**; a Python loop over candles is only acceptable for an explicit event-driven backtest.
+- **Reproducible**: fixed seed, parameters at the top, versions printed (`pd.__version__`).
+- **Show**: execute the script, paste the output; save figures as PNG in `out/` and read them with Read to comment on them.
+- One experiment = one question. If you have three, three scripts.

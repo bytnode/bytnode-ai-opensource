@@ -4,11 +4,11 @@ import { AcpConnection } from "./connection";
 import { prepareWorkspace, scratchWorkspace } from "./prepare";
 import { modelsOfSession, modesOfSession, type AgentModes } from "./translate";
 
-/* Ce qu'un agent par abonnement propose : ses modeles et ses modes.
+/* What a subscription agent offers: its models and its modes.
 
-   Un agent ACP ne les publie qu'a l'ouverture d'une session : on en ouvre
-   une, jetable, dans un dossier neutre, on lit ses options, on referme.
-   Quelques secondes — d'ou le cache, par agent, pour une heure. */
+   An ACP agent only publishes them when a session opens: we open a
+   throwaway one in a neutral folder, read its options, close it. A few
+   seconds — hence the cache, per agent, for one hour. */
 
 export type AgentOffer = { models: Model[]; modes: AgentModes | null };
 

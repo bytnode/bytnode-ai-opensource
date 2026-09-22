@@ -4,7 +4,7 @@ import { editNotebook } from "./notebook-edit";
 const nb = () => ({
   cells: [
     { cell_type: "code", source: ["print(1)\n"], metadata: {}, outputs: [], execution_count: null },
-    { cell_type: "markdown", source: ["# Titre"], metadata: {} },
+    { cell_type: "markdown", source: ["# Title"], metadata: {} },
   ],
   metadata: {},
   nbformat: 4,

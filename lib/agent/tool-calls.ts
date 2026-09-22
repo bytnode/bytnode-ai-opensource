@@ -1,11 +1,12 @@
 import type { ToolCallFragment } from "@/lib/llm/sse";
 
 /* ---------------------------------------------------------------------------
-   Recoudre les appels d'outils.
+   Stitching tool calls back together.
 
-   Le flux les envoie en morceaux, par index : un fragment porte l'id et le
-   nom, les suivants ajoutent les arguments caractere par caractere. On les
-   recolle par index, et on n'interprete le JSON qu'a la fin.
+   The stream sends them in pieces, by index: one fragment carries the id
+   and the name, the following ones add the arguments character by
+   character. They are glued back by index, and the JSON is only parsed at
+   the end.
 --------------------------------------------------------------------------- */
 
 export type ToolCall = {
@@ -13,8 +14,8 @@ export type ToolCall = {
   name: string;
   args: Record<string, unknown>;
   rawArgs: string;
-  /** Les arguments recus n'etaient pas du JSON lisible : `args` est vide
-      par defaut, et le modele doit l'apprendre tel quel. */
+  /** The arguments received were not readable JSON: `args` is empty by
+      default, and the model must learn it as such. */
   argsError?: string;
 };
 
@@ -35,8 +36,8 @@ export class ToolCallAccumulator {
     return this.parts.size;
   }
 
-  /** Oublier ce qui a ete recolle : un tour relance apres une erreur
-      transitoire repart de zero, sinon les fragments se melangeraient. */
+  /** Forget what was stitched: a turn retried after a transient error
+      starts from scratch, otherwise the fragments would get mixed up. */
   reset() {
     this.parts.clear();
   }
@@ -62,8 +63,8 @@ function parseArgs(raw: string): { args: Record<string, unknown>; error?: string
   try {
     const v: unknown = JSON.parse(raw);
     if (typeof v === "object" && v !== null && !Array.isArray(v)) return { args: v as Record<string, unknown> };
-    return { args: {}, error: "les arguments doivent être un objet JSON" };
+    return { args: {}, error: "the arguments must be a JSON object" };
   } catch (e) {
-    return { args: {}, error: `JSON illisible (${e instanceof Error ? e.message : String(e)})` };
+    return { args: {}, error: `unreadable JSON (${e instanceof Error ? e.message : String(e)})` };
   }
 }

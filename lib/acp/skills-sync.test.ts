@@ -11,7 +11,7 @@ let source: string;
 
 const HOMES = [".agents/skills", ".claude/skills"];
 
-const write = async (dir: string, name: string, body = "consignes") => {
+const write = async (dir: string, name: string, body = "instructions") => {
   const d = path.join(dir, name);
   await fs.mkdir(d, { recursive: true });
   await fs.writeFile(path.join(d, "SKILL.md"), `---\nname: ${name}\ndescription: ${name}\n---\n\n${body}\n`);
@@ -33,55 +33,55 @@ afterEach(async () => {
 });
 
 describe("syncSkills", () => {
-  it("depose chaque competence dans les deux dossiers que les agents lisent", async () => {
-    const a = await write(source, "analyse-funding");
+  it("drops each skill into the two folders the agents read", async () => {
+    const a = await write(source, "funding-analysis");
     await syncSkills(workspace, [a]);
     for (const home of HOMES) {
-      expect(await listed(home)).toEqual(["analyse-funding"]);
-      expect(await read(`${home}/analyse-funding/SKILL.md`)).toContain("consignes");
+      expect(await listed(home)).toEqual(["funding-analysis"]);
+      expect(await read(`${home}/funding-analysis/SKILL.md`)).toContain("instructions");
     }
   });
 
-  it("copie le dossier entier, pas seulement le SKILL.md", async () => {
-    const a = await write(source, "avec-donnees");
-    await fs.writeFile(path.join(source, "avec-donnees", "exemple.csv"), "a,b\n1,2\n");
+  it("copies the whole folder, not only the SKILL.md", async () => {
+    const a = await write(source, "with-data");
+    await fs.writeFile(path.join(source, "with-data", "example.csv"), "a,b\n1,2\n");
     await syncSkills(workspace, [a]);
-    expect(await read(".agents/skills/avec-donnees/exemple.csv")).toContain("a,b");
+    expect(await read(".agents/skills/with-data/example.csv")).toContain("a,b");
   });
 
-  it("ne touche pas a une competence ecrite a la main dans le dossier de travail", async () => {
-    const mine = path.join(workspace, ".agents", "skills", "la-mienne");
+  it("does not touch a skill hand-written in the workspace", async () => {
+    const mine = path.join(workspace, ".agents", "skills", "mine");
     await fs.mkdir(mine, { recursive: true });
-    await fs.writeFile(path.join(mine, "SKILL.md"), "a moi");
-    const a = await write(source, "la-mienne");
+    await fs.writeFile(path.join(mine, "SKILL.md"), "my own");
+    const a = await write(source, "mine");
     await syncSkills(workspace, [a]);
-    expect(await read(".agents/skills/la-mienne/SKILL.md")).toBe("a moi");
+    expect(await read(".agents/skills/mine/SKILL.md")).toBe("my own");
   });
 
-  it("garde la premiere en cas de meme nom (la profession avant le projet)", async () => {
-    const metier = await write(path.join(source, "metier"), "doublon", "version metier");
-    const projet = await write(path.join(source, "projet"), "doublon", "version projet");
-    await syncSkills(workspace, [metier, projet]);
-    expect(await read(".agents/skills/doublon/SKILL.md")).toContain("version metier");
+  it("keeps the first on a name collision (the profession before the project)", async () => {
+    const profession = await write(path.join(source, "profession"), "duplicate", "profession version");
+    const project = await write(path.join(source, "project"), "duplicate", "project version");
+    await syncSkills(workspace, [profession, project]);
+    expect(await read(".agents/skills/duplicate/SKILL.md")).toContain("profession version");
   });
 
-  it("reprend une competence modifiee", async () => {
-    const a = await write(source, "evolutive", "premiere version");
+  it("picks up a modified skill", async () => {
+    const a = await write(source, "evolving", "first version");
     await syncSkills(workspace, [a]);
-    await fs.writeFile(a.path, `---\nname: evolutive\ndescription: evolutive\n---\n\nseconde version\n`);
+    await fs.writeFile(a.path, `---\nname: evolving\ndescription: evolving\n---\n\nsecond version\n`);
     const later = (Date.now() + 5000) / 1000;
     await fs.utimes(a.path, later, later);
     await syncSkills(workspace, [a]);
-    expect(await read(".agents/skills/evolutive/SKILL.md")).toContain("seconde version");
+    expect(await read(".agents/skills/evolving/SKILL.md")).toContain("second version");
   });
 
-  it("retire celles qu'on ne fournit plus, et seulement les notres", async () => {
-    const a = await write(source, "ancienne");
+  it("removes the ones no longer provided, and only ours", async () => {
+    const a = await write(source, "old");
     await syncSkills(workspace, [a]);
-    const mine = path.join(workspace, ".agents", "skills", "la-mienne");
+    const mine = path.join(workspace, ".agents", "skills", "mine");
     await fs.mkdir(mine, { recursive: true });
-    await fs.writeFile(path.join(mine, "SKILL.md"), "a moi");
+    await fs.writeFile(path.join(mine, "SKILL.md"), "my own");
     await syncSkills(workspace, []);
-    expect(await listed(".agents/skills")).toEqual(["la-mienne"]);
+    expect(await listed(".agents/skills")).toEqual(["mine"]);
   });
 });

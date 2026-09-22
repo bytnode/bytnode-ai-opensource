@@ -5,16 +5,15 @@ import { describeRun, run } from "./run";
 import { findOutsideReferences, outsideMessage } from "./guard";
 
 /* ---------------------------------------------------------------------------
-   Bash et PowerShell : une commande, dans le dossier de travail de l'agent.
+   Bash and PowerShell: one command, in the agent's workspace.
 
-   Le shell demarre dans ce dossier, avec l'environnement de l'utilisateur.
-   En perimetre « dossier de travail », la commande est lue avant d'etre
-   lancee et refusee si elle designe un emplacement exterieur (voir
-   `guard.ts`) ; c'est un garde sur le texte, et le mode « demander avant »
-   reste le vrai filet.
+   The shell starts in that folder, with the user's environment. In the
+   "workspace" scope, the command is read before being launched and refused
+   when it designates an outside location (see `guard.ts`); it is a guard on
+   the text, and the "ask before" mode remains the real safety net.
 
-   Sous Windows, Bash est celui de Git ; s'il manque, l'outil le dit au lieu
-   de tourner a vide.
+   On Windows, Bash is Git's; when it is missing, the tool says so instead
+   of running on empty.
 --------------------------------------------------------------------------- */
 
 type Args = { command: string; timeout?: number; description?: string };
@@ -41,21 +40,21 @@ export function findPowerShell(): string {
   return "pwsh";
 }
 
-const timeoutParam = { type: "integer", description: "Temps limite en millisecondes (défaut 120000, max 600000)." };
-const descriptionParam = { type: "string", description: "Ce que fait la commande, en quelques mots." };
+const timeoutParam = { type: "integer", description: "Time limit in milliseconds (default 120000, max 600000)." };
+const descriptionParam = { type: "string", description: "What the command does, in a few words." };
 
-/** Les deux shells, avec celui du systeme declare par defaut : sous Windows
-    PowerShell (chemins natifs `C:\\…`), ailleurs Bash. L'autre reste
-    disponible, mais le modele sait lequel prendre d'abord. */
+/** The two shells, with the system's one declared as the default: on
+    Windows PowerShell (native `C:\\…` paths), elsewhere Bash. The other
+    stays available, but the model knows which one to pick first. */
 export function makeShellTools(defaultShell: "Bash" | "PowerShell") {
   const bashNote =
     defaultShell === "Bash"
-      ? "C'est le shell par défaut sur ce système."
-      : "Sur ce système (Windows) c'est le shell SECONDAIRE : bash de Git, chemins de style Unix (`/c/Users/...`, pas `C:\\`). Préférez PowerShell sauf si vous avez besoin d'outils Unix (grep, sed, awk, pipes).";
+      ? "It is the default shell on this system."
+      : "On this system (Windows) it is the SECONDARY shell: Git bash, Unix-style paths (`/c/Users/...`, not `C:\\`). Prefer PowerShell unless you need Unix tools (grep, sed, awk, pipes).";
   const psNote =
     defaultShell === "PowerShell"
-      ? "C'est le shell PAR DÉFAUT sur ce système (Windows) : chemins natifs `C:\\...`, commandes Get-ChildItem, Get-Content, etc."
-      : "Sur ce système c'est le shell secondaire (pwsh) ; préférez Bash.";
+      ? "It is the DEFAULT shell on this system (Windows): native `C:\\...` paths, Get-ChildItem, Get-Content commands, etc."
+      : "On this system it is the secondary shell (pwsh); prefer Bash.";
   return {
     bashTool: { ...bashTool, description: `${bashTool.description} ${bashNote}` },
     powershellTool: { ...powershellTool, description: `${powershellTool.description} ${psNote}` },
@@ -65,16 +64,16 @@ export function makeShellTools(defaultShell: "Bash" | "PowerShell") {
 export const bashTool: Tool<Args> = {
   name: "Bash",
   description:
-    "Exécute une commande shell (bash) dans le dossier de travail et rend sa sortie. Pour lire, chercher ou modifier des fichiers, préférez Read, Glob, Grep et Edit. Pas de commande interactive.",
+    "Runs a shell command (bash) in the workspace and returns its output. To read, search or modify files, prefer Read, Glob, Grep and Edit. No interactive command.",
   parameters: {
     type: "object",
-    properties: { command: { type: "string", description: "La commande." }, timeout: timeoutParam, description: descriptionParam },
+    properties: { command: { type: "string", description: "The command." }, timeout: timeoutParam, description: descriptionParam },
     required: ["command"],
     additionalProperties: false,
   },
   async execute(args, ctx) {
     const bash = findBash();
-    if (!bash) return fail("Aucun bash trouvé sur cette machine (Git pour Windows n'est pas installé). Utilisez PowerShell.");
+    if (!bash) return fail("No bash found on this machine (Git for Windows is not installed). Use PowerShell.");
     if (ctx.scope === "workspace") {
       const refs = findOutsideReferences(args.command, ctx.workspace);
       if (refs.length) return fail(outsideMessage(refs));
@@ -88,7 +87,7 @@ export const bashTool: Tool<Args> = {
       });
       return (r.code === 0 && !r.timedOut && !r.aborted ? ok : fail)(describeRun(r, "bash"));
     } catch (e) {
-      return fail(`Bash a échoué : ${errorText(e)}`);
+      return fail(`Bash failed: ${errorText(e)}`);
     }
   },
 };
@@ -96,10 +95,10 @@ export const bashTool: Tool<Args> = {
 export const powershellTool: Tool<Args> = {
   name: "PowerShell",
   description:
-    "Exécute une commande PowerShell dans le dossier de travail et rend sa sortie. Natif sous Windows (pwsh 7 si présent, sinon Windows PowerShell). Pas de commande interactive.",
+    "Runs a PowerShell command in the workspace and returns its output. Native on Windows (pwsh 7 when present, otherwise Windows PowerShell). No interactive command.",
   parameters: {
     type: "object",
-    properties: { command: { type: "string", description: "La commande." }, timeout: timeoutParam, description: descriptionParam },
+    properties: { command: { type: "string", description: "The command." }, timeout: timeoutParam, description: descriptionParam },
     required: ["command"],
     additionalProperties: false,
   },
@@ -116,7 +115,7 @@ export const powershellTool: Tool<Args> = {
       });
       return (r.code === 0 && !r.timedOut && !r.aborted ? ok : fail)(describeRun(r, "PowerShell"));
     } catch (e) {
-      return fail(`PowerShell a échoué : ${errorText(e)}`);
+      return fail(`PowerShell failed: ${errorText(e)}`);
     }
   },
 };

@@ -1,17 +1,17 @@
 ---
 name: anti-fuite
-description: À ouvrir avant tout backtest et à chaque écriture de signal — la liste des fuites de données, et le test mécanique qui les détecte en recalculant le signal sur des historiques tronqués
+description: Open this before any backtest and every time a signal is written — the list of data leaks, and the mechanical test that detects them by recomputing the signal on truncated histories
 ---
 
-# La fuite du futur, et comment la prouver absente
+# Look-ahead leakage, and how to prove it absent
 
-C'est la faiblesse n°1 du code que tu écris, et la plus dangereuse : elle ne produit aucune erreur, aucun avertissement — seulement un backtest magnifique et une stratégie qui perd en réel. Le moteur `Backtest` garantit l'exécution à la bougie suivante, mais **la fuite peut être dans ton `signal()`**, et là personne ne te protège.
+This is the number one weakness of the code you write, and the most dangerous: it produces no error, no warning — only a magnificent backtest and a strategy that loses in live trading. The `Backtest` engine guarantees execution at the next candle, but **the leak can be in your `signal()`**, and there nobody protects you.
 
-**Règle : aucun backtest n'est présenté sans que le test de causalité ci-dessous ait été exécuté et son résultat cité.**
+**Rule: no backtest is presented without the causality test below having been executed and its result cited.**
 
-## Le test mécanique
+## The mechanical test
 
-Le signal à l'instant t ne doit dépendre que des données ≤ t. Donc : recalculé sur un historique tronqué à t, il doit donner la **même valeur**. Un test, une réponse binaire.
+The signal at instant t must depend only on data ≤ t. So: recomputed on a history truncated at t, it must give the **same value**. One test, a binary answer.
 
 ```python
 import numpy as np, pandas as pd, importlib.util
@@ -39,33 +39,33 @@ def test_causalite(csv: str, strategy: str, params: dict | None = None, n: int =
         print(f"causalité OK sur {n} coupes aléatoires")
 ```
 
-À lancer avant chaque backtest, et à citer : « causalité vérifiée sur 30 coupes ». Si une seule coupe diverge, le résultat du backtest ne vaut rien — corrige d'abord.
+To run before every backtest, and to cite: "causality verified on 30 cuts". If a single cut diverges, the backtest result is worthless — fix it first.
 
-## Les fuites, par ordre de fréquence
+## The leaks, by order of frequency
 
-| Fuite | À quoi ça ressemble | La correction |
+| Leak | What it looks like | The fix |
 |---|---|---|
-| **Moyenne centrée** | `rolling(20, center=True)` | `rolling(20)` |
-| **Normalisation globale** | `(x - x.mean()) / x.std()` sur toute la série | `x.rolling(n).mean()` / `rolling(n).std()` |
-| **Décalage oublié** | comparer `close[t]` à un seuil calculé avec `close[t]` inclus… et exécuter à `t` | le moteur exécute à `t+1` ; ton signal doit être connu **à la clôture de t** |
-| **Remplissage arrière** | `fillna(method="bfill")`, `interpolate()` | `ffill()` seulement, et compte les trous |
-| **Extremum futur** | `close / close.max()`, `idxmin()` sur toute la série | `rolling(n).max()` |
-| **Resample mal borné** | `resample("1D")` avec `label="right"` sans `closed="right"` | fixe les deux, explicitement |
-| **Tri absent** | index non trié : `rolling` mélange les époques | `sort_index()` dès le chargement |
-| **Univers choisi aujourd'hui** | backtester 2022 sur les actifs liquides de 2026 | le dire ; univers défini à chaque date si possible |
-| **Paramètre calé sur tout l'historique** | choisir `slow=40` parce que c'est le meilleur sur 2022-2026, puis « tester » sur 2022-2026 | calibrer en in-sample, ne regarder l'out-of-sample qu'une fois |
+| **Centred average** | `rolling(20, center=True)` | `rolling(20)` |
+| **Global normalisation** | `(x - x.mean()) / x.std()` over the whole series | `x.rolling(n).mean()` / `rolling(n).std()` |
+| **Forgotten shift** | comparing `close[t]` to a threshold computed with `close[t]` included… and executing at `t` | the engine executes at `t+1`; your signal must be known **at the close of t** |
+| **Backward fill** | `fillna(method="bfill")`, `interpolate()` | `ffill()` only, and count the gaps |
+| **Future extremum** | `close / close.max()`, `idxmin()` over the whole series | `rolling(n).max()` |
+| **Badly bounded resample** | `resample("1D")` with `label="right"` without `closed="right"` | set both, explicitly |
+| **Missing sort** | unsorted index: `rolling` mixes epochs | `sort_index()` right at loading |
+| **Universe chosen today** | backtesting 2022 on the liquid assets of 2026 | say so; universe defined at each date if possible |
+| **Parameter tuned on the whole history** | choosing `slow=40` because it is the best over 2022-2026, then "testing" over 2022-2026 | calibrate in-sample, look at the out-of-sample only once |
 
-## Les deux fuites qu'aucun test ne détecte
+## The two leaks no test detects
 
-1. **La fuite par les yeux.** Tu as regardé le graphique complet avant d'écrire la règle : « acheter les creux de juin » n'est pas causal, même si le code l'est. Décris la règle avant de regarder la période de test.
-2. **La fuite par itération.** Cinquante variantes essayées sur les mêmes données : l'information de l'out-of-sample a fui par toi. La seule protection est de compter K honnêtement (`budget-de-parametres`) et de déflater (`validation-statistique`).
+1. **Leakage through the eyes.** You looked at the full chart before writing the rule: "buy the June dips" is not causal, even if the code is. Describe the rule before looking at the test period.
+2. **Leakage through iteration.** Fifty variants tried on the same data: the out-of-sample information leaked through you. The only protection is to count K honestly (`budget-de-parametres`) and to deflate (`validation-statistique`).
 
-## Ce qui doit figurer dans le rapport
+## What must appear in the report
 
-> **Causalité** : test sur 30 coupes aléatoires — aucune divergence. Aucune normalisation globale, aucun `center=True`, index trié, `ffill` seul (14 trous comblés sur 8 760 bougies, listés). Univers fixé à l'avance (BTCUSDT, ETHUSDT), sélectionné pour la liquidité en 2022 — biais de survie résiduel signalé.
+> **Causality**: test on 30 random cuts — no divergence. No global normalisation, no `center=True`, sorted index, `ffill` only (14 gaps filled out of 8,760 candles, listed). Universe fixed in advance (BTCUSDT, ETHUSDT), selected for liquidity in 2022 — residual survivorship bias flagged.
 
-## Lié
+## Related
 
-- `controle-qualite-donnees` : à faire avant, sur les données elles-mêmes.
-- `pieges-pandas` : les idiomes qui produisent ces fuites.
-- `backtest-python`, `validation-statistique` : la suite du protocole.
+- `controle-qualite-donnees`: to do beforehand, on the data itself.
+- `pieges-pandas`: the idioms that produce these leaks.
+- `backtest-python`, `validation-statistique`: the rest of the protocol.

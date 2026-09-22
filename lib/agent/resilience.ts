@@ -1,33 +1,32 @@
 /* ---------------------------------------------------------------------------
-   Le filet de la boucle : reprendre ce qui doit l'etre, couper ce qui tourne
-   en rond.
+   The loop's safety net: retry what should be retried, cut off what goes
+   round in circles.
 
-   Deux pannes distinctes, deux traitements.
+   Two distinct failures, two treatments.
 
-   ⚠️ UNE ERREUR TRANSITOIRE N'EST PAS UNE ERREUR. Un 429, un 502, une
-   connexion coupee : la requete n'a rien produit, la relancer est sans
-   risque — et c'est tout ce qui separe un tour perdu d'un tour qui
-   aboutit. Une erreur de requete (cle invalide, modele inconnu, credit
-   epuise), elle, se reproduira a l'identique : la relancer ne fait que
-   retarder le message d'erreur.
+   ⚠️ A TRANSIENT ERROR IS NOT AN ERROR. A 429, a 502, a dropped
+   connection: the request produced nothing, retrying it is risk-free — and
+   it is all that separates a lost turn from one that succeeds. A request
+   error (invalid key, unknown model, credit exhausted), on the other hand,
+   will reproduce identically: retrying only delays the error message.
 
-   ⚠️ UN AGENT PEUT TOURNER EN ROND. Le meme outil, les memes arguments, le
-   meme echec, quarante fois — ca coute de l'argent et du temps, et ca
-   n'aboutit jamais. Au troisieme appel identique, on refuse et on le dit a
-   l'agent, qui doit changer de voie.
+   ⚠️ AN AGENT CAN GO ROUND IN CIRCLES. The same tool, the same arguments,
+   the same failure, forty times — it costs money and time, and never
+   succeeds. At the third identical call, we refuse and tell the agent,
+   which has to change course.
 
-   Pur : pas de reseau, pas de temps reel — teste.
+   Pure: no network, no real time — tested.
 --------------------------------------------------------------------------- */
 
-/** Les statuts qui valent une relance : surcharge, indisponibilite, delai. */
+/** The statuses worth a retry: overload, unavailability, timeout. */
 const TRANSIENT_STATUS = new Set([408, 409, 425, 429, 500, 502, 503, 504, 520, 521, 522, 524, 529]);
 
-/** Les coupures reseau, telles que les runtimes les nomment. */
+/** Network drops, as the runtimes name them. */
 const TRANSIENT_TEXT =
   /failed to fetch|network|socket hang up|econnreset|econnrefused|etimedout|epipe|enotfound|terminated|stream closed|fetch failed|other side closed/i;
 
 export function isTransient(error: unknown): boolean {
-  /* Une interruption voulue (bouton Arrêter) n'est jamais relancee. */
+  /* A deliberate interruption (Stop button) is never retried. */
   if (error instanceof DOMException && error.name === "AbortError") return false;
   if (typeof error === "object" && error !== null) {
     const e = error as { name?: unknown; status?: unknown; message?: unknown };
@@ -41,22 +40,22 @@ export function isTransient(error: unknown): boolean {
 
 export const MAX_ATTEMPTS = 3;
 
-/** Attente avant la relance : croissante, bornee, avec un peu de hasard
-    pour ne pas repartir tous en meme temps. */
+/** Wait before the retry: growing, bounded, with a bit of randomness so
+    that everyone does not restart at the same time. */
 export const MAX_BACKOFF = 8000;
 
 export function backoffDelay(attempt: number): number {
   const base = Math.min(MAX_BACKOFF, 600 * 2 ** attempt);
-  /* La borne s'applique APRES le hasard : sinon un tirage haut la depasse. */
+  /* The bound applies AFTER the randomness: otherwise a high draw exceeds it. */
   return Math.min(MAX_BACKOFF, Math.round(base * (0.75 + Math.random() * 0.5)));
 }
 
-/* --- Tourner en rond ----------------------------------------------------- */
+/* --- Going round in circles ---------------------------------------------- */
 
 export type CallLike = { name: string; args: Record<string, unknown> };
 
-/** La signature d'un appel : le nom et les arguments, independamment de
-    l'ordre des cles. */
+/** A call's signature: the name and the arguments, regardless of key
+    order. */
 export function callSignature(call: CallLike): string {
   const args = Object.keys(call.args ?? {})
     .sort()
@@ -70,8 +69,8 @@ export const MAX_IDENTICAL = 3;
 export class RepetitionGuard {
   private counts = new Map<string, number>();
 
-  /** Rend `null` si l'appel peut partir, ou le message a renvoyer a l'agent
-      a la place du resultat. */
+  /** Returns `null` if the call may go ahead, or the message to return to
+      the agent in place of the result. */
   check(call: CallLike): string | null {
     const sig = callSignature(call);
     const n = (this.counts.get(sig) ?? 0) + 1;
@@ -79,20 +78,20 @@ export class RepetitionGuard {
     if (n < MAX_IDENTICAL) return null;
     const resume = summarize(call);
     return (
-      `Tu viens de demander ${MAX_IDENTICAL} fois exactement le même appel : ${call.name}${resume ? ` — ${resume}` : ""}. ` +
-      `Il ne donnera pas un autre résultat. Change d'approche : lis l'erreur précédente, vérifie tes arguments, ` +
-      `essaie un autre outil, ou explique à l'utilisateur ce qui bloque et ce dont tu as besoin.`
+      `You have just requested exactly the same call ${MAX_IDENTICAL} times: ${call.name}${resume ? ` — ${resume}` : ""}. ` +
+      `It will not give a different result. Change approach: read the previous error, check your arguments, ` +
+      `try another tool, or explain to the user what is blocking and what you need.`
     );
   }
 
-  /** Un appel qui a abouti : son compteur repart de zero (une commande peut
-      legitimement etre relancee plus tard). */
+  /** A call that succeeded: its counter starts again from zero (a command
+      can legitimately be run again later). */
   succeeded(call: CallLike): void {
     this.counts.delete(callSignature(call));
   }
 }
 
-/** De quoi reconnaitre l'appel dans le message, sans le recopier en entier. */
+/** Enough to recognise the call in the message, without copying it whole. */
 function summarize(call: CallLike): string {
   const a = call.args ?? {};
   for (const k of ["command", "file_path", "pattern", "url", "data", "strategy", "name"]) {

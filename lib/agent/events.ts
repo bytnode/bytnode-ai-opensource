@@ -1,46 +1,46 @@
 /* ---------------------------------------------------------------------------
-   Les evenements d'un tour d'agent, du serveur vers l'ecran.
+   The events of an agent turn, from the server to the screen.
 
-   Le serveur fait tourner la boucle (modele → outils → modele) et raconte ce
-   qui se passe, un evenement JSON par ligne. Le navigateur les rejoue dans
-   le message de l'assistant : le texte au fil de l'eau, chaque appel d'outil
-   avec son resultat, les sous-agents. Le meme type sert des deux cotes.
+   The server runs the loop (model → tools → model) and narrates what
+   happens, one JSON event per line. The browser replays them into the
+   assistant's message: the text as it streams, each tool call with its
+   result, the sub-agents. The same type serves on both sides.
 --------------------------------------------------------------------------- */
 
-/** Une image a montrer dans le fil : un chemin relatif au dossier de travail
-    (servi par /api/files), ou une URL de donnees. */
+/** An image to show in the thread: a path relative to the workspace
+    (served by /api/files), or a data URL. */
 export type ToolImage = { name: string; src: string };
 
-/** Une entree du plan que l'agent s'est donne (agents par abonnement). */
+/** An entry of the plan the agent set for itself (subscription agents). */
 export type PlanEntry = { content: string; status: "pending" | "in_progress" | "completed" };
 
-/** Ce qu'un tour a consomme. `context` / `window` alimentent la jauge. */
+/** What a turn consumed. `context` / `window` feed the meter. */
 export type UsageInfo = { input?: number; output?: number; cost?: number; context?: number; window?: number; provider?: string };
 
 export type AgentEvent =
   | { type: "text"; text: string }
-  /** Le raisonnement expose par le modele, quand il l'expose. */
+  /** The reasoning the model exposes, when it exposes it. */
   | { type: "thought"; text: string }
   | { type: "plan"; entries: PlanEntry[] }
   | { type: "usage"; usage: UsageInfo }
   | { type: "tool_call"; id: string; name: string; args: Record<string, unknown> }
   | { type: "tool_result"; id: string; ok: boolean; output: string; images?: ToolImage[] }
-  /** Une ligne produite pendant qu'un outil tourne (Monitor). */
+  /** A line produced while a tool is running (Monitor). */
   | { type: "tool_line"; id: string; line: string }
-  /** Un sous-agent (Workflow) : `id` = `<appel>:<index>`. Sa profession et,
-      quand il a fini, son rapport — le fil montre l'un puis l'autre. */
+  /** A sub-agent (Workflow): `id` = `<call>:<index>`. Its profession and,
+      once it is done, its report — the thread shows one then the other. */
   | { type: "subagent"; id: string; index: number; title: string; profession?: string; status: "running" | "done" | "failed"; report?: string }
-  /** Une erreur transitoire, relancee : le fil peut le dire au lieu de
-      laisser croire que rien ne se passe. */
+  /** A transient error, retried: the thread can say so instead of letting
+      the user believe nothing is happening. */
   | { type: "retry"; attempt: number; of: number; delayMs: number; reason: string }
   | { type: "error"; message: string }
   | { type: "done"; finishReason: string };
 
-/** Un pas d'une reponse d'assistant, tel qu'il est memorise et affiche. */
+/** One step of an assistant reply, as it is stored and displayed. */
 export type Step =
   | { type: "text"; text: string }
-  /** Le raisonnement, replie par defaut dans le fil et JAMAIS rejoue au
-      modele (`history.ts`) : c'est de l'affichage, pas du contexte. */
+  /** The reasoning, folded by default in the thread and NEVER replayed to
+      the model (`history.ts`): it is display, not context. */
   | { type: "thought"; text: string }
   | { type: "plan"; entries: PlanEntry[] }
   | {
@@ -48,12 +48,12 @@ export type Step =
       id: string;
       name: string;
       args: Record<string, unknown>;
-      /** `pending` : l'accord de l'utilisateur est attendu. `denied` : refuse. */
+      /** `pending`: the user's approval is awaited. `denied`: refused. */
       status: "pending" | "running" | "done" | "failed" | "denied";
       output?: string;
       lines?: string[];
       images?: ToolImage[];
-      /** Les sous-agents d'un Workflow, par index : etat puis rapport. */
+      /** The sub-agents of a Workflow, by index: state then report. */
       subagents?: SubagentState[];
     };
 

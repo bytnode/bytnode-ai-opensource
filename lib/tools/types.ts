@@ -1,15 +1,15 @@
 /* ---------------------------------------------------------------------------
-   Ce qu'est un outil, pour l'agent comme pour l'interface.
+   What a tool is, for the agent as well as for the UI.
 
-   Un outil a un nom, une description que le modele lit, un schema JSON pour
-   ses arguments, et une fonction qui l'execute dans un CONTEXTE : le dossier
-   de travail de l'agent, un signal d'annulation, un emetteur d'evenements
-   pour ce qui doit remonter a l'ecran pendant l'execution (les lignes d'un
-   Monitor, l'avancement d'un sous-agent).
+   A tool has a name, a description the model reads, a JSON schema for its
+   arguments, and a function that executes it in a CONTEXT: the agent's
+   workspace, an abort signal, an event emitter for whatever has to reach
+   the screen during execution (the lines of a Monitor, the progress of a
+   sub-agent).
 
-   ⚠️ TOUT CE QUI TOUCHE LE DISQUE PASSE PAR `ctx.workspace`. Les chemins
-   relatifs s'y resolvent ; un chemin absolu qui en sort est refuse par
-   `paths.ts`. Les shells, eux, y demarrent — c'est la sandbox.
+   ⚠️ EVERYTHING THAT TOUCHES THE DISK GOES THROUGH `ctx.workspace`. Relative
+   paths resolve against it; an absolute path that leaves it is refused by
+   `paths.ts`. Shells, for their part, start there — that is the sandbox.
 --------------------------------------------------------------------------- */
 
 import type { AgentEvent } from "@/lib/agent/events";
@@ -23,40 +23,40 @@ export type JsonSchema = {
   additionalProperties?: boolean;
 };
 
-/** Une image produite ou lue par un outil : envoyee au modele (dataUrl) et,
-    si elle est dans le dossier de travail, affichee dans le fil (path). */
+/** An image produced or read by a tool: sent to the model (dataUrl) and,
+    when it sits in the workspace, shown in the thread (path). */
 export type ToolAttachment = { type: "image"; dataUrl: string; name: string; path?: string };
 
 export type ToolResult = {
   ok: boolean;
-  /** Ce que le modele recoit. Toujours du texte ; borne par `truncate`. */
+  /** What the model receives. Always text; bounded by `truncate`. */
   output: string;
-  /** Ce que le modele recoit EN PLUS, hors texte : une image lue. */
+  /** What the model receives IN ADDITION, beyond text: an image that was read. */
   attachments?: ToolAttachment[];
 };
 
 export type ToolContext = {
-  /** Le dossier de travail de l'agent, absolu, existant. */
+  /** The agent's workspace, absolute, existing. */
   workspace: string;
-  /** Ce que les outils fichiers acceptent hors de ce dossier : rien
-      (`workspace`) ou tout (`disk`). */
+  /** What the file tools accept outside that folder: nothing
+      (`workspace`) or everything (`disk`). */
   scope: Scope;
-  /** La racine du projet (skills partages). */
+  /** The project root (shared skills). */
   projectRoot: string;
   signal: AbortSignal;
   emit: (event: AgentEvent) => void;
-  /** Profondeur d'imbrication : 0 pour l'agent principal, 1 pour un
-      sous-agent. Un sous-agent ne lance pas de sous-agents. */
+  /** Nesting depth: 0 for the main agent, 1 for a sub-agent. A sub-agent
+      launches no sub-agents. */
   depth: number;
-  /** Ce qu'il faut pour qu'un outil relance un modele (Workflow). */
+  /** What a tool needs to call a model itself (Workflow). */
   llm: { apiKey: string; model: string; effort: string | null };
-  /** L'id de l'appel en cours, pour rattacher les evenements emis. */
+  /** The id of the current call, to attach the emitted events to. */
   callId: string;
-  /** Les competences propres a la profession de l'agent, deja lues. */
+  /** The skills specific to the agent's profession, already read. */
   professionSkills?: Array<{ name: string; description: string; path: string }>;
-  /** La cle BytNode, pour qu'un sous-agent retrouve les memes outils. */
+  /** The BytNode key, so a sub-agent gets the same tools back. */
   bytnodeKey?: string;
-  /** Les comptes d'exchange que l'agent peut piloter (deja filtres). */
+  /** The exchange accounts the agent may drive (already filtered). */
   exchangeAccounts?: ExchangeAccount[];
 };
 
@@ -67,13 +67,13 @@ export interface Tool<A = Record<string, unknown>> {
   execute(args: A, ctx: ToolContext): Promise<ToolResult>;
 }
 
-/** Ce que le modele recoit ne doit pas exploser le contexte : chaque sortie
-    est coupee au-dela d'une taille raisonnable, en le disant. */
+/** What the model receives must not blow up the context: every output is
+    cut beyond a reasonable size, and says so. */
 export const OUTPUT_LIMIT = 40_000;
 
 export function truncate(text: string, limit = OUTPUT_LIMIT): string {
   if (text.length <= limit) return text;
-  return `${text.slice(0, limit)}\n\n[… sortie tronquée : ${text.length - limit} caractères de plus]`;
+  return `${text.slice(0, limit)}\n\n[… output truncated: ${text.length - limit} more characters]`;
 }
 
 export const ok = (output: string, attachments?: ToolAttachment[]): ToolResult => ({
@@ -84,5 +84,5 @@ export const ok = (output: string, attachments?: ToolAttachment[]): ToolResult =
 
 export const fail = (message: string): ToolResult => ({ ok: false, output: truncate(message) });
 
-/** Une erreur en texte, quelle que soit sa forme. */
+/** An error as text, whatever its shape. */
 export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));

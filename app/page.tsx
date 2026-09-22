@@ -9,11 +9,11 @@ import { newId } from "@/lib/domain/conversation";
 import { updateSettings, useSettings } from "@/lib/state/settings";
 import { blankAgent } from "@/lib/storage/repositories";
 
-/* La page unique : tant que les reglages ne sont pas lus, rien — le fond
-   suffit. Puis l'assistant complet si le compte n'est pas configure, sinon
-   le chat. */
-/* L'id et la date d'un agent nouveau sont poses au moment ou il est cree, pas
-   pendant le rendu : un id tire a chaque rendu ferait redemarrer la feuille. */
+/* The single page: until the settings are read, nothing — the background
+   is enough. Then the full wizard if the account is not configured,
+   otherwise the chat. */
+/* A new agent's id and date are set at the moment it is created, not
+   during render: an id drawn on every render would restart the form. */
 const stamp = (a: AgentConfig): AgentConfig =>
   a.id ? a : { ...a, id: newId(), createdAt: Date.now() };
 
@@ -37,7 +37,7 @@ export default function Page() {
           theme: settings.theme,
           agent: blankAgent(),
         }}
-        finishLabel="Ouvrir le chat"
+        finishLabel="Open the chat"
         onTheme={(theme) => updateSettings((s) => ({ ...s, theme }))}
         onDone={(d) => {
           const agent = stamp(d.agent);

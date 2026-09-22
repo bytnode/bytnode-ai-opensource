@@ -9,21 +9,21 @@ import { agentDir, brokenInstall, npmCli, runCommand } from "./launch";
 import { AGENT_SOURCES, installPackageJson, type NpmSource } from "./packages";
 
 /* ---------------------------------------------------------------------------
-   Installer un agent par abonnement dans `~/.bytnode-ai/agents/<id>/`.
+   Install a subscription agent into `~/.bytnode-ai/agents/<id>/`.
 
-   Deux chemins, selon `packages.ts`. Un paquet npm : on ecrit un
-   package.json (dependance epinglee, overrides) et on lance `npm install`
-   dedans — c'est la que l'override du SDK Claude s'applique, et le meme
-   chemin sert a « Mettre a jour » quand la plage a ete relevee. Un binaire
-   (Mistral Vibe) : on lit l'entree du registre ACP
-   (github.com/agentclientprotocol/registry) pour avoir la derniere version,
-   on prend l'archive de cette machine, on la telecharge et on l'extrait.
-   Si le registre ne repond pas, une version connue sert de secours.
+   Two paths, according to `packages.ts`. An npm package: we write a
+   package.json (pinned dependency, overrides) and run `npm install` in it —
+   that is where the Claude SDK override applies, and the same path serves
+   « Update » when the range has been raised. A binary (Mistral Vibe): we
+   read the ACP registry entry (github.com/agentclientprotocol/registry) to
+   get the latest version, take this machine's archive, download and
+   extract it. If the registry does not answer, a known version is the
+   fallback.
 --------------------------------------------------------------------------- */
 
 const REGISTRY = "https://raw.githubusercontent.com/agentclientprotocol/registry/main";
 
-/** La cle de plateforme du registre pour cette machine. */
+/** The registry's platform key for this machine. */
 export function platformKey(): string {
   const os_ = process.platform === "win32" ? "windows" : process.platform;
   const arch = process.arch === "x64" ? "x86_64" : process.arch === "arm64" ? "aarch64" : process.arch;
@@ -32,7 +32,7 @@ export function platformKey(): string {
 
 async function archiveUrl(agent: AcpAgentId): Promise<string> {
   const src = AGENT_SOURCES[agent];
-  if (src.kind !== "download") throw new Error(`${acpAgentInfo(agent).label} n'est pas un agent à télécharger.`);
+  if (src.kind !== "download") throw new Error(`${acpAgentInfo(agent).label} is not a downloadable agent.`);
   const key = platformKey();
   try {
     const res = await fetch(`${REGISTRY}/${src.registryId}/agent.json`, { signal: AbortSignal.timeout(15_000) });
@@ -42,10 +42,10 @@ async function archiveUrl(agent: AcpAgentId): Promise<string> {
       if (url) return url;
     }
   } catch {
-    /* registre injoignable : secours */
+    /* registry unreachable: fallback */
   }
   const fallback = src.fallback[key];
-  if (!fallback) throw new Error(`${acpAgentInfo(agent).label} n'est pas distribué pour ${key}.`);
+  if (!fallback) throw new Error(`${acpAgentInfo(agent).label} is not distributed for ${key}.`);
   return fallback;
 }
 
@@ -69,14 +69,22 @@ export function installAgent(agent: AcpAgentId): Promise<void> {
 async function installNpm(agent: AcpAgentId, src: NpmSource): Promise<void> {
   const dir = agentDir(agent);
   await fs.mkdir(dir, { recursive: true });
-  /* Une installation interrompue repart de zero : un paquet a moitie
-     extrait n'a pas de package.json, npm le reprend, mais un binaire tronque
-     qui en a un resterait. */
+  /* An interrupted installation starts over: a half-extracted package has
+     no package.json, npm picks it up again, but a truncated binary that
+     has one would stay. */
   if (brokenInstall(agent)) await fs.rm(path.join(dir, "node_modules"), { recursive: true, force: true });
   await fs.writeFile(path.join(dir, "package.json"), JSON.stringify(installPackageJson(src), null, 2) + "\n");
   const npm = npmCli();
-  const r = await runCommand(npm.command, [...npm.args, "install", "--no-audit", "--no-fund", "--package-lock=true", "--loglevel=error"], 15 * 60_000, { cwd: dir });
-  if (r.code !== 0) throw new Error(`npm install a échoué : ${r.out.trim().slice(-300)}`);
+  const r = await runCommand(npm.command, [...npm.args, "install", "--no-audit", "--no-fund", "--package-lock=true", "--loglevel=error"], 15 * 60_000, { cwd: dir, shell: npm.shell });
+  /* `npm.command === "npm"` is `npmCli`'s last resort: it located no
+     `npm-cli.js`, so a failure here may simply be npm missing. We cannot
+     read that off the output — under `shell` it is `cmd.exe` that answers,
+     in the machine's own language — so we go by how npm was resolved. */
+  if (r.code !== 0) {
+    const detail = r.out.trim().slice(-300);
+    const hint = npm.command === "npm" ? " — npm may not be installed, or not on this app's PATH; installing Node.js from nodejs.org includes it." : "";
+    throw new Error(`npm install failed: ${detail}${hint}`);
+  }
   const broken = brokenInstall(agent);
   if (broken) throw new Error(broken);
 }
@@ -88,7 +96,7 @@ async function installDownload(agent: AcpAgentId): Promise<void> {
   const archive = path.join(tmp, url.endsWith(".tar.gz") ? "agent.tar.gz" : "agent.zip");
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(15 * 60_000) });
-    if (!res.ok || !res.body) throw new Error(`Téléchargement refusé (${res.status}).`);
+    if (!res.ok || !res.body) throw new Error(`Download refused (${res.status}).`);
     await pipeline(Readable.fromWeb(res.body as import("node:stream/web").ReadableStream), createWriteStream(archive));
     await fs.rm(dir, { recursive: true, force: true });
     await fs.mkdir(dir, { recursive: true });
@@ -107,7 +115,7 @@ async function extract(archive: string, dir: string) {
   else if (process.platform === "win32") {
     r = await runCommand("powershell", ["-NoProfile", "-Command", `Expand-Archive -Force -LiteralPath '${archive.replace(/'/g, "''")}' -DestinationPath '${dir.replace(/'/g, "''")}'`], 5 * 60_000);
   } else r = await runCommand("unzip", ["-o", "-q", archive, "-d", dir], 5 * 60_000);
-  if (r.code !== 0) throw new Error(`Extraction impossible : ${r.out.trim().slice(-300)}`);
+  if (r.code !== 0) throw new Error(`Could not extract: ${r.out.trim().slice(-300)}`);
 }
 
 export async function uninstallAgent(agent: AcpAgentId): Promise<void> {

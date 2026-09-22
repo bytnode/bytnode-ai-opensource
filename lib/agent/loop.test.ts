@@ -3,7 +3,7 @@ import { runAgentLoop, type LoopDeps } from "./loop";
 import type { Delta } from "@/lib/llm/sse";
 import type { AgentEvent } from "./events";
 
-/* Un faux modele : au premier tour il appelle Glob, au second il conclut. */
+/* A fake model: on the first turn it calls Glob, on the second it concludes. */
 const scripted = (turns: Delta[][]) => {
   let i = 0;
   return async function* () {
@@ -27,7 +27,7 @@ describe("runAgentLoop", () => {
         seen.push(messages.map((m) => m.role));
         return complete();
       },
-      execute: async (call) => ({ ok: true, output: `résultat pour ${call.args.pattern}` }),
+      execute: async (call) => ({ ok: true, output: `result for ${call.args.pattern}` }),
       emit: (e) => events.push(e),
       tools,
       signal: new AbortController().signal,
@@ -36,7 +36,7 @@ describe("runAgentLoop", () => {
     expect(out.text).toBe("Je cherche. Deux fichiers.");
     expect(out.turns).toBe(2);
     expect(events.map((e) => e.type)).toEqual(["text", "tool_call", "tool_result", "text", "done"]);
-    /* Le second tour voit l'appel et son resultat. */
+    /* The second turn sees the call and its result. */
     expect(seen[1]).toEqual(["user", "assistant", "tool"]);
   });
 
@@ -120,12 +120,12 @@ describe("runAgentLoop", () => {
     expect(ran).toBe(false);
     expect(asked).toBe(false);
     const res = events.find((e) => e.type === "tool_result");
-    expect(res && res.type === "tool_result" && !res.ok && res.output).toBe("Arguments invalides pour Read : `file_path` requis (string). Corrige l'appel.");
+    expect(res && res.type === "tool_result" && !res.ok && res.output).toBe("Invalid arguments for Read: `file_path` required (string). Fix the call.");
   });
 });
 
-describe("runAgentLoop : garde-fous", () => {
-  test("des arguments JSON illisibles reviennent au modele comme tels, sans execution", async () => {
+describe("runAgentLoop: guard rails", () => {
+  test("unreadable JSON arguments go back to the model as such, without execution", async () => {
     let ran = false;
     const complete = scripted([
       [{ text: "", toolCalls: [{ index: 0, id: "c1", name: "Glob", args: '{"pattern": ' }], finish: "tool_calls" }],
@@ -146,10 +146,10 @@ describe("runAgentLoop : garde-fous", () => {
     const result = events.find((e) => e.type === "tool_result") as { ok: boolean; output: string };
     expect(result.ok).toBe(false);
     expect(result.output).toMatch(/JSON/);
-    expect(result.output).not.toMatch(/requis/);
+    expect(result.output).not.toMatch(/required/);
   });
 
-  test("le dernier tour ne relance pas d'outils, meme si le modele en demande", async () => {
+  test("the last turn does not run tools again, even if the model asks for some", async () => {
     let executions = 0;
     const complete = scripted([[{ text: "encore", toolCalls: [{ index: 0, id: "c", name: "Glob", args: "{}" }], finish: "tool_calls" }]]);
     const out = await runAgentLoop([{ role: "user", content: "x" }], {

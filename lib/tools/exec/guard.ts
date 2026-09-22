@@ -2,40 +2,40 @@ import path from "node:path";
 import { isInside } from "../paths";
 
 /* ---------------------------------------------------------------------------
-   Le garde des commandes, pour le perimetre « dossier de travail ».
+   The command guard, for the "workspace" scope.
 
-   Un shell ne se confine pas : Windows n'a pas de chroot, et un bac a sable
-   systeme serait un autre projet. Ce qu'on peut faire, c'est LIRE LA
-   COMMANDE avant de la lancer et refuser celle qui designe un endroit hors
-   du dossier de travail : un chemin absolu (`C:\\…`, `/c/…`, `/…`), un
-   chemin relatif qui remonte au-dela de la racine (`../x`), un raccourci
-   vers le compte (`~`, `$HOME`, `$env:USERPROFILE`, `%APPDATA%`…).
+   A shell cannot be confined: Windows has no chroot, and a system sandbox
+   would be another project. What can be done is to READ THE COMMAND before
+   launching it and refuse one that designates a place outside the
+   workspace: an absolute path (`C:\\…`, `/c/…`, `/…`), a relative path that
+   climbs above the root (`../x`), a shortcut to the account (`~`, `$HOME`,
+   `$env:USERPROFILE`, `%APPDATA%`…).
 
-   ⚠️ C'EST UN GARDE SUR LE TEXTE, PAS UNE PRISON. Une commande qui construit
-   son chemin autrement (variable calculee, encodage) passerait. Il arrete
-   l'usage ordinaire et l'erreur ; contre un modele qui chercherait a
-   contourner, c'est le mode « demander avant d'agir » qui protege.
+   ⚠️ IT IS A GUARD ON THE TEXT, NOT A PRISON. A command that builds its
+   path some other way (computed variable, encoding) would pass. It stops
+   ordinary use and mistakes; against a model that would try to work around
+   it, it is the "ask before acting" mode that protects.
 --------------------------------------------------------------------------- */
 
 const WIN_ABS = /(?:"([A-Za-z]:[\\/][^"]*)"|'([A-Za-z]:[\\/][^']*)'|([A-Za-z]:[\\/][^\s"'|&;<>()]*))/g;
 const UNIX_ABS = /(?:^|[\s"'=(|&;<>])(\/[^\s"'|&;<>()]*)/g;
 const RELATIVE_UP = /(?:^|[\s"'=(|&;<>])((?:\.\.[\\/])[^\s"'|&;<>()]*|\.\.)(?=$|[\s"'|&;<>()])/g;
-/* Les variables d'environnement qui designent un emplacement : le compte,
-   les dossiers systeme et programmes, les temporaires. Sous leurs trois
-   formes : `$env:X`, `${env:X}`, `%X%`. */
+/* The environment variables that designate a location: the account, the
+   system and program folders, the temporary ones. In their three forms:
+   `$env:X`, `${env:X}`, `%X%`. */
 const PLACES = "USERPROFILE|HOMEPATH|HOMEDRIVE|HOME|APPDATA|LOCALAPPDATA|PROGRAMDATA|ALLUSERSPROFILE|PUBLIC|ONEDRIVE|TEMP|TMP|SYSTEMROOT|SYSTEMDRIVE|WINDIR|PROGRAMFILES|PROGRAMFILES\(X86\)|PROGRAMW6432|COMMONPROGRAMFILES";
 const HOME = new RegExp(
   `(?:^|[\\s"'=(|&;<>])((?:~|\\$HOME|\\$\\{HOME\\}|\\$env:(?:${PLACES})|\\$\\{env:(?:${PLACES})\\}|%(?:${PLACES})%|\\$PSScriptRoot)(?:[\\\\/][^\\s"'|&;<>()]*)?)(?=$|[\\s"'|&;<>()])`,
   "gi",
 );
-/* Un chemin qui part de la racine du lecteur courant (`\Windows`) ou un
-   partage reseau (`\\serveur\part`) : hors du dossier par construction. */
+/* A path starting at the root of the current drive (`\Windows`) or a
+   network share (`\\server\share`): outside the folder by construction. */
 const WIN_ROOT = /(?:^|[\s"'=(|&;<>])(\\{1,2}[^\s"'|&;<>()]*)/g;
 
 const ALLOWED_UNIX = new Set(["/dev/null", "/dev/stdin", "/dev/stdout", "/dev/stderr"]);
 
-/** Les references hors du dossier de travail trouvees dans la commande,
-    telles qu'ecrites. Vide si la commande reste dedans. */
+/** The references outside the workspace found in the command, as written.
+    Empty when the command stays inside. */
 export function findOutsideReferences(command: string, workspace: string): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
@@ -53,10 +53,10 @@ export function findOutsideReferences(command: string, workspace: string): strin
   for (const m of command.matchAll(UNIX_ABS)) {
     const p = m[1];
     if (!p || ALLOWED_UNIX.has(p)) continue;
-    /* Sous Windows, `/c/Users/…` est le lecteur C: vu de Git bash et les
-       autres racines (`/usr`, `/tmp`) sont hors du dossier par construction.
-       Sous macOS/Linux, c'est simplement un chemin absolu : on le compare au
-       dossier, sinon tout chemin absolu DANS le dossier serait refuse. */
+    /* On Windows, `/c/Users/…` is the C: drive as seen from Git bash and the
+       other roots (`/usr`, `/tmp`) are outside the folder by construction.
+       On macOS/Linux, it is simply an absolute path: it is compared to the
+       folder, otherwise every absolute path INSIDE the folder would be refused. */
     const drive = process.platform === "win32" ? p.match(/^\/([A-Za-z])\/(.*)$/) : null;
     const resolved = process.platform !== "win32" ? path.resolve(p) : drive ? path.resolve(`${drive[1]}:/${drive[2]}`) : null;
     if (!resolved || !isInside(workspace, resolved)) push(p);
@@ -76,7 +76,7 @@ export function findOutsideReferences(command: string, workspace: string): strin
 
 export function outsideMessage(refs: string[]): string {
   return (
-    `Commande refusée : elle référence un emplacement hors du dossier de travail (${refs.map((r) => `« ${r} »`).join(", ")}). ` +
-    "Le périmètre de cet agent est limité à son dossier de travail ; travaillez avec des chemins relatifs à l'intérieur, ou demandez à l'utilisateur d'élargir le périmètre à tout le disque dans les réglages de l'agent."
+    `Command refused: it references a location outside the workspace (${refs.map((r) => `"${r}"`).join(", ")}). ` +
+    "This agent's scope is limited to its workspace; work with relative paths inside it, or ask the user to widen the scope to the whole disk in the agent's settings."
   );
 }

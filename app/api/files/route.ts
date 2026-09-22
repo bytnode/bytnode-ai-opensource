@@ -3,9 +3,9 @@ import path from "node:path";
 import { resolveWorkspace } from "@/lib/server/workspace";
 import { isInside } from "@/lib/tools/paths";
 
-/* Un fichier du dossier de travail d'un agent, pour le fil : les images
-   produites par Chart et Backtest, ou lues par Read. Jamais hors du dossier
-   de travail, quel que soit le perimetre de l'agent. */
+/* A file from an agent's workspace, for the thread: the images produced by
+   Chart and Backtest, or read by Read. Never outside the workspace,
+   whatever the agent's scope. */
 
 const TYPES: Record<string, string> = {
   ".png": "image/png",
@@ -24,17 +24,17 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const agentId = url.searchParams.get("agentId") ?? "";
   const requested = url.searchParams.get("path") ?? "";
-  if (!requested) return new Response("path manquant", { status: 400 });
+  if (!requested) return new Response("missing path", { status: 400 });
   const workspace = await resolveWorkspace(agentId, url.searchParams.get("workspace") ?? "");
   const target = path.resolve(workspace, requested);
-  if (!isInside(workspace, target)) return new Response("hors du dossier de travail", { status: 403 });
+  if (!isInside(workspace, target)) return new Response("outside the workspace", { status: 403 });
   const type = TYPES[path.extname(target).toLowerCase()];
-  if (!type) return new Response("type non servi", { status: 415 });
+  if (!type) return new Response("type not served", { status: 415 });
   try {
     const buf = await fs.readFile(target);
-    /* Servi depuis l'origine de l'application, ou vivent les cles : un SVG
-       (ou un fichier deguise) ecrit par un agent ne doit pas pouvoir y
-       executer de script s'il est ouvert dans un onglet. */
+    /* Served from the application's origin, where the keys live: an SVG (or
+       a disguised file) written by an agent must not be able to run script
+       there if it is opened in a tab. */
     return new Response(new Uint8Array(buf), {
       headers: {
         "content-type": type,
@@ -44,6 +44,6 @@ export async function GET(req: Request) {
       },
     });
   } catch {
-    return new Response("introuvable", { status: 404 });
+    return new Response("not found", { status: 404 });
   }
 }

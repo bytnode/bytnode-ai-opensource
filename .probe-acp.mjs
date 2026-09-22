@@ -4,8 +4,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import * as acp from "@agentclientprotocol/sdk";
-/* Les agents installes par « Installer » (~/.bytnode-ai/agents/<id>/), comme
-   l'app les lance : rien dans le node_modules du projet. */
+/* The agents installed by "Install" (~/.bytnode-ai/agents/<id>/), the way
+   the app launches them: nothing from the project's node_modules. */
 const home = path.join(os.homedir(), ".bytnode-ai");
 const agents = path.join(home, "agents");
 const cwd = path.join(home, "workspaces", "_acp");

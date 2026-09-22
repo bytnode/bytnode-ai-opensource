@@ -1,59 +1,59 @@
 ---
 name: plan-backtest
-description: Spécifier la validation d'une stratégie avant de la coder — données, période, hors échantillon, frictions, métriques, seuils de rejet — pour la remettre à un quant
+description: Specify the validation of a strategy before coding it — data, period, out-of-sample, frictions, metrics, rejection thresholds — to hand it to a quant
 ---
 
-# Plan de backtest
+# Backtest plan
 
-Un backtest sans plan écrit d'avance trouve toujours ce qu'on veut y voir. Le plan fixe, **avant** de regarder les résultats, ce qui sera mesuré et ce qui fera rejeter la stratégie.
+A backtest without a plan written in advance always finds what one wants to see in it. The plan fixes, **before** looking at the results, what will be measured and what will cause the strategy to be rejected.
 
-## Le plan
+## The plan
 
 ```
-## Données
-Actifs ; pas de temps ; source (BytNode `get_history`) ; période totale disponible.
-Champs nécessaires : OHLCV au minimum ; funding et OI si perp ; indicateurs de BytNode si utilisés.
+## Data
+Assets; timeframe; source (BytNode `get_history`); total period available.
+Required fields: OHLCV at minimum; funding and OI if perp; BytNode indicators if used.
 
-## Découpage
-- Calibration (in-sample) : ex. les 2/3 les plus anciens.
-- Hors échantillon (out-of-sample) : le 1/3 le plus récent, regardé UNE fois, à la fin.
-- Mieux : walk-forward — fenêtres glissantes de calibration puis test.
-La période doit contenir au moins un marché haussier, un baissier et un range.
+## Split
+- Calibration (in-sample): e.g. the oldest 2/3.
+- Out-of-sample: the most recent 1/3, looked at ONCE, at the end.
+- Better: walk-forward — rolling calibration windows then test.
+The period must contain at least one bull market, one bear market and one range.
 
 ## Frictions
-Frais : maker … %, taker … % (valeurs réelles de l'échange visé).
-Slippage : … % par ordre, plus élevé sur altcoins et en stress.
-Funding sur perp : réel, tiré de l'historique, pas une moyenne.
-Exécution : à la clôture de la bougie suivante, jamais à la bougie du signal.
+Fees: maker …%, taker …% (real values of the targeted exchange).
+Slippage: …% per order, higher on altcoins and under stress.
+Funding on perps: real, taken from the history, not an average.
+Execution: at the close of the next candle, never at the signal candle.
 
-## Métriques (toutes, pas seulement le rendement)
-- Rendement annualisé et drawdown maximal → ratio Calmar.
-- Sharpe et Sortino (préciser le taux sans risque et la fréquence).
-- Nombre de trades, taux de réussite, gain moyen / perte moyenne, espérance en R.
-- Durée moyenne des positions ; plus longue série de pertes.
-- Exposition moyenne (temps en position) ; rendement par unité d'exposition.
-- Stabilité : mêmes métriques par année et par régime.
+## Metrics (all of them, not only the return)
+- Annualised return and maximum drawdown → Calmar ratio.
+- Sharpe and Sortino (state the risk-free rate and the frequency).
+- Number of trades, win rate, average win / average loss, expectancy in R.
+- Average position duration; longest losing streak.
+- Average exposure (time in position); return per unit of exposure.
+- Stability: same metrics per year and per regime.
 
-## Seuils de rejet (fixés maintenant)
-Ex. : drawdown max > 20 % ; Sharpe hors échantillon < 0,8 ; moins de 50 trades ;
-dégradation hors échantillon > 40 % par rapport à la calibration ;
-résultat qui disparaît quand un paramètre bouge de ±20 %.
+## Rejection thresholds (fixed now)
+E.g.: max drawdown > 20%; out-of-sample Sharpe < 0.8; fewer than 50 trades;
+out-of-sample degradation > 40% relative to calibration;
+result that disappears when a parameter moves by ±20%.
 
-## Robustesse
-- Sensibilité : chaque paramètre ±20 %, ±50 % → la performance doit se dégrader doucement.
-- Décalage : démarrer le backtest à des dates différentes.
-- Actifs voisins : la logique tient-elle sur ETH si conçue sur BTC ?
-- Comparaison à une référence : acheter-et-garder, et une version aléatoire des entrées avec les mêmes sorties.
+## Robustness
+- Sensitivity: each parameter ±20%, ±50% → performance must degrade gently.
+- Offset: start the backtest at different dates.
+- Neighbouring assets: does the logic hold on ETH if designed on BTC?
+- Comparison to a benchmark: buy-and-hold, and a version with random entries and the same exits.
 ```
 
-## Ce qu'on remet au Quantitatif
+## What we hand to the Quant
 
-Le canevas de `conception-strategie` rempli + ce plan. Le quant ne doit pas avoir à choisir une période, une friction ou une métrique : ces choix sont de la stratégie, et les faire après coup, c'est tricher sans le vouloir.
+The `conception-strategie` canvas filled in + this plan. The quant must not have to choose a period, a friction or a metric: those choices belong to the strategy, and making them after the fact is cheating without meaning to.
 
-## Ce qu'on refuse
+## What we refuse
 
-- Un backtest sans frais ni slippage.
-- Une seule période, ou une période sans marché baissier.
-- Une optimisation sur toute la période puis un « test » sur la même.
-- Un résultat sans nombre de trades ni drawdown.
-- Conclure sur moins de 30–50 trades.
+- A backtest without fees or slippage.
+- A single period, or a period without a bear market.
+- An optimisation over the whole period then a "test" on the same one.
+- A result without number of trades or drawdown.
+- Concluding on fewer than 30–50 trades.

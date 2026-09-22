@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { professionInfo } from "@/lib/professions/catalog";
 import { validateArgs } from "../validate";
 import {
   CONCURRENCY,
@@ -15,40 +16,40 @@ import {
   type SubagentTask,
 } from "./subagent";
 
-const task = (over: Partial<SubagentTask> = {}): SubagentTask => ({ title: "Lire le funding", prompt: "Regarde le funding BTC.", profession: "analyste", ...over });
+const task = (over: Partial<SubagentTask> = {}): SubagentTask => ({ title: "Read the funding", prompt: "Look at the BTC funding.", profession: "analyste", ...over });
 
 describe("workflowParameters", () => {
-  it("exige un titre, une profession parmi les quatre et un prompt", () => {
+  it("requires a title, one of the four professions and a prompt", () => {
     const schema = workflowParameters({ kind: "openrouter" });
     expect(validateArgs(schema, { tasks: [task()] })).toBeNull();
     expect(validateArgs(schema, { tasks: [{ title: "x", prompt: "y" }] })).toMatch(/profession/);
-    expect(validateArgs(schema, { tasks: [{ title: "x", prompt: "y", profession: "trader" }] })).toMatch(/hors liste/);
+    expect(validateArgs(schema, { tasks: [{ title: "x", prompt: "y", profession: "trader" }] })).toMatch(/not in list/);
     expect(validateArgs(schema, { tasks: [{ title: "x", prompt: "y", profession: "quantitatif" }] })).toBeNull();
   });
 
-  it("borne le modele a la liste de l'agent quand elle est connue", () => {
+  it("bounds the model to the agent's list when it is known", () => {
     const schema = workflowParameters({ kind: "list", ids: ["haiku", "opus"] });
     expect(validateArgs(schema, { tasks: [task({ model: "opus" })] })).toBeNull();
     expect(validateArgs(schema, { tasks: [task({ model: "gpt-5" })] })).toMatch(/model/);
-    /* Sans liste ni OpenRouter : libre. */
-    expect(validateArgs(workflowParameters({ kind: "list", ids: [] }), { tasks: [task({ model: "n'importe" })] })).toBeNull();
+    /* Neither a list nor OpenRouter: free. */
+    expect(validateArgs(workflowParameters({ kind: "list", ids: [] }), { tasks: [task({ model: "anything" })] })).toBeNull();
     expect(validateArgs(workflowParameters({ kind: "openrouter" }), { tasks: [task({ model: "openai/gpt-5-mini" })] })).toBeNull();
   });
 });
 
 describe("workflowDescription", () => {
-  it("nomme les quatre metiers et la regle du modele", () => {
+  it("names the four professions and the model rule", () => {
     const d = workflowDescription({ kind: "openrouter" });
     for (const id of ["standard", "analyste", "strategique", "quantitatif"]) expect(d).toContain(id);
     expect(d).toContain("OpenRouter");
-    expect(d).toContain("difficulté");
-    expect(workflowDescription({ kind: "list", ids: ["haiku", "opus"] })).toContain("parmi : haiku, opus");
-    expect(workflowDescription({ kind: "list", ids: [] })).toContain("un des modèles de ton agent");
+    expect(d).toContain("difficulty");
+    expect(workflowDescription({ kind: "list", ids: ["haiku", "opus"] })).toContain("among: haiku, opus");
+    expect(workflowDescription({ kind: "list", ids: [] })).toContain("one of your agent's models");
   });
 });
 
 describe("readTasks", () => {
-  it("garde les taches dans l'ordre, a leur index, avec un titre par defaut", () => {
+  it("keeps the tasks in order, at their index, with a default title", () => {
     const out = readTasks([
       { title: "  A  ", prompt: "p1", profession: "standard", model: " haiku " },
       { prompt: "p2", profession: "quantitatif" },
@@ -56,20 +57,20 @@ describe("readTasks", () => {
     expect(out).toEqual({
       tasks: [
         { title: "A", prompt: "p1", profession: "standard", model: "haiku" },
-        { title: "Tâche 2", prompt: "p2", profession: "quantitatif" },
+        { title: "Task 2", prompt: "p2", profession: "quantitatif" },
       ],
     });
   });
 
-  it("refuse l'appel entier des qu'une tache est incomplete — les index du fil restent justes", () => {
-    expect(readTasks([{ title: "ok", prompt: "p", profession: "analyste" }, { title: "sans prompt", profession: "analyste" }])).toEqual({ error: "La tâche 2 n'a pas de prompt." });
-    expect(readTasks([{ title: "x", prompt: "p", profession: "trader" }])).toMatchObject({ error: expect.stringContaining("tâche 1") });
+  it("refuses the whole call as soon as one task is incomplete — the thread's indexes stay right", () => {
+    expect(readTasks([{ title: "ok", prompt: "p", profession: "analyste" }, { title: "no prompt", profession: "analyste" }])).toEqual({ error: "Task 2 has no prompt." });
+    expect(readTasks([{ title: "x", prompt: "p", profession: "trader" }])).toMatchObject({ error: expect.stringContaining("Task 1") });
     expect(readTasks([null])).toMatchObject({ error: expect.stringContaining("profession") });
-    expect(readTasks(undefined)).toMatchObject({ error: expect.stringContaining("au moins une tâche") });
-    expect(readTasks([])).toMatchObject({ error: expect.stringContaining("au moins une tâche") });
+    expect(readTasks(undefined)).toMatchObject({ error: expect.stringContaining("at least one task") });
+    expect(readTasks([])).toMatchObject({ error: expect.stringContaining("at least one task") });
   });
 
-  it("borne a MAX_TASKS", () => {
+  it("bounds to MAX_TASKS", () => {
     const many = Array.from({ length: MAX_TASKS + 3 }, (_, i) => ({ title: `t${i}`, prompt: "p", profession: "standard" }));
     const out = readTasks(many);
     expect("tasks" in out && out.tasks).toHaveLength(MAX_TASKS);
@@ -77,7 +78,7 @@ describe("readTasks", () => {
 });
 
 describe("runInPool", () => {
-  it("execute CONCURRENCY taches a la fois et rend les resultats a l'index de leur tache", async () => {
+  it("runs CONCURRENCY tasks at a time and returns the results at their task's index", async () => {
     const tasks = Array.from({ length: 7 }, (_, i) => task({ title: `t${i}` }));
     let running = 0;
     let peak = 0;
@@ -94,39 +95,39 @@ describe("runInPool", () => {
 });
 
 describe("subagentFrame / subagentMessage", () => {
-  it("dit le metier, le dossier, le prompt de la profession et les interdits", () => {
-    const s = subagentFrame("quantitatif", "## Profession : quant\n\nTu codes.", "C:\\ws");
-    expect(s).toContain("sous-agent Quantitatif");
+  it("states the profession, the workspace, the profession prompt and the prohibitions", () => {
+    const s = subagentFrame("quantitatif", "## Profession: quant\n\nYou write code.", "C:\\ws");
+    expect(s).toContain(`${professionInfo("quantitatif").label} sub-agent`);
     expect(s).toContain("`C:\\ws`");
-    expect(s).toContain("Tu codes.");
-    expect(s).toMatch(/pas de sous-agents/);
-    expect(s).toMatch(/pas d'ordre/);
-    expect(s).toContain("rapport");
+    expect(s).toContain("You write code.");
+    expect(s).toMatch(/no sub-agents/);
+    expect(s).toMatch(/no order/);
+    expect(s).toContain("report");
   });
 
-  it("met le contexte commun avant la tache", () => {
-    expect(subagentMessage(task(), "  Contexte : BTC.  ")).toBe("Contexte : BTC.\n\nRegarde le funding BTC.");
-    expect(subagentMessage(task(), "   ")).toBe("Regarde le funding BTC.");
-    expect(subagentMessage(task())).toBe("Regarde le funding BTC.");
+  it("puts the shared context before the task", () => {
+    expect(subagentMessage(task(), "  Context: BTC.  ")).toBe("Context: BTC.\n\nLook at the BTC funding.");
+    expect(subagentMessage(task(), "   ")).toBe("Look at the BTC funding.");
+    expect(subagentMessage(task())).toBe("Look at the BTC funding.");
   });
 });
 
 describe("reportSection / parseWorkflowReport", () => {
-  it("redecoupe ce que reportSection a assemble, metier compris", () => {
+  it("splits back what reportSection assembled, profession included", () => {
     const out = [
-      reportSection(task(), "Le funding est **positif**.\n\n## Détail\n\n- 0,01 %"),
-      reportSection(task({ title: "Backtest\nrapide", profession: "quantitatif" }), failureBody("Python absent")),
-      reportSection(task({ title: "Vide", profession: "strategique" }), "   "),
+      reportSection(task(), "The funding is **positive**.\n\n## Detail\n\n- 0.01 %"),
+      reportSection(task({ title: "Quick\nbacktest", profession: "quantitatif" }), failureBody("Python missing")),
+      reportSection(task({ title: "Empty", profession: "strategique" }), "   "),
     ].join("\n\n");
     expect(parseWorkflowReport(out)).toEqual([
-      { title: "Lire le funding", profession: "analyste", body: "Le funding est **positif**.\n\n## Détail\n\n- 0,01 %", failed: false },
-      { title: "Backtest rapide", profession: "quantitatif", body: "[échec : Python absent]", failed: true },
-      { title: "Vide", profession: "strategique", body: "(rapport vide)", failed: false },
+      { title: "Read the funding", profession: "analyste", body: "The funding is **positive**.\n\n## Detail\n\n- 0.01 %", failed: false },
+      { title: "Quick backtest", profession: "quantitatif", body: "[failed: Python missing]", failed: true },
+      { title: "Empty", profession: "strategique", body: "(empty report)", failed: false },
     ]);
   });
 
-  it("ignore ce qui precede le premier en-tete et une sortie sans en-tete", () => {
-    expect(parseWorkflowReport("Donnez au moins une tâche.")).toEqual([]);
-    expect(parseWorkflowReport("bruit\n## A — Standard\n\ncorps")).toEqual([{ title: "A", profession: "standard", body: "corps", failed: false }]);
+  it("ignores what precedes the first heading, and an output without a heading", () => {
+    expect(parseWorkflowReport("Give at least one task.")).toEqual([]);
+    expect(parseWorkflowReport(`noise\n## A — ${professionInfo("standard").label}\n\nbody`)).toEqual([{ title: "A", profession: "standard", body: "body", failed: false }]);
   });
 });

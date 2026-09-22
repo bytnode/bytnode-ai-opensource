@@ -1,6 +1,6 @@
-/* Avant `npm publish` / `npm pack` : build propre, cache retire, archive
-   controlee. Refuse de publier si un fichier interdit ou une cle y figure.
-   `--ignore-scripts` sur le `npm pack` interne : sinon prepack se relance. */
+/* Before `npm publish` / `npm pack`: clean build, cache removed, archive
+   checked. Refuses to publish if a forbidden file or a key is in it.
+   `--ignore-scripts` on the inner `npm pack`: otherwise prepack runs again. */
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -12,19 +12,19 @@ const next = path.join(root, "node_modules", "next", "dist", "bin", "next");
 fs.rmSync(path.join(root, ".next"), { recursive: true, force: true });
 const build = spawnSync(process.execPath, [next, "build"], { cwd: root, stdio: "inherit" });
 if (build.status !== 0) {
-  console.error(`prepack : next build a échoué (${build.status}).`);
+  console.error(`prepack: next build failed (${build.status}).`);
   process.exit(1);
 }
 fs.rmSync(path.join(root, ".next", "cache"), { recursive: true, force: true });
 
-/* ⚠️ LES PAQUETS EXTERNES SONT LIES PAR UN ALIAS HACHE. Turbopack compile
-   `require("fast-glob")` (serverExternalPackages) en
-   `require("fast-glob-461a4a069d284914")`, et resout cet alias par un lien
-   symbolique `.next/node_modules/fast-glob-461a…` → le node_modules ABSOLU
-   de la machine de build. npm ne livre ni liens ni node_modules : chez
-   l'utilisateur, « Cannot find module 'fast-glob-461a…' ». On remet le vrai
-   nom dans les chunks — Node le resout depuis le node_modules de
-   l'utilisateur, ou le paquet est une dependance — et on retire les liens. */
+/* ⚠️ EXTERNAL PACKAGES ARE LINKED THROUGH A HASHED ALIAS. Turbopack compiles
+   `require("fast-glob")` (serverExternalPackages) into
+   `require("fast-glob-461a4a069d284914")`, and resolves that alias through a
+   symlink `.next/node_modules/fast-glob-461a…` → the ABSOLUTE node_modules
+   of the build machine. npm ships neither symlinks nor node_modules: on the
+   user's machine, "Cannot find module 'fast-glob-461a…'". We put the real
+   name back in the chunks — Node resolves it from the user's node_modules,
+   where the package is a dependency — and remove the links. */
 function walk(dir: string): string[] {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]));
 }
@@ -53,16 +53,16 @@ function unaliasExternals(): number {
     }
   }
   fs.rmSync(links, { recursive: true, force: true });
-  console.log(`prepack : ${aliases.length} alias externes remis en clair dans ${rewritten} fichiers (${aliases.map(([, r]) => r).join(", ")}).`);
+  console.log(`prepack: ${aliases.length} external aliases restored to their real names in ${rewritten} files (${aliases.map(([, r]) => r).join(", ")}).`);
   return rewritten;
 }
 unaliasExternals();
 
-/* `required-server-files.json` porte le chemin ABSOLU du projet (`appDir`) :
-   le nom d'utilisateur et l'arborescence de la machine de build. `next
-   start` ne lit pas ce fichier (il sert aux hebergeurs, en mode standalone) ;
-   on efface le chemin, et le controle plus bas refuse l'archive s'il
-   reapparait ou si un autre fichier le cite. */
+/* `required-server-files.json` carries the ABSOLUTE path of the project
+   (`appDir`): the user name and the directory tree of the build machine.
+   `next start` does not read this file (it serves hosting providers, in
+   standalone mode); we blank the path, and the check below refuses the
+   archive if it reappears or if another file mentions it. */
 const rootJson = JSON.stringify(root).slice(1, -1);
 for (const name of ["required-server-files.json", "required-server-files.js"]) {
   const f = path.join(root, ".next", name);
@@ -71,7 +71,7 @@ for (const name of ["required-server-files.json", "required-server-files.js"]) {
 
 const npm = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { cwd: root, encoding: "utf8", shell: process.platform === "win32" });
 if (npm.status !== 0) {
-  console.error("prepack : npm pack --dry-run a échoué.\n" + npm.stderr);
+  console.error("prepack: npm pack --dry-run failed.\n" + npm.stderr);
   process.exit(1);
 }
 const [pack] = JSON.parse(npm.stdout) as { files: { path: string; size: number }[]; size: number; unpackedSize: number }[];
@@ -82,10 +82,10 @@ const texts = paths.filter(isTextFile).map((p) => ({ path: p, text: fs.readFileS
 const leaks = leakedSecrets(texts);
 const machine = containing(texts, [root, rootJson]);
 if (bad.length || leaks.length || machine.length) {
-  console.error("prepack : PUBLICATION REFUSÉE.");
-  for (const p of bad) console.error(`  fichier interdit : ${p}`);
-  for (const p of leaks) console.error(`  clé détectée dans : ${p}`);
-  for (const p of machine) console.error(`  chemin de cette machine dans : ${p}`);
+  console.error("prepack: PUBLISH REFUSED.");
+  for (const p of bad) console.error(`  forbidden file: ${p}`);
+  for (const p of leaks) console.error(`  key detected in: ${p}`);
+  for (const p of machine) console.error(`  this machine's path in: ${p}`);
   process.exit(1);
 }
-console.log(`prepack : ${paths.length} fichiers, ${(pack.size / 1e6).toFixed(1)} Mo compressés, ${(pack.unpackedSize / 1e6).toFixed(1)} Mo décompressés — archive propre.`);
+console.log(`prepack: ${paths.length} files, ${(pack.size / 1e6).toFixed(1)} MB compressed, ${(pack.unpackedSize / 1e6).toFixed(1)} MB unpacked — archive clean.`);

@@ -5,9 +5,9 @@ import type { ToolSpec } from "@/lib/agent/loop";
 import { OPENROUTER, openRouterHeaders } from "./openrouter";
 import { PROVIDER_ROUTING } from "./provider-routing";
 
-/* Un tour de modele chez OpenRouter, cote serveur : la requete telle que le
-   relais `/api/chat` la construit, mais lue ici — c'est ce qu'un sous-agent
-   utilise, sans passer par le navigateur. */
+/* A model turn at OpenRouter, server-side: the request as the `/api/chat`
+   relay builds it, but read here — this is what a sub-agent uses, without
+   going through the browser. */
 
 export type StreamParams = {
   apiKey: string;
@@ -23,11 +23,10 @@ export function completionBody(p: Omit<StreamParams, "apiKey" | "signal">) {
     model: p.model,
     messages: p.messages,
     stream: true,
-    /* Chez le fournisseur le plus rapide, pas au hasard : voir
-       `provider-routing.ts`. */
+    /* At the fastest provider, not at random: see `provider-routing.ts`. */
     provider: PROVIDER_ROUTING,
-    /* Le decompte de jetons et le prix, dans le dernier morceau du flux :
-       c'est ce qui alimente la jauge de contexte et le coût affiché. */
+    /* The token count and the price, in the last chunk of the stream: this
+       is what feeds the context meter and the displayed cost. */
     usage: { include: true },
     stream_options: { include_usage: true },
     ...(p.tools?.length ? { tools: p.tools, tool_choice: "auto" } : {}),
@@ -43,12 +42,12 @@ export async function* streamOpenRouter(p: StreamParams): AsyncGenerator<Delta, 
     signal: p.signal,
   });
   if (!res.ok || !res.body) {
-    let message = `OpenRouter a répondu ${res.status}.`;
+    let message = `OpenRouter answered ${res.status}.`;
     try {
       const json = (await res.json()) as { error?: { message?: string } };
       if (json.error?.message) message = json.error.message;
     } catch {
-      /* corps non JSON */
+      /* non-JSON body */
     }
     throw new Error(message);
   }

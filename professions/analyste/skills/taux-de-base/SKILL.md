@@ -1,15 +1,15 @@
 ---
 name: taux-de-base
-description: À ouvrir avant de dire qu'un niveau est élevé, rare ou extrême — comment mesurer la fréquence historique d'un fait au lieu de raisonner par saillance, et l'écrire sous forme de percentile
+description: Open this before saying that a level is high, rare or extreme — how to measure the historical frequency of a fact instead of reasoning by salience, and write it as a percentile
 ---
 
-# « Rare » se mesure, ne se ressent pas
+# "Rare" is measured, not felt
 
-Tu raisonnes par saillance : ce qui est frappant te paraît significatif. Un funding à 0,05 %, une peur à 18, un volume double de la veille — tu les qualifies d'extrêmes parce qu'ils sonnent extrêmes, sans savoir si cela arrive une fois par an ou trois fois par mois. Un analyste, lui, connaît la **fréquence de base** avant d'interpréter.
+You reason by salience: what is striking seems significant to you. A funding at 0.05%, a fear reading at 18, a volume double the day before — you call them extreme because they sound extreme, without knowing whether that happens once a year or three times a month. An analyst, by contrast, knows the **base rate** before interpreting.
 
-**Règle : tout adjectif de rareté (élevé, faible, extrême, inhabituel) est accompagné d'un percentile et d'un compte d'occurrences.**
+**Rule: every adjective of rarity (high, low, extreme, unusual) is accompanied by a percentile and an occurrence count.**
 
-## La mesure
+## The measurement
 
 ```python
 import pandas as pd
@@ -20,13 +20,13 @@ n = (s.tail(365) >= x).sum()
 print(f"valeur {x:.5f} — percentile {100*pct:.0f} %, atteinte {n} fois sur les 365 dernières observations")
 ```
 
-Ce qui s'écrit :
+What gets written:
 
-> Funding à 0,043 % / 8 h : 96ᵉ percentile sur deux ans, atteint 14 fois en un an. Élevé, mais pas inédit.
+> Funding at 0.043% / 8h: 96th percentile over two years, reached 14 times in one year. High, but not unprecedented.
 
-## Ce qui vient ensuite : et alors ?
+## What comes next: so what?
 
-Un percentile seul ne dit rien de la suite. Le pas qui manque presque toujours : **que s'est-il passé après, les fois précédentes ?**
+A percentile alone says nothing about what follows. The step that is almost always missing: **what happened afterwards, the previous times?**
 
 ```python
 seuil = x
@@ -38,32 +38,32 @@ print(f"{len(apres)} cas — médiane à 7 j : {100*apres.median():+.2f} %, "
       f"{100*(apres > 0).mean():.0f} % de hausses")
 ```
 
-Et la phrase qui va avec, avec sa réserve :
+And the sentence that goes with it, with its caveat:
 
-> Sur les 14 cas comparables, la médiane à 7 jours est de −1,8 %, avec 5 hausses sur 14. Échantillon mince : indicatif, pas prédictif.
+> Over the 14 comparable cases, the 7-day median is −1.8%, with 5 rises out of 14. Thin sample: indicative, not predictive.
 
-Sous **30 cas**, dis-le explicitement. Sous 10, ne donne pas de médiane : décris les cas.
+Below **30 cases**, say so explicitly. Below 10, do not give a median: describe the cases.
 
-## Les références utiles à avoir en tête
+## Useful references to keep in mind
 
-Pour éviter de partir de zéro à chaque fois (à vérifier sur les données, ce sont des ordres de grandeur) :
+To avoid starting from scratch every time (to be checked on the data, these are orders of magnitude):
 
-| Fait | Fréquence typique en crypto majeure |
+| Fact | Typical frequency in a major crypto |
 |---|---|
-| Journée à ±3 % | courant — plusieurs fois par mois |
-| Journée à ±10 % | quelques fois par an |
-| Drawdown de 20 % | au moins une fois par an |
-| Drawdown de 50 % | une fois par cycle |
-| Funding négatif plusieurs jours de suite | quelques épisodes par an |
+| ±3% day | common — several times a month |
+| ±10% day | a few times a year |
+| 20% drawdown | at least once a year |
+| 50% drawdown | once per cycle |
+| Negative funding several days in a row | a few episodes a year |
 
-Une affirmation qui contredit ces ordres de grandeur exige une vérification avant d'être écrite.
+A statement that contradicts these orders of magnitude requires verification before being written.
 
-## Le piège symétrique
+## The symmetric trap
 
-Ne conclus pas non plus qu'un fait rare est **important**. Rare et sans conséquence est fréquent : la rareté mesure l'inhabituel, pas la portée. Les deux questions sont distinctes, et tu réponds aux deux.
+Do not conclude either that a rare fact is **important**. Rare and inconsequential is frequent: rarity measures the unusual, not the impact. The two questions are distinct, and you answer both.
 
-## Lié
+## Related
 
-- `fenetre-honnete` : sur quelle période mesurer.
-- `scenarios-calibres` : transformer ces fréquences en probabilités assumées.
-- `validation-statistique` (métier Quantitatif) : quand l'échantillon devient une preuve.
+- `fenetre-honnete`: over which period to measure.
+- `scenarios-calibres`: turning these frequencies into owned probabilities.
+- `validation-statistique` (Quantitative profession): when the sample becomes proof.

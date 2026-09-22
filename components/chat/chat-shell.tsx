@@ -39,41 +39,41 @@ import "./chat.css";
 
 type Props = { settings: Settings };
 
-/* Les metiers, tels que le selecteur les montre. */
+/* The professions, as the picker shows them. */
 const PROFESSION_OPTIONS = PROFESSIONS.map((p) => ({
   value: p.id,
   name: p.label,
   description: p.description,
 }));
 
-/* Nos deux modes, pour un agent sur OpenRouter : ce sont les permissions. */
+/* Our two modes, for an agent on OpenRouter: they are the permissions. */
 const PERMISSION_MODES = [
   {
     value: "ask",
-    name: "Demande avant d'agir",
+    name: "Ask before acting",
     description:
-      "Chaque commande et chaque modification de fichier attend votre accord.",
+      "Every command and every file change waits for your permission.",
   },
   {
     value: "skip",
-    name: "Exécution directe",
-    description: "Tous les outils s'exécutent sans demander.",
+    name: "Direct execution",
+    description: "Every tool runs without asking.",
   },
 ];
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
-/* Le panneau de reglages, s'il est ouvert : l'onglet, et l'agent a editer. */
+/* The settings panel, if open: the tab, and the agent to edit. */
 type Editing = SettingsTarget | null;
 
 /* ---------------------------------------------------------------------------
-   La page de dialogue : la colonne, le fil, le bloc de saisie.
+   The chat page: the column, the thread, the composer.
 
-   L'agent ouvert vit dans les reglages (on le retrouve au prochain
-   lancement) ; la conversation ouverte vit ici. Une conversation n'existe
-   qu'a partir du premier message : avant, `active` est nul et le fil salue.
-   Le modele d'une conversation nouvelle est celui choisi la derniere fois
-   pour cet agent, sinon le plus recent de son fournisseur.
+   The open agent lives in the settings (we find it again at the next
+   launch); the open conversation lives here. A conversation only exists
+   from the first message: before that, `active` is null and the thread
+   greets. The model of a new conversation is the one last chosen for this
+   agent, otherwise its provider's most recent one.
 --------------------------------------------------------------------------- */
 export function ChatShell({ settings }: Props) {
   const conversations = useConversations();
@@ -86,7 +86,8 @@ export function ChatShell({ settings }: Props) {
   const [pendingMode, setPendingMode] = useState<string | null>(null);
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState<Editing>(null);
-  /* L'agent dont on demande la suppression, le temps de la confirmation. */
+  /* The agent whose deletion is requested, for the duration of the
+     confirmation. */
   const [deleting, setDeleting] = useState<AgentConfig | null>(null);
 
   const agent =
@@ -106,8 +107,8 @@ export function ChatShell({ settings }: Props) {
     ? conversation.modelId
     : (pendingModel ?? fallback);
 
-  /* L'effort suit le modele : celui de la conversation, sinon celui retenu
-     pour l'agent — mais seulement si le modele du moment l'accepte. */
+  /* The effort follows the model: the conversation's, otherwise the one
+     kept for the agent — but only if the current model accepts it. */
   const currentModel = catalog.models.find((m) => m.id === modelId);
   const accepts = (e: string | null | undefined) =>
     e && currentModel && effortOptions(currentModel).includes(e) ? e : null;
@@ -122,8 +123,8 @@ export function ChatShell({ settings }: Props) {
     setPendingMode(null);
   }, []);
 
-  /* « Toujours » memorise UNE regle pour cet agent — plus de bascule en
-     execution directe (voir `lib/tools/permissions.ts`). */
+  /* "Always" memorises ONE rule for this agent — no more flipping to
+     direct execution (see `lib/tools/permissions.ts`). */
   const onAllowRule = useCallback(
     (rule: string) => {
       const id = settings.activeAgentId;
@@ -138,9 +139,10 @@ export function ChatShell({ settings }: Props) {
     [settings.activeAgentId],
   );
 
-  /* Le mode : ceux que l'agent externe publie pour un abonnement, nos deux
-     modes de permission sinon. Le choix vit dans la conversation (ou en
-     attente avant le premier message) et devient le defaut de l'agent. */
+  /* The mode: the ones the external agent publishes for a subscription,
+     our two permission modes otherwise. The choice lives in the
+     conversation (or pending before the first message) and becomes the
+     agent's default. */
   const acp = acpAgentOf(agent?.providerId);
   const storageFull = useStorageFull();
   const agentAccounts = allowedAccounts(settings.keys.exchanges, agent?.exchangeAccountIds);
@@ -167,16 +169,16 @@ export function ChatShell({ settings }: Props) {
       onAllowRule,
     });
 
-  /* La jauge est toujours affichee : tant qu'aucun decompte exact n'est
-     arrive, elle montre une estimation du fil, qui grandit en direct
-     pendant que la reponse s'ecrit. Le dernier decompte exact est garde sur
-     le message, donc il survit au rechargement. */
+  /* The meter is always shown: until an exact count has arrived, it shows
+     an estimate of the thread, which grows live while the reply is being
+     written. The last exact count is kept on the message, so it survives a
+     reload. */
   const lastUsage = conversation
     ? [...conversation.messages].reverse().find((m) => m.usage)?.usage
     : undefined;
   const contextNow = contextEstimate(conversation?.messages ?? []) + produced;
 
-  /* Ou vont les pieces jointes : le dossier de travail de l'agent ouvert. */
+  /* Where attachments go: the open agent's workspace. */
   const cible = { agentId: agent?.id ?? "", workspace: agent?.workspace ?? "" };
 
   const togglePermission = () => {
@@ -186,8 +188,8 @@ export function ChatShell({ settings }: Props) {
       permissionMode: a.permissionMode === "skip" ? "ask" : "skip",
     }));
   };
-  /* Un seul flux a la fois : le bloc de saisie le montre ou qu'on soit, le
-     fil ne l'anime que s'il est le sien. */
+  /* One stream at a time: the composer shows it wherever we are, the
+     thread only animates it if it is its own. */
   const busy = streamingId !== null;
   const streaming = busy && streamingId === active;
 
@@ -203,8 +205,8 @@ export function ChatShell({ settings }: Props) {
     if (agent) patchAgent(agent.id, (a) => ({ ...a, defaultModelId: id }));
   };
 
-  /* Changer de profession change le prompt et les competences de l'agent —
-     pas la conversation en cours, qui garde son fil. */
+  /* Changing profession changes the agent's prompt and skills — not the
+     current conversation, which keeps its thread. */
   const chooseProfession = (next: string) => {
     if (!agent || !isProfessionId(next) || next === agent.profession) return;
     patchAgent(agent.id, (a) => ({ ...a, profession: next }));
@@ -261,7 +263,7 @@ export function ChatShell({ settings }: Props) {
   };
 
   const saveAgent = (agent: AgentConfig, isNew: boolean) => {
-    /* L'id et la date d'un agent nouveau sont poses ici, a la creation. */
+    /* A new agent's id and date are stamped here, at creation. */
     const created: AgentConfig = { ...agent, id: newId(), createdAt: Date.now() };
     updateSettings((s) =>
       isNew
@@ -269,15 +271,16 @@ export function ChatShell({ settings }: Props) {
         : { ...s, agents: s.agents.map((a) => (a.id === agent.id ? agent : a)) },
     );
     if (isNew) {
-      /* Un agent cree, c'est une conversation qui commence : le panneau se
-         ferme sur le fil vide de ce nouvel agent, pas sur la liste. */
+      /* A created agent is a conversation that begins: the panel closes on
+         this new agent's empty thread, not on the list. */
       setActive(null);
       setPendingModel(null);
       setEditing(null);
     }
   };
 
-  /* L'acces aux modeles de CET agent : sa cle, ou son abonnement connecte. */
+  /* THIS agent's access to the models: its key, or its connected
+     subscription. */
   const hasKey = acp
     ? (() => {
         const st = acpAuth.agents.find((a) => a.agent === acp.id);
@@ -289,7 +292,7 @@ export function ChatShell({ settings }: Props) {
       })()
     : settings.keys.openrouter.trim().length > 0;
 
-  /* Sans agent — tous supprimes — la feuille de creation s'impose. */
+  /* With no agent — all deleted — the creation sheet is forced. */
   const mustCreate = agent === null;
   const sheet: Editing = mustCreate ? { tab: "agents", agent: "new" } : editing;
 
@@ -330,7 +333,7 @@ export function ChatShell({ settings }: Props) {
         <button
           type="button"
           className="chat-scrim"
-          aria-label="Fermer le menu"
+          aria-label="Close the menu"
           onClick={() => setMenu(false)}
         />
       )}
@@ -346,7 +349,7 @@ export function ChatShell({ settings }: Props) {
                 : setMenu(!menu)
             }
             aria-label="Agents"
-            title="Afficher la colonne"
+            title="Show the column"
           >
             <span />
             <span />
@@ -362,11 +365,11 @@ export function ChatShell({ settings }: Props) {
           {conversation && (
             <span className="chat-title">{conversation.title}</span>
           )}
-          {/* Le compactage se demande en tapant /compact : pas de bouton ici.
-              Le badge ne signale que le testnet — un compte réel est le cas
-              normal, pas une alerte à porter en permanence dans l'en-tête. */}
+          {/* Compaction is requested by typing /compact: no button here.
+              The badge only flags the testnet — a live account is the
+              normal case, not an alert to carry permanently in the header. */}
           {agent && agentAccounts.length > 0 && !anyLive(agentAccounts) && (
-            <span className="xch-badge chat-xch" title={`Comptes exchange : ${describeAccounts(agentAccounts)}`}>
+            <span className="xch-badge chat-xch" title={`Exchange accounts: ${describeAccounts(agentAccounts)}`}>
               TESTNET
             </span>
           )}
@@ -377,13 +380,13 @@ export function ChatShell({ settings }: Props) {
               onClick={togglePermission}
               title={
                 agent.permissionMode === "skip"
-                  ? "Les outils s'exécutent sans demander. Cliquer pour demander avant d'agir."
-                  : "L'agent demande avant d'exécuter une commande ou de modifier un fichier. Cliquer pour exécuter sans demander."
+                  ? "Tools run without asking. Click to ask before acting."
+                  : "The agent asks before running a command or changing a file. Click to run without asking."
               }
             >
               {agent.permissionMode === "skip"
-                ? "Exécution directe"
-                : "Demande avant d'agir"}
+                ? "Direct execution"
+                : "Ask before acting"}
             </button>
           )}
         </header>
@@ -391,19 +394,19 @@ export function ChatShell({ settings }: Props) {
         {storageFull && (
           <div className="chat-notice">
             <div className="notice">
-              <p>Le stockage du navigateur est plein : ce qui s&apos;affiche ne survivra pas à un rechargement. Supprimez d&apos;anciennes conversations, ou compactez celle-ci (/compact).</p>
+              <p>The browser storage is full: what is displayed will not survive a reload. Delete old conversations, or compact this one (/compact).</p>
             </div>
           </div>
         )}
         {compactError && compactError.conversationId === active && (
           <div className="chat-notice">
             <div className="notice" role="alert">
-              <p>Le compactage a échoué : {compactError.message}</p>
+              <p>Compaction failed: {compactError.message}</p>
               <button type="button" className="btn btn-sm" onClick={() => void send("/compact")} disabled={busy}>
-                Réessayer
+                Retry
               </button>
               <button type="button" className="btn btn-sm btn-ghost" onClick={dismissCompactError}>
-                Fermer
+                Close
               </button>
             </div>
           </div>
@@ -413,15 +416,15 @@ export function ChatShell({ settings }: Props) {
             <div className="notice">
               <p>
                 {acp
-                  ? `${acp.label} n'est pas connecté : l'agent ne peut pas répondre.`
-                  : "Aucune clé OpenRouter : l'agent ne peut pas répondre."}
+                  ? `${acp.label} is not signed in: the agent cannot answer.`
+                  : "No OpenRouter key: the agent cannot answer."}
               </p>
               <button
                 type="button"
                 className="btn btn-sm"
                 onClick={() => setEditing({ tab: acp ? "providers" : "auth" })}
               >
-                Ouvrir les réglages
+                Open the settings
               </button>
             </div>
           </div>
@@ -462,7 +465,7 @@ export function ChatShell({ settings }: Props) {
             focusKey={`${agent?.id ?? ""}:${active ?? "new"}`}
           />
           <p className="chat-foot">
-            L&apos;agent peut se tromper. Vérifiez ce qui compte.
+            The agent can make mistakes. Check what matters.
           </p>
         </div>
       </main>
@@ -477,16 +480,16 @@ export function ChatShell({ settings }: Props) {
 
       {deleting && (
         <ConfirmDialog
-          title={`Supprimer ${deleting.name} ?`}
+          title={`Delete ${deleting.name}?`}
           body={(() => {
             const own = conversations.filter(
               (c) => c.agentId === deleting.id,
             ).length;
             return own === 0
-              ? "L'agent et sa configuration seront supprimés. Cette action est définitive."
-              : `L'agent, sa configuration et ${own === 1 ? "sa conversation" : `ses ${own} conversations`} seront supprimés. Cette action est définitive.`;
+              ? "The agent and its configuration will be deleted. This cannot be undone."
+              : `The agent, its configuration and ${own === 1 ? "its conversation" : `its ${own} conversations`} will be deleted. This cannot be undone.`;
           })()}
-          confirmLabel="Supprimer"
+          confirmLabel="Delete"
           onConfirm={() => {
             removeAgent(deleting);
             setDeleting(null);

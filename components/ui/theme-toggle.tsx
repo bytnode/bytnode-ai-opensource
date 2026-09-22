@@ -8,9 +8,9 @@ type Props = {
   onChange: (theme: Theme) => void;
 };
 
-/* L'interrupteur ne fait que demander le changement : c'est la page qui pose
-   `data-theme` sur <html> (voir `applyTheme`), d'ou le fond et la feuille de
-   style le lisent. Un seul endroit ecrit, quel que soit le nombre de boutons. */
+/* The toggle only requests the change: the page is what sets `data-theme`
+   on <html> (see `applyTheme`), where the backdrop and the stylesheet read it
+   from. A single writer, however many buttons there are. */
 export function ThemeToggle({ theme, onChange }: Props) {
   const next: Theme = theme === "light" ? "dark" : "light";
   return (
@@ -18,8 +18,8 @@ export function ThemeToggle({ theme, onChange }: Props) {
       type="button"
       className="theme-toggle"
       onClick={() => onChange(next)}
-      aria-label={next === "light" ? "Passer en clair" : "Passer en sombre"}
-      title={next === "light" ? "Passer en clair" : "Passer en sombre"}
+      aria-label={next === "light" ? "Switch to light" : "Switch to dark"}
+      title={next === "light" ? "Switch to light" : "Switch to dark"}
     >
       {theme === "light" ? <Moon /> : <Sun />}
     </button>

@@ -13,18 +13,18 @@ type Props = {
   streaming: boolean;
   onRetry?: () => void;
   onAnswer?: (callId: string, allow: boolean, always?: boolean) => void;
-  /** L'adresse d'un fichier du dossier de travail (images des outils). */
+  /** The address of a workspace file (tool images). */
   fileUrl?: (rel: string) => string;
 };
 
 /* ---------------------------------------------------------------------------
-   Un message du fil.
+   A message in the thread.
 
-   Le vôtre est un bloc de matiere cale a droite : c'est vous qui parlez, la
-   forme le dit. Celui de l'agent n'a pas de bulle — il est ecrit a meme la
-   page, comme une reponse et non comme un post-it. Sous lui, en mono et en
-   encre attenuee, le modele qui l'a produit : c'est une information, pas une
-   decoration, et on la cherche des qu'une reponse surprend.
+   Yours is a block of material set to the right: you are the one speaking,
+   the shape says so. The agent's has no bubble — it is written straight on
+   the page, as an answer and not as a sticky note. Under it, in mono and in
+   faded ink, the model that produced it: that is information, not
+   decoration, and we look for it as soon as a reply surprises us.
 --------------------------------------------------------------------------- */
 export const Message = memo(function Message({ message, streaming, onRetry, onAnswer, fileUrl }: Props) {
   if (message.role === "user") {
@@ -46,24 +46,24 @@ export const Message = memo(function Message({ message, streaming, onRetry, onAn
           </div>
         )}
         <div className="msg-bubble">
-          {message.research && <span className="msg-research">Recherche approfondie</span>}
+          {message.research && <span className="msg-research">Deep research</span>}
           {message.content}
         </div>
       </article>
     );
   }
 
-  /* Le compactage en cours : une ligne d'etat, jamais le resume qui
-     s'ecrit. Sans flux (page rechargee en plein milieu), rien — le prochain
-     tour retire ce message. */
+  /* The compaction in progress: a status line, never the summary being
+     written. Without a stream (page reloaded midway), nothing — the next
+     turn removes this message. */
   if (message.compacting) {
     if (!streaming) return null;
     return (
       <div className="msg-compacting" role="status">
         <Spinner />
         <span>
-          Compactage du fil…
-          <small>l&apos;agent résume ce qui compte, puis le résumé remplace la conversation</small>
+          Compacting the thread…
+          <small>the agent summarises what matters, then the summary replaces the conversation</small>
         </span>
       </div>
     );
@@ -77,7 +77,7 @@ export const Message = memo(function Message({ message, streaming, onRetry, onAn
   return (
     <article className={`msg msg-agent${streaming && (steps.length === 0 || lastIsText) ? " is-streaming" : ""}`}>
       {empty && streaming ? (
-        <div className="msg-wait" aria-label="L'agent rédige">
+        <div className="msg-wait" aria-label="The agent is writing">
           <span />
           <span />
           <span />
@@ -88,9 +88,7 @@ export const Message = memo(function Message({ message, streaming, onRetry, onAn
             <div className="md" key={i}>
               <Markdown text={s.text} />
             </div>
-          ) : s.type === "thought" ? (
-            <ThoughtView key={i} text={s.text} />
-          ) : s.type === "plan" ? (
+          ) : s.type === "thought" ? null : s.type === "plan" ? (
             <PlanView key={i} entries={s.entries} />
           ) : (
             <ToolStepView key={s.id} step={s} fileUrl={fileUrl} onAnswer={onAnswer ? (allow, always) => onAnswer(s.id, allow, always) : undefined} />
@@ -102,7 +100,7 @@ export const Message = memo(function Message({ message, streaming, onRetry, onAn
         </div>
       )}
       {streaming && steps.length > 0 && !lastIsText && (
-        <div className="msg-wait msg-wait-tools" aria-label="L'agent travaille">
+        <div className="msg-wait msg-wait-tools" aria-label="The agent is working">
           <span />
           <span />
           <span />
@@ -113,7 +111,7 @@ export const Message = memo(function Message({ message, streaming, onRetry, onAn
           <p>{message.error}</p>
           {onRetry && (
             <button type="button" className="btn btn-sm" onClick={onRetry}>
-              Réessayer
+              Retry
             </button>
           )}
         </div>
@@ -129,11 +127,11 @@ export const Message = memo(function Message({ message, streaming, onRetry, onAn
 });
 
 /* ---------------------------------------------------------------------------
-   Le fil compacte.
+   The compacted thread.
 
-   Comme la ligne « Compacted » de Claude Code : une frontiere, pas une
-   reponse. Le resume est la, replie — on l'ouvre pour verifier ce que
-   l'agent a retenu, on ne le lit pas a chaque passage.
+   Like Claude Code's "Compacted" line: a boundary, not a reply. The summary
+   is there, folded — we open it to check what the agent retained, we do not
+   read it on every pass.
 --------------------------------------------------------------------------- */
 const CompactionView = memo(function CompactionView({ message }: { message: MessageT }) {
   const [open, setOpen] = useState(false);
@@ -142,7 +140,7 @@ const CompactionView = memo(function CompactionView({ message }: { message: Mess
       <button type="button" className="msg-compact-head" onClick={() => setOpen(!open)} aria-expanded={open}>
         <ChevronDown className="thought-chevron" />
         {compactLabel(message)}
-        <span className="msg-compact-hint">{open ? "masquer le résumé" : "voir le résumé"}</span>
+        <span className="msg-compact-hint">{open ? "hide the summary" : "view the summary"}</span>
       </button>
       {open && (
         <div className="md">
@@ -154,12 +152,11 @@ const CompactionView = memo(function CompactionView({ message }: { message: Mess
 });
 
 /* ---------------------------------------------------------------------------
-   Le plan que l'agent s'est donne, et son raisonnement.
+   The plan the agent set itself. Read at a glance.
 
-   Les deux arrivent dans le flux (les agents par abonnement les publient,
-   les modeles a effort exposent leurs jetons de reflexion) et n'etaient pas
-   montres. Le plan se lit d'un coup d'oeil ; la reflexion est repliee — on
-   l'ouvre quand une reponse surprend.
+   The reasoning is NOT shown: it stays on the provider's side (`thought`
+   steps are no longer produced; older threads that still hold some render
+   nothing for them).
 --------------------------------------------------------------------------- */
 
 const PlanView = memo(function PlanView({ entries }: { entries: PlanEntry[] }) {
@@ -183,17 +180,3 @@ const PlanView = memo(function PlanView({ entries }: { entries: PlanEntry[] }) {
   );
 });
 
-const ThoughtView = memo(function ThoughtView({ text }: { text: string }) {
-  const [open, setOpen] = useState(false);
-  const lignes = text.trim().split("\n").filter(Boolean);
-  return (
-    <div className={`thought${open ? " is-open" : ""}`}>
-      <button type="button" className="thought-head" onClick={() => setOpen(!open)} aria-expanded={open}>
-        <ChevronDown className="thought-chevron" />
-        Réflexion
-        <span className="thought-size">{lignes.length} ligne{lignes.length > 1 ? "s" : ""}</span>
-      </button>
-      {open && <div className="thought-body">{text.trim()}</div>}
-    </div>
-  );
-});

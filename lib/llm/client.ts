@@ -3,12 +3,12 @@ import type { ToolSpec } from "@/lib/agent/loop";
 import { createSseParser, extractDelta, type Delta } from "./sse";
 
 /* ---------------------------------------------------------------------------
-   Le client de modele : un tour, en flux, avec ou sans outils.
+   The model client: one turn, streamed, with or without tools.
 
-   Il rend les deltas bruts — texte, fragments d'appels d'outils, raison de
-   fin — et c'est la boucle (`lib/agent/loop.ts`) qui en fait quelque chose.
-   `OpenRouterClient` passe par la route `/api/chat`, qui relaie vers
-   OpenRouter en gardant la cle hors du corps de la requete.
+   It yields the raw deltas — text, tool call fragments, finish reason —
+   and it is the loop (`lib/agent/loop.ts`) that makes something of them.
+   `OpenRouterClient` goes through the `/api/chat` route, which relays to
+   OpenRouter while keeping the key out of the request body.
 --------------------------------------------------------------------------- */
 
 export type ChatRequest = {
@@ -47,7 +47,7 @@ export class OpenRouterClient implements LlmClient {
     if (!res.ok || !res.body) {
       const message = await readError(res);
       throw new LlmError(
-        res.status === 401 || res.status === 403 ? `Clé OpenRouter refusée (${message}) — vérifiez-la dans les réglages.` : message,
+        res.status === 401 || res.status === 403 ? `OpenRouter key refused (${message}) — check it in the settings.` : message,
         res.status,
       );
     }
@@ -70,7 +70,7 @@ async function readError(res: Response): Promise<string> {
     if (typeof json.error === "string") return json.error;
     if (json.error?.message) return json.error.message;
   } catch {
-    /* corps non JSON */
+    /* non-JSON body */
   }
-  return `Le fournisseur a répondu ${res.status}.`;
+  return `The provider answered ${res.status}.`;
 }

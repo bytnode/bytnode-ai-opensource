@@ -4,13 +4,13 @@ import type { ProfessionId } from "./catalog";
 import { listSkillsIn, type SkillInfo } from "@/lib/tools/skills/skill";
 
 /* ---------------------------------------------------------------------------
-   Charger une profession : son prompt, ses competences.
+   Loading a profession: its prompt, its skills.
 
-   `professions/<id>/PROMPT.md` est le prompt systeme du metier ;
-   `professions/<id>/skills/<nom>/SKILL.md` ses competences propres ;
-   `professions/_commun/skills/` celles que tous les metiers partagent
-   (la source de donnees, la forme d'une reponse). Tout est du fichier,
-   modifiable a la main.
+   `professions/<id>/PROMPT.md` is the trade's system prompt;
+   `professions/<id>/skills/<name>/SKILL.md` its own skills;
+   `professions/_commun/skills/` the ones every trade shares (the data
+   source, the shape of an answer). Everything is a file, editable by
+   hand.
 --------------------------------------------------------------------------- */
 
 export type Profession = { id: ProfessionId; prompt: string; skills: SkillInfo[] };
@@ -21,7 +21,7 @@ export async function loadProfession(root: string, id: ProfessionId): Promise<Pr
   try {
     prompt = (await fs.readFile(path.join(dir, "PROMPT.md"), "utf8")).trim();
   } catch {
-    /* pas de prompt : le metier n'ajoute rien */
+    /* no prompt: the trade adds nothing */
   }
   const own = await listSkillsIn(path.join(dir, "skills"));
   const shared = await listSkillsIn(path.join(root, "professions", "_commun", "skills"));

@@ -7,40 +7,39 @@ import { ToolCallAccumulator, type ToolCall } from "./tool-calls";
 import { MAX_ATTEMPTS, RepetitionGuard, backoffDelay, isTransient } from "./resilience";
 
 /* ---------------------------------------------------------------------------
-   La boucle de l'agent : modele → outils → modele, jusqu'a une reponse.
+   The agent loop: model → tools → model, until a reply.
 
-   Elle ne sait ni parler a OpenRouter ni executer un outil : on lui donne
-   les deux. C'est ce qui lui permet de tourner dans le navigateur (l'agent
-   principal : le modele via `/api/chat`, les outils via `/api/tools`, et
-   l'utilisateur a qui demander la permission) comme sur le serveur (un
-   sous-agent lance par Workflow : tout en direct, sans permission a
-   demander). Une seule boucle, deux branchements.
+   It knows neither how to talk to OpenRouter nor how to execute a tool:
+   both are handed to it. That is what lets it run in the browser (the main
+   agent: the model via `/api/chat`, the tools via `/api/tools`, and the
+   user to ask for permission) as well as on the server (a sub-agent
+   launched by Workflow: everything in-process, no permission to ask). One
+   loop, two wirings.
 
-   ⚠️ LA BOUCLE EST BORNEE. Un modele qui appelle un outil a chaque tour sans
-   jamais conclure tournerait sans fin : au-dela de `maxTurns`, on lui
-   retire les outils pour le dernier tour et on le laisse conclure.
+   ⚠️ THE LOOP IS BOUNDED. A model that calls a tool at every turn without
+   ever concluding would run forever: beyond `maxTurns`, its tools are
+   taken away for the last turn and it is left to conclude.
 
-   ⚠️ ELLE A UN FILET (voir `resilience.ts`). Une erreur transitoire — 429,
-   502, connexion coupee — est relancee tant que RIEN n'a encore ete emis :
-   un tour ne se perd pas pour une surcharge passagere. Et le meme appel
-   d'outil, avec les memes arguments, trois fois de suite, n'est pas
-   execute une quatrieme : l'agent recoit un refus qui lui dit de changer
-   de voie.
+   ⚠️ IT HAS A SAFETY NET (see `resilience.ts`). A transient error — 429,
+   502, dropped connection — is retried as long as NOTHING has been
+   emitted yet: a turn is not lost to a passing overload. And the same tool
+   call, with the same arguments, three times in a row, is not executed a
+   fourth time: the agent receives a refusal telling it to change course.
 
-   ⚠️ LES ARGUMENTS SONT VERIFIES AVANT TOUT (voir `tools/validate.ts`). Un
-   appel mal forme n'est ni execute ni soumis a l'utilisateur : le modele
-   recoit la raison et corrige au tour suivant.
+   ⚠️ ARGUMENTS ARE CHECKED BEFORE ANYTHING ELSE (see `tools/validate.ts`).
+   An ill-formed call is neither executed nor submitted to the user: the
+   model receives the reason and corrects it at the next turn.
 --------------------------------------------------------------------------- */
 
 export type ToolSpec = { type: "function"; function: { name: string; description: string; parameters: unknown } };
 
 export type LoopDeps = {
-  /** Un tour de modele : rend les deltas du flux. */
+  /** One model turn: yields the stream's deltas. */
   complete: (messages: ProviderMessage[], tools: ToolSpec[] | undefined, signal: AbortSignal) => AsyncIterable<Delta>;
-  /** L'execution d'un outil. `emit` sert aux evenements en cours de route
-      (lignes d'un Monitor, avancement d'un sous-agent). */
+  /** The execution of a tool. `emit` serves the events along the way
+      (lines of a Monitor, progress of a sub-agent). */
   execute: (call: ToolCall, signal: AbortSignal, emit: (e: AgentEvent) => void) => Promise<ToolResult>;
-  /** Demande l'accord avant un outil sensible. Absent : tout est permis. */
+  /** Asks for approval before a sensitive tool. Absent: everything is allowed. */
   permission?: (call: ToolCall) => Promise<boolean>;
   gated?: (name: string) => boolean;
   emit: (e: AgentEvent) => void;
@@ -49,7 +48,7 @@ export type LoopDeps = {
   signal: AbortSignal;
 };
 
-/** `finishReason` : celle du modele, ou `max_turns` si la boucle a coupe. */
+/** `finishReason`: the model's, or `max_turns` if the loop cut it off. */
 export type LoopResult = { text: string; turns: number; finishReason: string };
 
 const DEFAULT_MAX_TURNS = 40;
@@ -67,8 +66,8 @@ export async function runAgentLoop(messages: ProviderMessage[], deps: LoopDeps):
     let text = "";
     let finish = "stop";
     const acc = new ToolCallAccumulator();
-    /* Ce qui suit peut etre relance : on ne relance que si le flux n'a rien
-       produit, sinon on dupliquerait du texte deja affiche. */
+    /* What follows may be retried: we only retry if the stream produced
+       nothing, otherwise text already displayed would be duplicated. */
     for (let attempt = 0; ; attempt++) {
       let emitted = false;
       try {
@@ -80,10 +79,9 @@ export async function runAgentLoop(messages: ProviderMessage[], deps: LoopDeps):
               usage: { ...(d.usage ?? {}), ...(d.provider ? { provider: d.provider } : {}) },
             });
           }
-          if (d.thought) {
-            emitted = true;
-            deps.emit({ type: "thought", text: d.thought });
-          }
+          /* Reasoning tokens count as a reply that started (no retry), but
+             they are not shown: the reasoning stays on the provider's side. */
+          if (d.thought) emitted = true;
           if (d.text) {
             emitted = true;
             text += d.text;
@@ -99,15 +97,15 @@ export async function runAgentLoop(messages: ProviderMessage[], deps: LoopDeps):
       } catch (e) {
         if (deps.signal.aborted) throw e;
         if (emitted || attempt + 1 >= MAX_ATTEMPTS || !isTransient(e)) throw e;
-        const attente = backoffDelay(attempt);
+        const delay = backoffDelay(attempt);
         deps.emit({
           type: "retry",
           attempt: attempt + 1,
           of: MAX_ATTEMPTS,
-          delayMs: attente,
+          delayMs: delay,
           reason: e instanceof Error ? e.message : String(e),
         });
-        await new Promise((r) => setTimeout(r, attente));
+        await new Promise((r) => setTimeout(r, delay));
         text = "";
         acc.reset();
       }
@@ -119,8 +117,8 @@ export async function runAgentLoop(messages: ProviderMessage[], deps: LoopDeps):
       deps.emit({ type: "done", finishReason: finish });
       return { text: finalText, turns: turn, finishReason: finish };
     }
-    /* Le dernier tour n'avait plus d'outils : un modele qui en appelle
-       quand meme n'aura pas un tour de plus. */
+    /* The last turn had no tools any more: a model that calls some anyway
+       will not get one more turn. */
     if (last) {
       deps.emit({ type: "done", finishReason: "max_turns" });
       return { text: finalText, turns: turn, finishReason: "max_turns" };
@@ -132,30 +130,30 @@ export async function runAgentLoop(messages: ProviderMessage[], deps: LoopDeps):
       tool_calls: calls.map((c) => ({ id: c.id, type: "function", function: { name: c.name, arguments: c.rawArgs || "{}" } })),
     });
 
-    /* Les outils s'executent l'un apres l'autre, dans l'ordre demande : un
-       Edit qui suit un Read doit voir le fichier tel qu'il vient d'etre lu. */
+    /* Tools run one after the other, in the requested order: an Edit that
+       follows a Read must see the file as it was just read. */
     const images: Array<{ name: string; dataUrl: string }> = [];
     for (const call of calls) {
-      if (deps.signal.aborted) throw new DOMException("Interrompu", "AbortError");
+      if (deps.signal.aborted) throw new DOMException("Interrupted", "AbortError");
       deps.emit({ type: "tool_call", id: call.id, name: call.name, args: call.args });
       let result: ToolResult;
-      const enBoucle = guard.check(call);
-      const malForme = invalidArgs(deps.tools, call);
-      if (enBoucle) {
-        result = { ok: false, output: enBoucle };
-      } else if (malForme) {
-        result = { ok: false, output: malForme };
+      const looping = guard.check(call);
+      const malformed = invalidArgs(deps.tools, call);
+      if (looping) {
+        result = { ok: false, output: looping };
+      } else if (malformed) {
+        result = { ok: false, output: malformed };
       } else if (deps.permission && deps.gated?.(call.name) && !(await deps.permission(call))) {
-        result = { ok: false, output: "Refusé par l'utilisateur. N'insistez pas : proposez une autre approche ou demandez ce qu'il souhaite." };
+        result = { ok: false, output: "Refused by the user. Do not insist: propose another approach or ask what they want." };
       } else {
         try {
           result = await deps.execute(call, deps.signal, deps.emit);
         } catch (e) {
-          result = { ok: false, output: `L'outil a échoué : ${e instanceof Error ? e.message : String(e)}` };
+          result = { ok: false, output: `The tool failed: ${e instanceof Error ? e.message : String(e)}` };
         }
       }
-      /* Ce que le fil affiche : un chemin dans le dossier de travail (servi
-         par /api/files), sinon l'image elle-meme. */
+      /* What the thread shows: a path in the workspace (served by
+         /api/files), otherwise the image itself. */
       const shown = (result.attachments ?? [])
         .filter((a) => a.type === "image")
         .map((a) => ({ name: a.name, src: a.path && !a.name.includes(":") ? `file:${a.name}` : a.dataUrl }));
@@ -165,13 +163,13 @@ export async function runAgentLoop(messages: ProviderMessage[], deps: LoopDeps):
       for (const a of result.attachments ?? []) if (a.type === "image") images.push({ name: a.name, dataUrl: a.dataUrl });
     }
 
-    /* Une image lue ne passe pas dans un resultat d'outil (texte seul) : on
-       la montre au modele dans un message a part, juste apres. */
+    /* A read image does not fit in a tool result (text only): it is shown
+       to the model in a separate message, right after. */
     if (images.length > 0) {
       history.push({
         role: "user",
         content: images.flatMap((im) => [
-          { type: "text" as const, text: `Image lue par Read : ${im.name}` },
+          { type: "text" as const, text: `Image read by Read: ${im.name}` },
           { type: "image_url" as const, image_url: { url: im.dataUrl } },
         ]),
       });
@@ -179,14 +177,15 @@ export async function runAgentLoop(messages: ProviderMessage[], deps: LoopDeps):
   }
 }
 
-/** La phrase a rendre au modele si l'appel ne respecte pas le schema de
-    l'outil ; `null` sinon (ou si l'outil est inconnu : l'execution dira). */
+/** The sentence to return to the model if the call does not respect the
+    tool's schema; `null` otherwise (or if the tool is unknown: execution
+    will say so). */
 function invalidArgs(tools: ToolSpec[], call: ToolCall): string | null {
-  if (call.argsError) return `Arguments illisibles pour ${call.name} : ${call.argsError}. Renvoie l'appel avec un objet JSON valide.`;
+  if (call.argsError) return `Unreadable arguments for ${call.name}: ${call.argsError}. Send the call again with a valid JSON object.`;
   const spec = tools.find((t) => t.function.name === call.name)?.function.parameters;
   if (!isSchema(spec)) return null;
   const problem = validateArgs(spec, call.args);
-  return problem ? `Arguments invalides pour ${call.name} : ${problem} Corrige l'appel.` : null;
+  return problem ? `Invalid arguments for ${call.name}: ${problem} Fix the call.` : null;
 }
 
 const isSchema = (v: unknown): v is JsonSchema =>

@@ -1,50 +1,50 @@
 ---
 name: backtest-python
-description: Écrire un backtest vectorisé honnête en pandas — signal causal, exécution à la bougie suivante, frais, slippage, funding, métriques complètes, courbes — à partir d'une stratégie spécifiée
+description: Write an honest vectorised backtest in pandas — causal signal, execution at the next candle, fees, slippage, funding, complete metrics, curves — from a specified strategy
 ---
 
-# Backtest en Python
+# Backtest in Python
 
-**D'abord l'outil `Backtest`.** BytNode-AI a un moteur standard (exécution à la bougie suivante, frais + slippage, funding, taille par le risque, découpage in/out-of-sample, métriques par période et par année, référence acheter-et-garder, courbe de capital) : tu n'écris que le fichier de stratégie —
+**The `Backtest` tool first.** BytNode-AI has a standard engine (execution at the next candle, fees + slippage, funding, risk-based sizing, in/out-of-sample split, metrics by period and by year, buy-and-hold benchmark, equity curve): you only write the strategy file —
 
 ```python
 # strategies/sma_cross.py
 import pandas as pd
 
 def signal(df: pd.DataFrame, fast: int = 10, slow: int = 50) -> pd.Series:
-    """-1 / 0 / 1, calculé avec les données ≤ t (rolling causal)."""
+    """-1 / 0 / 1, computed with data ≤ t (causal rolling)."""
     f = df["close"].rolling(fast).mean()
     s = df["close"].rolling(slow).mean()
-    return (f > s).astype(float)          # long seulement ; (f > s) - (f < s) pour long/short
+    return (f > s).astype(float)          # long only; (f > s) - (f < s) for long/short
 
 def stop_distance(df: pd.DataFrame, atr: int = 14) -> pd.Series:
-    """Optionnel : distance au stop en prix (ici 2·ATR) → taille par le risque."""
+    """Optional: distance to the stop in price (here 2·ATR) → risk-based sizing."""
     tr = (df["high"] - df["low"]).rolling(atr).mean()
     return 2 * tr
 ```
 
-puis `Backtest(data="data/btc_4h.csv", strategy="strategies/sma_cross.py", params={"fast": 10, "slow": 50}, periods_per_year=2190)`. Les données viennent de `SaveMarketData`. Relance avec les paramètres ±20 % et ±50 % pour la sensibilité (`validation-statistique`).
+then `Backtest(data="data/btc_4h.csv", strategy="strategies/sma_cross.py", params={"fast": 10, "slow": 50}, periods_per_year=2190)`. The data comes from `SaveMarketData`. Rerun with the parameters at ±20% and ±50% for sensitivity (`validation-statistique`).
 
-Le squelette ci-dessous sert **seulement** quand la stratégie ne tient pas dans `signal` / `stop_distance` (pyramidage, stops intra-bougie, taille dépendant du capital courant) : alors, événementiel, à la main.
+The skeleton below is used **only** when the strategy does not fit into `signal` / `stop_distance` (pyramiding, intra-candle stops, size depending on current capital): then, event-driven, by hand.
 
-Pour une stratégie écrite avec `conception-strategie` et un plan `plan-backtest`. Vectorisé quand les règles le permettent (une position par actif, taille fixée au signal) ; événementiel (boucle) dès qu'il y a pyramidage, stops intra-bougie ou taille dépendant du capital courant.
+For a strategy written with `conception-strategie` and a `plan-backtest` plan. Vectorised when the rules allow it (one position per asset, size fixed at the signal); event-driven (loop) as soon as there is pyramiding, intra-candle stops or size depending on current capital.
 
-## Squelette vectorisé
+## Vectorised skeleton
 
 ```python
 import numpy as np, pandas as pd
 
-FEE = 0.0006        # taker, par côté — valeur réelle de l'échange visé
-SLIPPAGE = 0.0005   # par côté ; plus haut sur altcoins / en stress
-RISK = 0.01         # risque par position, fraction du capital
+FEE = 0.0006        # taker, per side — real value of the targeted exchange
+SLIPPAGE = 0.0005   # per side; higher on altcoins / under stress
+RISK = 0.01         # risk per position, fraction of capital
 
 def backtest(df: pd.DataFrame, signal: pd.Series, stop_dist: pd.Series) -> dict:
-    """df : OHLCV (+ funding si perp), index UTC. signal ∈ {−1, 0, 1} calculé avec les données ≤ t.
-    stop_dist : distance au stop en prix, au moment du signal (ex. 2·ATR)."""
-    # Exécution à l'OUVERTURE de la bougie suivante : jamais à la bougie du signal.
+    """df: OHLCV (+ funding if perp), UTC index. signal ∈ {−1, 0, 1} computed with data ≤ t.
+    stop_dist: distance to the stop in price, at the time of the signal (e.g. 2·ATR)."""
+    # Execution at the OPEN of the next candle: never at the signal candle.
     pos = signal.shift(1).fillna(0)
     px = df["open"]
-    # Taille : risque fixe / distance au stop, bornée (levier notionnel max 3×).
+    # Size: fixed risk / distance to stop, bounded (max notional leverage 3×).
     size = (RISK / (stop_dist.shift(1) / px)).clip(upper=3.0).fillna(0) * pos.abs()
     ret = px.pct_change().fillna(0)
     gross = pos * size * ret
@@ -56,9 +56,9 @@ def backtest(df: pd.DataFrame, signal: pd.Series, stop_dist: pd.Series) -> dict:
     return {"net": net, "equity": equity, "pos": pos, "size": size, "costs": costs}
 ```
 
-Le stop intra-bougie n'est pas représentable en vectorisé : si la stratégie en dépend, passe en événementiel (boucle sur les bougies, état explicite : position, prix d'entrée, stop courant), et documente que les stops sont exécutés au **pire** de la bougie (`low` pour un long) — c'est la version conservatrice.
+The intra-candle stop cannot be represented in vectorised form: if the strategy depends on it, switch to event-driven (loop over the candles, explicit state: position, entry price, current stop), and document that stops are executed at the **worst** of the candle (`low` for a long) — that is the conservative version.
 
-## Métriques (toutes)
+## Metrics (all of them)
 
 ```python
 def metrics(net: pd.Series, equity: pd.Series, periods_per_year: int) -> dict:
@@ -66,7 +66,7 @@ def metrics(net: pd.Series, equity: pd.Series, periods_per_year: int) -> dict:
     mu, sd = net.mean() * ann, net.std(ddof=1) * np.sqrt(ann)
     downside = net[net < 0].std(ddof=1) * np.sqrt(ann)
     dd = equity / equity.cummax() - 1
-    trades = (net != 0).astype(int).diff().eq(1).sum()  # approximation vectorisée : à remplacer par le vrai compte en événementiel
+    trades = (net != 0).astype(int).diff().eq(1).sum()  # vectorised approximation: replace with the real count in event-driven
     return {
         "rendement_annualise": (equity.iloc[-1]) ** (ann / len(net)) - 1,
         "volatilite": sd, "sharpe": mu / sd if sd else np.nan,
@@ -77,19 +77,19 @@ def metrics(net: pd.Series, equity: pd.Series, periods_per_year: int) -> dict:
     }
 ```
 
-`periods_per_year` : 365 pour du journalier crypto (le marché ne ferme pas), 365×6 en 4 h, 365×24 en 1 h.
+`periods_per_year`: 365 for daily crypto (the market does not close), 365×6 on 4h, 365×24 on 1h.
 
-## Sorties obligatoires
+## Mandatory outputs
 
-- `out/<exp>/metrics.json` — le dictionnaire ci-dessus, **par période** (in-sample, out-of-sample, chaque année) et par régime.
-- `out/<exp>/equity.png` — courbe de capital + drawdown, avec la référence acheter-et-garder.
-- `out/<exp>/trades.csv` — en événementiel : entrée, sortie, R réalisé, durée.
-- Le résumé imprimé dans la réponse : tableau des métriques par période, puis le verdict de `validation-statistique`.
+- `out/<exp>/metrics.json` — the dictionary above, **by period** (in-sample, out-of-sample, each year) and by regime.
+- `out/<exp>/equity.png` — equity curve + drawdown, with the buy-and-hold benchmark.
+- `out/<exp>/trades.csv` — in event-driven: entry, exit, realised R, duration.
+- The summary printed in the answer: table of metrics by period, then the verdict from `validation-statistique`.
 
-## Pièges
+## Traps
 
-- **Fuite du futur** : un `rolling(...).mean()` est causal ; un `rolling(..., center=True)` ne l'est pas ; une normalisation sur toute la série non plus.
-- **Survivorship** : un univers d'altcoins choisi aujourd'hui exclut ceux qui sont morts. Le dire ; si possible, univers défini à chaque date.
-- **Frais nuls** : un backtest sans frais sur un pas court n'est pas un backtest.
-- **Un seul actif, une seule période** : pas une preuve — voir `validation-statistique`.
-- **Le compte de trades** vectorisé est approximatif : si le nombre compte (il compte), passe en événementiel.
+- **Look-ahead leakage**: a `rolling(...).mean()` is causal; a `rolling(..., center=True)` is not; a normalisation over the whole series is not either.
+- **Survivorship**: an altcoin universe chosen today excludes those that died. Say so; if possible, universe defined at each date.
+- **Zero fees**: a backtest without fees on a short timeframe is not a backtest.
+- **A single asset, a single period**: not proof — see `validation-statistique`.
+- **The vectorised trade count** is approximate: if the number matters (it does), switch to event-driven.

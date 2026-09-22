@@ -1,26 +1,26 @@
 ---
 name: statistiques-des-series
-description: À ouvrir avant d'affirmer qu'un résultat est significatif — pourquoi les tests classiques mentent sur des rendements financiers, et quoi utiliser à la place (bootstrap par blocs, fenêtres non chevauchantes, intervalles)
+description: Open this before asserting that a result is significant — why classical tests lie on financial returns, and what to use instead (block bootstrap, non-overlapping windows, intervals)
 ---
 
-# Les tests classiques mentent sur des rendements
+# Classical tests lie on returns
 
-Tu appliques les recettes des cours de statistiques : t-test, p-value, intervalle de confiance normal. Ces recettes supposent des observations indépendantes, de même loi, de variance stable. Les rendements financiers ne vérifient aucune des trois. Résultat : une significativité annoncée qui n'existe pas.
+You apply the recipes from statistics courses: t-test, p-value, normal confidence interval. These recipes assume independent, identically distributed observations with stable variance. Financial returns satisfy none of the three. Result: an announced significance that does not exist.
 
-## Les quatre hypothèses violées
+## The four violated assumptions
 
-| Hypothèse | Réalité des marchés | Conséquence |
+| Assumption | Market reality | Consequence |
 |---|---|---|
-| Indépendance | volatilité groupée en amas (une journée agitée suit une journée agitée) | erreur-type sous-estimée → p-value trop belle |
-| Normalité | queues épaisses, kurtosis élevé | les événements « impossibles » arrivent plusieurs fois par an |
-| Variance constante | régimes de volatilité | un Sharpe stable en moyenne cache deux régimes opposés |
-| Observations distinctes | fenêtres glissantes chevauchantes | `n` est bien plus petit que le nombre de lignes |
+| Independence | volatility clustered in bunches (a turbulent day follows a turbulent day) | underestimated standard error → too-good p-value |
+| Normality | fat tails, high kurtosis | "impossible" events happen several times a year |
+| Constant variance | volatility regimes | a Sharpe stable on average hides two opposite regimes |
+| Distinct observations | overlapping rolling windows | `n` is far smaller than the number of rows |
 
-## Ce qu'on utilise à la place
+## What we use instead
 
-### Bootstrap par blocs
+### Block bootstrap
 
-Rééchantillonner ligne par ligne détruit l'autocorrélation, donc sous-estime l'incertitude. Par blocs, elle est préservée.
+Resampling row by row destroys the autocorrelation, hence underestimates the uncertainty. By blocks, it is preserved.
 
 ```python
 import numpy as np, pandas as pd
@@ -40,38 +40,38 @@ def bootstrap_blocs(net: pd.Series, ppy: int, taille_bloc: int = 20, n: int = 5_
     return q
 ```
 
-**Lecture** : si l'intervalle contient 0, il n'y a pas de preuve d'avantage. C'est la phrase qui remplace « p < 0,05 ».
+**Reading**: if the interval contains 0, there is no evidence of an edge. That is the sentence that replaces "p < 0.05".
 
-### Fenêtres non chevauchantes
+### Non-overlapping windows
 
-Pour comparer des périodes, découpe sans recouvrement. Trente-six fenêtres glissantes de 90 jours sur un an ne sont pas 36 observations : c'est environ 4.
+To compare periods, split without overlap. Thirty-six rolling 90-day windows over one year are not 36 observations: it is about 4.
 
 ```python
-n_effectif = len(serie) // fenetre          # et non len(serie) - fenetre + 1
+n_effectif = len(serie) // fenetre          # and not len(serie) - fenetre + 1
 ```
 
-### Le nombre de trades, pas de bougies
+### The number of trades, not of candles
 
-La statistique d'une stratégie porte sur ses **trades**. Un backtest de 8 000 bougies avec 22 trades a un échantillon de 22.
+The statistics of a strategy bear on its **trades**. A backtest of 8,000 candles with 22 trades has a sample of 22.
 
-| Trades | Ce qu'on peut dire |
+| Trades | What can be said |
 |---|---|
-| < 20 | rien. Décris les trades un par un |
-| 20 à 50 | « indicatif », intervalles très larges |
-| 50 à 200 | exploitable avec bootstrap et intervalles |
-| > 200 | solide, si les trades sont indépendants |
+| < 20 | nothing. Describe the trades one by one |
+| 20 to 50 | "indicative", very wide intervals |
+| 50 to 200 | usable with bootstrap and intervals |
+| > 200 | solid, if the trades are independent |
 
-### L'erreur-type d'un Sharpe
+### The standard error of a Sharpe
 
-Ordre de grandeur utile : `SE(Sharpe) ≈ sqrt((1 + SR²/2) / n_années_équivalentes)`. Sur 3 ans, l'erreur-type est de l'ordre de 0,6 : un Sharpe mesuré à 1,0 est compatible avec un vrai Sharpe de 0,4 comme de 1,6. Donne l'intervalle, pas le point.
+Useful order of magnitude: `SE(Sharpe) ≈ sqrt((1 + SR²/2) / n_equivalent_years)`. Over 3 years, the standard error is around 0.6: a Sharpe measured at 1.0 is compatible with a true Sharpe of 0.4 as much as 1.6. Give the interval, not the point.
 
-## Ce qu'une p-value ne dit pas
+## What a p-value does not say
 
-Elle donne la probabilité d'observer ces données **si la stratégie n'avait aucun avantage**. Elle ne donne pas la probabilité que la stratégie marche. Et elle perd tout sens si tu as essayé vingt variantes : voir les tests multiples dans `validation-statistique`.
+It gives the probability of observing this data **if the strategy had no edge**. It does not give the probability that the strategy works. And it loses all meaning if you tried twenty variants: see multiple testing in `validation-statistique`.
 
-## Les trois lignes de contrôle
+## The three check lines
 
-Avant toute affirmation de significativité :
+Before any assertion of significance:
 
 ```python
 r = net.dropna()
@@ -79,14 +79,14 @@ print(f"n = {len(r)} — autocorrélation(1) = {r.autocorr(1):.3f} — kurtosis 
 print(f"écart-type 1ʳᵉ moitié {r[:len(r)//2].std():.5f} vs 2ᵈᵉ {r[len(r)//2:].std():.5f}")
 ```
 
-Une autocorrélation notable, un kurtosis élevé ou deux écarts-types qui diffèrent d'un facteur deux : les tests paramétriques sont hors jeu, passe au bootstrap.
+A notable autocorrelation, a high kurtosis or two standard deviations that differ by a factor of two: parametric tests are out, switch to the bootstrap.
 
-## La formulation honnête
+## The honest wording
 
-> Sharpe 1,08 sur 4,2 ans (74 trades). Bootstrap par blocs de 20 : intervalle 90 % [0,21 ; 1,86]. Autocorrélation d'ordre 1 : 0,04 ; kurtosis 6,3 ; volatilité deux fois plus élevée sur la seconde moitié. Conclusion : avantage **plausible mais non établi** — l'intervalle frôle zéro et l'échantillon de trades est modeste.
+> Sharpe 1.08 over 4.2 years (74 trades). Block bootstrap of 20: 90% interval [0.21; 1.86]. Order-1 autocorrelation: 0.04; kurtosis 6.3; volatility twice as high in the second half. Conclusion: edge **plausible but not established** — the interval brushes zero and the trade sample is modest.
 
-## Lié
+## Related
 
-- `validation-statistique` : le protocole complet (hors échantillon, tests multiples, déflation).
-- `definitions-metriques` : comment chaque métrique est définie.
-- `taux-de-base` (métier Analyste) : la même prudence, côté analyse.
+- `validation-statistique`: the complete protocol (out-of-sample, multiple testing, deflation).
+- `definitions-metriques`: how each metric is defined.
+- `taux-de-base` (Analyst profession): the same caution, on the analysis side.

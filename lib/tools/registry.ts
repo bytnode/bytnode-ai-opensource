@@ -22,12 +22,12 @@ import { exchangeTools } from "./exchange";
 import type { ExchangeAccount } from "@/lib/domain/types";
 
 /* ---------------------------------------------------------------------------
-   Le jeu d'outils de base : tous les agents l'ont, en entier.
+   The base tool set: every agent has it, in full.
 
-   ⚠️ CE FICHIER EST SERVEUR SEULEMENT (il importe fs, child_process…). Le
-   navigateur n'a besoin que des SPECIFICATIONS — nom, description, schema —
-   qu'il obtient par `/api/tools` ; c'est `TOOL_NAMES` et `GATED` qu'il
-   partage, via `./names`.
+   ⚠️ THIS FILE IS SERVER-ONLY (it imports fs, child_process…). The browser
+   only needs the SPECIFICATIONS — name, description, schema — which it gets
+   through `/api/tools`; what it shares is `TOOL_NAMES` and `GATED`, via
+   `./names`.
 --------------------------------------------------------------------------- */
 
 export function baseTools(opts: { platform: string }): Tool[] {
@@ -47,8 +47,8 @@ export function baseTools(opts: { platform: string }): Tool[] {
     workflowTool,
     skillTool,
     todoTool,
-    /* Les outils financiers : donnees en fichiers, graphiques, backtest
-       standard, memoire. */
+    /* The finance tools: data to files, charts, standard backtest,
+       memory. */
     saveMarketDataTool,
     chartTool,
     backtestTool,
@@ -56,13 +56,13 @@ export function baseTools(opts: { platform: string }): Tool[] {
   ] as Tool[];
 }
 
-/** Les outils de base, plus ceux de BytNode si une cle est donnee. La
-    decouverte peut echouer (cle absente, serveur injoignable) : on rend
-    alors les outils de base seuls, et la raison. */
+/** The base tools, plus BytNode's when a key is given. Discovery can fail
+    (missing key, unreachable server): the base tools alone are then
+    returned, along with the reason. */
 export async function allTools(opts: { platform: string; bytnodeKey?: string; exchangeAccounts?: ExchangeAccount[] }): Promise<{ tools: Tool[]; bytnode: { ok: boolean; count: number; message?: string } }> {
-  /* Les outils exchange n'existent que pour un agent qui a un compte. */
+  /* The exchange tools only exist for an agent that has an account. */
   const base = opts.exchangeAccounts?.length ? [...baseTools(opts), ...exchangeTools()] : baseTools(opts);
-  if (!opts.bytnodeKey?.trim()) return { tools: base, bytnode: { ok: false, count: 0, message: "Aucune clé BytNode." } };
+  if (!opts.bytnodeKey?.trim()) return { tools: base, bytnode: { ok: false, count: 0, message: "No BytNode key." } };
   try {
     const infos = await bytnodeTools(opts.bytnodeKey);
     return { tools: [...base, ...wrapBytnodeTools(opts.bytnodeKey, infos)], bytnode: { ok: true, count: infos.length } };

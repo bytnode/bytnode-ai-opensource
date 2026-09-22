@@ -2,12 +2,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { workspacesDir } from "./data-dir";
 
-/* Le dossier de travail d'un agent : celui qu'il a configure, sinon
-   `~/.bytnode-ai/workspaces/<id>`. Cree s'il manque. Les anciens
-   emplacements dans le projet (`workspaces/<id>`, puis `sandboxes/<id>`,
-   dont le mot promettait une isolation que le perimetre « tout le disque »
-   ne tenait pas) sont deplaces une fois : le paquet installe par npx est
-   remplace a chaque version, rien de l'utilisateur ne doit y rester. */
+/* An agent's workspace: the one it configured, or else
+   `~/.bytnode-ai/workspaces/<id>`. Created if missing. The old locations
+   inside the project (`workspaces/<id>`, then `sandboxes/<id>`, whose name
+   promised an isolation the "whole disk" scope did not honor) are moved
+   once: the package installed by npx is replaced at every version, nothing
+   of the user's should remain there. */
 
 export const PROJECT_ROOT = process.cwd();
 
@@ -20,7 +20,7 @@ async function exists(p: string): Promise<boolean> {
   }
 }
 
-/** Deplace un dossier, y compris d'un volume a l'autre (copie puis suppression). */
+/** Moves a folder, including across volumes (copy then delete). */
 async function move(from: string, to: string): Promise<void> {
   await fs.mkdir(path.dirname(to), { recursive: true });
   try {

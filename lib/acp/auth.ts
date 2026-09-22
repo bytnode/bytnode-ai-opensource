@@ -16,17 +16,15 @@ import { AGENT_SOURCES, satisfiesCaret } from "./packages";
 import { prepareWorkspace, scratchWorkspace } from "./prepare";
 
 /* ---------------------------------------------------------------------------
-   Le compte derriere chaque agent : connecte ou non, se connecter, se
-   deconnecter.
+   The account behind each agent: signed in or not, sign in, sign out.
 
-   Trois agents ont un CLI qui repond vite (Claude : `auth status` en JSON ;
-   Codex : `login status` ; Gemini : un fichier de creances). Les autres
-   passent par le protocole lui-meme : une session d'essai qui reussit =
-   connecte, une erreur « authentification requise » = pas connecte ; pour
-   se connecter, la methode que l'agent annonce a `initialize` — soit il
-   ouvre le navigateur lui-meme (`authenticate`), soit il demande un
-   terminal (`copilot login`). Le reste de l'application ne voit que
-   `AcpAuthStatus`.
+   Three agents have a CLI that answers quickly (Claude: `auth status` in
+   JSON; Codex: `login status`; Gemini: a credentials file). The others go
+   through the protocol itself: a probe session that succeeds = signed in,
+   an « authentication required » error = not signed in; to sign in, the
+   method the agent announces at `initialize` — either it opens the browser
+   itself (`authenticate`), or it asks for a terminal (`copilot login`).
+   The rest of the application only sees `AcpAuthStatus`.
 --------------------------------------------------------------------------- */
 
 const CONNECTING_TTL = 10 * 60_000;
@@ -47,14 +45,14 @@ export async function authStatus(agent: AcpAgentId): Promise<AcpAuthStatus> {
   if (!resolved) {
     return { agent, available: false, installing: isInstalling(agent), loggedIn: false, message: installFailure(agent) ?? brokenInstall(agent) };
   }
-  /* Un lancement qui echoue (binaire illisible, ENOENT) est un etat a
-     afficher, pas une exception : sinon le remplissage en arriere-plan
-     plante et la page reste sur « verification ». */
+  /* A launch that fails (unreadable binary, ENOENT) is a state to display,
+     not an exception: otherwise the background fill crashes and the page
+     stays on « checking ». */
   let base: Partial_;
   try {
     base = await (STATUS[agent] ?? genericStatus(agent))();
   } catch (e) {
-    base = { loggedIn: false, message: `Vérification impossible : ${e instanceof Error ? e.message : String(e)}` };
+    base = { loggedIn: false, message: `Could not verify: ${e instanceof Error ? e.message : String(e)}` };
   }
   const status: AcpAuthStatus = { agent, available: true, source: resolved.source, outdated: isOutdated(agent), ...base };
   if (status.loggedIn) connecting.delete(agent);
@@ -62,8 +60,8 @@ export async function authStatus(agent: AcpAgentId): Promise<AcpAuthStatus> {
   return status;
 }
 
-/* La plage attendue a ete relevee par une version de BytNode-AI (nouveaux
-   modeles, efforts) : le bouton devient « Mettre a jour ». */
+/* The expected range was raised by a version of BytNode-AI (new models,
+   efforts): the button becomes « Update ». */
 const isOutdated = (agent: AcpAgentId): boolean => {
   const src = AGENT_SOURCES[agent];
   const got = installedVersion(agent);
@@ -96,11 +94,11 @@ const STATUS: Partial<Record<AcpAgentId, () => Promise<Partial_>>> = {
       return {
         loggedIn: !!s.loggedIn,
         account: s.loggedIn
-          ? `${s.email ?? s.authMethod ?? "compte"}${plan}`
+          ? `${s.email ?? s.authMethod ?? "account"}${plan}`
           : null,
       };
     } catch {
-      return { loggedIn: false, message: "Réponse illisible de Claude Code." };
+      return { loggedIn: false, message: "Unreadable answer from Claude Code." };
     }
   },
   async openai() {
@@ -117,19 +115,19 @@ const STATUS: Partial<Record<AcpAgentId, () => Promise<Partial_>>> = {
   async gemini() {
     try {
       await fs.access(path.join(os.homedir(), ".gemini", "oauth_creds.json"));
-      return { loggedIn: true, account: "Compte Google" };
+      return { loggedIn: true, account: "Google account" };
     } catch {
       return { loggedIn: false };
     }
   },
 };
 
-/* --- Par le protocole ----------------------------------------------------- */
+/* --- Through the protocol ------------------------------------------------ */
 
 const PROBE_TTL = 90_000;
-/* Un agent qui ne repond pas a `session/new` (il attend une connexion
-   interactive, il est bloque) ne doit pas laisser l'etat a « vérification »
-   pour toujours. */
+/* An agent that does not answer `session/new` (it is waiting for an
+   interactive sign-in, it is stuck) must not leave the state on « checking »
+   forever. */
 const PROBE_TIMEOUT = 45_000;
 const probeCache = new Map<AcpAgentId, { at: number; result: Partial_ }>();
 const probeInflight = new Map<AcpAgentId, Promise<Partial_>>();
@@ -139,11 +137,11 @@ export const forgetStatus = (agent: AcpAgentId) => probeCache.delete(agent);
 const looksLikeAuth = (msg: string) =>
   /auth|api key|sign in|log ?in|credential/i.test(msg);
 
-/* ⚠️ ON NE FAIT PAS ATTENDRE LA PAGE. Interroger un agent par le protocole
-   coute quelques secondes (un sous-processus a lancer) : la premiere lecture
-   rend « en cours » et la vraie reponse arrive en arriere-plan ; ensuite le
-   cache repond tout de suite, et une valeur perimee est servie telle quelle
-   pendant qu'on la rafraichit. */
+/* ⚠️ THE PAGE NEVER WAITS. Probing an agent through the protocol costs a
+   few seconds (a sub-process to spawn): the first read returns « checking »
+   and the real answer arrives in the background; after that the cache
+   answers at once, and a stale value is served as is while it is being
+   refreshed. */
 function genericStatus(agent: AcpAgentId): () => Promise<Partial_> {
   return async () => {
     const hit = probeCache.get(agent);
@@ -168,7 +166,7 @@ function probe(agent: AcpAgentId): Promise<Partial_> {
       try {
         await Promise.race([
           conn.newSession(cwd, []),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("L'agent ne répond pas.")), PROBE_TIMEOUT).unref()),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("The agent is not responding.")), PROBE_TIMEOUT).unref()),
         ]);
         result = { loggedIn: true, account: acpAgentInfo(agent).plan };
       } catch (e) {
@@ -193,11 +191,11 @@ function probe(agent: AcpAgentId): Promise<Partial_> {
   return p;
 }
 
-/** Demarre la connexion et rend la main : l'etat se lit ensuite en
-    interrogeant `authStatus` jusqu'a ce qu'il dise « connecté ». */
+/** Starts the sign-in and returns at once: the state is then read by
+    polling `authStatus` until it says « signed in ». */
 export async function startLogin(agent: AcpAgentId): Promise<void> {
   if (!isInstalled(agent))
-    throw new Error("Agent absent : installez-le d'abord.");
+    throw new Error("Agent missing: install it first.");
   connecting.set(agent, Date.now());
   probeCache.delete(agent);
   await (LOGIN[agent] ?? genericLogin(agent))();
@@ -205,11 +203,11 @@ export async function startLogin(agent: AcpAgentId): Promise<void> {
 
 const LOGIN: Partial<Record<AcpAgentId, () => Promise<void>>> = {
   async claude() {
-    openTerminalWith("claude", ["auth", "login"], "Connexion Claude");
+    openTerminalWith("claude", ["auth", "login"], "Claude sign-in");
   },
   async openai() {
-    /* `codex login` ouvre le navigateur, puis attend le retour sur son port
-       local : pas besoin de terminal, on le laisse vivre en arriere-plan. */
+    /* `codex login` opens the browser, then waits for the callback on its
+       local port: no terminal needed, we let it live in the background. */
     const { command, args } = cliLaunch("openai");
     const child = spawn(command, [...args, "login"], {
       env: subscriptionEnv(),
@@ -221,8 +219,8 @@ const LOGIN: Partial<Record<AcpAgentId, () => Promise<void>>> = {
   },
 };
 
-/** La methode de connexion a retenir parmi celles que l'agent annonce :
-    un compte personnel / navigateur avant tout, jamais une cle API. */
+/** The sign-in method to keep among those the agent announces: a personal
+    account / browser above all, never an API key. */
 function pickAuthMethod(methods: AuthMethod[]): AuthMethod | null {
   const score = (m: AuthMethod) => {
     const text = `${m.id} ${m.name} ${m.description ?? ""}`.toLowerCase();
@@ -251,12 +249,12 @@ function genericLogin(agent: AcpAgentId): () => Promise<void> {
     if (!method) {
       conn.close();
       throw new Error(
-        `${acpAgentInfo(agent).label} ne propose aucune connexion par compte.`,
+        `${acpAgentInfo(agent).label} offers no account-based sign-in.`,
       );
     }
     const terminal = terminalAuthOf(method);
     if (terminal) {
-      /* L'agent veut un terminal : on l'ouvre et on le laisse faire. */
+      /* The agent wants a terminal: we open one and let it do its thing. */
       conn.close();
       const own = acpLaunch(agent);
       const command = terminal.command || own.command;
@@ -269,13 +267,14 @@ function genericLogin(agent: AcpAgentId): () => Promise<void> {
       openTerminal(
         command,
         args,
-        `Connexion ${acpAgentInfo(agent).label}`,
+        `${acpAgentInfo(agent).label} sign-in`,
         terminal.env,
       );
       return;
     }
-    /* L'agent gere tout : il ouvre le navigateur et ne repond qu'une fois
-       le compte relie. On n'attend pas ici — l'etat se relit. */
+    /* The agent handles everything: it opens the browser and only answers
+       once the account is linked. We do not wait here — the state is
+       re-read. */
     void conn
       .authenticate(method.id)
       .catch(() => {})
@@ -293,8 +292,8 @@ type TerminalAuth = {
   env: Record<string, string>;
 };
 
-/** Une methode « terminal », sous ses deux formes (le champ `type`
-    normalise, ou la metadonnee `terminal-auth` de Zed). */
+/** A « terminal » method, in its two forms (the normalised `type` field,
+    or Zed's `terminal-auth` metadata). */
 function terminalAuthOf(method: AuthMethod): TerminalAuth | null {
   const meta = (method._meta as Record<string, unknown> | null | undefined)?.[
     "terminal-auth"
@@ -313,7 +312,7 @@ function terminalAuthOf(method: AuthMethod): TerminalAuth | null {
       args?: string[] | null;
       env?: { name: string; value: string }[] | null;
     };
-    /* Pas de commande : c'est l'agent lui-meme, avec ces arguments. */
+    /* No command: it is the agent itself, with these arguments. */
     return {
       command: "",
       args: m.args ?? [],
@@ -325,16 +324,31 @@ function terminalAuthOf(method: AuthMethod): TerminalAuth | null {
 
 export async function logout(agent: AcpAgentId): Promise<void> {
   connecting.delete(agent);
-  probeCache.delete(agent);
+  /* The cache is cleared ONLY once the sign-out succeeded. Clearing it
+     first is what produced the loop the user sees: a failed sign-out still
+     re-probed, showed « Reading… », found the account intact and put
+     « Sign out » back with nothing said. Left in place, the state stays
+     true and the panel shows the reason. */
   await (LOGOUT[agent] ?? genericLogout(agent))();
+  probeCache.delete(agent);
+}
+
+/** A CLI sign-out that really signed out. ⚠️ THE EXIT CODE IS THE ONLY
+    PROOF: `logout` clears the probe cache, so a sign-out that silently did
+    nothing shows « Reading… », re-probes, finds the account still there
+    and springs the button back to « Sign out » — the user sees a loop with
+    no explanation. A refusal must reach the panel. */
+async function cliLogout(agent: AcpAgentId, args: string[]): Promise<void> {
+  const { code, out } = await runCli(agent, args);
+  if (code !== 0) throw new Error(`${acpAgentInfo(agent).label} refused to sign out: ${out.trim().slice(-200) || `exit code ${code}`}`);
 }
 
 const LOGOUT: Partial<Record<AcpAgentId, () => Promise<void>>> = {
   async claude() {
-    await runCli("claude", ["auth", "logout"]);
+    await cliLogout("claude", ["auth", "logout"]);
   },
   async openai() {
-    await runCli("openai", ["logout"]);
+    await cliLogout("openai", ["logout"]);
   },
   async gemini() {
     await fs.rm(path.join(os.homedir(), ".gemini", "oauth_creds.json"), {
@@ -342,10 +356,22 @@ const LOGOUT: Partial<Record<AcpAgentId, () => Promise<void>>> = {
     });
   },
   async copilot() {
-    await runCli("copilot", ["logout"]);
+    await cliLogout("copilot", ["logout"]);
+  },
+  /* `grok logout` — « Sign out and clear cached credentials », which also
+     empties `~/.grok/auth.json`. Without this entry grok fell through to
+     `genericLogout`, and Grok Build does not implement the protocol's
+     optional `logout`: signing out was a no-op. */
+  async grok() {
+    await cliLogout("grok", ["logout"]);
   },
 };
 
+/** ⚠️ `logout` IS OPTIONAL IN ACP AND NOTHING ADVERTISES IT — there is no
+    capability to test, so the only way to know is to call it and read the
+    refusal. This used to swallow that refusal, which reported a sign-out
+    that never happened. We now say it, and name the way out when the agent
+    has one. */
 function genericLogout(agent: AcpAgentId): () => Promise<void> {
   return async () => {
     const cwd = await scratchWorkspace();
@@ -353,7 +379,7 @@ function genericLogout(agent: AcpAgentId): () => Promise<void> {
     try {
       await conn.logout();
     } catch {
-      /* l'agent ne sait pas se deconnecter par le protocole */
+      throw new Error(`Could not sign out of ${acpAgentInfo(agent).label} — this agent offers no sign-out.`);
     } finally {
       conn.close();
     }

@@ -1,39 +1,38 @@
 /* ---------------------------------------------------------------------------
-   « Toujours », mais pas « tout ».
+   "Always", but not "everything".
 
-   Autrefois, « Toujours pour cet agent » basculait l'agent en execution
-   directe : un clic, et plus rien n'etait demande — jamais. C'est la
-   permission la plus dangereuse d'une application d'agents, parce qu'elle
-   est aussi la plus pratique : tout le monde la clique.
+   "Always for this agent" used to flip the agent to direct execution: one
+   click, and nothing was ever asked again — ever. It is the most dangerous
+   permission of an agent application, because it is also the most
+   convenient: everybody clicks it.
 
-   Desormais un « Toujours » memorise UNE REGLE : l'outil concerne, ou le
-   debut de la commande pour un shell (`Bash(git status *)`). Le reste
-   continue de demander. Et certaines commandes — effacement recursif,
-   formatage, redemarrage, poussee forcee, tuyau vers un interpreteur — ne
-   sont jamais couvertes par une regle : elles redemandent a chaque fois.
+   Now an "Always" stores ONE RULE: the tool concerned, or the start of the
+   command for a shell (`Bash(git status *)`). Everything else keeps
+   asking. And some commands — recursive deletion, formatting, reboot,
+   force push, pipe into an interpreter — are never covered by a rule: they
+   ask again every time.
 
-   Pur : partage navigateur / serveur, teste.
+   Pure: shared browser / server, tested.
 --------------------------------------------------------------------------- */
 
 import { alwaysAsks } from "./names";
 
-/** Les outils dont le premier mot de la commande fait la regle. */
+/** The tools whose first command word makes the rule. */
 const SHELLS = new Set(["Bash", "PowerShell", "Monitor"]);
 
-/** Les commandes dont la SOUS-COMMANDE fait partie de l'identite : `git
-    status` et `git push` ne sont pas la meme autorisation. */
+/** The commands whose SUB-COMMAND is part of their identity: `git status`
+    and `git push` are not the same authorisation. */
 const COMPOSEES = new Set(["git", "npm", "npx", "pnpm", "yarn", "pip", "pip3", "python", "py", "docker", "cargo", "go", "dotnet", "gh", "winget"]);
 
-/** Une sous-commande, par opposition a un argument : un mot simple, sans
-    chemin ni extension (`status`, `install`, `run`) — `script.py` ou
-    `./x` sont des arguments, et n'entrent pas dans la regle. */
+/** A sub-command, as opposed to an argument: a simple word, with no path
+    and no extension (`status`, `install`, `run`) — `script.py` or `./x`
+    are arguments, and do not enter the rule. */
 const sousCommande = (mot: string | undefined) => !!mot && /^[a-z][a-z0-9:_-]*$/i.test(mot);
 
 const commande = (args: Record<string, unknown>) => (typeof args.command === "string" ? args.command.trim() : "");
 
-/** ⚠️ Ce qui ne s'autorise jamais d'avance. Volontairement large : le cout
-    d'une demande de trop est nul, celui d'un effacement de trop ne l'est
-    pas. */
+/** ⚠️ What is never authorised in advance. Deliberately broad: one prompt
+    too many costs nothing, one deletion too many does. */
 const DANGERS: RegExp[] = [
   /\brm\s+(-[a-z]*[rf][a-z]*\s+)+/i,
   /\bremove-item\b[^\n]*-recurse\b/i,
@@ -50,16 +49,16 @@ const DANGERS: RegExp[] = [
   /\bcurl\b[^\n]*\|\s*\w+/i, /\bwget\b[^\n]*\|\s*\w+/i,
 ];
 
-/** Une commande irreversible ou qui touche au systeme ? (les outils
-    fichiers, bornes par le perimetre, ne sont pas concernes) */
+/** An irreversible command, or one that touches the system? (the file
+    tools, bounded by the scope, are not concerned) */
 export function isDangerous(name: string, args: Record<string, unknown>): boolean {
   if (!SHELLS.has(name)) return false;
   const cmd = commande(args);
   return cmd.length > 0 && DANGERS.some((r) => r.test(cmd));
 }
 
-/** La regle qu'un « Toujours » memoriserait pour cet appel, ou `null` si
-    l'appel ne s'y prete pas. */
+/** The rule an "Always" would store for this call, or `null` when the call
+    does not lend itself to one. */
 export function ruleFor(name: string, args: Record<string, unknown>): string | null {
   if (alwaysAsks(name)) return null;
   if (!SHELLS.has(name)) return name;
@@ -71,7 +70,7 @@ export function ruleFor(name: string, args: Record<string, unknown>): string | n
   return `${name}(${prefixe} *)`;
 }
 
-/** Cet appel est-il couvert par une regle deja memorisee ? */
+/** Is this call covered by a rule already stored? */
 export function matchesRule(rules: string[] | undefined, name: string, args: Record<string, unknown>): boolean {
   if (!rules?.length) return false;
   if (alwaysAsks(name) || isDangerous(name, args)) return false;
@@ -85,8 +84,8 @@ export const addRule = (rules: string[] | undefined, rule: string): string[] =>
 
 export const removeRule = (rules: string[] | undefined, rule: string): string[] => (rules ?? []).filter((r) => r !== rule);
 
-/** Le libelle du bouton, qui doit dire exactement ce qu'on autorise. */
+/** The button label, which must say exactly what is being authorised. */
 export function ruleLabel(rule: string): string {
   const m = rule.match(/^\w+\((.*?)\s*\*\)$/);
-  return m ? `Toujours autoriser « ${m[1]} … »` : `Toujours autoriser ${rule}`;
+  return m ? `Always allow "${m[1]} …"` : `Always allow ${rule}`;
 }

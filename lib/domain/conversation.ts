@@ -1,9 +1,9 @@
 const TITLE_MAX = 44;
 
-/** Le titre d'une conversation : sa premiere ligne, coupee sur un mot. */
+/** A conversation's title: its first line, cut on a word. */
 export function deriveTitle(firstMessage: string): string {
   const line = firstMessage.trim().split(/\r?\n/)[0]?.trim() ?? "";
-  if (!line) return "Nouvelle conversation";
+  if (!line) return "New conversation";
   if (line.length <= TITLE_MAX) return line;
   const cut = line.slice(0, TITLE_MAX);
   const space = cut.lastIndexOf(" ");

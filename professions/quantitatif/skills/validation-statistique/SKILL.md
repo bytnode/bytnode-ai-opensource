@@ -1,59 +1,59 @@
 ---
 name: validation-statistique
-description: Vérifier qu'un résultat quantitatif tient — hors échantillon, walk-forward, sensibilité, références naïves, tests multiples, déflation du Sharpe — et le dire sans complaisance
+description: Verify that a quantitative result holds — out-of-sample, walk-forward, sensitivity, naive benchmarks, multiple testing, Sharpe deflation — and say so without complacency
 ---
 
-# Validation statistique
+# Statistical validation
 
-Un résultat de backtest est une hypothèse jusqu'à preuve du contraire. La preuve, c'est qu'il survit à tout ce qui suit. Si une étape échoue, le verdict est « ne tient pas » — pas « à affiner ».
+A backtest result is a hypothesis until proven otherwise. The proof is that it survives everything that follows. If one step fails, the verdict is "does not hold" — not "to be refined".
 
-## 1. Le découpage
+## 1. The split
 
-- **Hors échantillon** : la période la plus récente (≥ 1/3), regardée **une seule fois**, après toute calibration. La regarder deux fois en fait de l'in-sample.
-- **Walk-forward** : fenêtres de calibration N mois → test M mois, glissantes. La performance qui compte est la concaténation des fenêtres de test.
-- **Régimes** : mesurer séparément en tendance haussière, baissière, range (définis à l'avance, ex. par la pente de la MM200). Une stratégie qui ne gagne que dans un régime n'est validée que si son filtre de régime est dans les règles.
+- **Out-of-sample**: the most recent period (≥ 1/3), looked at **once only**, after all calibration. Looking at it twice makes it in-sample.
+- **Walk-forward**: calibration windows of N months → test of M months, rolling. The performance that counts is the concatenation of the test windows.
+- **Regimes**: measure separately in uptrend, downtrend, range (defined in advance, e.g. by the slope of the MA200). A strategy that only wins in one regime is only validated if its regime filter is in the rules.
 
-## 2. Les références naïves
+## 2. Naive benchmarks
 
-Toujours comparer à :
-- acheter-et-garder sur la même période ;
-- la même stratégie avec des **entrées aléatoires** (mêmes règles de sortie et de taille), 1 000 tirages : où se situe le résultat réel dans cette distribution ? S'il est sous le 95e percentile, l'entrée n'apporte rien.
+Always compare to:
+- buy-and-hold over the same period;
+- the same strategy with **random entries** (same exit and sizing rules), 1,000 draws: where does the real result sit in this distribution? If it is below the 95th percentile, the entry adds nothing.
 
-## 3. La sensibilité
+## 3. Sensitivity
 
-Chaque paramètre ±20 % et ±50 % : tracer la métrique (Sharpe, Calmar) en fonction du paramètre. On veut un **plateau**, pas un pic. Un pic = ajustement au bruit. Le couple de paramètres retenu doit être au milieu du plateau, pas au sommet.
+Each parameter ±20% and ±50%: plot the metric (Sharpe, Calmar) as a function of the parameter. We want a **plateau**, not a peak. A peak = fitting to noise. The retained parameter pair must be in the middle of the plateau, not at the top.
 
-## 4. Les tests multiples
+## 4. Multiple testing
 
-Si tu as essayé K variantes (paramètres, filtres, actifs) avant de retenir la meilleure, le meilleur Sharpe est biaisé vers le haut. Corrige :
-- **Sharpe déflaté** (Bailey & López de Prado) : ajuste pour K essais, la longueur de l'échantillon, l'asymétrie et le kurtosis des rendements.
-- À défaut, règle simple : compte K honnêtement et exige que le résultat reste positif après une pénalité de `sqrt(2·ln K)/sqrt(T)` en unités de Sharpe annualisé, avec T le nombre d'années.
-- Note K dans le rapport. Ne pas le noter, c'est le cacher.
+If you tried K variants (parameters, filters, assets) before keeping the best, the best Sharpe is biased upwards. Correct:
+- **Deflated Sharpe** (Bailey & López de Prado): adjusts for K trials, sample length, skewness and kurtosis of returns.
+- Failing that, simple rule: count K honestly and require that the result stay positive after a penalty of `sqrt(2·ln K)/sqrt(T)` in units of annualised Sharpe, with T the number of years.
+- Note K in the report. Not noting it is hiding it.
 
-## 5. L'incertitude
+## 5. Uncertainty
 
-- **Bootstrap** des trades (ou des blocs de rendements pour garder l'autocorrélation) : intervalle à 90 % du Sharpe et du drawdown max. Un intervalle qui contient zéro = pas de preuve.
-- **Nombre de trades** : sous 50, rien n'est concluant ; dis combien il en faudrait pour l'effet observé.
-- **Série de pertes** : la plus longue observée vs celle attendue pour le taux de réussite (binomiale) — si l'observée est bien plus courte, l'échantillon est trop clément.
+- **Bootstrap** of trades (or of blocks of returns to keep the autocorrelation): 90% interval of the Sharpe and of the max drawdown. An interval that contains zero = no evidence.
+- **Number of trades**: below 50, nothing is conclusive; say how many would be needed for the observed effect.
+- **Losing streak**: the longest observed vs the one expected for the win rate (binomial) — if the observed one is much shorter, the sample is too lenient.
 
-## 6. Le verdict
+## 6. The verdict
 
-Un tableau :
+A table:
 
-| Test | Résultat | Verdict |
+| Test | Result | Verdict |
 |---|---|---|
-| Hors échantillon | Sharpe X vs Y in-sample (−Z %) | tient / ne tient pas |
+| Out-of-sample | Sharpe X vs Y in-sample (−Z%) | holds / does not hold |
 | Walk-forward | … | |
-| Entrées aléatoires | percentile … | |
-| Sensibilité | plateau / pic | |
-| Tests multiples (K = …) | Sharpe déflaté … | |
-| Bootstrap 90 % | [ … ; … ] | |
-| Nombre de trades | … | |
+| Random entries | percentile … | |
+| Sensitivity | plateau / peak | |
+| Multiple testing (K = …) | deflated Sharpe … | |
+| Bootstrap 90% | [ … ; … ] | |
+| Number of trades | … | |
 
-Puis une conclusion en trois lignes : tient / ne tient pas / indéterminé ; ce qui l'affaiblit le plus ; ce qu'il faudrait pour trancher.
+Then a three-line conclusion: holds / does not hold / undetermined; what weakens it most; what would be needed to settle it.
 
-## Règles
+## Rules
 
-- Les seuils de rejet sont ceux du plan de backtest, fixés avant. On ne les déplace pas après avoir vu les résultats.
-- On rapporte tous les tests, y compris ceux qui échouent.
-- Une p-value dit la probabilité des données sous l'hypothèse nulle, pas la probabilité que la stratégie marche. Ne la survends pas.
+- The rejection thresholds are those of the backtest plan, fixed beforehand. They are not moved after seeing the results.
+- All tests are reported, including those that fail.
+- A p-value states the probability of the data under the null hypothesis, not the probability that the strategy works. Do not oversell it.

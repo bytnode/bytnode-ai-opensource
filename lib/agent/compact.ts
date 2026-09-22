@@ -1,51 +1,51 @@
 import type { Message } from "@/lib/domain/types";
 
 /* ---------------------------------------------------------------------------
-   Compacter une conversation.
+   Compacting a conversation.
 
-   Une conversation longue est renvoyee en entier a chaque tour : elle
-   devient chere, lente, et finit par depasser la fenetre du modele.
-   `/compact` demande a l'agent un resume de ce qui a ete fait et decide,
-   puis le fil est remplace par ce resume — la conversation continue, avec
-   sa memoire, sans son poids.
+   A long conversation is sent back whole at every turn: it becomes
+   expensive, slow, and eventually exceeds the model's window. `/compact`
+   asks the agent for a summary of what was done and decided, then the
+   thread is replaced by that summary — the conversation goes on, with its
+   memory, without its weight.
 
-   Le meme mecanisme sert aux deux moteurs : un agent sur OpenRouter voit
-   le resume en tete de son historique ; un agent par abonnement repart sur
-   une session neuve amorcee par ce resume.
+   The same mechanism serves both engines: an agent on OpenRouter sees the
+   summary at the head of its history; a subscription agent starts over on
+   a fresh session seeded with that summary.
 
-   Pur : pas de disque, pas de reseau.
+   Pure: no disk, no network.
 --------------------------------------------------------------------------- */
 
-/** `/compact`, seule ou suivie de consignes. Rend `null` si le texte n'est
-    pas la commande — un message qui la mentionne n'est pas la commande. */
+/** `/compact`, alone or followed by instructions. Returns `null` if the
+    text is not the command — a message that mentions it is not the command. */
 export function isCompactCommand(text: string): { instructions: string } | null {
   const m = text.trim().match(/^\/compact(?:\s+([\s\S]*))?$/i);
   return m ? { instructions: (m[1] ?? "").trim() } : null;
 }
 
-export const COMPACT_LABEL = "Conversation compactée";
+export const COMPACT_LABEL = "Conversation compacted";
 
-/** Qui a declenche la compaction : l'utilisateur (`/compact`), la jauge
-    pleine en fin de tour (`auto`), ou une erreur « contexte depasse » du
-    fournisseur (`overflow`). */
+/** Who triggered the compaction: the user (`/compact`), the meter being
+    full at the end of a turn (`auto`), or a « context exceeded » error from
+    the provider (`overflow`). */
 export type CompactedBy = "user" | "auto" | "overflow";
 
 export function compactLabel(m: Pick<Message, "compactedBy">): string {
   switch (m.compactedBy) {
     case "auto":
-      return `${COMPACT_LABEL} automatiquement — fenêtre pleine`;
+      return `${COMPACT_LABEL} automatically — window full`;
     case "overflow":
-      return `${COMPACT_LABEL} automatiquement — contexte dépassé`;
+      return `${COMPACT_LABEL} automatically — context exceeded`;
     default:
       return COMPACT_LABEL;
   }
 }
 
-/* ⚠️ « CONTEXTE DEPASSE » N'EST PAS UNE ERREUR TRANSITOIRE. Relancer la meme
-   requete echouerait pareil ; la seule issue est de compacter le fil puis de
-   rejouer. Chaque fournisseur le dit a sa maniere (OpenRouter, Anthropic,
-   OpenAI…) : on reconnait la famille de formulations, sur un 400/413 ou
-   sans statut. */
+/* ⚠️ « CONTEXT EXCEEDED » IS NOT A TRANSIENT ERROR. Retrying the same
+   request would fail the same way; the only way out is to compact the
+   thread and replay. Every provider says it its own way (OpenRouter,
+   Anthropic, OpenAI…): we recognise the family of wordings, on a 400/413
+   or with no status. */
 const OVERFLOW_TEXT = /context.length|context.limit|too long|too many tokens|maximum.*tokens|tokens.*maximum|exceed.*context/i;
 
 export function isContextOverflow(error: unknown): boolean {
@@ -56,39 +56,40 @@ export function isContextOverflow(error: unknown): boolean {
   return typeof e.message === "string" && OVERFLOW_TEXT.test(e.message);
 }
 
-/** Ce qu'on demande a l'agent. Il connait le fil : inutile de le lui
-    redonner, il suffit de lui dire quoi en garder. */
+/** What we ask the agent. It knows the thread: no need to hand it back,
+    it is enough to say what to keep of it. */
 export function buildCompactRequest(instructions: string): string {
   const lines = [
-    "Fais le résumé de notre conversation jusqu'ici. Ce résumé va REMPLACER le fil : tout ce qui n'y figure pas sera perdu pour la suite.",
+    "Summarise our conversation so far. This summary will REPLACE the thread: anything not in it will be lost for what follows.",
     "",
-    "Structure-le ainsi, en gardant les chiffres et les chemins de fichiers exacts :",
-    "1. **Demande** — ce que l'utilisateur cherche à obtenir, dans ses termes.",
-    "2. **Fait** — ce qui a été mesuré, calculé, écrit ou testé, avec les valeurs et les fichiers produits (chemins complets).",
-    "3. **Décisions** — ce qui a été tranché, et pourquoi ; les préférences exprimées par l'utilisateur.",
-    "4. **En cours** — ce qui n'est pas terminé, et l'étape suivante immédiate.",
-    "5. **À ne pas refaire** — les pistes essayées sans succès, pour ne pas y revenir.",
+    "Structure it like this, keeping exact figures and file paths:",
+    "1. **Request** — what the user is trying to obtain, in their own terms.",
+    "2. **Done** — what was measured, computed, written or tested, with the values and the files produced (full paths).",
+    "3. **Decisions** — what was settled, and why; the preferences the user expressed.",
+    "4. **In progress** — what is not finished, and the immediate next step.",
+    "5. **Not to redo** — the approaches tried without success, so as not to come back to them.",
     "",
-    "Sois dense et factuel : pas de formules de politesse, pas de commentaire sur le résumé lui-même. Ne résume pas ce résumé : écris-le.",
+    "Be dense and factual: no pleasantries, no commentary on the summary itself. Do not summarise this summary: write it.",
   ];
-  if (instructions) lines.push("", `Consigne de l'utilisateur pour ce résumé : ${instructions}`);
+  if (instructions) lines.push("", `User's instruction for this summary: ${instructions}`);
   return lines.join("\n");
 }
 
 const MAX_TRANSCRIPT = 12_000;
 
-/** Le fil en texte, pour un agent qui ne l'a plus (session perdue, ou
-    nouvelle session apres compactage). Borne : les derniers echanges. */
+/** The thread as text, for an agent that no longer has it (session lost,
+    or a new session after compaction). Bounded: the latest exchanges. */
 export function transcriptOf(messages: Message[], max = MAX_TRANSCRIPT): string {
   const lines = messages
     .filter((m) => m.content.trim() && !m.compacting)
-    .map((m) => `${m.role === "user" ? "Utilisateur" : "Agent"} : ${m.content.trim()}`);
+    .map((m) => `${m.role === "user" ? "User" : "Agent"}: ${m.content.trim()}`);
   const out = lines.join("\n\n");
   return out.length > max ? `[…]\n${out.slice(-max)}` : out;
 }
 
-/** Le message qui remplace le fil. Il porte `compaction` : le fil l'affiche
-    comme un resume, et `history.ts` le rejoue comme un rappel de contexte. */
+/** The message that replaces the thread. It carries `compaction`: the
+    thread shows it as a summary, and `history.ts` replays it as a context
+    reminder. */
 export function compactionMessage(summary: string, id: string, createdAt: number, compactedBy: CompactedBy = "user"): Message {
   return { id, role: "assistant", content: summary, createdAt, compaction: true, compactedBy, steps: [{ type: "text", text: summary }] };
 }

@@ -1,48 +1,48 @@
 ---
 name: gestion-risque
-description: Les règles de risque d'une stratégie ou d'un portefeuille — taille de position, limites par jour et globales, corrélation, levier, scénarios de stress — chiffrées
+description: The risk rules of a strategy or a portfolio — position size, daily and overall limits, correlation, leverage, stress scenarios — quantified
 ---
 
-# Gestion du risque
+# Risk management
 
-Le risque se décide avant la première position, en chiffres, et ne se renégocie pas en cours de route. Toute stratégie livrée porte cette section remplie.
+Risk is decided before the first position, in numbers, and is not renegotiated along the way. Every delivered strategy carries this section filled in.
 
-## Les couches
+## The layers
 
-1. **Par position** — le risque, c'est la perte si le stop est touché, pas la taille. Règle : risque ≤ R % du capital (1 % est un point de départ courant ; 0,5 % pour une stratégie fréquente ; jamais plus de 2 %). Taille = (capital × R) / (distance au stop en prix). Le stop est un niveau de marché (ATR, structure), pas un pourcentage arbitraire.
-2. **Par jour / par semaine** — perte maximale cumulée avant d'arrêter (ex. 3 R par jour, 6 R par semaine). L'arrêt est mécanique.
-3. **Global** — drawdown maximal accepté depuis le plus haut du capital (ex. 15 %). À mi-chemin (7,5 %), on réduit les tailles de moitié ; au seuil, on arrête et on réexamine la stratégie, pas les paramètres.
-4. **Concentration** — exposition maximale par actif et par thème (les altcoins sont un seul thème : ils corrèlent à 0,8+ avec BTC en stress). Somme des risques ouverts ≤ 3–5 R.
-5. **Levier** — exprimé en exposition notionnelle / capital. Sur perp, le levier réel inclut le funding : un funding de 0,05 % / 8 h coûte ~55 % par an ; à intégrer dans le coût de portage et dans la décision de tenir.
+1. **Per position** — the risk is the loss if the stop is hit, not the size. Rule: risk ≤ R% of capital (1% is a common starting point; 0.5% for a frequent strategy; never more than 2%). Size = (capital × R) / (distance to stop in price). The stop is a market level (ATR, structure), not an arbitrary percentage.
+2. **Per day / per week** — maximum cumulative loss before stopping (e.g. 3 R per day, 6 R per week). The stop is mechanical.
+3. **Overall** — maximum accepted drawdown from the equity high (e.g. 15%). Halfway there (7.5%), sizes are halved; at the threshold, we stop and re-examine the strategy, not the parameters.
+4. **Concentration** — maximum exposure per asset and per theme (altcoins are a single theme: they correlate at 0.8+ with BTC under stress). Sum of open risks ≤ 3–5 R.
+5. **Leverage** — expressed as notional exposure / capital. On perps, real leverage includes funding: a funding of 0.05% / 8h costs ~55% per year; to be included in the carry cost and in the decision to hold.
 
-## Scénarios de stress
+## Stress scenarios
 
-Pour chaque stratégie, chiffrer la perte dans :
-- **Gap** de −20 % sur BTC en une heure (arrive quelques fois par an) : stops non exécutés au niveau, slippage ×5.
-- **Cascade de liquidations** : spread ×10 pendant quelques minutes, ordres partiellement exécutés.
-- **Panne ou gel d'échange** : impossibilité de sortir pendant 1–6 h.
-- **Régime inverse** : la stratégie prend N pertes consécutives (calculer N pour un taux de réussite donné : à 40 %, 8 pertes de suite arrivent régulièrement).
-Si l'un de ces cas dépasse le drawdown maximal, la taille ou le levier est trop grand. Point.
+For each strategy, quantify the loss in:
+- **Gap** of −20% on BTC in one hour (happens a few times a year): stops not executed at level, slippage ×5.
+- **Liquidation cascade**: spread ×10 for a few minutes, orders partially filled.
+- **Exchange outage or freeze**: impossible to exit for 1–6h.
+- **Adverse regime**: the strategy takes N consecutive losses (compute N for a given win rate: at 40%, 8 losses in a row happen regularly).
+If any of these cases exceeds the maximum drawdown, the size or the leverage is too large. Full stop.
 
-## Corrélation
+## Correlation
 
-Avant d'ouvrir une position, la question : que se passe-t-il si tout le portefeuille bouge dans le même sens ? Mesurer la corrélation 30 j entre les actifs (avec `get_history` de BytNode) ; deux positions à 0,9 de corrélation sont une position de taille double.
+Before opening a position, the question: what happens if the whole portfolio moves in the same direction? Measure the 30d correlation between assets (with BytNode's `get_history`); two positions at 0.9 correlation are one position of double size.
 
-## Ce qu'on écrit dans la stratégie
+## What we write in the strategy
 
-| Paramètre | Valeur |
+| Parameter | Value |
 |---|---|
-| Risque par position | … % du capital |
-| Stop initial | … (règle de marché) |
-| Perte max / jour, / semaine | … R |
-| Drawdown max, seuil de réduction | … %, … % |
-| Exposition max par actif / thème | … % |
-| Risque ouvert total max | … R |
-| Levier notionnel max | … × |
-| Perte estimée en gap −20 % | … % du capital |
+| Risk per position | …% of capital |
+| Initial stop | … (market rule) |
+| Max loss / day, / week | … R |
+| Max drawdown, reduction threshold | …%, …% |
+| Max exposure per asset / theme | …% |
+| Max total open risk | … R |
+| Max notional leverage | … × |
+| Estimated loss in a −20% gap | …% of capital |
 
-## Règles
+## Rules
 
-- Les limites sont mécaniques : on ne « voit » pas si on continue, on arrête.
-- On ne moyenne pas à la baisse une position perdante sauf si c'est une règle écrite dès le départ.
-- Le risque se mesure en R (multiple du risque initial), pas en euros : c'est ce qui rend les stratégies comparables.
+- Limits are mechanical: we do not "see" whether to continue, we stop.
+- We do not average down a losing position unless it is a rule written from the start.
+- Risk is measured in R (multiple of the initial risk), not in euros: that is what makes strategies comparable.

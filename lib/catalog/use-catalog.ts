@@ -8,21 +8,22 @@ import type { AgentModes } from "@/lib/acp/translate";
 import { onAcpAuthChange } from "@/lib/acp/use-auth";
 import { listProviders } from "./catalog";
 
-/* Le catalogue est lu une fois pour toute la session, quel que soit le nombre
-   de composants qui le consultent.
+/* The catalog is read once for the whole session, however many components
+   consult it.
 
-   Deux sources, fondues dans la meme liste : OpenRouter (des milliers de
-   modeles, pas de cle requise pour la liste) et les agents par abonnement
-   connectes (quelques modeles chacun, ids `acp:<agent>/…`). La seconde
-   est relue quand un abonnement se connecte. */
+   Two sources, merged into the same list: OpenRouter (thousands of models,
+   no key required for the list) and the connected subscription agents (a
+   few models each, ids `acp:<agent>/…`). The second is read again when a
+   subscription connects. */
 
 type Base = {
   models: Model[];
   providers: Provider[];
-  /** Les modes publies par chaque agent par abonnement. */
+  /** The modes published by each subscription agent. */
   acpModes: Record<string, AgentModes>;
-  /** Une lecture des modeles d'abonnement est en vol ou reste a rejouer :
-      un fournisseur `acp:` sans modele n'est pas encore « sans modele ». */
+  /** A read of the subscription models is in flight or still to be
+      replayed: an `acp:` provider without a model is not yet « without a
+      model ». */
   acpLoading: boolean;
 };
 
@@ -33,12 +34,12 @@ export type Catalog =
 
 const store = createStore<Catalog>({ status: "idle", models: [], providers: [], acpModes: {}, acpLoading: false });
 
-/** Le catalogue tel qu'il est, hors rendu. */
+/** The catalog as it is, outside rendering. */
 export const getCatalog = (): Catalog => store.get();
 
 let inflight: Promise<void> | null = null;
 let acpInflight: Promise<void> | null = null;
-/* La relecture a rejouer apres celle en vol, et si elle doit forcer. */
+/* The re-read to replay after the one in flight, and whether it must force. */
 let acpQueued: Promise<void> | null = null;
 let acpQueuedForce = false;
 
@@ -52,12 +53,12 @@ export function loadCatalog(force = false): Promise<void> {
     try {
       const res = await fetch("/api/openrouter/models");
       const json = (await res.json()) as { models?: Model[]; error?: { message?: string } };
-      if (!res.ok || !json.models) throw new Error(json.error?.message ?? "Catalogue indisponible.");
+      if (!res.ok || !json.models) throw new Error(json.error?.message ?? "Catalog unavailable.");
       const acp = store.get().models.filter((m) => isAcpProvider(m.providerId));
       const models = merge(json.models, acp);
       store.set({ ...store.get(), status: "ready", models, providers: listProviders(models) });
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Catalogue indisponible.";
+      const message = e instanceof Error ? e.message : "Catalog unavailable.";
       const acp = store.get().models.filter((m) => isAcpProvider(m.providerId));
       store.set({ ...store.get(), status: "error", models: acp, providers: listProviders(acp), message });
     } finally {
@@ -68,16 +69,16 @@ export function loadCatalog(force = false): Promise<void> {
   return inflight;
 }
 
-/** Les modeles des abonnements connectes, fondus dans le catalogue.
+/** The models of the connected subscriptions, merged into the catalog.
 
-    ⚠️ UN APPEL PENDANT QU'UNE LECTURE EST EN VOL N'EST PAS PERDU. La reponse
-    en vol a ete calculee AVANT ce qui motive l'appel — typiquement un agent
-    interroge par le protocole (Grok, Copilot, Mistral) qui vient de passer
-    a « connecté » pendant que la premiere lecture, longue au demarrage,
-    fait publier leurs modeles aux autres. Le rendre tel quel laisserait
-    l'agent connecte sans aucun modele jusqu'au prochain rechargement. On
-    rejoue donc une lecture des que la premiere se termine (une seule,
-    quel que soit le nombre d'appels entre-temps). */
+    ⚠️ A CALL WHILE A READ IS IN FLIGHT IS NOT LOST. The in-flight response
+    was computed BEFORE what motivates the call — typically an agent probed
+    through the protocol (Grok, Copilot, Mistral) that just switched to
+    « connected » while the first read, slow at startup, has the others
+    publish their models. Returning it as is would leave the connected
+    agent without any model until the next reload. So a read is replayed
+    as soon as the first one finishes (a single one, however many calls
+    came in between). */
 export function loadAcpModels(force = false): Promise<void> {
   if (acpInflight) {
     acpQueuedForce ||= force;
@@ -100,7 +101,7 @@ export function loadAcpModels(force = false): Promise<void> {
       const models = merge(openrouter, json.models);
       store.set({ ...current, models, providers: listProviders(models), acpModes: { ...current.acpModes, ...(json.modes ?? {}) } });
     } catch {
-      /* sans abonnement connecte, rien a ajouter */
+      /* without a connected subscription, nothing to add */
     } finally {
       acpInflight = null;
       setAcpLoading(acpQueued !== null);
@@ -133,9 +134,8 @@ function watchAuth() {
 
 export function useCatalog(): Catalog {
   const catalog = useSyncExternalStore(store.subscribe, store.get, store.getServer);
-  /* Le chargement part apres le montage, jamais pendant le rendu : mettre le
-     magasin a jour en plein rendu reveillerait d'autres composants au mauvais
-     moment. */
+  /* Loading starts after mount, never during render: updating the store
+     mid-render would wake other components at the wrong time. */
   useEffect(() => {
     watchAuth();
     if (store.get().status === "idle") void loadCatalog();

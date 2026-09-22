@@ -16,26 +16,25 @@ import "@/components/onboarding/onboarding.css";
 import "./settings.css";
 
 /* ---------------------------------------------------------------------------
-   Les reglages : un panneau, une navigation a gauche, quatre sections.
+   The settings: one panel, a navigation on the left, four sections.
 
-   Tout s'enregistre au fil de la frappe — il n'y a ni brouillon ni bouton
-   « Enregistrer », fermer ne perd rien. Seule exception : le formulaire d'un
-   agent, qui a une validation (un nom, un fournisseur) et garde donc son
-   bouton. L'assistant du premier demarrage (`Wizard`) n'est plus utilise
-   qu'a la premiere ouverture.
+   Everything saves as you type — there is neither a draft nor a "Save"
+   button, closing loses nothing. The only exception: an agent's form, which
+   has validation (a name, a provider) and therefore keeps its button. The
+   first-launch wizard (`Wizard`) is now only used on the first opening.
 --------------------------------------------------------------------------- */
 
 export type SettingsTab = "general" | "auth" | "agents" | "providers";
 
-/** Ce que le panneau montre a l'ouverture : un onglet, et pour Agents, un
-    agent a modifier ou `"new"` pour en creer un. */
+/** What the panel shows on opening: a tab, and for Agents, an agent to
+    edit or `"new"` to create one. */
 export type SettingsTarget = { tab: SettingsTab; agent?: AgentConfig | "new" };
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
-  { id: "general", label: "Général" },
+  { id: "general", label: "General" },
   { id: "auth", label: "Auth" },
   { id: "agents", label: "Agents" },
-  { id: "providers", label: "Fournisseurs" },
+  { id: "providers", label: "Providers" },
 ];
 
 type Props = {
@@ -44,7 +43,7 @@ type Props = {
   onUpdate: (patch: Partial<Settings>) => void;
   onSaveAgent: (agent: AgentConfig, isNew: boolean) => void;
   onRemoveAgent: (agent: AgentConfig) => void;
-  /** Absent quand on ne peut pas fermer : aucun agent n'existe encore. */
+  /** Absent when closing is not possible: no agent exists yet. */
   onClose?: () => void;
 };
 
@@ -62,7 +61,7 @@ export function SettingsPanel({ settings, target, onUpdate, onSaveAgent, onRemov
     if (next !== "agents") setView({ kind: "list" });
   };
 
-  /* Echap ferme, comme la croix. */
+  /* Escape closes, like the cross. */
   useEffect(() => {
     if (!onClose) return;
     const onKey = (e: KeyboardEvent) => {
@@ -75,15 +74,15 @@ export function SettingsPanel({ settings, target, onUpdate, onSaveAgent, onRemov
   return (
     <div className="ob st-veil" role="dialog" aria-modal="true" aria-labelledby="st-title" onClick={(e) => e.target === e.currentTarget && onClose?.()}>
       <div className="st">
-        {/* La croix est posee sur le panneau, pas dans la zone qui defile :
-            elle reste en place et au-dessus quoi qu'on fasse defiler. */}
+        {/* The cross sits on the panel, not in the scrolling area: it stays
+            in place and on top whatever is scrolled. */}
         {onClose && (
-          <button type="button" className="st-close" onClick={onClose} aria-label="Fermer les réglages">
+          <button type="button" className="st-close" onClick={onClose} aria-label="Close the settings">
             <Close />
           </button>
         )}
-        <nav className="st-nav" aria-label="Sections des réglages">
-          <span className="st-nav-title">Réglages</span>
+        <nav className="st-nav" aria-label="Settings sections">
+          <span className="st-nav-title">Settings</span>
           {TABS.map((t) => (
             <button key={t.id} type="button" className={`st-nav-item${tab === t.id ? " is-on" : ""}`} aria-current={tab === t.id ? "page" : undefined} onClick={() => go(t.id)}>
               {t.label}
@@ -112,8 +111,8 @@ export function SettingsPanel({ settings, target, onUpdate, onSaveAgent, onRemov
                 onBack={mustCreate ? undefined : () => setView({ kind: "list" })}
                 onSave={(agent) => {
                   onSaveAgent(agent, view.isNew);
-                  /* Une creation ferme le panneau (voir chat-shell) ; une
-                     modification revient a la liste. */
+                  /* A creation closes the panel (see chat-shell); an edit
+                     goes back to the list. */
                   if (!view.isNew) setView({ kind: "list" });
                 }}
               />
@@ -126,7 +125,7 @@ export function SettingsPanel({ settings, target, onUpdate, onSaveAgent, onRemov
   );
 }
 
-/* --- Briques de mise en page ---------------------------------------------- */
+/* --- Layout bricks --------------------------------------------------------- */
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -137,9 +136,9 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** Une ligne de reglage : le libelle et son aide a gauche, le controle a
-    droite. `stack` pose le controle en dessous, pour ce qui a besoin de toute
-    la largeur (un texte long, une cle a verifier). */
+/** A settings row: the label and its hint on the left, the control on the
+    right. `stack` puts the control underneath, for what needs the full
+    width (a long text, a key to verify). */
 function Row({ id, label, hint, stack, children }: { id?: string; label: string; hint?: string; stack?: boolean; children: ReactNode }) {
   return (
     <div className={`st-row${stack ? " is-stack" : ""}`}>
@@ -158,7 +157,7 @@ function Row({ id, label, hint, stack, children }: { id?: string; label: string;
   );
 }
 
-/* --- Général ---------------------------------------------------------------- */
+/* --- General ---------------------------------------------------------------- */
 
 function General({ settings, onUpdate }: { settings: Settings; onUpdate: (p: Partial<Settings>) => void }) {
   const profile = settings.profile;
@@ -167,30 +166,30 @@ function General({ settings, onUpdate }: { settings: Settings; onUpdate: (p: Par
   return (
     <>
       <h1 id="st-title" className="st-title">
-        Général
+        General
       </h1>
-      <Section title="Profil">
-        <Row id="st-firstName" label="Prénom" hint="L'agent s'adresse à vous par ce prénom.">
+      <Section title="Profile">
+        <Row id="st-firstName" label="First name" hint="The agent addresses you by this first name.">
           <input id="st-firstName" className="field-input" autoComplete="given-name" value={profile.firstName} onChange={(e) => set({ firstName: e.target.value })} />
         </Row>
-        <Row id="st-lastName" label="Nom">
+        <Row id="st-lastName" label="Last name">
           <input id="st-lastName" className="field-input" autoComplete="family-name" value={profile.lastName} onChange={(e) => set({ lastName: e.target.value })} />
         </Row>
         <Row id="st-email" label="Email">
           <input id="st-email" className="field-input" type="email" autoComplete="email" value={profile.email} onChange={(e) => set({ email: e.target.value })} />
         </Row>
-        <Row id="st-bio" label="À propos de vous" hint="Votre activité, vos habitudes, ce que chaque agent doit savoir de vous. Transmis à tous vos agents." stack>
-          <textarea id="st-bio" className="field-input" placeholder="Trader crypto indépendant, je travaille surtout sur BTC et ETH…" value={profile.bio} onChange={(e) => set({ bio: e.target.value })} />
+        <Row id="st-bio" label="About you" hint="Your activity, your habits, what every agent should know about you. Passed on to all your agents." stack>
+          <textarea id="st-bio" className="field-input" placeholder="Independent crypto trader, I mostly work on BTC and ETH…" value={profile.bio} onChange={(e) => set({ bio: e.target.value })} />
         </Row>
       </Section>
-      <Section title="Préférences">
-        <Row label="Apparence">
-          <div className="st-seg" role="radiogroup" aria-label="Apparence">
+      <Section title="Preferences">
+        <Row label="Appearance">
+          <div className="st-seg" role="radiogroup" aria-label="Appearance">
             <button type="button" role="radio" aria-checked={settings.theme === "light"} className={`st-seg-btn${settings.theme === "light" ? " is-on" : ""}`} onClick={() => theme("light")}>
-              Clair
+              Light
             </button>
             <button type="button" role="radio" aria-checked={settings.theme === "dark"} className={`st-seg-btn${settings.theme === "dark" ? " is-on" : ""}`} onClick={() => theme("dark")}>
-              Sombre
+              Dark
             </button>
           </div>
         </Row>
@@ -208,11 +207,11 @@ function Auth({ settings, onUpdate }: { settings: Settings; onUpdate: (p: Partia
       <h1 id="st-title" className="st-title">
         Auth
       </h1>
-      <p className="st-lede">Vos clés restent dans ce navigateur et partent avec chaque requête. Rien n&apos;est écrit sur le disque.</p>
-      <Section title="Clés">
+      <p className="st-lede">Your keys stay in this browser and travel with every request. Nothing is written to disk.</p>
+      <Section title="Keys">
         <div className="st-form ob-form">
           <OpenRouterKey value={keys.openrouter} onChange={(openrouter) => onUpdate({ keys: { ...keys, openrouter } })} />
-          <BytnodeKey value={keys.bytnode} error={keys.bytnode.trim() ? undefined : "Nécessaire : sans clé BytNode, les agents n'ont pas de données de marché."} onChange={(bytnode) => onUpdate({ keys: { ...keys, bytnode } })} />
+          <BytnodeKey value={keys.bytnode} error={keys.bytnode.trim() ? undefined : "Required: without a BytNode key, the agents have no market data."} onChange={(bytnode) => onUpdate({ keys: { ...keys, bytnode } })} />
         </div>
       </Section>
       <Section title="Exchanges">
@@ -229,7 +228,7 @@ function Auth({ settings, onUpdate }: { settings: Settings; onUpdate: (p: Partia
 function providerLabel(providerId: string): string {
   const acp = acpAgentOf(providerId);
   if (acp) return acp.label;
-  if (!providerId) return "Sans fournisseur";
+  if (!providerId) return "No provider";
   return providerId.charAt(0).toUpperCase() + providerId.slice(1);
 }
 
@@ -242,11 +241,11 @@ function AgentsList({ settings, onNew, onEdit, onRemove }: { settings: Settings;
         </h1>
         <button type="button" className="btn btn-sm btn-primary" onClick={onNew}>
           <Plus />
-          Nouvel agent
+          New agent
         </button>
       </div>
       {settings.agents.length === 0 ? (
-        <p className="st-empty">Aucun agent. Créez le premier : un nom, un fournisseur de modèles, et il est prêt.</p>
+        <p className="st-empty">No agent. Create the first one: a name, a model provider, and it is ready.</p>
       ) : (
         <ul className="st-agents">
           {settings.agents.map((a) => {
@@ -256,8 +255,8 @@ function AgentsList({ settings, onNew, onEdit, onRemove }: { settings: Settings;
               <li key={a.id} className="st-agent">
                 <div className="st-agent-text">
                   <span className="st-agent-name">
-                    {a.name || "Sans nom"}
-                    {accounts.length > 0 && <span className={`xch-badge${anyLive(accounts) ? " is-live" : ""}`}>{anyLive(accounts) ? "RÉEL" : "TESTNET"}</span>}
+                    {a.name || "Unnamed"}
+                    {accounts.length > 0 && <span className={`xch-badge${anyLive(accounts) ? " is-live" : ""}`}>{anyLive(accounts) ? "LIVE" : "TESTNET"}</span>}
                   </span>
                   <span className="st-agent-meta">
                     {professionInfo(a.profession).label} · {providerLabel(a.providerId)}
@@ -266,11 +265,11 @@ function AgentsList({ settings, onNew, onEdit, onRemove }: { settings: Settings;
                   </span>
                 </div>
                 <span className="st-agent-actions">
-                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => onEdit(a)} aria-label={`Modifier ${a.name}`}>
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => onEdit(a)} aria-label={`Edit ${a.name}`}>
                     <Pencil />
-                    Modifier
+                    Edit
                   </button>
-                  <button type="button" className="st-icon" onClick={() => onRemove(a)} aria-label={`Supprimer ${a.name}`} title="Supprimer">
+                  <button type="button" className="st-icon" onClick={() => onRemove(a)} aria-label={`Delete ${a.name}`} title="Delete">
                     <Trash />
                   </button>
                 </span>
@@ -287,8 +286,8 @@ function AgentForm({ settings, initial, isNew, onBack, onSave }: { settings: Set
   const [agent, setAgent] = useState<AgentConfig>(initial);
   const [attempted, setAttempted] = useState(false);
   const errors: StepErrors = {};
-  if (!agent.name.trim()) errors.name = "Donnez un nom à votre agent.";
-  if (!agent.providerId) errors.providerId = "Choisissez un abonnement ou un éditeur.";
+  if (!agent.name.trim()) errors.name = "Give your agent a name.";
+  if (!agent.providerId) errors.providerId = "Choose a subscription or a vendor.";
   const valid = Object.keys(errors).length === 0;
   const submit = () => {
     if (!valid) {
@@ -311,20 +310,20 @@ function AgentForm({ settings, initial, isNew, onBack, onSave }: { settings: Set
       <div className="st-foot">
         {onBack ? (
           <button type="button" className="btn btn-ghost" onClick={onBack}>
-            Annuler
+            Cancel
           </button>
         ) : (
           <span />
         )}
         <button type="button" className="btn btn-primary" onClick={submit}>
-          {isNew ? "Créer l'agent" : "Enregistrer"}
+          {isNew ? "Create the agent" : "Save"}
         </button>
       </div>
     </>
   );
 }
 
-/* --- Fournisseurs ----------------------------------------------------------- */
+/* --- Providers -------------------------------------------------------------- */
 
 function Providers({ settings, onGoAuth }: { settings: Settings; onGoAuth: () => void }) {
   const auth = useAcpAuth();
@@ -333,23 +332,23 @@ function Providers({ settings, onGoAuth }: { settings: Settings; onGoAuth: () =>
   return (
     <>
       <h1 id="st-title" className="st-title">
-        Fournisseurs
+        Providers
       </h1>
       <p className="st-lede">
-        {connected + (hasKey ? 1 : 0) === 0 ? "Aucun fournisseur connecté : vos agents ne peuvent pas répondre." : `${connected + (hasKey ? 1 : 0)} fournisseur${connected + (hasKey ? 1 : 0) > 1 ? "s" : ""} prêt${connected + (hasKey ? 1 : 0) > 1 ? "s" : ""}.`}
+        {connected + (hasKey ? 1 : 0) === 0 ? "No provider connected: your agents cannot answer." : `${connected + (hasKey ? 1 : 0)} provider${connected + (hasKey ? 1 : 0) > 1 ? "s" : ""} ready.`}
       </p>
-      <Section title="Par clé">
+      <Section title="By key">
         <div className={`sub${hasKey ? " is-on" : ""}`}>
           <div className="sub-main">
             <span className="sub-name">OpenRouter</span>
-            <span className="sub-desc">{hasKey ? "Clé enregistrée · tous les éditeurs, facturé à l'usage" : "Aucune clé"}</span>
+            <span className="sub-desc">{hasKey ? "Key saved · every vendor, billed per use" : "No key"}</span>
           </div>
           <button type="button" className={`btn btn-sm${hasKey ? " btn-ghost" : " btn-primary"}`} onClick={onGoAuth}>
-            {hasKey ? "Modifier la clé" : "Ajouter une clé"}
+            {hasKey ? "Edit the key" : "Add a key"}
           </button>
         </div>
       </Section>
-      <Section title="Par abonnement">
+      <Section title="By subscription">
         <Subscriptions />
       </Section>
     </>

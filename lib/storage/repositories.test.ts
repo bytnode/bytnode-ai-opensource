@@ -59,7 +59,7 @@ describe("SettingsRepository", () => {
     expect(loaded.activeAgentId).toBe(LEGACY_AGENT_ID);
   });
 
-  test("v3 : les comptes exchange et les comptes par agent, avec des defauts pour la v2", () => {
+  test("v3: exchange accounts and per-agent accounts, with defaults for v2", () => {
     const storage = new MemoryStorage();
     storage.set(
       "agentchat:settings",
@@ -77,7 +77,7 @@ describe("SettingsRepository", () => {
     expect(s.agents[0].exchangeAccountIds).toEqual([]);
   });
 
-  test("v3 : garde les comptes exchange valides et ignore les entrees informes", () => {
+  test("v3: keeps valid exchange accounts and ignores malformed entries", () => {
     const storage = new MemoryStorage();
     storage.set(
       "agentchat:settings",
@@ -89,8 +89,8 @@ describe("SettingsRepository", () => {
           exchanges: [
             { id: "x1", exchange: "binance", label: "Binance-main", apiKey: "a", secret: "b", testnet: false },
             { id: "x2", exchange: "bybit", label: "Bybit-test", apiKey: "c", secret: "d", password: "p", testnet: true },
-            { label: "sans id" },
-            "n'importe quoi",
+            { label: "no id" },
+            "whatever",
           ],
         },
         agents: [{ id: "a1", name: "A", providerId: "openai", exchangeAccountIds: ["x1", 42, "x9"] }],
@@ -165,7 +165,7 @@ describe("ConversationsRepository", () => {
   });
 });
 
-/* Un stockage a capacite bornee, comme le localStorage d'un navigateur. */
+/* A storage with a bounded capacity, like a browser's localStorage. */
 class LimitedStorage extends MemoryStorage {
   constructor(private limit: number) {
     super();
@@ -183,7 +183,7 @@ describe("ConversationsRepository : quota", () => {
     messages: [{ id: "m1", role: "user", content: "vois", createdAt: 1, attachments: [{ name: "a.png", path: "entrees/a.png", kind: "image", size: 10, dataUrl: image }] }],
   });
 
-  test("quand la place manque, les images inline partent (le chemin reste) et la sauvegarde passe", () => {
+  test("when space is short, inline images go (the path stays) and the save succeeds", () => {
     const storage = new LimitedStorage(1500);
     const repo = new ConversationsRepository(storage);
     repo.save(withImage("a"));
@@ -192,7 +192,7 @@ describe("ConversationsRepository : quota", () => {
     expect(saved.messages[0].attachments?.[0].path).toBe("entrees/a.png");
   });
 
-  test("si meme allege ca ne rentre pas : StorageFullError, et rien n'est ecrase", () => {
+  test("if even lightened it does not fit: StorageFullError, and nothing is overwritten", () => {
     const storage = new LimitedStorage(200);
     const repo = new ConversationsRepository(storage);
     repo.save(conv("petit", 1));

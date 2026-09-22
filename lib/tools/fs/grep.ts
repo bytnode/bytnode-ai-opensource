@@ -5,11 +5,11 @@ import { OutsideWorkspaceError, displayPath, resolvePath } from "../paths";
 import { run } from "../exec/run";
 
 /* ---------------------------------------------------------------------------
-   Grep : chercher un motif dans le contenu des fichiers, avec ripgrep.
+   Grep: search a pattern in the content of files, with ripgrep.
 
-   Le binaire est celui du paquet `@vscode/ripgrep`, donc present quelle que
-   soit la machine. Trois sorties, comme ripgrep : les fichiers qui
-   contiennent le motif (par defaut), les lignes, ou le compte par fichier.
+   The binary is the one from the `@vscode/ripgrep` package, so it is
+   present whatever the machine. Three outputs, like ripgrep: the files that
+   contain the pattern (default), the lines, or the count per file.
 --------------------------------------------------------------------------- */
 
 type Args = {
@@ -27,21 +27,21 @@ const LIMIT_LINES = 400;
 export const grepTool: Tool<Args> = {
   name: "Grep",
   description:
-    "Recherche un motif (expression régulière) dans le contenu des fichiers, avec ripgrep. `output_mode` : `files_with_matches` (défaut, les fichiers), `content` (les lignes, avec `context` lignes autour) ou `count`. `glob` filtre les fichiers (`*.ts`, `**/*.{js,tsx}`).",
+    "Searches a pattern (regular expression) in the content of files, with ripgrep. `output_mode`: `files_with_matches` (default, the files), `content` (the lines, with `context` lines around) or `count`. `glob` filters the files (`*.ts`, `**/*.{js,tsx}`).",
   parameters: {
     type: "object",
     properties: {
-      pattern: { type: "string", description: "Expression régulière (syntaxe ripgrep)." },
-      path: { type: "string", description: "Fichier ou dossier de départ. Par défaut : le dossier de travail." },
-      glob: { type: "string", description: "Motif de fichiers à inclure." },
+      pattern: { type: "string", description: "Regular expression (ripgrep syntax)." },
+      path: { type: "string", description: "Starting file or folder. Default: the workspace." },
+      glob: { type: "string", description: "Pattern of files to include." },
       output_mode: {
         type: "string",
         enum: ["files_with_matches", "content", "count"],
-        description: "files_with_matches : les fichiers qui contiennent le motif (défaut). content : les lignes trouvées, numérotées. count : le nombre par fichier.",
+        description: "files_with_matches: the files that contain the pattern (default). content: the lines found, numbered. count: the number per file.",
       },
-      ignore_case: { type: "boolean", description: "Ignorer la casse." },
-      context: { type: "integer", description: "Lignes de contexte avant et après (mode content)." },
-      multiline: { type: "boolean", description: "Le motif peut s'étendre sur plusieurs lignes." },
+      ignore_case: { type: "boolean", description: "Ignore case." },
+      context: { type: "integer", description: "Context lines before and after (content mode)." },
+      multiline: { type: "boolean", description: "The pattern may span several lines." },
     },
     required: ["pattern"],
     additionalProperties: false,
@@ -67,22 +67,22 @@ export const grepTool: Tool<Args> = {
 
     try {
       const r = await run(rgPath, rgArgs, { cwd: ctx.workspace, timeoutMs: 60_000, signal: ctx.signal });
-      if (r.code === 1 && !r.stdout.trim()) return ok(`Aucune correspondance pour /${args.pattern}/ dans ${displayPath(ctx.workspace, root)}.`);
-      if (r.code !== 0 && r.code !== 1) return fail(`ripgrep a échoué (code ${r.code}) : ${r.stderr.trim() || "sans message"}`);
+      if (r.code === 1 && !r.stdout.trim()) return ok(`No match for /${args.pattern}/ in ${displayPath(ctx.workspace, root)}.`);
+      if (r.code !== 0 && r.code !== 1) return fail(`ripgrep failed (code ${r.code}): ${r.stderr.trim() || "no message"}`);
       const lines = r.stdout
         .split(/\r?\n/)
         .filter((l) => l.length > 0)
         .map((l) => shorten(l, ctx.workspace));
-      const more = lines.length > LIMIT_LINES ? `\n[… ${lines.length - LIMIT_LINES} lignes de plus]` : "";
+      const more = lines.length > LIMIT_LINES ? `\n[… ${lines.length - LIMIT_LINES} more lines]` : "";
       return ok(lines.slice(0, LIMIT_LINES).join("\n") + more);
     } catch (e) {
-      return fail(`Grep a échoué : ${errorText(e)}`);
+      return fail(`Grep failed: ${errorText(e)}`);
     }
   },
 };
 
-/* ripgrep imprime les chemins tels qu'on les lui a donnes (absolus) : on les
-   ramene au dossier de travail pour que le modele les reutilise tels quels. */
+/* ripgrep prints the paths as it was given them (absolute): they are
+   brought back to the workspace so the model reuses them as they are. */
 function shorten(line: string, workspace: string): string {
   const drive = /^[A-Za-z]:[\\/]/.test(line) ? line.match(/^([A-Za-z]:[\\/][^:]*)(:.*)?$/) : null;
   if (drive) return displayPath(workspace, drive[1]) + (drive[2] ?? "");

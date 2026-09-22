@@ -6,21 +6,20 @@ import type { Tool } from "../types";
 import { errorText, fail, ok } from "../types";
 
 /* ---------------------------------------------------------------------------
-   Les competences : des consignes reutilisables, en markdown.
+   Skills: reusable instructions, in markdown.
 
-   Une competence est un dossier `<nom>/SKILL.md` avec un en-tete YAML
-   (`name`, `description`). On les cherche, dans l'ordre : le dossier de
-   travail (`.agents/skills`, `skills`), puis le compte (`~/.bytnode-ai/skills`,
-   `~/.agents/skills`). Le prompt systeme en donne la liste ; l'outil Skill
-   rend le corps de celle que le modele veut suivre.
+   A skill is a `<name>/SKILL.md` folder with a YAML front-matter (`name`,
+   `description`). They are looked up, in order: the workspace
+   (`.agents/skills`, `skills`), then the account (`~/.bytnode-ai/skills`,
+   `~/.agents/skills`). The system prompt lists them; the Skill tool returns
+   the body of the one the model wants to follow.
 --------------------------------------------------------------------------- */
 
 export type SkillInfo = { name: string; description: string; path: string };
 
-/** Les competences que VOUS ecrivez, dans `~/.bytnode-ai/skills/` (hors du
-    paquet, qui est remplace a chaque version) : vues par les agents sur
-    OpenRouter, et recopiees dans le dossier de travail des agents par
-    abonnement. */
+/** The skills YOU write, in `~/.bytnode-ai/skills/` (outside the package,
+    which is replaced at every version): seen by the OpenRouter agents, and
+    copied into the workspace of the subscription agents. */
 export const userSkills = () => listSkillsIn(userSkillsDir());
 
 const roots = (workspace: string) => [
@@ -41,7 +40,7 @@ export function parseFrontmatter(md: string): { meta: Record<string, string>; bo
   return { meta, body: md.slice(m[0].length) };
 }
 
-/** Les competences d'un dossier `<root>/<nom>/SKILL.md`. */
+/** The skills of a `<root>/<name>/SKILL.md` folder. */
 export async function listSkillsIn(root: string): Promise<SkillInfo[]> {
   let entries: string[];
   try {
@@ -56,14 +55,14 @@ export async function listSkillsIn(root: string): Promise<SkillInfo[]> {
       const { meta } = parseFrontmatter(await fs.readFile(file, "utf8"));
       out.push({ name: meta.name || dir, description: meta.description ?? "", path: file });
     } catch {
-      /* pas de SKILL.md ici */
+      /* no SKILL.md here */
     }
   }
   return out;
 }
 
-/** Toutes les competences visibles d'un agent : celles de sa profession
-    (passees en `extra`, prioritaires), puis les dossiers generaux. */
+/** Every skill visible to an agent: its profession's (passed as `extra`,
+    which take priority), then the general folders. */
 export async function listSkills(workspace: string, extra: SkillInfo[] = []): Promise<SkillInfo[]> {
   const seen = new Map<string, SkillInfo>();
   for (const s of extra) if (!seen.has(s.name)) seen.set(s.name, s);
@@ -78,10 +77,10 @@ type Args = { name: string };
 export const skillTool: Tool<Args> = {
   name: "Skill",
   description:
-    "Charge une compétence (un mode d'emploi réutilisable) par son nom et rend ses consignes, à suivre pour la tâche en cours. Les compétences disponibles sont listées dans le prompt système.",
+    "Loads a skill (a reusable set of instructions) by its name and returns its instructions, to follow for the current task. The available skills are listed in the system prompt.",
   parameters: {
     type: "object",
-    properties: { name: { type: "string", description: "Le nom de la compétence." } },
+    properties: { name: { type: "string", description: "The name of the skill." } },
     required: ["name"],
     additionalProperties: false,
   },
@@ -91,15 +90,15 @@ export const skillTool: Tool<Args> = {
     if (!skill) {
       return fail(
         skills.length === 0
-          ? "Aucune compétence n'est installée (dossier skills/<nom>/SKILL.md)."
-          : `Compétence « ${args.name} » introuvable. Disponibles : ${skills.map((s) => s.name).join(", ")}.`,
+          ? "No skill is installed (skills/<name>/SKILL.md folder)."
+          : `Skill "${args.name}" not found. Available: ${skills.map((s) => s.name).join(", ")}.`,
       );
     }
     try {
       const { body } = parseFrontmatter(await fs.readFile(skill.path, "utf8"));
-      return ok(`# Compétence : ${skill.name}\n\n${body.trim()}`);
+      return ok(`# Skill: ${skill.name}\n\n${body.trim()}`);
     } catch (e) {
-      return fail(`Impossible de lire ${skill.path} : ${errorText(e)}`);
+      return fail(`Could not read ${skill.path}: ${errorText(e)}`);
     }
   },
 };

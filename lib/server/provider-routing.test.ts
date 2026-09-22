@@ -2,36 +2,36 @@ import { describe, expect, it } from "vitest";
 import { providerRouting } from "./provider-routing";
 
 describe("providerRouting", () => {
-  it("trie par latence et ignore les fournisseurs lents par defaut", () => {
+  it("sorts by latency and ignores slow providers by default", () => {
     const p = providerRouting({});
     expect(p).toEqual({ sort: "latency", ignore: ["parasail"], allow_fallbacks: true });
   });
 
-  it("accepte un autre tri", () => {
+  it("accepts another sort", () => {
     expect(providerRouting({ sort: "throughput" }).sort).toBe("throughput");
     expect(providerRouting({ sort: "price" }).sort).toBe("price");
   });
 
-  it("refuse un tri inconnu et retombe sur la latence", () => {
-    expect(providerRouting({ sort: "n'importe quoi" }).sort).toBe("latency");
+  it("refuses an unknown sort and falls back to latency", () => {
+    expect(providerRouting({ sort: "whatever" }).sort).toBe("latency");
   });
 
-  it("remplace la liste d'exclusions, separateurs et casse libres", () => {
+  it("replaces the exclusion list, separators and casing left free", () => {
     expect(providerRouting({ ignore: "Parasail, DeepInfra ; novita" }).ignore).toEqual(["parasail", "deepinfra", "novita"]);
   });
 
-  it("une liste vide n'ignore personne", () => {
+  it("an empty list ignores no one", () => {
     const p = providerRouting({ ignore: "" });
     expect(p.ignore).toBeUndefined();
   });
 
-  it("un ordre explicite prime et coupe le tri", () => {
+  it("an explicit order takes priority and cuts off the sort", () => {
     const p = providerRouting({ order: "Together, Fireworks" });
     expect(p).toEqual({ order: ["Together", "Fireworks"], ignore: ["parasail"], allow_fallbacks: true });
     expect(p.sort).toBeUndefined();
   });
 
-  it("les replis se desactivent", () => {
+  it("fallbacks can be switched off", () => {
     expect(providerRouting({ fallbacks: "0" }).allow_fallbacks).toBe(false);
     expect(providerRouting({ fallbacks: "false" }).allow_fallbacks).toBe(false);
     expect(providerRouting({ fallbacks: "1" }).allow_fallbacks).toBe(true);

@@ -1,11 +1,11 @@
 /* ---------------------------------------------------------------------------
-   L'assistant de configuration.
+   The setup wizard.
 
-   La feuille est un voile pose au centre du fond, pas une boite de dialogue :
-   les faisceaux passent a travers, assombris. Elle n'entre qu'une fois — un
-   leger fondu qui monte — et c'est le seul mouvement non sollicite de toute
-   l'application. Le passage d'une etape a l'autre est un fondu court, parce
-   que c'est une reponse a un clic.
+   The sheet is a veil laid at the centre of the backdrop, not a dialog box:
+   the beams pass through it, dimmed. It enters only once — a light fade
+   rising — and that is the only unsolicited motion in the whole application.
+   Moving from one step to the next is a short fade, because that is a
+   response to a click.
 --------------------------------------------------------------------------- */
 
 .ob {
@@ -16,22 +16,22 @@
   place-items: center;
   padding: 16px;
   overflow-y: auto;
-  /* Le champ s'assombrit un peu sous la feuille pour qu'elle se detache — le
-     bleu de nuit, jamais du noir. */
+  /* The field darkens a little under the sheet so it stands apart — midnight
+     blue, never black. */
   background: rgba(var(--voile), 0.28);
 }
 
-/* En clair le voile est presque blanc : il faut le poser plus epais pour que
-   la feuille se detache du chat qu'elle recouvre. */
+/* In light mode the veil is almost white: it must be laid thicker so the
+   sheet stands apart from the chat it covers. */
 html[data-theme="light"] .ob {
   background: rgba(var(--voile), 0.55);
 }
 
-/* ⚠️ LA FEUILLE NE DEFILE PAS, C'EST L'OVERLAY QUI DEFILE. Un corps qui
-   defile est aussi un corps qui COUPE : le panneau des fournisseurs, pose en
-   absolu sous son champ, s'y retrouvait tronque et faisait glisser le
-   formulaire de cote pour rester visible. La feuille prend donc toute sa
-   hauteur, et quand elle depasse la fenetre, c'est `.ob` qui defile. */
+/* ⚠️ THE SHEET DOES NOT SCROLL, THE OVERLAY SCROLLS. A body that scrolls is
+   also a body that CLIPS: the providers panel, laid absolute under its
+   field, ended up truncated there and made the form slide sideways to stay
+   visible. The sheet therefore takes its full height, and when it exceeds
+   the window, it is `.ob` that scrolls. */
 .ob-sheet {
   width: min(720px, 100%);
   margin: auto;
@@ -56,7 +56,7 @@ html[data-theme="light"] .ob {
   }
 }
 
-/* --- La tete : la marque, le theme -------------------------------------- */
+/* --- The head: the brand, the theme -------------------------------------- */
 
 .ob-head {
   display: flex;
@@ -108,12 +108,12 @@ html[data-theme="light"] .ob {
   stroke-linejoin: round;
 }
 
-/* --- Les etapes -----------------------------------------------------------
+/* --- The steps --------------------------------------------------------
 
-   Trois mots sur une ligne, et sous chacun un trait. C'est une vraie
-   sequence, donc la barre a le droit d'exister : elle dit ou l'on est et ce
-   qui reste. L'etape faite est en encre, la courante en encre pleine avec son
-   trait, celles a venir en encre attenuee. */
+   Three words on a line, and under each a rule. It's a real sequence, so
+   the bar has earned its place: it says where you are and what's left. The
+   step that's done is in ink, the current one in full ink with its rule,
+   the ones to come in dimmed ink. */
 
 .ob-steps {
   display: grid;
@@ -157,7 +157,7 @@ html[data-theme="light"] .ob {
   color: var(--fg);
 }
 
-/* --- Le corps ------------------------------------------------------------- */
+/* --- The body ------------------------------------------------------------- */
 
 .ob-body {
   padding: 34px 40px 12px;
@@ -209,8 +209,8 @@ html[data-theme="light"] .ob {
   gap: 22px;
 }
 
-/* Le texte de la feuille est un cran sous celui du chat : un formulaire se
-   parcourt, il ne se lit pas comme une reponse. */
+/* The sheet's text sits one notch below the chat's: a form is scanned
+   through, it isn't read like a reply. */
 .ob-form .field-label {
   font-size: 0.8rem;
 }
@@ -246,7 +246,7 @@ html[data-theme="light"] .ob {
   }
 }
 
-/* La cle : le champ, l'oeil dedans, le bouton de verification a cote. */
+/* The key: the field, the eye inside it, the verify button next to it. */
 .ob-key {
   position: relative;
   display: flex;
@@ -302,7 +302,7 @@ html[data-theme="light"] .ob {
   color: rgb(var(--ink-inv));
 }
 
-/* Le champ dossier : le chemin, et le bouton qui ouvre l'explorateur. */
+/* The folder field: the path, and the button that opens the file browser. */
 .folder-field {
   display: flex;
   flex-direction: column;
@@ -327,7 +327,7 @@ html[data-theme="light"] .ob {
   height: 15px;
 }
 
-/* --- Les fichiers du contexte -------------------------------------------- */
+/* --- The context files -------------------------------------------- */
 
 .cf {
   display: flex;
@@ -436,7 +436,7 @@ html[data-theme="light"] .ob {
   color: inherit;
 }
 
-/* --- Le pied -------------------------------------------------------------- */
+/* --- The footer -------------------------------------------------------------- */
 
 .ob-foot {
   display: flex;
@@ -460,7 +460,7 @@ html[data-theme="light"] .ob {
   }
 }
 
-/* --- Un choix a deux reponses -------------------------------------------- */
+/* --- A choice with two answers -------------------------------------------- */
 
 .ob-choice {
   display: grid;
@@ -510,7 +510,7 @@ html[data-theme="light"] .ob {
   line-height: 1.45;
 }
 
-/* --- Une sous-section du formulaire -------------------------------------- */
+/* --- A form sub-section -------------------------------------- */
 
 .ob-sub {
   display: flex;
@@ -536,7 +536,7 @@ html[data-theme="light"] .ob {
   color: var(--fg-muted);
 }
 
-/* --- Authentification : deux onglets ------------------------------------- */
+/* --- Authentication: two tabs ------------------------------------- */
 
 .ob-tabs {
   display: flex;
@@ -569,8 +569,8 @@ html[data-theme="light"] .ob {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
 }
 
-/* Les abonnements : une ligne par editeur, l'etat a gauche, l'action a
-   droite. Un compte connecte porte un trait a gauche. */
+/* Subscriptions: one row per publisher, the state on the left, the action
+   on the right. A connected account carries a rule on the left. */
 
 .subs {
   display: flex;
@@ -624,7 +624,7 @@ html[data-theme="light"] .ob {
   }
 }
 
-/* --- Comptes exchange ------------------------------------------------- */
+/* --- Exchange accounts ------------------------------------------------- */
 
 .xch {
   display: flex;
@@ -721,7 +721,7 @@ html[data-theme="light"] .ob {
   gap: 8px;
 }
 
-/* Le choix des comptes d'un agent. */
+/* The choice of an agent's accounts. */
 .xch-pick {
   display: flex;
   flex-direction: column;

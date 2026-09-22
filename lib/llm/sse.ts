@@ -1,15 +1,15 @@
 /* ---------------------------------------------------------------------------
-   Un lecteur de flux « server-sent events », minimal et incremental.
+   A minimal, incremental « server-sent events » stream reader.
 
-   Le flux arrive par morceaux qui ne respectent pas les lignes : un `data:`
-   peut etre coupe en deux. Le lecteur garde donc le reste non termine d'un
-   appel a l'autre, et ne rend que les lignes completes.
+   The stream arrives in chunks that do not respect lines: a `data:` can be
+   cut in two. The reader therefore keeps the unfinished remainder from one
+   call to the next, and only yields complete lines.
 --------------------------------------------------------------------------- */
 
 export type SseParser = {
-  /** Donne un morceau de texte ; rend les charges utiles completes. */
+  /** Feed a chunk of text; yields the complete payloads. */
   feed(chunk: string): string[];
-  /** Vrai des que `data: [DONE]` a ete lu. */
+  /** True as soon as `data: [DONE]` has been read. */
   readonly done: boolean;
 };
 
@@ -41,27 +41,27 @@ export function createSseParser(): SseParser {
 
 export type ToolCallFragment = { index: number; id?: string; name?: string; args?: string };
 
-/** Ce qu'un tour a coute : jetons d'entree et de sortie, prix si le
-    fournisseur le donne. OpenRouter l'envoie dans le dernier morceau du
-    flux quand on le demande (`usage: { include: true }`). */
+/** What a turn cost: input and output tokens, price if the provider gives
+    it. OpenRouter sends it in the last chunk of the stream when asked
+    (`usage: { include: true }`). */
 export type Usage = { input?: number; output?: number; cost?: number };
 
 export type Delta = {
   text: string;
-  /** Les jetons de raisonnement, quand le modele les expose (effort). */
+  /** The reasoning tokens, when the model exposes them (effort). */
   thought?: string;
   error?: string;
   toolCalls?: ToolCallFragment[];
   finish?: string;
   usage?: Usage;
-  /** Le fournisseur qui a servi la reponse — utile quand une latence
-      surprend (voir `lib/server/provider-routing.ts`). */
+  /** The provider that served the reply — useful when a latency surprises
+      (see `lib/server/provider-routing.ts`). */
   provider?: string;
 };
 
-/** Lit un morceau de completion OpenRouter (format OpenAI) : le texte ajoute,
-    les fragments d'appels d'outils, la raison de fin, ou l'erreur que le
-    service peut envoyer au milieu du flux. */
+/** Reads an OpenRouter completion chunk (OpenAI format): the added text,
+    the tool call fragments, the finish reason, or the error the service
+    may send mid-stream. */
 export function extractDelta(payload: string): Delta {
   let json: unknown;
   try {
@@ -85,7 +85,7 @@ export function extractDelta(payload: string): Delta {
     usage?: { prompt_tokens?: unknown; completion_tokens?: unknown; cost?: unknown };
   };
   if (obj.error) {
-    const message = typeof obj.error.message === "string" ? obj.error.message : "Erreur du fournisseur";
+    const message = typeof obj.error.message === "string" ? obj.error.message : "Provider error";
     return { text: "", error: message };
   }
   const choice = obj.choices?.[0];

@@ -1,12 +1,11 @@
 /* ---------------------------------------------------------------------------
-   Le panneau de reglages.
+   The settings panel.
 
-   Un bloc pose sur le voile (`.ob`, partage avec l'assistant) : une colonne
-   de navigation a gauche, le contenu a droite, qui defile seul. Chaque
-   reglage est une LIGNE — le libelle et son aide a gauche, le controle a
-   droite — separee de la suivante par un filet ; le titre de section
-   regroupe. Aucune carte : la structure est portee par les filets, pas par
-   des boites.
+   A block laid on the veil (`.ob`, shared with the assistant): a navigation
+   column on the left, the content on the right, which scrolls on its own.
+   Each setting is a ROW — the label and its hint on the left, the control on
+   the right — separated from the next by a rule; the section title groups
+   them. No cards: the structure is carried by rules, not by boxes.
 --------------------------------------------------------------------------- */
 
 .st-veil {
@@ -22,13 +21,13 @@
   margin: auto;
   display: grid;
   grid-template-columns: 220px 1fr;
-  /* ⚠️ `minmax(0, 1fr)` et non `auto` : une piste `auto` grandit a la
-     hauteur du contenu et deborde du panneau — la colonne ne defilait pas,
-     le bas etait coupe. Bornee, c'est `.st-main` qui defile. */
+  /* ⚠️ `minmax(0, 1fr)`, not `auto`: an `auto` track grows to the content's
+     height and overflows the panel — the column did not scroll, the bottom
+     was cut off. Bounded, it is `.st-main` that scrolls. */
   grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
   border-radius: 18px;
-  /* Opaque : on regle, on ne regarde pas le chat a travers. */
+  /* Opaque: you're adjusting settings, not looking at the chat through it. */
   background: rgb(var(--voile));
   border: 1px solid var(--line-strong);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
@@ -87,16 +86,16 @@
   outline-offset: 2px;
 }
 
-/* --- Contenu ---------------------------------------------------------------- */
+/* --- Content ---------------------------------------------------------------- */
 
 .st-main {
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
-  /* L'ascenseur du systeme (gris, avec ses fleches) jurait contre le bord
-     arrondi : un curseur fin, dans l'encre, sur une piste invisible. La
-     gouttiere reste reservee pour que le contenu ne saute pas d'un onglet
-     court a un onglet long. */
+  /* The system scrollbar (grey, with its arrows) clashed with the rounded
+     edge: a thin cursor, in ink, on an invisible track. The gutter stays
+     reserved so the content doesn't jump when moving from a short tab to a
+     long one. */
   scrollbar-width: thin;
   scrollbar-color: rgba(var(--ink), 0.22) transparent;
   scrollbar-gutter: stable;
@@ -221,13 +220,13 @@
   min-height: 110px;
 }
 
-/* Les formulaires repris de l'onboarding (cles, exchanges, agent) gardent
-   leur grammaire, sous un titre de section. */
+/* The forms carried over from onboarding (keys, exchanges, agent) keep
+   their grammar, under a section title. */
 .st-form {
   padding-top: 14px;
 }
 
-/* Deux positions, clair / sombre. */
+/* Two positions, light / dark. */
 .st-seg {
   display: inline-flex;
   padding: 3px;
@@ -359,8 +358,8 @@
   height: 14px;
 }
 
-/* Le formulaire d'agent vient de l'onboarding : son titre y est grand, ici
-   il prend la taille des autres onglets. */
+/* The agent form comes from onboarding: its title is large there; here it
+   takes the size of the other tabs. */
 .st-agent-form .ob-title {
   font-size: 1.45rem;
 }
@@ -379,7 +378,7 @@
   border-top: 1px solid var(--line);
 }
 
-/* --- Fournisseurs ------------------------------------------------------------ */
+/* --- Providers ------------------------------------------------------------ */
 
 .st-section .subs,
 .st-section > .sub {
@@ -391,7 +390,7 @@
   font-size: 0.76rem;
 }
 
-/* --- Etroit ------------------------------------------------------------------ */
+/* --- Narrow ------------------------------------------------------------------ */
 
 @media (max-width: 720px) {
   .st {

@@ -1,49 +1,49 @@
 ---
 name: trade-review
-description: À ouvrir pour analyser des positions ouvertes ou un historique de trades sur un compte exchange — les lectures à faire, les seuils d'alerte (liquidation, funding, concentration), le gabarit de revue, et comment tracer l'historique
+description: Open this to analyse open positions or a trade history on an exchange account — the readings to take, the alert thresholds (liquidation, funding, concentration), the review template, and how to chart the history
 ---
 
-# Revoir des positions et des trades
+# Reviewing positions and trades
 
-Analyser n'engage rien : les outils de lecture ne demandent pas de permission. Mais une revue qui rate une liquidation à 4 % ou qui annonce un PnL de tête ne vaut rien. La méthode :
+Analysing commits nothing: the read-only tools ask no permission. But a review that misses a liquidation at 4% or announces a PnL from the top of your head is worthless. The method:
 
-## Positions ouvertes
+## Open positions
 
-1. `ExchangePositions` (compte, éventuellement `symbol`) : côté, taille, entrée, mark, PnL latent, levier, liquidation.
-2. `ExchangeTicker` en `market: futures` sur chaque paire : funding courant et prochain funding — un long paie le funding positif, un short le reçoit.
-3. `ExchangeBalance` en `market: futures` : la marge libre, c'est la distance au premier appel de marge sur l'ensemble du compte.
+1. `ExchangePositions` (account, optionally `symbol`): side, size, entry, mark, unrealised PnL, leverage, liquidation.
+2. `ExchangeTicker` with `market: futures` on each pair: current funding and next funding — a long pays positive funding, a short receives it.
+3. `ExchangeBalance` with `market: futures`: free margin is the distance to the first margin call across the whole account.
 
-**Seuils à signaler d'office** (en tête de réponse, pas en note de bas de page) :
-- distance à la liquidation **< 10 %** : alerte ; **< 5 %** : urgence, propose `ClosePosition` partiel ou un ajout de marge (`Transfer` spot → futures) — l'utilisateur décide ;
-- funding annualisé supérieur au gain latent attendu ;
-- une paire qui pèse plus de la moitié de l'exposition notionnelle du compte ;
-- une position sans ordre de protection en attente (`ExchangeOrders status: open`, cherche un `stop` opposé au côté).
+**Thresholds to flag unprompted** (at the top of the answer, not in a footnote):
+- distance to liquidation **< 10%**: alert; **< 5%**: urgent, propose a partial `ClosePosition` or a margin top-up (`Transfer` spot → futures) — the user decides;
+- annualised funding higher than the expected unrealised gain;
+- one pair weighing more than half of the account's notional exposure;
+- a position with no protective order pending (`ExchangeOrders status: open`, look for a `stop` opposite to the side).
 
-Pour **suivre** une position pendant quelques minutes : `ExchangeWatch` avec `until` (`liq<5%`, `pnl<-50`, `price>=…`). Il s'arrête tout seul au bout de 10 minutes ; relance-le si l'utilisateur veut continuer.
+To **follow** a position for a few minutes: `ExchangeWatch` with `until` (`liq<5%`, `pnl<-50`, `price>=…`). It stops by itself after 10 minutes; relaunch it if the user wants to continue.
 
-## Historique
+## History
 
-1. `ExchangeOrders` avec `status: "closed"`, une paire à la fois si l'exchange l'exige, `since` pour la période, `limit` jusqu'à 200.
-2. Pour plus de quelques dizaines de lignes, écris-les en CSV dans le dossier de travail (`Write`, colonnes `date,symbol,side,type,amount,price,average,filled,fee,fee_currency,status`) puis `Chart` pour tracer (courbe de PnL cumulé, répartition des fills).
-3. Les métriques, toutes **calculées en exécutant** (compétence `calcul-verifie`) : PnL réalisé par période et par paire, frais totaux, nombre de trades, taux de gain, gain moyen / perte moyenne, plus grosse perte, drawdown de la courbe cumulée.
+1. `ExchangeOrders` with `status: "closed"`, one pair at a time if the exchange requires it, `since` for the period, `limit` up to 200.
+2. For more than a few dozen rows, write them to a CSV in the workspace (`Write`, columns `date,symbol,side,type,amount,price,average,filled,fee,fee_currency,status`) then `Chart` to plot (cumulative PnL curve, distribution of fills).
+3. The metrics, all **computed by executing** (skill `calcul-verifie`): realised PnL by period and by pair, total fees, number of trades, win rate, average win / average loss, largest loss, drawdown of the cumulative curve.
 
-## Gabarit de revue
+## Review template
 
 ```
-Compte : <label> (<exchange>, RÉEL | testnet) — <date/heure de lecture>
+Account: <label> (<exchange>, LIVE | testnet) — <reading date/time>
 
-Alertes : <ce qui dépasse un seuil, ou « aucune »>
+Alerts: <what exceeds a threshold, or "none">
 
 Positions
-<paire> · <LONG/SHORT taille> · entrée <p> · mark <p> · PnL <±x (±y %)> · ×<levier> · liquidation <p> (<d %>) · funding <r %> (prochain <heure>)
+<pair> · <LONG/SHORT size> · entry <p> · mark <p> · PnL <±x (±y%)> · ×<leverage> · liquidation <p> (<d%>) · funding <r%> (next <time>)
 
-Marge libre : <x USDT> · Exposition notionnelle : <x USDT> (<paire> = <y %>)
+Free margin: <x USDT> · Notional exposure: <x USDT> (<pair> = <y%>)
 
-Historique <période>
-<n> trades · PnL réalisé <±x> · frais <x> · gain <y %> · pire trade <±x> · drawdown <x %>
-[graphique]
+History <period>
+<n> trades · realised PnL <±x> · fees <x> · win rate <y%> · worst trade <±x> · drawdown <x%>
+[chart]
 
-Lecture : <trois phrases au plus — ce qui va, ce qui inquiète, ce que tu proposes ; les décisions sont celles de l'utilisateur>
+Reading: <three sentences at most — what is fine, what is worrying, what you propose; the decisions are the user's>
 ```
 
-Un chiffre = une lecture d'outil ou un calcul exécuté. Si une donnée manque (l'exchange ne publie pas la liquidation, l'historique est tronqué), dis-le au lieu de compléter.
+One number = one tool reading or one executed calculation. If a piece of data is missing (the exchange does not publish the liquidation, the history is truncated), say so instead of filling it in.

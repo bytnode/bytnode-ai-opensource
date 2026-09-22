@@ -1,48 +1,48 @@
 ---
 name: rapport-analyse
-description: Le gabarit d'un rapport d'analyse complet — synthèse, données, lecture multi-horizon, macro, scénarios, confiance — à produire quand une analyse est explicitement demandée
+description: The template of a complete analysis report — synthesis, data, multi-horizon reading, macro, scenarios, confidence — to produce when an analysis is explicitly requested
 ---
 
-# Rapport d'analyse
+# Analysis report
 
-À utiliser quand on te demande *une analyse* (pas un simple point de marché). Une page, structurée, chaque section utile. S'il faut l'écrire dans un fichier, `rapport-<actif>-<date>.md` dans le dossier de travail.
+To use when you are asked for *an analysis* (not a simple market update). One page, structured, every section useful. If it must be written to a file, `rapport-<asset>-<date>.md` in the workspace.
 
-## Gabarit
+## Template
 
 ```
-# <Actif> — analyse du <date, heure UTC>
+# <Asset> — analysis of <date, time UTC>
 
-## Synthèse
-Trois phrases : le régime, le fait dominant, le scénario principal avec son invalidation.
-Confiance globale : faible / modérée / élevée — et pourquoi en une phrase.
+## Synthesis
+Three sentences: the regime, the dominant fact, the main scenario with its invalidation.
+Overall confidence: low / moderate / high — and why, in one sentence.
 
-## Données (BytNode, <heure>)
-Tableau : prix, var 24 h / 7 j / 30 j, volume vs moyenne 30 j, funding, OI (+var 7 j),
-liquidations 24 h, flux ETF 7 j (si dispo), sentiment. Une ligne par donnée, avec unité.
+## Data (BytNode, <time>)
+Table: price, 24h / 7d / 30d change, volume vs 30d average, funding, OI (+7d change),
+24h liquidations, 7d ETF flows (if available), sentiment. One row per data point, with unit.
 
-## Tendance par horizon
-Le tableau de `analyse-tendance` (structure / position / impulsion / participation / verdict)
-et le paragraphe d'alignement et de divergences.
+## Trend by horizon
+The table from `analyse-tendance` (structure / position / impulse / participation / verdict)
+and the alignment and divergences paragraph.
 
-## Contexte macro
-La synthèse en trois lignes de `contexte-macro` + le lien explicite avec l'actif.
-Calendrier des 7 jours.
+## Macro context
+The three-line synthesis from `contexte-macro` + the explicit link with the asset.
+7-day calendar.
 
-## Scénarios
-S1 (probabilité qualitative) : condition → développement → invalidation.
-S2 : …
-S3 (si pertinent) : …
-Ce qui départagera dans les 24–72 h.
+## Scenarios
+S1 (qualitative probability): condition → development → invalidation.
+S2: …
+S3 (if relevant): …
+What will decide between them in the next 24–72h.
 
-## Limites
-Ce que les données ne permettent pas de dire ; ce qui manque ; ce qui est contradictoire.
+## Limits
+What the data does not allow one to say; what is missing; what is contradictory.
 ```
 
-## Règles d'écriture
+## Writing rules
 
-- **Observation puis interprétation**, toujours dans cet ordre et distinguées : « OI +8 % en 3 j (observation) ; le mouvement est alimenté par des positions neuves (interprétation) ».
-- **Chaque chiffre** : valeur, unité, date, source.
-- **Pas de cible de prix.** Des niveaux (range, invalidation) et des conditions.
-- **La synthèse se suffit** : quelqu'un qui ne lit qu'elle a l'essentiel et le niveau de confiance.
-- **Une page.** Si le rapport dépasse, c'est qu'une section délaye. Coupe.
-- Date le rapport en UTC dans le titre ; les marchés crypto ne ferment pas, « aujourd'hui » ne suffit pas.
+- **Observation then interpretation**, always in that order and distinguished: "OI +8% in 3d (observation); the move is fuelled by fresh positions (interpretation)".
+- **Every number**: value, unit, date, source.
+- **No price target.** Levels (range, invalidation) and conditions.
+- **The synthesis stands alone**: someone who reads only it has the essentials and the confidence level.
+- **One page.** If the report runs over, a section is padding. Cut.
+- Date the report in UTC in the title; crypto markets do not close, "today" is not enough.

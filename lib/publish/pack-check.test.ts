@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { containing, forbiddenPaths, isTextFile, leakedSecrets } from "./pack-check";
 
 describe("forbiddenPaths", () => {
-  it("refuse les fichiers d'environnement, les donnees et les cles MCP", () => {
+  it("refuses environment files, data and MCP keys", () => {
     expect(forbiddenPaths([".env.local", "workspaces/a/x.txt", "sandboxes/b", ".mcp.json", "scratchpad/t.mts", "lib/.env"])).toEqual([
       ".env.local",
       "workspaces/a/x.txt",
@@ -12,13 +12,13 @@ describe("forbiddenPaths", () => {
       "lib/.env",
     ]);
   });
-  it("laisse passer le paquet", () => {
+  it("lets the package through", () => {
     expect(forbiddenPaths(["bin/bytnode-ai.mjs", ".next/BUILD_ID", "lib/mcp/finance-server.ts", "professions/standard/PROMPT.md", "README.md"])).toEqual([]);
   });
 });
 
 describe("leakedSecrets", () => {
-  it("nomme les fichiers qui contiennent une cle", () => {
+  it("names the files that contain a key", () => {
     const files = [
       { path: "lib/a.ts", text: "const k = 'cb_live_abcdefghijklmnop';" },
       { path: "lib/b.ts", text: "fetch(url, { headers: { Authorization: 'Bearer sk-or-v1-0123456789abcdef' } })" },
@@ -29,7 +29,7 @@ describe("leakedSecrets", () => {
 });
 
 describe("isTextFile", () => {
-  it("ne lit que le texte", () => {
+  it("only reads text", () => {
     expect(isTextFile("lib/a.ts")).toBe(true);
     expect(isTextFile(".next/static/chunks/x.js")).toBe(true);
     expect(isTextFile("professions/x/image.png")).toBe(false);
@@ -37,17 +37,17 @@ describe("isTextFile", () => {
 });
 
 describe("containing", () => {
-  it("nomme les fichiers qui citent la machine de build, sous les deux ecritures", () => {
+  it("names the files that cite the build machine, in both spellings", () => {
     const root = String.raw`C:\Users\x\proj`;
     const rootJson = JSON.stringify(root).slice(1, -1); // C:\\Users\\x\\proj
     const files = [
       { path: ".next/required-server-files.json", text: `{"appDir":"${rootJson}"}` },
       { path: ".next/a.js", text: root },
-      { path: "lib/b.ts", text: "rien" },
+      { path: "lib/b.ts", text: "nothing" },
     ];
     expect(containing(files, [root, rootJson])).toEqual([".next/required-server-files.json", ".next/a.js"]);
   });
-  it("ignore une aiguille vide", () => {
+  it("ignores an empty needle", () => {
     expect(containing([{ path: "a", text: "abc" }], [""])).toEqual([]);
   });
 });

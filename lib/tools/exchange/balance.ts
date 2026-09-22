@@ -5,13 +5,13 @@ import { exchangeInfo } from "./catalog";
 import { ACCOUNT_PROP, MARKET_PROP, attempt, resolve, type BaseArgs } from "./common";
 import { formatBalance, type BalanceRow } from "./format";
 
-/* ExchangeBalance : les soldes d'un compte, avec une estimation en USD
-   quand l'exchange cote l'actif contre USDT. Lecture seule.
+/* ExchangeBalance: an account's balances, with a USD estimate when the
+   exchange quotes the asset against USDT. Read-only.
 
-   ⚠️ LE PORTEFEUILLE FUNDING EST LU A PART. Sur Bybit, OKX ou KuCoin, un
-   depot n'arrive pas sur le compte de trading mais dans un portefeuille
-   separe : « connecte, aucun solde » alors qu'il y a 40 USDC sur le compte.
-   On le lit aussi, et on dit ou sont les fonds. */
+   ⚠️ THE FUNDING WALLET IS READ SEPARATELY. On Bybit, OKX or KuCoin, a
+   deposit does not land on the trading account but in a separate wallet:
+   "connected, no balance" while there are 40 USDC on the account. We read
+   it too, and say where the funds are. */
 
 const STABLES = new Set(["USDT", "USDC", "USD", "FDUSD", "BUSD", "DAI", "TUSD", "USDE"]);
 
@@ -22,9 +22,9 @@ export const rowsOf = (b: Balances): BalanceRow[] =>
     .filter(([, total]) => typeof total === "number" && total > 0)
     .map(([asset, total]) => ({ asset, total, free: b.free?.[asset] ?? 0, used: b.used?.[asset] ?? 0 }));
 
-/** Le portefeuille Funding de cet exchange, s'il en a un distinct du
-    trading ; `undefined` sinon, ou si sa lecture echoue (la cle peut ne pas
-    avoir le droit « transfert » qu'exige Bybit pour le lire). */
+/** This exchange's Funding wallet, if it has one distinct from trading;
+    `undefined` otherwise, or if reading it fails (the key may lack the
+    "transfer" permission Bybit requires to read it). */
 export async function fundingRows(ex: Exchange, exchange: string): Promise<BalanceRow[] | undefined> {
   const wallet = exchangeInfo(exchange)?.funding;
   if (!wallet) return undefined;
@@ -37,7 +37,7 @@ export async function fundingRows(ex: Exchange, exchange: string): Promise<Balan
 
 export const balanceTool: Tool<BaseArgs> = {
   name: "ExchangeBalance",
-  description: "Les soldes d'un compte exchange (spot ou futures) : par actif, libre / bloqué, et une estimation en USD. Lecture seule, sans permission.",
+  description: "The balances of an exchange account (spot or futures): per asset, free / locked, and a USD estimate. Read-only, no permission needed.",
   parameters: { type: "object", properties: { account: ACCOUNT_PROP, market: MARKET_PROP }, additionalProperties: false },
   async execute(args, ctx) {
     const r = await resolve(args, ctx);
@@ -52,7 +52,7 @@ export const balanceTool: Tool<BaseArgs> = {
         try {
           prices = (await r.ex.fetchTickers(quoted)) as Record<string, { last?: number }>;
         } catch {
-          /* pas de prix : on affiche sans estimation */
+          /* no prices: shown without an estimate */
         }
       }
       for (const row of all) {

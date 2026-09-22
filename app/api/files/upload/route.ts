@@ -4,23 +4,23 @@ import { resolveWorkspace } from "@/lib/server/workspace";
 import { isImageName, safeFileName, type Attachment } from "@/lib/agent/attachments";
 
 /* ---------------------------------------------------------------------------
-   Deposer des fichiers dans le dossier de travail de l'agent.
+   Drop files into the agent's workspace.
 
-   Le navigateur ne peut pas ecrire sur le disque ; il envoie donc le contenu
-   en base64 et c'est le serveur — qui tourne sur la machine de
-   l'utilisateur — qui ecrit, dans `entrees/` du dossier de travail. L'agent
-   les lit ensuite avec ses outils, comme n'importe quel fichier : rien ne
-   passe par le contexte du modele, sauf les images.
+   The browser cannot write to the disk; so it sends the content in base64
+   and the server — which runs on the user's machine — does the writing,
+   into `entrees/` in the workspace. The agent then reads them with its
+   tools, like any other file: nothing goes through the model's context,
+   except the images.
 
-   Le nom est assaini (`safeFileName`) et le chemin final verifie : un nom
-   ne doit jamais faire sortir du dossier.
+   The name is sanitised (`safeFileName`) and the final path checked: a
+   name must never lead outside the folder.
 --------------------------------------------------------------------------- */
 
 const ENTREES = "entrees";
 const MAX_FILE = 25 * 1024 * 1024;
 const MAX_TOTAL = 60 * 1024 * 1024;
-/** Ce qu'on montre au modele : au-dela, l'image reste sur le disque mais
-    n'est pas jointe au message (le fil vit dans localStorage). */
+/** What we show the model: beyond this, the image stays on the disk but is
+    not attached to the message (the thread lives in localStorage). */
 const MAX_INLINE_IMAGE = 700 * 1024;
 
 type Entree = { name?: unknown; content?: unknown; type?: unknown };
@@ -30,10 +30,10 @@ export async function POST(req: Request) {
   try {
     body = (await req.json()) as typeof body;
   } catch {
-    return Response.json({ error: { message: "Corps de requête illisible." } }, { status: 400 });
+    return Response.json({ error: { message: "Unreadable request body." } }, { status: 400 });
   }
   const entrees = Array.isArray(body.files) ? body.files : [];
-  if (entrees.length === 0) return Response.json({ error: { message: "Aucun fichier." } }, { status: 400 });
+  if (entrees.length === 0) return Response.json({ error: { message: "No file." } }, { status: 400 });
 
   const workspace = await resolveWorkspace(body.agentId ?? "", body.workspace ?? "");
   const dir = path.join(workspace, ENTREES);
@@ -45,14 +45,14 @@ export async function POST(req: Request) {
     if (typeof e.name !== "string" || typeof e.content !== "string") continue;
     const buf = Buffer.from(e.content, "base64");
     if (buf.length === 0) continue;
-    if (buf.length > MAX_FILE) return Response.json({ error: { message: `${e.name} dépasse 25 Mo.` } }, { status: 413 });
+    if (buf.length > MAX_FILE) return Response.json({ error: { message: `${e.name} exceeds 25 MB.` } }, { status: 413 });
     total += buf.length;
-    if (total > MAX_TOTAL) return Response.json({ error: { message: "Plus de 60 Mo en une fois : envoyez-les en plusieurs fois." } }, { status: 413 });
+    if (total > MAX_TOTAL) return Response.json({ error: { message: "More than 60 MB at once: send them in several batches." } }, { status: 413 });
 
     const name = uniqueName(dir, safeFileName(e.name), out);
     const target = path.join(dir, name);
     if (path.dirname(path.resolve(target)) !== path.resolve(dir)) {
-      return Response.json({ error: { message: "Nom de fichier refusé." } }, { status: 400 });
+      return Response.json({ error: { message: "File name rejected." } }, { status: 400 });
     }
     await fs.writeFile(target, buf);
     const image = isImageName(name);
@@ -66,11 +66,11 @@ export async function POST(req: Request) {
         : {}),
     });
   }
-  if (out.length === 0) return Response.json({ error: { message: "Rien à enregistrer." } }, { status: 400 });
+  if (out.length === 0) return Response.json({ error: { message: "Nothing to save." } }, { status: 400 });
   return Response.json({ workspace, attachments: out });
 }
 
-/** Ne pas ecraser : `donnees.csv`, `donnees-2.csv`… */
+/** Never overwrite: `data.csv`, `data-2.csv`… */
 function uniqueName(dir: string, name: string, deja: Attachment[]): string {
   const prises = new Set(deja.map((a) => a.name));
   if (!prises.has(name)) return name;
