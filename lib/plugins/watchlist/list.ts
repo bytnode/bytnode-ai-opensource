@@ -1,10 +1,10 @@
-import { toSymbol } from "@/lib/tools/exchange/symbols";
+import { normalizeSymbol } from "../shared/quote";
 
 /* ---------------------------------------------------------------------------
    The watchlist: the assets the user follows, one list for the whole app.
 
-   Every symbol is normalized so that "btc", "BTC/USDT" and "BTCUSDT" are
-   the same entry: a bare asset is quoted in USDT, the market's reference.
+   Every symbol is normalized (`normalizeSymbol`) so that "btc", "BTC/USDT"
+   and "BTCUSDT" are the same entry.
    Pure, tested.
 --------------------------------------------------------------------------- */
 
@@ -15,14 +15,6 @@ export type Watchlist = { items: WatchItem[] };
 export const EMPTY: Watchlist = { items: [] };
 
 const MAX_ITEMS = 100;
-
-/** A symbol in its one form, or null when it cannot be one. */
-export function normalizeSymbol(raw: string): string | null {
-  const t = raw.trim().toUpperCase();
-  if (!/^[A-Z0-9]{2,15}([/-]?[A-Z0-9]{2,10})?(:[A-Z0-9]+)?$/.test(t)) return null;
-  const pair = toSymbol(t.replace("-", "/"), "spot");
-  return pair.includes("/") ? pair : `${pair}/USDT`;
-}
 
 export type EditResult = { list: Watchlist; added: string[]; removed: string[]; invalid: string[] };
 

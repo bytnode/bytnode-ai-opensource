@@ -1,3 +1,5 @@
+import { toSymbol } from "@/lib/tools/exchange/symbols";
+
 /* ---------------------------------------------------------------------------
    A price, as the plugins use it: the last price of a pair, its changes
    over a few windows, where it comes from and when it was read.
@@ -26,6 +28,16 @@ const num = (v: unknown): number | undefined => (typeof v === "number" && Number
 
 /** `BTC/USDT` → `BTCUSDT` (BytNode's form). */
 export const bytnodeSymbol = (symbol: string): string => symbol.replace("/", "").replace(/:.*$/, "").toUpperCase();
+
+/** A symbol in its one form — `BTC/USDT` for "btc", "BTCUSDT", "btc-usdt":
+    a bare asset is quoted in USDT, the market's reference — or null when
+    it cannot be one. */
+export function normalizeSymbol(raw: string): string | null {
+  const t = raw.trim().toUpperCase();
+  if (!/^[A-Z0-9]{2,15}([/-]?[A-Z0-9]{2,10})?(:[A-Z0-9]+)?$/.test(t)) return null;
+  const pair = toSymbol(t.replace("-", "/"), "spot");
+  return pair.includes("/") ? pair : `${pair}/USDT`;
+}
 
 /** The base asset of a pair: `BTC/USDT` → `BTC`. */
 export const baseOf = (symbol: string): string => symbol.split("/")[0].toUpperCase();

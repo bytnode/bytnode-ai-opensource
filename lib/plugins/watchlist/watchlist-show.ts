@@ -3,7 +3,8 @@ import { ok } from "@/lib/tools/types";
 import { tableCard } from "../shared/cards";
 import { n8, signedPct } from "../shared/format";
 import { isQuote, quotes } from "../shared/prices";
-import { normalizeSymbol, type WatchItem } from "./list";
+import { normalizeSymbol } from "../shared/quote";
+import type { WatchItem } from "./list";
 
 /* WatchlistShow: the list, priced — BytNode first, the exchange otherwise,
    each figure with its source and its time. */

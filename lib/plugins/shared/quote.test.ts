@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { baseOf, bytnodeSymbol, readFunding, readPriceChange } from "./quote";
+import { baseOf, bytnodeSymbol, normalizeSymbol, readFunding, readPriceChange } from "./quote";
 import { CURRENCIES, fromUsd, fxPair, isCurrency, unitsPerUsd } from "./fx";
 
 const now = new Date("2026-09-23T12:00:00Z");
@@ -62,5 +62,21 @@ describe("fx", () => {
     expect(unitsPerUsd("EUR", 1.25)).toBe(0.8);
     expect(unitsPerUsd("CHF", 0.82)).toBe(0.82);
     expect(fromUsd(1000, 0.8)).toBe(800);
+  });
+});
+
+describe("normalizeSymbol", () => {
+  it("btc, BTC/USDT and BTCUSDT are the same entry", () => {
+    for (const raw of ["btc", "BTC", "BTC/USDT", "btcusdt", "BTC-USDT", " btc/usdt "]) expect(normalizeSymbol(raw)).toBe("BTC/USDT");
+  });
+
+  it("keeps an explicit quote and drops a perpetual suffix", () => {
+    expect(normalizeSymbol("ETH/BTC")).toBe("ETH/BTC");
+    expect(normalizeSymbol("SOLUSDC")).toBe("SOL/USDC");
+    expect(normalizeSymbol("BTC/USDT:USDT")).toBe("BTC/USDT");
+  });
+
+  it("refuses what is not a symbol", () => {
+    for (const raw of ["", "b", "BTC USDT please", "../etc", "<script>"]) expect(normalizeSymbol(raw)).toBeNull();
   });
 });

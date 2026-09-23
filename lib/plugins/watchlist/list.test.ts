@@ -1,23 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { EMPTY, editWatchlist, normalizeSymbol, watchlistPrompt } from "./list";
+import { EMPTY, editWatchlist, watchlistPrompt } from "./list";
 
 const now = new Date("2026-09-23T10:00:00Z");
-
-describe("normalizeSymbol", () => {
-  it("btc, BTC/USDT and BTCUSDT are the same entry", () => {
-    for (const raw of ["btc", "BTC", "BTC/USDT", "btcusdt", "BTC-USDT", " btc/usdt "]) expect(normalizeSymbol(raw)).toBe("BTC/USDT");
-  });
-
-  it("keeps an explicit quote and drops a perpetual suffix", () => {
-    expect(normalizeSymbol("ETH/BTC")).toBe("ETH/BTC");
-    expect(normalizeSymbol("SOLUSDC")).toBe("SOL/USDC");
-    expect(normalizeSymbol("BTC/USDT:USDT")).toBe("BTC/USDT");
-  });
-
-  it("refuses what is not a symbol", () => {
-    for (const raw of ["", "b", "BTC USDT please", "../etc", "<script>"]) expect(normalizeSymbol(raw)).toBeNull();
-  });
-});
 
 describe("editWatchlist", () => {
   it("adds once, updates the note, removes", () => {
