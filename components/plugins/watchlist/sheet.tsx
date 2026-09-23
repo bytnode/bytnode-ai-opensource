@@ -1,35 +1,43 @@
 "use client";
 
 import { useState } from "react";
+import { INTERVALS, type Candle, type Interval } from "@/lib/plugins/shared/candle";
 import { WINDOWS, changeOf, heatOf, type Window } from "@/lib/plugins/watchlist/heat";
 import { Pencil, Refresh, Trash } from "@/components/ui/icons";
-import { fmt } from "../bits";
-import { dateOf, moveOf, pairOf, pct, sourceName, timeOf, type Row } from "./format";
+import { Segmented } from "@/components/ui/segmented";
+import { dateOf, moveOf, pairOf, pct, priceText, sourceName, timeOf, type Row } from "./format";
 import { HeatMap } from "./heat-map";
+import { PriceChart } from "./price-chart";
 
-/* The right sheet: the chosen asset — its name in BytNode's ink, its
-   note (edited in place), its price large and its move over the chosen
-   window — then its four windows side by side as one row of tiles, and
-   under them every asset of the list as a heat map. The state of the
-   prices and the two actions (read again, remove) sit discreetly in the
-   corner, like the calendar's collection. */
+/* The right sheet, top to bottom: the chosen asset's name in BytNode's
+   ink and its note (edited in place); one row of figures — the price,
+   live, and its move, then the four windows as one row of small tiles;
+   the chart, which takes the room left; and, when the list has more than
+   one asset, the heat map, in tiles of a fixed size. The state of the
+   prices and the two actions sit discreetly in the corner, like the
+   calendar's collection. */
 
 type Props = {
   rows: Row[] | null;
   asset: Row | null;
+  live: boolean;
   win: Window;
+  interval: Interval;
+  candles: Candle[] | null;
+  chartMessage: string | null;
   loading: boolean;
   problem: string | null;
   onWindow: (w: Window) => void;
+  onInterval: (i: Interval) => void;
   onPick: (symbol: string) => void;
   onReload: () => void;
   onRemove: (symbol: string) => void;
   onNote: (symbol: string, note: string) => void;
 };
 
-export function Sheet({ rows, asset, win, loading, problem, onWindow, onPick, onReload, onRemove, onNote }: Props) {
-  const stamps = (rows ?? []).flatMap((r) => (r.quote ? [r.quote.at] : [])).sort();
-  const status = loading ? "Updating…" : stamps.length ? `Updated ${timeOf(stamps[stamps.length - 1])}` : rows ? "No price yet" : "Loading…";
+export function Sheet({ rows, asset, live, win, interval, candles, chartMessage, loading, problem, onWindow, onInterval, onPick, onReload, onRemove, onNote }: Props) {
+  const at = asset?.quote?.at;
+  const status = loading ? "Loading…" : at ? `${live ? "Live" : "Updated"} ${new Date(at).toLocaleTimeString("en-GB")}` : rows ? "No price yet" : "Loading…";
 
   return (
     <main className="wlv-pane wlv-sheet">
@@ -37,16 +45,15 @@ export function Sheet({ rows, asset, win, loading, problem, onWindow, onPick, on
         {asset ? (
           <AssetTitle key={asset.symbol} asset={asset} onNote={onNote} />
         ) : (
-          <div>
+          <div className="wlv-title-block">
             <h2 className="wlv-sheet-title">
               <span className="pv-ink">{rows ? "Nothing followed yet" : "Watchlist"}</span>
             </h2>
             <p className="wlv-sheet-sub">{rows ? "Add an asset on the left, or ask an agent: “add BTC and ETH to my watchlist”." : "Reading your assets…"}</p>
           </div>
         )}
-        <span className="wlv-spacer" />
-        <span className="wlv-status">{status}</span>
-        <button type="button" className="wlv-icon" onClick={onReload} disabled={loading} aria-label="Read the prices again" title="Read the prices again">
+        <span className={`wlv-status${live ? " is-live" : ""}`}>{status}</span>
+        <button type="button" className="wlv-icon" onClick={onReload} aria-label="Read the prices again" title="Read the prices again">
           <Refresh />
         </button>
         {asset && (
@@ -56,18 +63,27 @@ export function Sheet({ rows, asset, win, loading, problem, onWindow, onPick, on
         )}
       </header>
       {problem && <p className="wlv-problem">{problem}</p>}
-      {asset && <Figures asset={asset} win={win} onWindow={onWindow} />}
-      {rows && rows.length > 0 && (
-        <>
-          <p className="wlv-map-title">
-            <span className="pv-ink">All assets</span>
-            <small>{WINDOWS.find((w) => w.value === win)?.label} move</small>
-          </p>
-          <div className="pv-tiles wlv-map">
+      <div className="wlv-body">
+        {asset && <Figures asset={asset} win={win} onWindow={onWindow} />}
+        {asset && (
+          <section className="wlv-chart-block" aria-label={`${asset.symbol} chart`}>
+            <div className="wlv-chart-bar">
+              <Segmented label="Candle interval" value={interval} options={INTERVALS} onChange={onInterval} />
+              <span className="wlv-chart-hint">Scroll to zoom, drag to pan</span>
+            </div>
+            <PriceChart candles={candles} interval={interval} message={chartMessage} />
+          </section>
+        )}
+        {rows && rows.length > 1 && (
+          <section className="wlv-map-block" aria-label="All assets">
+            <p className="wlv-map-title">
+              <span className="pv-ink">All assets</span>
+              <small>{WINDOWS.find((w) => w.value === win)?.label} move</small>
+            </p>
             <HeatMap rows={rows} win={win} selected={asset?.symbol ?? null} onPick={onPick} />
-          </div>
-        </>
-      )}
+          </section>
+        )}
+      </div>
     </main>
   );
 }
@@ -111,8 +127,9 @@ function AssetTitle({ asset, onNote }: { asset: Row; onNote: (symbol: string, no
   );
 }
 
-/** The price, the move, where it comes from — and the four windows as
-    one row of tiles, the chosen one lit; a tile chooses its window. */
+/** One row: the price (a new one lights up, then settles), the move over the
+    chosen window and where it comes from — then the four windows as one
+    row of small tiles, the chosen one lit; a tile chooses its window. */
 function Figures({ asset, win, onWindow }: { asset: Row; win: Window; onWindow: (w: Window) => void }) {
   const q = asset.quote;
   const [, quote] = pairOf(asset.symbol);
@@ -122,12 +139,14 @@ function Figures({ asset, win, onWindow }: { asset: Row; win: Window; onWindow: 
     <div className="wlv-figures">
       <div className="wlv-hero">
         <p className="wlv-price">
-          {q ? fmt(q.price) : "—"}
+          <span key={q?.price} className="wlv-price-value">
+            {q ? priceText(q.price) : "—"}
+          </span>
           {q && quote && <span className="wlv-price-unit">{quote}</span>}
-        </p>
-        <p className={`wlv-move ${moveOf(change)}`}>
-          {pct(change)}
-          <span>over {label}</span>
+          <span className={`wlv-move ${moveOf(change)}`}>
+            {pct(change)}
+            <small>{label}</small>
+          </span>
         </p>
         <p className="wlv-source">{q ? `${sourceName(q.source)} · ${timeOf(q.at)} · following since ${dateOf(asset.addedAt)}` : (asset.error ?? "No price for this pair")}</p>
       </div>

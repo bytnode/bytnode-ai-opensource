@@ -2,9 +2,8 @@
 
 import { useRef, type CSSProperties } from "react";
 import { changeOf, heatOf, type Window } from "@/lib/plugins/watchlist/heat";
-import { fmt } from "../bits";
 import { useViewActive } from "../view-activity";
-import { moveOf, pairOf, pct, type Row } from "./format";
+import { moveOf, pairOf, pct, priceText, type Row } from "./format";
 import { useHeatField, type HeatTile } from "./heat-field";
 
 /* Every asset of the list as a tile, washed by its move over the chosen
@@ -41,7 +40,7 @@ export function HeatMap({ rows, win, selected, onPick }: { rows: Row[]; win: Win
           >
             <span className="wlv-tile-name">{base}</span>
             <span className="wlv-tile-move">{pct(change)}</span>
-            <span className="wlv-tile-price">{r.quote ? fmt(r.quote.price) : (r.error ?? "No price")}</span>
+            <span className="wlv-tile-price">{r.quote ? priceText(r.quote.price) : (r.error ?? "No price")}</span>
           </button>
         );
       })}

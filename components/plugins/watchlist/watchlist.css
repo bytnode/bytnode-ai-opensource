@@ -33,10 +33,6 @@
   outline-offset: 1px;
 }
 
-.wlv-spacer {
-  flex: 1;
-}
-
 .wlv .is-up {
   --tone: var(--up);
 }
@@ -296,6 +292,8 @@
   --label-2: rgba(var(--ink), 0.8);
   --label-3: rgba(var(--ink), 0.62);
   --fill: rgba(var(--ink), 0.08);
+  /* The sheet's side margin, shared by every row so they all align. */
+  --side: 30px;
 
   flex: 1;
   min-width: 0;
@@ -319,11 +317,11 @@ html[data-theme="light"] .wlv-sheet {
   flex: none;
   align-items: flex-start;
   gap: 10px;
-  padding: 18px 20px 4px 30px;
+  padding: 18px 20px 0 var(--side);
 }
 
-/* It shares the head's free room with the spacer, so a long note has
-   somewhere to go before it is cut. */
+/* It takes the head's free room, so a long note has somewhere to go
+   before it is cut. */
 .wlv-title-block {
   flex: 1;
   min-width: 0;
@@ -336,8 +334,8 @@ html[data-theme="light"] .wlv-sheet {
   margin: 0;
   font-family: var(--font-display), sans-serif;
   font-weight: 500;
-  font-size: 30px;
-  line-height: 1.1;
+  font-size: 26px;
+  line-height: 1.15;
   letter-spacing: -0.02em;
 }
 
@@ -348,7 +346,7 @@ html[data-theme="light"] .wlv-sheet {
 
 .wlv-sheet-sub {
   margin: 4px 0 0;
-  font-size: 15px;
+  font-size: 14.5px;
   color: var(--label-2);
 }
 
@@ -357,14 +355,14 @@ html[data-theme="light"] .wlv-sheet {
   align-items: center;
   gap: 8px;
   max-width: 100%;
-  margin: 4px 0 0 -8px;
-  padding: 3px 8px;
+  margin: 2px 0 0 -8px;
+  padding: 2px 8px;
   border: 0;
   border-radius: var(--r-sm);
   background: transparent;
   color: var(--label-2);
   font: inherit;
-  font-size: 15px;
+  font-size: 14px;
   text-align: left;
   cursor: text;
 }
@@ -377,8 +375,8 @@ html[data-theme="light"] .wlv-sheet {
 
 .wlv-note svg {
   flex: none;
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
   stroke-width: 1.9;
   opacity: 0;
   transition: opacity 120ms ease;
@@ -400,71 +398,119 @@ html[data-theme="light"] .wlv-sheet {
 
 .wlv-note-edit {
   width: min(420px, 100%);
-  height: 32px;
-  margin-top: 4px;
-  font-size: 15px;
+  height: 30px;
+  margin-top: 2px;
+  font-size: 14px;
 }
 
 .wlv-status {
-  padding-top: 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding-top: 6px;
   font-size: 12.5px;
   color: var(--label-3);
   white-space: nowrap;
 }
 
+/* Live: a small green dot that breathes with the readings. */
+.wlv-status.is-live::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--up);
+  animation: wlv-breathe 2.5s ease-in-out infinite;
+}
+
+@keyframes wlv-breathe {
+  50% {
+    opacity: 0.35;
+  }
+}
+
 .wlv-problem {
-  margin: 4px 30px 0;
+  margin: 6px var(--side) 0;
   font-size: 13px;
   color: var(--down);
 }
 
+/* Everything under the head: the figures, the chart (the room left, never
+   less than a readable height) and the heat map. It scrolls only when the
+   window is too short for all three. */
+.wlv-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 0 var(--side);
+  scrollbar-width: none;
+}
+
+.wlv-body::-webkit-scrollbar {
+  display: none;
+}
+
+/* The price and the windows, one row; under one another in a narrow
+   sheet. */
 .wlv-figures {
   display: grid;
   flex: none;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 460px);
   align-items: end;
-  gap: 20px 32px;
-  padding: 16px 30px 26px;
+  gap: 16px 28px;
+  padding: 14px var(--side) 18px;
 }
 
 .wlv-price {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 10px;
+  gap: 4px 10px;
   margin: 0;
+}
+
+.wlv-price-value {
   font-family: var(--font-display), sans-serif;
   font-weight: 300;
-  font-size: 54px;
+  font-size: 40px;
   line-height: 1;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.03em;
+  animation: wlv-tick 700ms var(--ease) both;
+}
+
+/* A new price comes in: it lights up, then settles. */
+@keyframes wlv-tick {
+  from {
+    opacity: 0.45;
+  }
 }
 
 .wlv-price-unit {
-  font-size: 17px;
-  font-weight: 400;
-  letter-spacing: 0;
+  font-size: 15px;
   color: var(--label-3);
 }
 
 .wlv-move {
-  display: flex;
+  display: inline-flex;
   align-items: baseline;
-  gap: 8px;
-  margin: 10px 0 0;
+  gap: 6px;
+  margin-left: 6px;
   color: var(--tone);
-  font-size: 19px;
+  font-size: 17px;
   font-weight: 600;
 }
 
-.wlv-move span {
-  font-size: 14px;
-  font-weight: 400;
+.wlv-move small {
+  font-size: 13px;
+  font-weight: 500;
   color: var(--label-3);
 }
 
 .wlv-source {
   margin: 8px 0 0;
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--label-3);
 }
 
@@ -477,11 +523,9 @@ html[data-theme="light"] .wlv-sheet {
 
 .wlv-rung {
   display: grid;
-  align-content: space-between;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
-  min-height: 92px;
-  padding: 12px 14px 14px;
+  padding: 9px 12px 10px;
   border: 0;
   background: var(--tile);
   color: inherit;
@@ -491,11 +535,11 @@ html[data-theme="light"] .wlv-sheet {
 }
 
 .wlv-rung:first-child {
-  border-radius: var(--r-block) 0 0 var(--r-block);
+  border-radius: var(--r-sm) 0 0 var(--r-sm);
 }
 
 .wlv-rung:last-child {
-  border-radius: 0 var(--r-block) var(--r-block) 0;
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
 }
 
 .wlv-rung:hover {
@@ -507,18 +551,18 @@ html[data-theme="light"] .wlv-sheet {
 }
 
 .wlv-rung-label {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--label-2);
 }
 
 .wlv-rung-value {
-  font-family: var(--font-display), sans-serif;
-  font-size: 21px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
+  overflow: hidden;
+  font-size: 15.5px;
+  font-weight: 600;
   color: var(--tone);
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .wlv-rung.is-flat .wlv-rung-value {
@@ -528,36 +572,97 @@ html[data-theme="light"] .wlv-sheet {
 /* The move on its window's scale, grown from the middle. */
 .wlv-rung-bar {
   position: relative;
-  height: 4px;
+  height: 3px;
+  margin-top: 2px;
   border-radius: 2px;
   background: rgba(var(--ink), 0.08);
-}
-
-.wlv-rung-bar::after {
-  content: "";
-  position: absolute;
-  top: -3px;
-  left: 50%;
-  width: var(--rule);
-  height: 10px;
-  margin-left: -1px;
-  background: rgba(var(--ink), 0.2);
 }
 
 .wlv-rung-bar i {
   position: absolute;
   top: 0;
   bottom: 0;
+  border-radius: 2px;
   background: var(--tone);
+}
+
+/* The chart: one tile, the room that is left. */
+.wlv-chart-block {
+  display: flex;
+  flex: 1 0 340px;
+  flex-direction: column;
+  margin: 0 var(--side);
+  padding: 10px 0 0 16px;
+  border-radius: var(--r-block);
+  background: var(--tile);
+}
+
+.wlv-chart-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px 4px 0;
+}
+
+.wlv-chart-bar .seg {
+  border-radius: var(--r-sm);
+}
+
+.wlv-chart-bar .seg button {
+  height: 24px;
+  padding: 0 11px;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+.wlv-chart-hint {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--label-3);
+}
+
+.wlv-chart {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.wlv-chart-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.wlv-chart-canvas.is-dragging {
+  cursor: grabbing;
+}
+
+.wlv-chart-message {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 0 24px;
+  font-size: 14px;
+  color: var(--label-3);
+  text-align: center;
+  pointer-events: none;
+}
+
+.wlv-map-block {
+  flex: none;
+  padding: 22px var(--side) 0;
 }
 
 .wlv-map-title {
   display: flex;
-  flex: none;
   align-items: baseline;
   gap: 10px;
-  margin: 0;
-  padding: 0 30px 12px;
+  margin: 0 0 12px;
   font-size: 15px;
   font-weight: 650;
 }
@@ -568,20 +673,13 @@ html[data-theme="light"] .wlv-sheet {
   color: var(--label-3);
 }
 
-/* The heat map's scroller: tiles only, masked into the grid's shape. */
-.wlv-map {
-  padding: 0 var(--side) 36px;
-}
-
-/* The tiles fill the sheet: a short list gets large fields, a long one
-   scrolls; a few assets share the whole width (`auto-fit`). */
+/* The heat map: tiles of one size, as many per row as fit. */
 .wlv-heat {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(156px, 1fr));
-  grid-auto-rows: minmax(104px, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  grid-auto-rows: 84px;
   gap: var(--tile-gap);
-  min-height: 100%;
   /* Without the GPU the grid itself is rounded (a short last row leaves
      a square corner above it — the shader draws that one right). */
   border-radius: var(--r-block);
@@ -601,8 +699,9 @@ html[data-theme="light"] .wlv-sheet {
   z-index: 1;
   display: grid;
   grid-template-rows: auto 1fr auto;
+  align-items: center;
   min-width: 0;
-  padding: 12px 14px;
+  padding: 10px 12px;
   border: 0;
   /* The ground without the GPU: the tone mixed in by the move's size. */
   background: color-mix(in srgb, var(--tone) calc(var(--mag, 0) * 42%), var(--tile));
@@ -637,16 +736,13 @@ html[data-theme="light"] .wlv-sheet {
 
 .wlv-tile-name {
   font-family: var(--font-display), sans-serif;
-  font-size: 16px;
+  font-size: 14.5px;
   font-weight: 500;
-  letter-spacing: -0.01em;
 }
 
 .wlv-tile-move {
-  align-self: center;
-  margin: 6px 0;
   font-family: var(--font-display), sans-serif;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 500;
   letter-spacing: -0.01em;
 }
@@ -657,7 +753,7 @@ html[data-theme="light"] .wlv-sheet {
 
 .wlv-tile-price {
   overflow: hidden;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--label-2);
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -665,11 +761,14 @@ html[data-theme="light"] .wlv-sheet {
 
 /* --- Narrow sheets and small screens ---------------------------------------------- */
 
-/* A narrow sheet: the windows go under the price, full width. */
-@container (max-width: 860px) {
+@container (max-width: 820px) {
   .wlv-figures {
     grid-template-columns: minmax(0, 1fr);
-    gap: 18px;
+    gap: 14px;
+  }
+
+  .wlv-chart-hint {
+    display: none;
   }
 }
 
@@ -685,23 +784,14 @@ html[data-theme="light"] .wlv-sheet {
   }
 
   .wlv-sheet {
-    flex: none;
-    min-height: 70vh;
-  }
-
-  .wlv-head,
-  .wlv-figures,
-  .wlv-map-title {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-
-  .wlv-figures {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .wlv-map {
     --side: 16px;
+
+    flex: none;
+    min-height: 90vh;
+  }
+
+  .wlv-head {
+    padding-right: 12px;
   }
 }
 
@@ -711,22 +801,29 @@ html[data-theme="light"] .wlv-sheet {
   }
 
   .wlv-rung:first-child {
-    border-radius: var(--r-block) 0 0 0;
+    border-radius: var(--r-sm) 0 0 0;
   }
 
   .wlv-rung:nth-child(2) {
-    border-radius: 0 var(--r-block) 0 0;
+    border-radius: 0 var(--r-sm) 0 0;
   }
 
   .wlv-rung:nth-child(3) {
-    border-radius: 0 0 0 var(--r-block);
+    border-radius: 0 0 0 var(--r-sm);
   }
 
   .wlv-rung:last-child {
-    border-radius: 0 0 var(--r-block) 0;
+    border-radius: 0 0 var(--r-sm) 0;
   }
 
-  .wlv-price {
-    font-size: 42px;
+  .wlv-price-value {
+    font-size: 34px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wlv-price-value,
+  .wlv-status.is-live::before {
+    animation: none;
   }
 }

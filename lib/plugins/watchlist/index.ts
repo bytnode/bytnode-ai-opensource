@@ -1,5 +1,7 @@
 import { definePlugin } from "../core/contract";
-import { isQuote, quotes } from "../shared/prices";
+import { isInterval } from "../shared/candle";
+import { normalizeSymbol } from "../shared/quote";
+import { candles, isQuote, quote, quotes } from "../shared/prices";
 import { EMPTY, editWatchlist, watchlistPrompt, type Watchlist } from "./list";
 import { watchlistManifest } from "./manifest";
 import type { WatchlistService } from "./service";
@@ -12,6 +14,8 @@ import { watchlistShowTool } from "./watchlist-show";
    calendar. Every change announces `watchlist:changed`. */
 
 const FILE = "watchlist.json";
+/** A live price is at most this old: the view reads it every 5 s. */
+const LIVE_MS = 4_000;
 
 export const watchlistPlugin = definePlugin({
   manifest: watchlistManifest,
@@ -36,6 +40,20 @@ export const watchlistPlugin = definePlugin({
         const p = priced.get(x.symbol);
         return { ...x, quote: p && isQuote(p) ? p : null, error: p && !isQuote(p) ? p.error : null };
       });
+    });
+    /* The asset the view shows, live: its quote every few seconds, and
+       its candles for the chart. */
+    ctx.api("price", async (params, { transport, signal }) => {
+      const symbol = normalizeSymbol(String(params.symbol ?? ""));
+      if (!symbol) return null;
+      return quote(symbol, { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal }, LIVE_MS);
+    });
+    ctx.api("candles", async (params, { transport, signal }) => {
+      const symbol = normalizeSymbol(String(params.symbol ?? ""));
+      if (!symbol) return null;
+      const interval = isInterval(params.interval) ? params.interval : "1h";
+      const limit = typeof params.limit === "number" ? params.limit : 300;
+      return candles(symbol, interval, limit, { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal });
     });
     ctx.api("edit", async (params) => {
       const change = {

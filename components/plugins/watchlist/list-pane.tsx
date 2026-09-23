@@ -5,8 +5,7 @@ import { WINDOWS, changeOf, type Window } from "@/lib/plugins/watchlist/heat";
 import { Plus } from "@/components/ui/icons";
 import { Segmented } from "@/components/ui/segmented";
 import { Switch } from "@/components/ui/switch";
-import { fmt } from "../bits";
-import { moveOf, pairOf, pct, type Row } from "./format";
+import { moveOf, pairOf, pct, priceText, type Row } from "./format";
 
 /* The left column: the list's name and size, the field that adds an
    asset, the window the moves are read over, and the assets themselves —
@@ -51,7 +50,7 @@ export function ListPane({ rows, shown, selected, win, byMove, onWindow, onByMov
                     <b>{base}</b>
                     <small>{r.note || quote}</small>
                   </span>
-                  <span className="wlv-row-price">{r.quote ? fmt(r.quote.price) : "—"}</span>
+                  <span className="wlv-row-price">{r.quote ? priceText(r.quote.price) : "—"}</span>
                   <span className={`wlv-pill ${moveOf(change)}`}>{pct(change)}</span>
                 </button>
               </li>

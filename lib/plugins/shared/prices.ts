@@ -3,6 +3,7 @@ import type { ExchangeAccount } from "@/lib/domain/types";
 import { callBytnodeTool } from "@/lib/mcp/bytnode";
 import { clientFor } from "@/lib/tools/exchange/client";
 import { describeExchangeError } from "@/lib/tools/exchange/errors";
+import { orderCandles, readKlines, type Candle, type Interval } from "./candle";
 import { bytnodeSymbol, readFunding, readPriceChange, type Quote } from "./quote";
 
 /* ---------------------------------------------------------------------------
@@ -13,7 +14,8 @@ import { bytnodeSymbol, readFunding, readPriceChange, type Quote } from "./quote
    accounts that lists it (the price, the 24 h change). Never a price from
    memory: without a source, the answer is an error that says so. A few
    seconds of cache spare the same reading to a view and a tool asking
-   together. SERVER-ONLY.
+   together (a live view asks for less: `maxAge`). Candles come the same
+   way: BytNode's klines, else an account's exchange. SERVER-ONLY.
 --------------------------------------------------------------------------- */
 
 export type PriceSources = { bytnodeKey?: string; accounts?: ExchangeAccount[]; signal?: AbortSignal };
@@ -50,10 +52,10 @@ async function fromExchange(symbol: string, accounts: ExchangeAccount[]): Promis
   return null;
 }
 
-export async function quote(symbol: string, sources: PriceSources): Promise<Priced> {
+export async function quote(symbol: string, sources: PriceSources, maxAge = CACHE_MS): Promise<Priced> {
   const key = `${symbol}|${sources.bytnodeKey ? "b" : "-"}|${(sources.accounts ?? []).map((a) => a.id).join(",")}`;
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < CACHE_MS) return hit.value;
+  if (hit && Date.now() - hit.at < Math.min(maxAge, CACHE_MS)) return hit.value;
   const signal = sources.signal ?? AbortSignal.timeout(60_000);
   let value: Priced | null = null;
   try {
@@ -108,4 +110,37 @@ export async function fundingRate(symbol: string, sources: PriceSources): Promis
     }
   }
   return undefined;
+}
+
+export type CandleSeries = { symbol: string; interval: Interval; candles: Candle[]; source: string } | { symbol: string; interval: Interval; error: string };
+
+/** The last `limit` bars of a pair: BytNode's klines, else the exchange of
+    an account that lists it. */
+export async function candles(symbol: string, interval: Interval, limit: number, sources: PriceSources): Promise<CandleSeries> {
+  const signal = sources.signal ?? AbortSignal.timeout(60_000);
+  const n = Math.max(10, Math.min(1000, Math.round(limit)));
+  try {
+    if (sources.bytnodeKey?.trim()) {
+      const key = `klines_${interval}`;
+      const res = await callBytnodeTool(sources.bytnodeKey, "get_market_data", { symbol: bytnodeSymbol(symbol), [key]: n }, signal);
+      if (res.ok) {
+        const bars = readKlines(JSON.parse(res.output), key);
+        if (bars.length) return { symbol, interval, candles: bars, source: "bytnode" };
+      }
+    }
+    for (const account of sources.accounts ?? []) {
+      try {
+        const ex = await clientFor(account, "spot");
+        if (!ex.markets?.[symbol] || !ex.has["fetchOHLCV"]) continue;
+        const rows = await ex.fetchOHLCV(symbol, interval, undefined, n);
+        const bars = orderCandles(rows);
+        if (bars.length) return { symbol, interval, candles: bars, source: ex.id };
+      } catch {
+        /* next account */
+      }
+    }
+  } catch (e) {
+    return { symbol, interval, error: describeExchangeError(e) };
+  }
+  return { symbol, interval, error: sources.bytnodeKey?.trim() ? `No chart for ${symbol}: BytNode does not cover it and no exchange account lists it.` : `No chart for ${symbol}: no BytNode key, and no exchange account lists it.` };
 }

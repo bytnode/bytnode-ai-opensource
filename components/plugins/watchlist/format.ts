@@ -1,5 +1,6 @@
 import type { WatchItem } from "@/lib/plugins/watchlist/list";
 import type { Quote } from "@/lib/plugins/shared/quote";
+import { decimalsFor } from "@/lib/plugins/watchlist/chart-scale";
 
 /* How the Watchlist tab writes things: a pair split into its two assets,
    a move with a true minus, a source by its name, a time of day. */
@@ -7,6 +8,10 @@ import type { Quote } from "@/lib/plugins/shared/quote";
 export type Row = WatchItem & { quote: Quote | null; error: string | null };
 
 export const LOCALE = "en-GB";
+
+/** A price with the decimals its size calls for, like the chart's scale:
+    112,512.3 · 233.05 · 0.2643. */
+export const priceText = (p: number): string => p.toLocaleString("en-US", { minimumFractionDigits: decimalsFor(p), maximumFractionDigits: decimalsFor(p) });
 
 /** `BTC/USDT` → `["BTC", "USDT"]` (a futures suffix dropped). */
 export function pairOf(symbol: string): [string, string] {

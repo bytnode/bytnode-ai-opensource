@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 import { outerCorners } from "@/lib/plugins/watchlist/heat";
+import { parseColor, type Rgba } from "./colors";
 
 /* ---------------------------------------------------------------------------
    The heat map's ground, drawn on the GPU (WebGL 2, one fragment shader).
@@ -123,24 +124,6 @@ void main() {
   }
   outColor = vec4(rgb, a) * mask;
 }`;
-
-type Rgba = [number, number, number, number];
-
-/** `#rrggbb`, `rgb(…)` or `rgba(…)` → 0..1 channels. */
-function parseColor(raw: string, fallback: Rgba): Rgba {
-  const s = raw.trim();
-  const hex = /^#([0-9a-f]{6})$/i.exec(s);
-  if (hex) {
-    const n = parseInt(hex[1], 16);
-    return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255, 1];
-  }
-  const fn = /^rgba?\(([^)]+)\)$/i.exec(s);
-  if (fn) {
-    const p = fn[1].split(/[\s,/]+/).filter(Boolean).map(Number);
-    if (p.length >= 3 && p.every(Number.isFinite)) return [p[0] / 255, p[1] / 255, p[2] / 255, p[3] ?? 1];
-  }
-  return fallback;
-}
 
 type Field = {
   gl: WebGL2RenderingContext;
