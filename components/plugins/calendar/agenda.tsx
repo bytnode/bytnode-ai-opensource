@@ -5,15 +5,15 @@ import type { CalendarEvent } from "@/lib/plugins/calendar/events";
 import { dayKey, nextBusyDay, sameDay, type Period } from "@/lib/plugins/calendar/days";
 import { ChevronRight, Refresh } from "@/components/ui/icons";
 import { MonthScale } from "./folds";
-import { HourScale } from "./hours";
+import { EventBlock, HourScale } from "./hours";
 import { WeekGrid } from "./week-grid";
 import { LOCALE, dayLabel } from "./format";
 
 /* The right pane: the chosen period on a scale of time — a day on its
-   hours, this week as a grid of days by hours, this month on its weeks
-   (each opening on its days). An empty day points to the next day that
-   has something. The collection's state and "Collect now" sit discreetly
-   in the corner. */
+   hours (its whole-day events under its title), this week as a grid of
+   days by hours, this month on its weeks (each opening on its days). An
+   empty day points to the next day that has something. The collection's
+   state and "Collect now" sit discreetly in the corner. */
 
 export type Collection = { at: string; days: number; added: number; updated: number; rejected: string[] } | null;
 
@@ -37,6 +37,7 @@ const LABEL_ROOM = 12;
 
 export function Agenda({ period, span, today, days, last, loading, problem, collecting, onCollect, onPick }: Props) {
   const [now, setNow] = useState(() => new Date());
+  const [openedTop, setOpenedTop] = useState<string | null>(null);
   const list = useRef<HTMLDivElement>(null);
   const periodId = period.kind === "day" ? dayKey(period.day) : period.kind;
 
@@ -45,9 +46,9 @@ export function Agenda({ period, span, today, days, last, loading, problem, coll
     return () => clearInterval(t);
   }, []);
 
-  /* A day or the week opens on the first hours that matter (under what
-     stays pinned on top: the all-day events, the days' heads); the month
-     at its start. */
+  /* A day or the week opens on the first hours that matter (under the
+     days' heads, which stay pinned on top of the week); the month at its
+     start. */
   useEffect(() => {
     const box = list.current;
     if (!box) return;
@@ -60,6 +61,7 @@ export function Agenda({ period, span, today, days, last, loading, problem, coll
 
   const dayEvents = period.kind === "day" ? (days.get(dayKey(period.day)) ?? []) : [];
   const weekEvents = period.kind === "week" ? span.flatMap((d) => days.get(dayKey(d)) ?? []) : [];
+  const wholeDay = dayEvents.filter((e) => e.allDay);
   const empty = period.kind === "day" && !loading && dayEvents.length === 0;
   const next = empty ? nextBusyDay(days, period.day) : null;
   const head =
@@ -82,6 +84,13 @@ export function Agenda({ period, span, today, days, last, loading, problem, coll
         <div>
           <h2 className="calv-agenda-title calv-ink">{head.title}</h2>
           <p className="calv-agenda-sub">{head.sub}</p>
+          {wholeDay.length > 0 && (
+            <div className="calv-agenda-top">
+              {wholeDay.map((e) => (
+                <EventBlock key={e.id} event={e} open={openedTop === e.id} onToggle={() => setOpenedTop(openedTop === e.id ? null : e.id)} />
+              ))}
+            </div>
+          )}
           {empty && (
             <p className="calv-agenda-empty">
               No events

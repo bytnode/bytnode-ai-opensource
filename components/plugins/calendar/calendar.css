@@ -1,19 +1,19 @@
 /* ---------------------------------------------------------------------------
    The Calendar tab.
 
-   ⚠️ THE BACKDROP IS THE APP'S, NOT THE CALENDAR'S. The calendar is one
-   veil laid on the light beams — it darkens them without hiding them, and
-   the beams run on, unbroken, behind it. No card, no shadow: the page is
-   the app, the calendar only sits on it. The month and the agenda share
-   that veil, parted by a hairline. The veil is dense enough that the text
-   never depends on what passes behind.
+   ⚠️ THE BACKDROP IS THE APP'S, NOT THE CALENDAR'S. The calendar fills the
+   tab edge to edge — no frame, no border, no strip of backdrop on its
+   sides. The month is a veil on the light beams (they run on behind it);
+   the agenda has ONE ground of its own, solid, and nothing is laid over
+   it: what stays pinned on top of the week wears that same ground, so
+   no band ever shows. No card, no shadow.
    Colour belongs to the data — Apple's system colours, one per calendar —
    and to today, in red. The titles wear BytNode's own title ink: the
    metal gradient of bytnode.com's headings (« Start to integrate. »,
    « First call »), cut to the letters — light steel on dark, slate blue on
    light. The lines between things are 2 px: firm, never hairlines. The
-   corners are round, on one scale: the panel, the bubbles, the controls,
-   the events.
+   corners are round, on one generous scale: the bubbles, the controls,
+   the days, the events; the round buttons are circles.
 --------------------------------------------------------------------------- */
 
 .calv {
@@ -29,18 +29,16 @@
   --label-3: rgba(var(--ink), 0.52);
   --sep: rgba(var(--ink), 0.1);
   --rule: 2px;
-  --r-panel: 26px;
-  --r-pop: 18px;
-  --r: 13px;
-  --r-sm: 10px;
+  --r-pop: 22px;
+  --r: 16px;
+  --r-sm: 12px;
   --fill: rgba(var(--ink), 0.06);
   --pane: rgba(var(--voile), 0.5);
-  --pin: rgb(var(--voile));
+  --ground: rgb(var(--voile));
   --title-ink: linear-gradient(180deg, #f1f4f9 0%, #e1e6ee 45%, #c3cad5 100%);
 
   display: flex;
   height: 100%;
-  padding: 0 16px 16px;
   color: var(--label);
   font-variant-numeric: tabular-nums;
 }
@@ -58,7 +56,7 @@ html[data-theme="light"] .calv {
   --label-3: rgba(var(--ink), 0.52);
   --sep: rgba(var(--ink), 0.11);
   --pane: rgba(255, 255, 255, 0.6);
-  --pin: rgb(250, 251, 253);
+  --ground: rgb(252, 252, 254);
   --title-ink: linear-gradient(180deg, #3a4d6b 0%, #2c3e5a 55%, #22334c 100%);
 }
 
@@ -76,19 +74,13 @@ html[data-theme="light"] .calv {
   color: var(--cal-today);
 }
 
-/* The block hangs from the tab bar: no gap above it, square top corners,
-   the bar's own line for its top edge. */
+/* The whole tab, from the tab bar down, side to side. */
 .calv-panel {
   display: flex;
   flex: 1;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid rgba(var(--ink), 0.075);
-  border-top: 0;
-  border-radius: 0 0 var(--r-panel) var(--r-panel);
-  background: var(--pane);
-  backdrop-filter: blur(22px) saturate(1.2);
 }
 
 .calv-pane {
@@ -121,7 +113,7 @@ html[data-theme="light"] .calv {
   height: 28px;
   padding: 0;
   border: 0;
-  border-radius: var(--r-sm);
+  border-radius: 50%;
   background: transparent;
   color: var(--label-2);
   cursor: pointer;
@@ -159,8 +151,9 @@ html[data-theme="light"] .calv {
 
 .calv-month {
   flex: 0 0 clamp(330px, 29%, 410px);
-  border-right: var(--rule) solid var(--sep);
   overflow-y: auto;
+  background: var(--pane);
+  backdrop-filter: blur(22px) saturate(1.2);
   scrollbar-width: thin;
 }
 
@@ -488,8 +481,8 @@ html[data-theme="light"] .calv-pop {
 
 /* --- The agenda pane ---------------------------------------------------------- */
 
-/* The agenda is where the reading happens: a denser veil laid over the
-   panel's (the beams barely come through), firmer lines, larger type. */
+/* The agenda is where the reading happens: one solid ground, firmer
+   lines, larger type. */
 .calv-agenda {
   --label-2: rgba(var(--ink), 0.8);
   --label-3: rgba(var(--ink), 0.62);
@@ -498,15 +491,13 @@ html[data-theme="light"] .calv-pop {
 
   flex: 1;
   min-width: 0;
-  background: rgba(var(--voile), 0.62);
+  background: var(--ground);
 }
 
 html[data-theme="light"] .calv-agenda {
   --label-2: rgba(var(--ink), 0.76);
   --label-3: rgba(var(--ink), 0.6);
   --sep: rgba(var(--ink), 0.15);
-
-  background: rgba(255, 255, 255, 0.64);
 }
 
 .calv-agenda-head {
@@ -578,6 +569,14 @@ html[data-theme="light"] .calv-agenda {
   font-size: 14.5px;
   font-weight: 400;
   color: var(--label-3);
+}
+
+/* A day's whole-day events, under its title. */
+.calv-agenda-top {
+  display: grid;
+  gap: 6px;
+  min-width: min(560px, 55vw);
+  margin-top: 14px;
 }
 
 /* An empty day, said in the header, with the way to the next busy day. */
@@ -763,31 +762,6 @@ html[data-theme="light"] .calv-agenda {
   border-top: var(--rule) solid var(--sep);
 }
 
-/* The all-day events stay on top while the hours scroll under them. */
-.calv-hour.is-allday {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: var(--pin);
-}
-
-.calv-hour.is-allday .calv-hour-label {
-  top: 0;
-  padding-top: 12px;
-}
-
-.calv-hour.is-allday .calv-hour-slot {
-  min-height: 0;
-  padding: 6px 0 8px 8px;
-  border-top: 0;
-  border-bottom: 3px solid rgba(var(--ink), 0.24);
-}
-
-/* Room for the first hour's label under the all-day line. */
-.calv-hour.is-allday + .calv-hour {
-  margin-top: 12px;
-}
-
 /* Now: a red line across the hour, a dot where it starts. */
 .calv-now {
   position: absolute;
@@ -874,14 +848,23 @@ html[data-theme="light"] .calv-agenda {
   grid-template-columns: 60px repeat(7, minmax(0, 1fr));
 }
 
-/* The days' heads and the all-day events stay on top. */
+/* The days' heads stay on top, on the agenda's own ground. */
 .calv-week-head {
   position: sticky;
   top: 0;
   z-index: 3;
   padding-top: 6px;
-  border-bottom: 3px solid rgba(var(--ink), 0.24);
-  background: var(--pin);
+  border-bottom: var(--rule) solid rgba(var(--ink), 0.2);
+  background: var(--ground);
+}
+
+/* A day's whole-day events, under its date. */
+.calv-week-top {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+  padding: 0 4px 8px;
 }
 
 .calv-week-head + .calv-week-row {
@@ -969,12 +952,6 @@ html[data-theme="light"] .calv-agenda {
 /* Today's column, washed a little lighter from top to bottom. */
 .calv-week-cell.is-today {
   background: rgba(var(--ink), 0.045);
-}
-
-.calv-week-row.is-allday .calv-week-cell {
-  min-height: 0;
-  padding-bottom: 8px;
-  border-top: 0;
 }
 
 .calv-wblock {
@@ -1175,8 +1152,6 @@ html[data-theme="light"] .calv-agenda {
   .calv-month {
     flex: none;
     overflow: visible;
-    border-right: 0;
-    border-bottom: var(--rule) solid var(--sep);
   }
 
   .calv-agenda {

@@ -143,7 +143,7 @@ function Row({ event, open, onToggle }: { event: CalendarEvent; open: boolean; o
   return (
     <li className={`calv-row${open ? " is-open" : ""}${event.importance === 3 ? " is-strong" : ""}`} style={toneOf(event.category)}>
       <button type="button" className="calv-row-main" onClick={onToggle} aria-expanded={open}>
-        <span className="calv-row-time">{event.allDay ? "all-day" : timeOf(event)}</span>
+        <span className="calv-row-time">{event.allDay ? "" : timeOf(event)}</span>
         <span className="calv-row-rule" aria-hidden />
         <span className="calv-row-title">{event.title}</span>
         {event.assets.length > 0 && <span className="calv-row-assets">{event.assets.join(", ")}</span>}

@@ -8,10 +8,11 @@ import { EventFacts } from "./event-facts";
 import { LOCALE, timeOf, toneOf } from "./format";
 
 /* This week as Calendar draws it: a column per day, the hours down the
-   side, each event a tinted block in its day and its hour. The days'
-   heads and their all-day events stay on top while the hours scroll;
-   today's column is washed a little lighter and carries the red line of
-   now. A day's head opens that day; a block opens its details in a
+   side, each event a tinted block in its day and its hour — the events of
+   a whole day under the day's date. The days' heads stay on top while the
+   hours scroll, on the pane's own ground (one ground, nothing laid over
+   it); today's column is washed a little lighter and carries the red line
+   of now. A day's head opens that day; a block opens its details in a
    bubble (towards the inside of the week, so it never leaves the pane). */
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
@@ -54,10 +55,10 @@ export function WeekGrid({ span, days, today, now, anchor, onPick }: Props) {
           ))}
         </div>
         {allDay && (
-          <div className="calv-week-row is-allday">
-            <span className="calv-week-gutter">all-day</span>
+          <div className="calv-week-row">
+            <span className="calv-week-gutter" />
             {cols.map((c, i) => (
-              <div key={c.day.getTime()} className={cell(c.day)}>
+              <div key={c.day.getTime()} className="calv-week-top">
                 {c.allDay.map((e) => block(e, i))}
               </div>
             ))}
@@ -91,14 +92,14 @@ function WeekBlock({ event, open, onToggle, onClose, flip }: BlockProps) {
   return (
     <div ref={root} className={`calv-wblock${event.importance === 3 ? " is-strong" : ""}${open ? " is-open" : ""}`} style={toneOf(event.category)}>
       <button type="button" className="calv-wblock-main" onClick={onToggle} aria-expanded={open} title={event.title}>
-        <span className="calv-wblock-time">{event.allDay ? "all-day" : timeOf(event)}</span>
+        {!event.allDay && <span className="calv-wblock-time">{timeOf(event)}</span>}
         <span className="calv-wblock-title">{event.title}</span>
       </button>
       {open && (
         <div className={`calv-pop calv-event-pop${flip ? " is-flipped" : ""}`} role="dialog" aria-label={event.title}>
           <p className="calv-event-pop-title">{event.title}</p>
           <p className="calv-event-pop-when">
-            {when}, {event.allDay ? "all day" : timeOf(event)}
+            {event.allDay ? when : `${when}, ${timeOf(event)}`}
           </p>
           <EventFacts event={event} />
         </div>

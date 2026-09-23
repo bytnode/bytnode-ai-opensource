@@ -6,9 +6,10 @@ import { byHour, sameDay } from "@/lib/plugins/calendar/days";
 import { EventFacts } from "./event-facts";
 import { LOCALE, timeOf, toneOf } from "./format";
 
-/* A day on a scale of hours, like Calendar's day view: the all-day events
-   on top, then the 24 hours, each event in its hour as a tinted block that
-   opens in place. On today, a red line says where the day stands. */
+/* A day on a scale of hours, like Calendar's day view: the 24 hours,
+   each timed event in its hour as a tinted block that opens in place (the
+   events of the whole day sit in the agenda's header, above the scale).
+   On today, a red line says where the day stands. */
 
 const hourLabel = (h: number) => `${String(h).padStart(2, "0")}:00`;
 
@@ -22,22 +23,12 @@ type Props = {
 
 export function HourScale({ day, events, now, anchor }: Props) {
   const [opened, setOpened] = useState<string | null>(null);
-  const { allDay, hours } = byHour(events);
+  const { hours } = byHour(events);
   const today = sameDay(day, now);
   const toggle = (id: string) => setOpened(opened === id ? null : id);
 
   return (
     <div className="calv-hours">
-      {allDay.length > 0 && (
-        <div className="calv-hour is-allday" data-pinned>
-          <span className="calv-hour-label">all-day</span>
-          <div className="calv-hour-slot">
-            {allDay.map((e) => (
-              <EventBlock key={e.id} event={e} open={opened === e.id} onToggle={() => toggle(e.id)} />
-            ))}
-          </div>
-        </div>
-      )}
       {hours.map((list, h) => (
         <div key={h} className="calv-hour" data-anchor={h === anchor || undefined}>
           <span className="calv-hour-label">{hourLabel(h)}</span>
@@ -53,11 +44,11 @@ export function HourScale({ day, events, now, anchor }: Props) {
   );
 }
 
-function EventBlock({ event, open, onToggle }: { event: CalendarEvent; open: boolean; onToggle: () => void }) {
+export function EventBlock({ event, open, onToggle }: { event: CalendarEvent; open: boolean; onToggle: () => void }) {
   return (
     <div className={`calv-block${open ? " is-open" : ""}${event.importance === 3 ? " is-strong" : ""}`} style={toneOf(event.category)}>
       <button type="button" className="calv-block-main" onClick={onToggle} aria-expanded={open}>
-        <span className="calv-block-time">{event.allDay ? "all-day" : timeOf(event)}</span>
+        {!event.allDay && <span className="calv-block-time">{timeOf(event)}</span>}
         <span className="calv-block-title">{event.title}</span>
         {event.assets.length > 0 && <span className="calv-block-assets">{event.assets.join(", ")}</span>}
       </button>
