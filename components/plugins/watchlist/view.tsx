@@ -6,6 +6,7 @@ import type { Quote } from "@/lib/plugins/shared/quote";
 import { Close, Plus } from "@/components/ui/icons";
 import type { ViewProps } from "../views";
 import { act, usePluginData } from "../use-plugin-data";
+import { useOnWake } from "../view-activity";
 import { Change, Loading, Problem, fmt } from "../bits";
 
 /* ---------------------------------------------------------------------------
@@ -17,6 +18,7 @@ type Row = WatchItem & { quote: Quote | null; error: string | null };
 
 export function WatchlistView({ settings, params }: ViewProps) {
   const { data, error, loading, reload } = usePluginData<Row[]>("watchlist", "list", settings);
+  useOnWake(reload);
   const [symbol, setSymbol] = useState("");
   const [note, setNote] = useState("");
   const [problem, setProblem] = useState<string | null>(null);

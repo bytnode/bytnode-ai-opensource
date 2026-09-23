@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CalendarEvent } from "@/lib/plugins/calendar/events";
 import { dayKey, nextBusyDay, sameDay, type Period } from "@/lib/plugins/calendar/days";
 import { ChevronRight, Refresh } from "@/components/ui/icons";
+import { useAwakeInterval, useViewActive } from "../view-activity";
 import { HourScale } from "./hours";
 import { WeekGrid, WeekHead } from "./week-grid";
 import { LOCALE, dayLabel } from "./format";
@@ -34,22 +35,27 @@ const TICK = 60_000;
 export function Agenda({ period, span, today, days, last, loading, problem, collecting, onCollect, onPick }: Props) {
   const [now, setNow] = useState(() => new Date());
   const list = useRef<HTMLDivElement>(null);
+  /* What the list was last placed on: it is placed once per period, not
+     again when the tab comes back from sleep (the scroll stays as left). */
+  const placed = useRef("");
+  const active = useViewActive();
   const periodId = period.kind === "day" ? dayKey(period.day) : period.kind;
 
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), TICK);
-    return () => clearInterval(t);
-  }, []);
+  const tick = useCallback(() => setNow(new Date()), []);
+  useAwakeInterval(tick, TICK);
 
   /* A day or the week opens on the first hours that matter, their first
-     tile right under the heads. */
+     tile right under the heads — once shown: a tab asleep has no layout
+     to measure. */
   useEffect(() => {
     const box = list.current;
-    if (!box) return;
+    const key = `${periodId}|${loading}`;
+    if (!box || !active || placed.current === key) return;
+    placed.current = key;
     box.scrollTop = 0;
     const anchor = box.querySelector<HTMLElement>("[data-anchor]");
     if (anchor) box.scrollTop = anchor.getBoundingClientRect().top - box.getBoundingClientRect().top;
-  }, [periodId, loading]);
+  }, [periodId, loading, active]);
 
   const shown = span.flatMap((d) => days.get(dayKey(d)) ?? []);
   const empty = period.kind === "day" && !loading && shown.length === 0;

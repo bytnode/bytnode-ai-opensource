@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { isFrequency } from "@/lib/plugins/core/frequency";
 import type { DcaPlan, PlanSummary, Purchase } from "@/lib/plugins/dca/plans";
 import { Select } from "@/components/ui/select";
 import { Plus, Trash } from "@/components/ui/icons";
 import type { ViewProps } from "../views";
 import { act, usePluginData } from "../use-plugin-data";
+import { useAwakeInterval } from "../view-activity";
 import { Badge } from "../cards";
 import { Loading, Problem, fmt } from "../bits";
 
@@ -33,10 +34,7 @@ export function DcaView({ settings }: ViewProps) {
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [problem, setProblem] = useState<string | null>(null);
 
-  useEffect(() => {
-    const t = setInterval(reload, REFRESH);
-    return () => clearInterval(t);
-  }, [reload]);
+  useAwakeInterval(reload, REFRESH);
 
   const run = async (action: string, params: Record<string, unknown>) => {
     const p = await act("dca", action, params, settings);

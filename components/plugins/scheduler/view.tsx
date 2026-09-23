@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { isFrequency } from "@/lib/plugins/core/frequency";
 import { runConversationId, shortDate, taskKey, type AgentTask, type RunRecord, type RunState } from "@/lib/plugins/scheduler/tasks";
 import { goToConversation } from "@/lib/state/navigation";
@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select";
 import { Plus, Refresh, Trash } from "@/components/ui/icons";
 import type { ViewProps } from "../views";
 import { act, usePluginData } from "../use-plugin-data";
+import { useAwakeInterval } from "../view-activity";
 import { Loading, Problem } from "../bits";
 
 /* ---------------------------------------------------------------------------
@@ -47,10 +48,7 @@ export function SchedulerView({ settings }: ViewProps) {
   const [catchUp, setCatchUp] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
-  useEffect(() => {
-    const t = setInterval(reload, REFRESH);
-    return () => clearInterval(t);
-  }, [reload]);
+  useAwakeInterval(reload, REFRESH);
 
   const run = async (action: string, params: Record<string, unknown>) => {
     const p = await act("scheduler", action, params, settings);

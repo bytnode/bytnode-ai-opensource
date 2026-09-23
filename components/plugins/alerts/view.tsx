@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { WATCHLIST, type Alert, type Trigger } from "@/lib/plugins/alerts/alerts";
 import { EXAMPLES } from "@/lib/plugins/alerts/conditions";
 import { Select } from "@/components/ui/select";
@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Plus, Trash } from "@/components/ui/icons";
 import type { ViewProps } from "../views";
 import { act, usePluginData } from "../use-plugin-data";
+import { useAwakeInterval } from "../view-activity";
 import { Loading, Problem } from "../bits";
 
 /* ---------------------------------------------------------------------------
@@ -30,10 +31,7 @@ export function AlertsView({ settings }: ViewProps) {
   const [accountId, setAccountId] = useState(settings.keys.exchanges[0]?.id ?? "");
   const [problem, setProblem] = useState<string | null>(null);
 
-  useEffect(() => {
-    const t = setInterval(reload, REFRESH);
-    return () => clearInterval(t);
-  }, [reload]);
+  useAwakeInterval(reload, REFRESH);
 
   const run = async (action: string, params: Record<string, unknown>) => {
     const p = await act("alerts", action, params, settings);

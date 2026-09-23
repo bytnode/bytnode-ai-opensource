@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { Fill, PaperOrder, Valuation } from "@/lib/plugins/paper-trading/engine";
 import { Select } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Close, Refresh } from "@/components/ui/icons";
 import type { ViewProps } from "../views";
 import { act, usePluginData } from "../use-plugin-data";
+import { useAwakeInterval } from "../view-activity";
 import { useReportExport } from "../use-report-export";
 import { Badge } from "../cards";
 import { Kpi, Loading, Problem, fmt, money } from "../bits";
@@ -48,10 +49,7 @@ export function PaperTradingView({ settings }: ViewProps) {
   const [placing, setPlacing] = useState(false);
   const [resetting, setResetting] = useState(false);
 
-  useEffect(() => {
-    const t = setInterval(reload, REFRESH);
-    return () => clearInterval(t);
-  }, [reload]);
+  useAwakeInterval(reload, REFRESH);
 
   const set = (patch: Partial<Form>) => setForm((f) => ({ ...f, ...patch }));
   const run = async (action: string, params: Record<string, unknown>) => {

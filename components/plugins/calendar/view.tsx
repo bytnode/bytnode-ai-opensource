@@ -6,6 +6,7 @@ import { DAY_MS, byDay, eventDay, firstOfMonth, monthGrid, periodDays, sameMonth
 import { CALENDAR_DEFAULT, CALENDAR_MAX, CALENDAR_MIN, clampCalendarWidth, updateUiPrefs, useUiPrefs } from "@/lib/state/ui";
 import type { ViewProps } from "../views";
 import { act, usePluginData } from "../use-plugin-data";
+import { useAwakeInterval } from "../view-activity";
 import { Agenda, type Collection } from "./agenda";
 import { useFilter } from "./filters";
 import { recall, remember } from "./memory";
@@ -56,10 +57,7 @@ export function CalendarView({ settings }: ViewProps) {
     watchlist: filter.watchlistOnly,
   });
 
-  useEffect(() => {
-    const t = setInterval(reload, REFRESH);
-    return () => clearInterval(t);
-  }, [reload]);
+  useAwakeInterval(reload, REFRESH);
 
   useEffect(() => {
     if (requested === null) return;

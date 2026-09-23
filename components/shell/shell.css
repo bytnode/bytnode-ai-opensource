@@ -1,10 +1,12 @@
 /* ---------------------------------------------------------------------------
    The app's frame: the tab bar on top, the page underneath.
 
-   The bar is a thin veil like the column, never a coloured band: the tab in
-   front is a pill of matter, the others are text in muted ink, parted by
-   short rules. Like a browser's, the tabs share the whole width and narrow
-   as more open. It carries the page's structure, not its decoration.
+   The bar is a thin veil like the column, never a coloured band. The tab in
+   front is a pill of matter in full ink; the others are dimmed, asleep
+   like their pages — a faint grey ground, a muted title — and wake a
+   little under the hand. Like a browser's, the tabs share the whole width
+   and narrow as more open. It carries the page's structure, not its
+   decoration.
 --------------------------------------------------------------------------- */
 
 .shell {
@@ -13,18 +15,29 @@
   height: 100svh;
 }
 
+/* ⚠️ `clip`, not `hidden`: whatever a page lets out past its edge (the
+   conversations' composer does) must never make the window scrollable —
+   and a `hidden` box can still be scrolled by a script, `clip` cannot.
+   Without it, a tab switch slid the whole app up under the tab bar. */
 .shell-body {
   position: relative;
   flex: 1;
   min-height: 0;
+  overflow: clip;
 }
 
+/* The open pages lie on top of one another; the ones behind are hidden
+   but keep their layout (not `display: none`, which would lose their
+   scroll and their measures). */
 .shell-pane {
-  height: 100%;
+  position: absolute;
+  inset: 0;
 }
 
 .shell-pane[hidden] {
-  display: none;
+  display: block;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* --- The tab bar ------------------------------------------------------------ */
@@ -68,13 +81,15 @@
   min-width: 96px;
   height: 34px;
   border-radius: var(--radius);
-  color: var(--fg-muted);
+  /* Asleep: a faint grey ground, a muted title. */
+  background: rgba(var(--ink), 0.035);
+  color: rgba(var(--ink), 0.4);
   transition: background-color 120ms ease, color 120ms ease;
 }
 
 .tb-tab:hover {
-  background: var(--matter);
-  color: var(--fg);
+  background: rgba(var(--ink), 0.07);
+  color: rgba(var(--ink), 0.72);
 }
 
 .tb-tab.is-on {
@@ -82,24 +97,8 @@
   color: var(--fg);
 }
 
-/* A short rule between two tabs, gone beside the one in front and the one
-   under the hand. */
-.tb-tab + .tb-tab::before {
-  content: "";
-  position: absolute;
-  top: 10px;
-  bottom: 10px;
-  left: -2px;
-  width: 1px;
-  background: var(--line-strong);
-  transition: opacity 120ms ease;
-}
-
-.tb-tab.is-on::before,
-.tb-tab.is-on + .tb-tab::before,
-.tb-tab:hover::before,
-.tb-tab:hover + .tb-tab::before {
-  opacity: 0;
+.tb-tab:not(.is-on) .tb-close {
+  opacity: 0.6;
 }
 
 .tb-home,

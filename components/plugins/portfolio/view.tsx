@@ -10,6 +10,7 @@ import { goToSettings } from "@/lib/state/navigation";
 import { Select } from "@/components/ui/select";
 import type { ViewProps } from "../views";
 import { usePluginData } from "../use-plugin-data";
+import { useOnWake } from "../view-activity";
 import { useReportExport } from "../use-report-export";
 import { Change, Kpi, Loading, Problem, Sparkline, fmt, money } from "../bits";
 
@@ -25,7 +26,8 @@ type Current = { summary: Summary; money: Money; at: string };
 export function PortfolioView({ settings }: ViewProps) {
   const configured = String(resolveConfig(pluginManifest("portfolio")!, pluginSettings(settings.plugins, "portfolio").config).currency);
   const [currency, setCurrency] = useState(configured);
-  const { data, error, loading } = usePluginData<Current>("portfolio", "summary", settings, { currency });
+  const { data, error, loading, reload } = usePluginData<Current>("portfolio", "summary", settings, { currency });
+  useOnWake(reload);
   const history = usePluginData<{ points: Snapshot[] }>("portfolio", "history", settings, { days: 90 });
   const report = useReportExport("portfolio", settings, { currency });
 
