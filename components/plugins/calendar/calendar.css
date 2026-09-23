@@ -28,7 +28,7 @@
 
   display: flex;
   height: 100%;
-  padding: 14px 16px 16px;
+  padding: 0 16px 16px;
   color: var(--label);
   font-variant-numeric: tabular-nums;
 }
@@ -48,6 +48,8 @@ html[data-theme="light"] .calv {
   --pane: rgba(255, 255, 255, 0.6);
 }
 
+/* The block hangs from the tab bar: no gap above it, square top corners,
+   the bar's own line for its top edge. */
 .calv-panel {
   display: flex;
   flex: 1;
@@ -55,7 +57,8 @@ html[data-theme="light"] .calv {
   min-height: 0;
   overflow: hidden;
   border: 1px solid rgba(var(--ink), 0.075);
-  border-radius: 16px;
+  border-top: 0;
+  border-radius: 0 0 16px 16px;
   background: var(--pane);
   backdrop-filter: blur(22px) saturate(1.2);
 }
