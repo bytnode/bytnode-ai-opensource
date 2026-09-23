@@ -34,6 +34,8 @@ export type CalendarEvent = {
   url: string;
   /** When it was collected (or computed). */
   fetchedAt: string;
+  /** Computed from a venue's schedule (an expiry), not collected. */
+  computed?: true;
 };
 
 const DAY = 24 * 3600_000;
@@ -146,11 +148,12 @@ export function searchEvents(events: CalendarEvent[], q: EventQuery): CalendarEv
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
 }
 
-/** An event in one line, with its source and collection date. */
+/** An event in one line, with its source and collection date (or that it
+    is computed). */
 export function eventLine(e: CalendarEvent): string {
   const when = e.allDay ? `${e.startsAt.slice(0, 10)} (all day)` : `${e.startsAt.slice(0, 16).replace("T", " ")} UTC`;
   const assets = e.assets.length ? ` [${e.assets.join(", ")}]` : "";
-  return `${when} — ${e.title}${assets} · ${CATEGORY_LABELS[e.category]}, importance ${e.importance} · source: ${e.source} ${e.url} (collected ${e.fetchedAt.slice(0, 10)})`;
+  return `${when} — ${e.title}${assets} · ${CATEGORY_LABELS[e.category]}, importance ${e.importance} · source: ${e.source} ${e.url} (${e.computed ? "computed, not collected" : `collected ${e.fetchedAt.slice(0, 10)}`})`;
 }
 
 const PROMPT_HOURS = 48;

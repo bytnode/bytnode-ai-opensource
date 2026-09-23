@@ -48,6 +48,7 @@ export function expiries(from: Date, to: Date, now: Date): CalendarEvent[] {
         source: "Deribit schedule (computed: Fridays 08:00 UTC)",
         url: "https://www.deribit.com",
         fetchedAt,
+        computed: true,
       });
     }
     if (monthly) {
@@ -62,6 +63,7 @@ export function expiries(from: Date, to: Date, now: Date): CalendarEvent[] {
         source: "CME schedule (computed: last Friday of the month)",
         url: "https://www.cmegroup.com",
         fetchedAt,
+        computed: true,
       });
     }
   }

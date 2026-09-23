@@ -69,6 +69,9 @@ describe("expiries", () => {
       ["2026-10-30T08:00:00.000Z", 2],
     ]);
     expect(deribit[0].title).toBe("Deribit BTC & ETH quarterly options and futures expiry");
+    /* Marked as computed, never passed off as collected. */
+    expect(list.every((e) => e.computed === true)).toBe(true);
+    expect(eventLine(deribit[0])).toMatch(/\(computed, not collected\)$/);
     expect(list.filter((e) => e.id.startsWith("cme")).map((e) => [e.id, e.allDay, e.importance])).toEqual([
       ["cme-2026-09", true, 3],
       ["cme-2026-10", true, 2],

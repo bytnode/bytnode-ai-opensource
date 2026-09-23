@@ -32,6 +32,7 @@ export function CalendarView({ settings }: ViewProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [minImportance, setMinImportance] = useState("1");
   const [mine, setMine] = useState(false);
+  const [computed, setComputed] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   /* The week starts today (at midnight), then moves by whole weeks. */
@@ -54,7 +55,7 @@ export function CalendarView({ settings }: ViewProps) {
 
   const days = Array.from({ length: 7 }, (_, i) => new Date(from.getTime() + i * DAY));
   const byDay = new Map<string, CalendarEvent[]>();
-  for (const e of data?.events ?? []) {
+  for (const e of (data?.events ?? []).filter((x) => computed || !x.computed)) {
     const d = e.allDay ? new Date(`${e.startsAt.slice(0, 10)}T00:00:00`) : new Date(e.startsAt);
     const k = dayKey(d);
     byDay.set(k, [...(byDay.get(k) ?? []), e]);
@@ -102,6 +103,10 @@ export function CalendarView({ settings }: ViewProps) {
             onChange={setMinImportance}
           />
         </div>
+        <span className="cv-switch">
+          <Switch on={computed} onChange={setComputed} label="Show the computed expiries" />
+          Computed expiries
+        </span>
         {data?.watchlist && (
           <span className="cv-switch">
             <Switch on={mine} onChange={setMine} label="Only my watchlist" />
@@ -112,8 +117,8 @@ export function CalendarView({ settings }: ViewProps) {
       <p className="pv-note">
         {data?.last
           ? `Last collection ${new Date(data.last.at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}, next ${data.last.days} days: ${data.last.added} new, ${data.last.updated} updated, ${data.last.rejected.length} rejected (no source, no date).`
-          : "No collection yet: only the computed expiries are shown. Collect now, or wait for the daily collection."}{" "}
-        Expiries are computed from the venues&apos; schedules; a holiday can move them.
+          : "No event collected yet — the first collection runs at the time set in Settings → Plugins, or now with Collect now. Until then, only the computed expiries are shown."}{" "}
+        The options and futures expiries (Deribit every Friday, CME the last Friday of the month) are computed from the venues&apos; schedules, marked Computed; a holiday can move them.
       </p>
       {notice && <p className="pv-note">{notice}</p>}
       {problem && <Problem message={problem} />}
@@ -135,7 +140,14 @@ export function CalendarView({ settings }: ViewProps) {
                       <li key={e.id} className={`cv-event is-${e.importance}`}>
                         <span className="cv-time">{e.allDay ? "All day" : new Date(e.startsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                         <span className="cv-what">
-                          <strong>{e.title}</strong>
+                          <strong>
+                            {e.title}
+                            {e.computed && (
+                              <span className="pv-chip pv-tag" title="Computed from the venue's schedule, not collected: a holiday can move it.">
+                                Computed
+                              </span>
+                            )}
+                          </strong>
                           <span className="pv-muted">
                             {CATEGORY_LABELS[e.category]}
                             {e.assets.length > 0 && ` · ${e.assets.join(", ")}`} ·{" "}
