@@ -8,6 +8,7 @@ import { reportExportManifest } from "./report-export/manifest";
 import { paperTradingManifest } from "./paper-trading/manifest";
 import { schedulerManifest } from "./scheduler/manifest";
 import { calendarManifest } from "./calendar/manifest";
+import { alertsManifest } from "./alerts/manifest";
 import { portfolioManifest } from "./portfolio/manifest";
 
 /* ---------------------------------------------------------------------------
@@ -19,7 +20,7 @@ import { portfolioManifest } from "./portfolio/manifest";
    folder under `lib/plugins/<id>/` + a line here + a line there.
 --------------------------------------------------------------------------- */
 
-export const PLUGIN_MANIFESTS: PluginManifest[] = [positionCalcManifest, financeToolsManifest, watchlistManifest, reportExportManifest, paperTradingManifest, schedulerManifest, calendarManifest, portfolioManifest];
+export const PLUGIN_MANIFESTS: PluginManifest[] = [positionCalcManifest, financeToolsManifest, watchlistManifest, reportExportManifest, paperTradingManifest, schedulerManifest, calendarManifest, alertsManifest, portfolioManifest];
 
 export const pluginManifest = (id: string): PluginManifest | undefined => PLUGIN_MANIFESTS.find((m) => m.id === id);
 
