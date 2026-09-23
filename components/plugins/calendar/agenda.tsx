@@ -95,7 +95,7 @@ export function Agenda({ period, span, today, days, last, loading, problem, coll
       </header>
       {problem && <p className="calv-problem">{problem}</p>}
       {period.kind === "week" && <WeekHead span={span} today={today} onPick={onPick} />}
-      <div className="calv-list" ref={list}>
+      <div className={`calv-list${period.kind === "week" ? " is-week" : ""}`} ref={list}>
         {period.kind === "day" ? <HourScale key={periodId} day={period.day} events={shown} now={now} anchor={anchor} /> : <WeekGrid span={span} days={days} today={today} now={now} anchor={anchor} />}
       </div>
     </main>
