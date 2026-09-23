@@ -479,8 +479,8 @@ html[data-theme="light"] .calv-pop {
 
 /* --- The agenda pane ---------------------------------------------------------- */
 
-/* The agenda is where the reading happens: one sheet, round at every
-   corner, one veil (denser than the month's), firmer labels, larger type. */
+/* The agenda is where the reading happens: one sheet, one veil (denser
+   than the month's), firmer labels, larger type. */
 .calv-agenda {
   --label-2: rgba(var(--ink), 0.8);
   --label-3: rgba(var(--ink), 0.62);
@@ -489,7 +489,8 @@ html[data-theme="light"] .calv-pop {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  border-radius: var(--r-panel);
+  /* Square where it meets the tab bar and the month, round elsewhere. */
+  border-radius: 0 var(--r-panel) var(--r-panel) var(--r-panel);
   background: var(--sheet);
   backdrop-filter: blur(24px) saturate(1.15);
 }
@@ -831,7 +832,7 @@ html[data-theme="light"] .calv-agenda {
   align-content: start;
   gap: 4px;
   min-width: 0;
-  min-height: 52px;
+  min-height: 66px;
   padding: 4px;
   border-radius: var(--r-tile);
   background: var(--tile);
