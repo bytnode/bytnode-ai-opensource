@@ -6,7 +6,8 @@ import { loadProfession } from "@/lib/professions/load";
 import { DEFAULT_PROFESSION, isProfessionId } from "@/lib/professions/catalog";
 import { PROJECT_ROOT, resolveWorkspace } from "@/lib/server/workspace";
 import { userSkills } from "@/lib/tools/skills/skill";
-import { pluginSkills, readyRuntime } from "@/lib/plugins/host";
+import { readyRuntime } from "@/lib/plugins/host";
+import { pluginSkills } from "@/lib/plugins/extras";
 
 /* ---------------------------------------------------------------------------
    One conversation turn with a subscription agent.

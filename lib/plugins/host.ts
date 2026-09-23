@@ -5,10 +5,9 @@ import { OPEN_VIEW } from "@/lib/tools/views/open-view";
 import { PLUGINS } from "./definitions";
 import { setActiveRuntime } from "./core/active";
 import { requestConfirmation } from "./core/confirmations";
-import { listSkillsIn, type SkillInfo } from "@/lib/tools/skills/skill";
-import type { PromptTarget, Session } from "./core/contract";
+import type { Session } from "./core/contract";
 import { addNotification } from "./core/notifications";
-import { PluginRuntime, type AgentNeeds, type RuntimeEnv } from "./core/runtime";
+import { PluginRuntime, type RuntimeEnv } from "./core/runtime";
 import { SessionHolder } from "./core/session";
 import { pluginStore, pluginsDir, readJson, writeJsonAtomic } from "./core/store";
 
@@ -91,17 +90,6 @@ export async function syncSession(session: Session): Promise<void> {
   const previous = await readJson<PluginsState>(mirrorFile(), {});
   if (JSON.stringify(previous) !== JSON.stringify(session.plugins)) await writeJsonAtomic(mirrorFile(), session.plugins);
   await host.runtime.apply(session.plugins);
-}
-
-/** The skills of the plugins enabled for an agent. */
-export async function pluginSkills(runtime: PluginRuntime, plugins: string[] | null): Promise<SkillInfo[]> {
-  return (await Promise.all(runtime.skillDirs(plugins).map(listSkillsIn))).flat();
-}
-
-/** What the plugins enabled for an agent add to its prompt — re-read at
-    every turn: a watchlist, the coming events change between two. */
-export async function pluginPrompt(runtime: PluginRuntime, plugins: string[] | null, target: PromptTarget, needs: AgentNeeds): Promise<string> {
-  return (await runtime.prompts(plugins, target, needs)).join("\n\n");
 }
 
 /** The runtime of an MCP server: tools only, for the state it was given. */

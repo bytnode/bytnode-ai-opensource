@@ -6,7 +6,8 @@ import { loadProfession } from "@/lib/professions/load";
 import { DEFAULT_PROFESSION, isProfessionId } from "@/lib/professions/catalog";
 import type { ToolContext } from "@/lib/tools/types";
 import type { AgentEvent } from "@/lib/agent/events";
-import { pluginSkills, readyRuntime } from "@/lib/plugins/host";
+import { readyRuntime } from "@/lib/plugins/host";
+import { pluginSkills } from "@/lib/plugins/extras";
 
 /* ---------------------------------------------------------------------------
    Execute a tool, and tell what happens along the way.

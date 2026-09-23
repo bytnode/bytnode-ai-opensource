@@ -5,7 +5,8 @@ import { readTransport } from "@/lib/tools/transport";
 import { PROJECT_ROOT, resolveWorkspace } from "@/lib/server/workspace";
 import { loadProfession } from "@/lib/professions/load";
 import { DEFAULT_PROFESSION, isProfessionId } from "@/lib/professions/catalog";
-import { pluginSkills, readyRuntime } from "@/lib/plugins/host";
+import { readyRuntime } from "@/lib/plugins/host";
+import { pluginSkills } from "@/lib/plugins/extras";
 
 /* What the browser needs to know before a turn: the resolved workspace,
    the tool specifications (base + BytNode + the agent's plugins) and their

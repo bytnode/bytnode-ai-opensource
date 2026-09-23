@@ -1,4 +1,5 @@
-import { pluginPrompt, readyRuntime } from "@/lib/plugins/host";
+import { readyRuntime } from "@/lib/plugins/host";
+import { pluginPrompt } from "@/lib/plugins/extras";
 import { readTransport } from "@/lib/tools/transport";
 
 /* What the agent's plugins add to its prompt, re-read at every turn like
