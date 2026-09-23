@@ -158,6 +158,21 @@
   color: var(--fg-faint);
 }
 
+/* ⚠️ An icon takes its size from its container: without these two
+   lines the spinner fills the whole page while the data loads. */
+.pv-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pv-loading svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
 .pv-form {
   display: flex;
   flex-wrap: wrap;

@@ -37,7 +37,7 @@ export function Kpi({ label, value, sub }: { label: string; value: ReactNode; su
 
 export function Loading() {
   return (
-    <p className="pv-note">
+    <p className="pv-note pv-loading">
       <Spinner /> Loading…
     </p>
   );
