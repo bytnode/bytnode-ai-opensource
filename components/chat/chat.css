@@ -10,7 +10,8 @@
 .chat {
   display: grid;
   grid-template-columns: var(--sidebar) 1fr;
-  height: 100svh;
+  /* The whole page under the tab bar (`components/shell`). */
+  height: 100%;
 }
 
 /* --- The column ----------------------------------------------------------- */

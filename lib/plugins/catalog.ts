@@ -1,6 +1,6 @@
-import type { PluginManifest } from "@/lib/domain/plugins";
+import type { PluginManifest, PluginNeed, PluginView } from "@/lib/domain/plugins";
 import type { Settings } from "@/lib/domain/types";
-import { pluginsForAgent } from "./core/state";
+import { enabledPlugins, pluginsForAgent } from "./core/state";
 import { positionCalcManifest } from "./position-calc/manifest";
 
 /* ---------------------------------------------------------------------------
@@ -19,3 +19,26 @@ export const pluginManifest = (id: string): PluginManifest | undefined => PLUGIN
 /** The plugins an agent may use, from the settings: they travel with its
     requests (`x-plugins`). */
 export const agentPlugins = (settings: Settings, agentId: string): string[] => pluginsForAgent(PLUGIN_MANIFESTS, settings.plugins, agentId);
+
+/** The prerequisites of a plugin the user has not configured at all (an
+    agent may still lack them: they are checked per agent). */
+export const unmetNeeds = (settings: Settings, manifest: PluginManifest): PluginNeed[] =>
+  manifest.needs.filter((n) => (n === "exchange-account" ? settings.keys.exchanges.length === 0 : !settings.keys.bytnode.trim()));
+
+export type ViewEntry = PluginView & { plugin: PluginManifest };
+
+/** The views of the plugins that run, for the tab bar's "+". */
+export const enabledViews = (settings: Settings): ViewEntry[] =>
+  enabledPlugins(PLUGIN_MANIFESTS, settings.plugins).flatMap((id) => {
+    const plugin = pluginManifest(id)!;
+    return plugin.views.map((v) => ({ ...v, plugin }));
+  });
+
+/** A view by its id, whatever the plugins' state. */
+export const viewEntry = (id: string): ViewEntry | undefined => {
+  for (const plugin of PLUGIN_MANIFESTS) {
+    const v = plugin.views.find((x) => x.id === id);
+    if (v) return { ...v, plugin };
+  }
+  return undefined;
+};

@@ -28,7 +28,8 @@ import { runAgentLoop } from "@/lib/agent/loop";
 import type { ToolCall } from "@/lib/agent/tool-calls";
 import { LlmError, OpenRouterClient } from "@/lib/llm/client";
 import { executeTool, fetchToolset } from "@/lib/tools/client";
-import { isAlwaysAskTitle } from "@/lib/tools/names";
+import { isAlwaysAskTitle, isOpenViewName } from "@/lib/tools/names";
+import { openView } from "@/lib/state/tabs";
 import { mustAsk, policyIn } from "@/lib/tools/policy";
 import { agentTransport } from "@/lib/tools/transport";
 import { agentPlugins } from "@/lib/plugins/catalog";
@@ -413,6 +414,12 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
                     : e.output;
                 if (e.images?.length) t.images = e.images;
                 if (e.card) t.card = e.card;
+                /* The agent opened a view: the tab opens (or comes to the
+                   front) now — the live event only, never a replay. */
+                if (e.ok && isOpenViewName(t.name) && typeof t.args.view === "string") {
+                  const params = t.args.params;
+                  openView(t.args.view, typeof params === "object" && params !== null && !Array.isArray(params) ? (params as Record<string, unknown>) : undefined);
+                }
                 mark(true);
               }
               break;

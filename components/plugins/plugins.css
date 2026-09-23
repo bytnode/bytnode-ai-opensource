@@ -1,0 +1,358 @@
+/* ---------------------------------------------------------------------------
+   The plugins' pages and cards.
+
+   A view is a page of the app, not a page added to it: the same veil as the
+   settings, the same rules instead of boxes, the same mono for figures. A
+   card in the thread is a pill of matter under its tool's row.
+--------------------------------------------------------------------------- */
+
+/* --- A view's frame -------------------------------------------------------- */
+
+.pv {
+  height: 100%;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--ink), 0.22) transparent;
+}
+
+.pv-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  width: min(1040px, 100%);
+  margin: 0 auto;
+  padding: 26px 28px 8px;
+}
+
+.pv-title {
+  margin: 0;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 400;
+  font-size: 1.55rem;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+
+.pv-lede {
+  margin: 6px 0 0;
+  max-width: 40rem;
+  font-size: 0.84rem;
+  color: var(--fg-muted);
+}
+
+.pv-body {
+  width: min(1040px, 100%);
+  margin: 0 auto;
+  padding: 8px 28px 48px;
+}
+
+.pv-empty {
+  color: var(--fg-muted);
+  font-size: 0.88rem;
+}
+
+/* The bricks the views share: a section, a row of big figures, a table. */
+
+.pv-section {
+  margin-top: 26px;
+}
+
+.pv-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.pv-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.pv-kpi {
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--matter);
+}
+
+.pv-kpi-label {
+  display: block;
+  font-size: 0.74rem;
+  color: var(--fg-muted);
+}
+
+.pv-kpi-value {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-display), sans-serif;
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+}
+
+.pv-kpi-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.74rem;
+  color: var(--fg-faint);
+}
+
+.pv-table-wrap {
+  overflow-x: auto;
+}
+
+.pv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.pv-table th {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line-strong);
+  color: var(--fg-muted);
+  font-weight: 500;
+  font-size: 0.76rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.pv-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.pv-table td.num,
+.pv-table th.num {
+  text-align: right;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.8rem;
+}
+
+.pv-table tr:hover td {
+  background: rgba(var(--ink), 0.025);
+}
+
+.pv-up {
+  color: #3fb950;
+}
+
+.pv-down {
+  color: #f85149;
+}
+
+.pv-muted {
+  color: var(--fg-muted);
+}
+
+.pv-note {
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+  color: var(--fg-faint);
+}
+
+.pv-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  background: var(--matter);
+}
+
+.pv-form .field {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.pv-form .field-input {
+  height: 38px;
+  font-size: 0.86rem;
+}
+
+.pv-form .picker-trigger.as-field {
+  height: 38px;
+  font-size: 0.86rem;
+}
+
+.pv-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.pv-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 8px;
+}
+
+.pv-chart-line {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 1.6;
+}
+
+.pv-chart-area {
+  fill: rgba(var(--ink), 0.06);
+  stroke: none;
+}
+
+.pv-chart-axis {
+  fill: var(--fg-faint);
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+}
+
+.pv-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--matter-strong);
+  overflow: hidden;
+}
+
+.pv-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--fg-muted);
+}
+
+.pv-chip {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--matter);
+  color: var(--fg-muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.pv-chip.is-strong {
+  background: var(--fg);
+  color: rgb(var(--ink-inv));
+}
+
+.pv-error {
+  margin-top: 14px;
+}
+
+/* --- Cards in the thread ------------------------------------------------ */
+
+.pc {
+  display: block;
+  margin: 0 10px 10px 36px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--matter);
+  font-size: 0.84rem;
+}
+
+.pc-title {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 0 6px;
+  font-weight: 500;
+}
+
+.pc-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.pc-facts dt {
+  font-size: 0.72rem;
+  color: var(--fg-muted);
+}
+
+.pc-facts dd {
+  margin: 1px 0 0;
+  font-size: 0.84rem;
+}
+
+.pc-scroll {
+  overflow-x: auto;
+}
+
+.pc-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.pc-table th {
+  padding: 4px 8px 4px 0;
+  border-bottom: 1px solid var(--line-strong);
+  color: var(--fg-muted);
+  font-weight: 500;
+  font-size: 0.72rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.pc-table td {
+  padding: 5px 8px 5px 0;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.pc-note {
+  margin: 8px 0 0;
+  font-size: 0.74rem;
+  color: var(--fg-faint);
+}
+
+.pc-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: calc(100% - 46px);
+  border: 0;
+  color: var(--fg);
+  text-align: left;
+}
+
+.pc-link:hover {
+  background: var(--matter-hover);
+}
+
+.pc-link small {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--fg-faint);
+}
+
+.pc-link svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* PAPER: simulated money, never mistaken for LIVE — outlined, not filled. */
+.xch-badge.is-paper {
+  border-color: var(--fg-muted);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .pv-head,
+  .pv-body {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}

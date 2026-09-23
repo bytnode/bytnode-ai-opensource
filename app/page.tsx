@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { ChatShell } from "@/components/chat/chat-shell";
+import { AppShell } from "@/components/shell/app-shell";
 import { Wizard } from "@/components/onboarding/wizard";
 import { applyTheme } from "@/components/ui/theme-toggle";
 import type { AgentConfig } from "@/lib/domain/types";
@@ -11,7 +11,7 @@ import { blankAgent } from "@/lib/storage/repositories";
 
 /* The single page: until the settings are read, nothing — the background
    is enough. Then the full wizard if the account is not configured,
-   otherwise the chat. */
+   otherwise the app: the tab bar, the conversations, the plugins' views. */
 /* A new agent's id and date are set at the moment it is created, not
    during render: an id drawn on every render would restart the form. */
 const stamp = (a: AgentConfig): AgentConfig =>
@@ -56,5 +56,5 @@ export default function Page() {
     );
   }
 
-  return <ChatShell settings={settings} />;
+  return <AppShell settings={settings} />;
 }

@@ -26,5 +26,5 @@ export const positionCalcManifest: PluginManifest = {
     },
   },
   views: [],
-  data: "Nothing: it computes and stores nothing.",
+  data: null,
 };

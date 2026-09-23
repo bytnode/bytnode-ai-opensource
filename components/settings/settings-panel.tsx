@@ -13,10 +13,11 @@ import { BytnodeKey, OpenRouterKey, Subscriptions } from "@/components/onboardin
 import { ExchangeAccounts } from "@/components/onboarding/exchange-accounts";
 import type { StepErrors } from "@/components/onboarding/wizard";
 import "@/components/onboarding/onboarding.css";
+import { PluginsLibrary } from "./plugins-library";
 import "./settings.css";
 
 /* ---------------------------------------------------------------------------
-   The settings: one panel, a navigation on the left, four sections.
+   The settings: one panel, a navigation on the left, five sections.
 
    Everything saves as you type — there is neither a draft nor a "Save"
    button, closing loses nothing. The only exception: an agent's form, which
@@ -24,17 +25,18 @@ import "./settings.css";
    first-launch wizard (`Wizard`) is now only used on the first opening.
 --------------------------------------------------------------------------- */
 
-export type SettingsTab = "general" | "auth" | "agents" | "providers";
+export type SettingsTab = "general" | "auth" | "agents" | "providers" | "plugins";
 
 /** What the panel shows on opening: a tab, and for Agents, an agent to
-    edit or `"new"` to create one. */
-export type SettingsTarget = { tab: SettingsTab; agent?: AgentConfig | "new" };
+    edit or `"new"` to create one; for Plugins, a plugin's page. */
+export type SettingsTarget = { tab: SettingsTab; agent?: AgentConfig | "new"; plugin?: string };
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: "general", label: "General" },
   { id: "auth", label: "Auth" },
   { id: "agents", label: "Agents" },
   { id: "providers", label: "Providers" },
+  { id: "plugins", label: "Plugins" },
 ];
 
 type Props = {
@@ -118,6 +120,7 @@ export function SettingsPanel({ settings, target, onUpdate, onSaveAgent, onRemov
               />
             )}
             {tab === "providers" && <Providers settings={settings} onGoAuth={() => go("auth")} />}
+            {tab === "plugins" && <PluginsLibrary settings={settings} initial={target.tab === "plugins" ? target.plugin : undefined} onUpdate={onUpdate} onGo={go} />}
           </div>
         </div>
       </div>

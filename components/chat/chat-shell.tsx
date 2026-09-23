@@ -17,6 +17,7 @@ import {
 } from "@/lib/state/conversations";
 import { updateSettings } from "@/lib/state/settings";
 import { clampWidth, updateUiPrefs, useUiPrefs } from "@/lib/state/ui";
+import { openSettings, setActiveConversation, useNavigation, type SettingsRequest } from "@/lib/state/navigation";
 import { blankAgent } from "@/lib/storage/repositories";
 import { addRule } from "@/lib/tools/permissions";
 import {
@@ -63,8 +64,13 @@ const PERMISSION_MODES = [
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
-/* The settings panel, if open: the tab, and the agent to edit. */
-type Editing = SettingsTarget | null;
+/** The panel's target from a request: the agent looked up by its id. */
+const settingsTarget = (r: SettingsRequest, agents: AgentConfig[]): SettingsTarget => ({
+  tab: r.tab,
+  ...(r.agentId === "new" ? { agent: "new" as const } : r.agentId ? { agent: agents.find((a) => a.id === r.agentId) } : {}),
+  ...(r.plugin ? { plugin: r.plugin } : {}),
+});
+
 
 /* ---------------------------------------------------------------------------
    The chat page: the column, the thread, the composer.
@@ -80,12 +86,14 @@ export function ChatShell({ settings }: Props) {
   const catalog = useCatalog();
   const acpAuth = useAcpAuth();
   const ui = useUiPrefs();
-  const [active, setActive] = useState<string | null>(null);
+  /* The open conversation and the settings panel live in a shared store:
+     a notification or a plugin's tab can bring the user here. */
+  const nav = useNavigation();
+  const active = nav.conversation;
   const [pendingModel, setPendingModel] = useState<string | null>(null);
   const [pendingEffort, setPendingEffort] = useState<string | null>(null);
   const [pendingMode, setPendingMode] = useState<string | null>(null);
   const [menu, setMenu] = useState(false);
-  const [editing, setEditing] = useState<Editing>(null);
   /* The agent whose deletion is requested, for the duration of the
      confirmation. */
   const [deleting, setDeleting] = useState<AgentConfig | null>(null);
@@ -117,7 +125,7 @@ export function ChatShell({ settings }: Props) {
     : accepts(pendingEffort ?? agent?.defaultEffort);
 
   const onConversationCreated = useCallback((id: string) => {
-    setActive(id);
+    setActiveConversation(id);
     setPendingModel(null);
     setPendingEffort(null);
     setPendingMode(null);
@@ -234,7 +242,7 @@ export function ChatShell({ settings }: Props) {
 
   const selectAgent = (id: string) => {
     updateSettings((s) => ({ ...s, activeAgentId: id }));
-    setActive(null);
+    setActiveConversation(null);
     setPendingModel(null);
     setPendingEffort(null);
     setPendingMode(null);
@@ -253,13 +261,13 @@ export function ChatShell({ settings }: Props) {
           : s.activeAgentId;
       return { ...s, agents, activeAgentId };
     });
-    if (target.id === agent?.id) setActive(null);
+    if (target.id === agent?.id) setActiveConversation(null);
   };
 
   const removeConv = (id: string) => {
     if (acpAgentOf(agent?.providerId)) void closeAcpConversation(id);
     removeConversation(id);
-    if (id === active) setActive(null);
+    if (id === active) setActiveConversation(null);
   };
 
   const saveAgent = (agent: AgentConfig, isNew: boolean) => {
@@ -273,9 +281,9 @@ export function ChatShell({ settings }: Props) {
     if (isNew) {
       /* A created agent is a conversation that begins: the panel closes on
          this new agent's empty thread, not on the list. */
-      setActive(null);
+      setActiveConversation(null);
       setPendingModel(null);
-      setEditing(null);
+      openSettings(null);
     }
   };
 
@@ -294,7 +302,7 @@ export function ChatShell({ settings }: Props) {
 
   /* With no agent — all deleted — the creation sheet is forced. */
   const mustCreate = agent === null;
-  const sheet: Editing = mustCreate ? { tab: "agents", agent: "new" } : editing;
+  const sheet: SettingsTarget | null = mustCreate ? { tab: "agents", agent: "new" } : nav.settings && settingsTarget(nav.settings, settings.agents);
 
   return (
     <div
@@ -307,24 +315,24 @@ export function ChatShell({ settings }: Props) {
         activeAgentId={agent?.id ?? null}
         activeConversationId={active}
         open={menu}
-        onNewAgent={() => setEditing({ tab: "agents", agent: "new" })}
+        onNewAgent={() => openSettings({ tab: "agents", agentId: "new" })}
         onSelectAgent={(id) => {
           selectAgent(id);
           setMenu(false);
         }}
-        onEditAgent={(a) => setEditing({ tab: "agents", agent: a })}
+        onEditAgent={(a) => openSettings({ tab: "agents", agentId: a.id })}
         onRemoveAgent={(a) => setDeleting(a)}
         onNewConversation={() => {
-          setActive(null);
+          setActiveConversation(null);
           setMenu(false);
         }}
         onSelectConversation={(id) => {
-          setActive(id);
+          setActiveConversation(id);
           setMenu(false);
         }}
         onRemoveConversation={removeConv}
         onRenameConversation={renameConversation}
-        onSettings={() => setEditing({ tab: "general" })}
+        onSettings={() => openSettings({ tab: "general" })}
         onTheme={(theme) => updateSettings((s) => ({ ...s, theme }))}
         onCollapse={() => updateUiPrefs({ sidebarCollapsed: true })}
         onResize={(w) => updateUiPrefs({ sidebarWidth: clampWidth(w) })}
@@ -422,7 +430,7 @@ export function ChatShell({ settings }: Props) {
               <button
                 type="button"
                 className="btn btn-sm"
-                onClick={() => setEditing({ tab: acp ? "providers" : "auth" })}
+                onClick={() => openSettings({ tab: acp ? "providers" : "auth" })}
               >
                 Open the settings
               </button>
@@ -506,7 +514,7 @@ export function ChatShell({ settings }: Props) {
           onUpdate={(patch) => updateSettings((s) => ({ ...s, ...patch }))}
           onSaveAgent={saveAgent}
           onRemoveAgent={(a) => setDeleting(a)}
-          onClose={mustCreate ? undefined : () => setEditing(null)}
+          onClose={mustCreate ? undefined : () => openSettings(null)}
         />
       )}
     </div>

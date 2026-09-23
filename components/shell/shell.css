@@ -1,0 +1,402 @@
+/* ---------------------------------------------------------------------------
+   The app's frame: the tab bar on top, the page underneath.
+
+   The bar is a thin veil like the column, never a coloured band: the tab in
+   front is a pill of matter, the others are text in muted ink. It carries
+   the page's structure, not its decoration.
+--------------------------------------------------------------------------- */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100svh;
+}
+
+.shell-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.shell-pane {
+  height: 100%;
+}
+
+.shell-pane[hidden] {
+  display: none;
+}
+
+/* --- The tab bar ------------------------------------------------------------ */
+
+.tb {
+  position: relative;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  padding: 0 8px;
+  flex: none;
+  background: var(--veil);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--line);
+}
+
+.tb-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tb-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tb-tab {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 28px;
+  border-radius: var(--radius);
+  color: var(--fg-muted);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.tb-tab:hover {
+  background: var(--matter);
+  color: var(--fg);
+}
+
+.tb-tab.is-on {
+  background: var(--matter-strong);
+  color: var(--fg);
+}
+
+.tb-home,
+.tb-label {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: inherit;
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+.tb-home {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.tb-label {
+  padding-right: 4px;
+}
+
+.tb-close {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fg-faint);
+}
+
+.tb-close:hover {
+  background: var(--matter-hover);
+  color: var(--fg);
+}
+
+.tb-close svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2;
+}
+
+.tb-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--fg-muted);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.tb-icon:hover,
+.tb-icon.is-on {
+  background: var(--matter);
+  color: var(--fg);
+}
+
+.tb-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tb-add {
+  flex: none;
+}
+
+.tb-space {
+  flex: 1;
+}
+
+/* --- The notification center ------------------------------------------ */
+
+.nc {
+  position: relative;
+  flex: none;
+}
+
+.nc-count {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--fg);
+  color: rgb(var(--ink-inv));
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 15px;
+}
+
+.nc-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 24;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.nc-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  width: min(380px, calc(100vw - 24px));
+  max-height: min(560px, 75vh);
+  border-radius: var(--radius-lg);
+  background: var(--veil-strong);
+  -webkit-backdrop-filter: blur(22px);
+  backdrop-filter: blur(22px);
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 18px 50px -12px rgba(2, 6, 14, 0.7);
+  animation: sp-in 160ms var(--ease) both;
+}
+
+.nc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 10px 10px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+.nc-head-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.nc-allow {
+  margin: 8px 10px 0;
+  padding: 8px 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.78rem;
+  text-align: left;
+}
+
+.nc-allow:hover {
+  color: var(--fg);
+  background: var(--matter);
+}
+
+.nc-empty {
+  margin: 0;
+  padding: 26px 18px;
+  text-align: center;
+  font-size: 0.84rem;
+  color: var(--fg-faint);
+}
+
+.nc-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+}
+
+.nc-item {
+  position: relative;
+  display: flex;
+  border-radius: var(--radius);
+}
+
+.nc-item:hover {
+  background: var(--matter);
+}
+
+.nc-item.is-unread::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 14px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fg);
+}
+
+.nc-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 8px 8px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+}
+
+.nc-title {
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+.nc-body {
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+}
+
+.nc-meta {
+  font-size: 0.72rem;
+  color: var(--fg-faint);
+}
+
+.nc-meta strong {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.nc-warning .nc-title::before,
+.nc-error .nc-title::before {
+  content: "● ";
+  color: #e3b341;
+}
+
+.nc-error .nc-title::before {
+  color: #f85149;
+}
+
+.nc-x {
+  align-self: flex-start;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fg-faint);
+  opacity: 0;
+}
+
+.nc-item:hover .nc-x,
+.nc-x:focus-visible {
+  opacity: 1;
+}
+
+.nc-x:hover {
+  background: var(--matter-hover);
+  color: var(--fg);
+}
+
+.nc-x svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2;
+}
+
+/* --- A parked order, in front of the user ----------------------------------- */
+
+.cf {
+  width: min(480px, 100%);
+}
+
+.cf-from {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.76rem;
+  color: var(--fg-faint);
+}
+
+.cf-call {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--matter);
+  font-size: 0.86rem;
+}
+
+.cf-call.is-danger {
+  box-shadow: inset 2px 0 0 #f85149;
+}
+
+.cf-call .xch-badge {
+  margin-right: 0;
+}
+
+.cf-warn {
+  margin: 12px 0 0;
+  font-size: 0.84rem;
+  color: #f85149;
+}
+
+.cf-outcome {
+  margin: 14px 0 0;
+  font-size: 0.86rem;
+  color: var(--fg-muted);
+  white-space: pre-wrap;
+}
+
+.cf-outcome strong {
+  color: var(--fg);
+}

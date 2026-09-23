@@ -148,6 +148,19 @@ export const EyeOff = (p: P) => (
   </svg>
 );
 
+export const Bell = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15L6 16Z" />
+    <path d="M10 20a2 2 0 0 0 4 0" />
+  </svg>
+);
+
+export const Refresh = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M20 11a8 8 0 0 0-14.9-3.5M4 4v4h4M4 13a8 8 0 0 0 14.9 3.5M20 20v-4h-4" />
+  </svg>
+);
+
 export const Spinner = (p: P) => (
   <svg {...base(p)} className={`spin ${p.className ?? ""}`}>
     <path d="M12 3a9 9 0 1 0 9 9" />

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Step, SubagentState } from "@/lib/agent/events";
-import { alwaysAsks, isAlwaysAskTitle, isExchangeTool, isWorkflowName, summarizeCall } from "@/lib/tools/names";
+import { alwaysAsks, isAlwaysAskTitle, isExchangeTool, isOpenViewName, isPaperTool, isWorkflowName, summarizeCall } from "@/lib/tools/names";
 import { parseWorkflowReport } from "@/lib/tools/agents/subagent";
 import { isProfessionId, professionInfo } from "@/lib/professions/catalog";
 import { Markdown } from "./markdown";
@@ -10,8 +10,11 @@ import { isDangerous, ruleFor, ruleLabel } from "@/lib/tools/permissions";
 import { pickAccount } from "@/lib/tools/exchange/accounts";
 import { useSettings } from "@/lib/state/settings";
 import { Check, ChevronDown, Close, Spinner } from "@/components/ui/icons";
+import { Badge, OpenViewCard, ToolCardView } from "@/components/plugins/cards";
 
 type ToolStep = Extract<Step, { type: "tool" }>;
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 type Props = {
   step: ToolStep;
@@ -37,12 +40,19 @@ export function ToolStepView({ step, onAnswer, fileUrl }: Props) {
         <span className="ts-status" aria-hidden="true">
           {step.status === "running" ? <Spinner /> : step.status === "done" ? <Check /> : step.status === "pending" ? null : <Close />}
         </span>
+        {isPaperTool(step.name) && <Badge badge="PAPER" />}
         <span className="ts-name">{step.name}</span>
         {summary && <span className="ts-summary mono">{summary}</span>}
         <ChevronDown className="ts-chevron" />
       </button>
 
       {pending && onAnswer && <Ask step={step} onAnswer={onAnswer} />}
+
+      {step.card && <ToolCardView card={step.card} />}
+
+      {isOpenViewName(step.name) && step.status === "done" && typeof step.args.view === "string" && (
+        <OpenViewCard view={step.args.view} params={isRecord(step.args.params) ? step.args.params : undefined} />
+      )}
 
       {isWorkflowName(step.name) && <WorkflowView step={step} />}
 

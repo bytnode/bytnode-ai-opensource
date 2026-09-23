@@ -79,8 +79,8 @@ export type PluginManifest = {
   needs: PluginNeed[];
   config: PluginConfigSchema;
   views: PluginView[];
-  /** What it stores on disk, in one sentence. */
-  data: string;
+  /** What it stores on disk, in one sentence; `null`: nothing. */
+  data: string | null;
 };
 
 /** A plugin's settings, in `Settings.plugins`. Absent: enabled, defaults. */

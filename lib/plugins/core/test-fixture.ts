@@ -15,5 +15,5 @@ export const manifest = (id: string, requires: string[] = [], optional: string[]
   needs: [],
   config: { type: "object", properties: config },
   views: [],
-  data: "Nothing.",
+  data: null,
 });
