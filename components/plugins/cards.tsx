@@ -1,10 +1,10 @@
 "use client";
 
 import type { ToolCard } from "@/lib/tools/types";
-import type { CardBadge, FactsCard, TableCard } from "@/lib/plugins/shared/cards";
+import type { CardBadge, FactsCard, FileCard, TableCard } from "@/lib/plugins/shared/cards";
 import { viewEntry } from "@/lib/plugins/catalog";
 import { openView } from "@/lib/state/tabs";
-import { ArrowRight } from "@/components/ui/icons";
+import { ArrowRight, File } from "@/components/ui/icons";
 import "./plugins.css";
 
 /* ---------------------------------------------------------------------------
@@ -71,9 +71,25 @@ function Table({ card }: { card: TableCard }) {
   );
 }
 
-export function ToolCardView({ card }: { card: ToolCard }) {
+/** A file written in the workspace: opened in a new browser tab, served
+    inert (`/api/files`: sandbox, nothing loaded from outside). */
+function FileLink({ card, fileUrl }: { card: FileCard; fileUrl?: (rel: string) => string }) {
+  if (!fileUrl) return null;
+  return (
+    <a className="pc pc-link" href={fileUrl(card.path)} target="_blank" rel="noreferrer">
+      <span>
+        <File /> {card.title}
+        <small className="mono">{card.path}</small>
+      </span>
+      <ArrowRight />
+    </a>
+  );
+}
+
+export function ToolCardView({ card, fileUrl }: { card: ToolCard; fileUrl?: (rel: string) => string }) {
   if (card.kind === "facts") return <Facts card={card.data as FactsCard} />;
   if (card.kind === "table") return <Table card={card.data as TableCard} />;
+  if (card.kind === "file") return <FileLink card={card.data as FileCard} fileUrl={fileUrl} />;
   return null;
 }
 

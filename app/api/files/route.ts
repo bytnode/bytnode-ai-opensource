@@ -4,8 +4,8 @@ import { resolveWorkspace } from "@/lib/server/workspace";
 import { isInside } from "@/lib/tools/paths";
 
 /* A file from an agent's workspace, for the thread: the images produced by
-   Chart and Backtest, or read by Read. Never outside the workspace,
-   whatever the agent's scope. */
+   Chart and Backtest, or read by Read, and the reports exported as HTML.
+   Never outside the workspace, whatever the agent's scope. */
 
 const TYPES: Record<string, string> = {
   ".png": "image/png",
@@ -18,6 +18,9 @@ const TYPES: Record<string, string> = {
   ".json": "application/json; charset=utf-8",
   ".txt": "text/plain; charset=utf-8",
   ".md": "text/markdown; charset=utf-8",
+  /* A report (report-export): the sandbox below keeps it inert — no
+     script, nothing loaded from outside, only its inline style and images. */
+  ".html": "text/html; charset=utf-8",
 };
 
 export async function GET(req: Request) {

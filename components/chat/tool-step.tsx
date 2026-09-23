@@ -48,7 +48,7 @@ export function ToolStepView({ step, onAnswer, fileUrl }: Props) {
 
       {pending && onAnswer && <Ask step={step} onAnswer={onAnswer} />}
 
-      {step.card && <ToolCardView card={step.card} />}
+      {step.card && <ToolCardView card={step.card} fileUrl={fileUrl} />}
 
       {isOpenViewName(step.name) && step.status === "done" && typeof step.args.view === "string" && (
         <OpenViewCard view={step.args.view} params={isRecord(step.args.params) ? step.args.params : undefined} />
