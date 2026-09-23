@@ -15,6 +15,9 @@ describe("readInsight", () => {
       funding_next: { estimated_rate: 0.0001, apr: 10.95, settlement_at: "2026-09-24T08:00:00Z", is_past: false },
       oi_snapshots: [{ oi_total: 1000, timestamp: "2026-09-24T00:00:00Z" }],
       "ls_ratio@1h": [{ part_long: 0.62, ratio: 1.63 }],
+      heatmap: { density_up: 5, dist_up: 0.012, density_down: 9, dist_down: 0.02, attraction_up: 34722, attraction_down: 22500 },
+      orderbook: { bid_total: 60, ask_total: 40, imbalance: 0.2 },
+      buysell_ratio: { buy_volume: 55, sell_volume: 45, buy_ratio: 0.55 },
       liq_cumulative: [
         { timestamp: "2026-09-23T10:00:00Z", long_usd: 100, short_usd: 20, total_usd: 120 },
         { timestamp: "2026-09-23T10:05:00Z", long_usd: 50, short_usd: 30, total_usd: 80 },
@@ -36,6 +39,10 @@ describe("readInsight", () => {
     expect(i.longShare).toBe(0.62);
     expect(i.liqLongUsd).toBe(150);
     expect(i.liqShortUsd).toBe(50);
+    expect(i.magnetUp).toEqual({ dist: 0.012, pull: 34722 });
+    expect(i.magnetDown).toEqual({ dist: 0.02, pull: 22500 });
+    expect(i.bookImbalance).toBe(0.2);
+    expect(i.flowBuyShare).toBe(0.55);
   });
 
   it("shows only what there is", () => {

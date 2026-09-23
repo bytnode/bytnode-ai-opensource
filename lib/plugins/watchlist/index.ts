@@ -1,7 +1,8 @@
 import { definePlugin } from "../core/contract";
 import { readBytnodeTool } from "@/lib/mcp/bytnode";
 import { isInterval, readKlines } from "../shared/candle";
-import { INSIGHT_FIELDS, readInsight } from "./insight";
+import { CORE_FIELDS, PRESSURE_FIELDS, readInsight } from "./insight";
+import { INDICATORS, RESULTS, readTechnicals } from "./technicals";
 import { bytnodeSymbol, normalizeSymbol } from "../shared/quote";
 import { candles, isQuote, quote, quotes } from "../shared/prices";
 import { EMPTY, editWatchlist, watchlistPrompt, type Watchlist } from "./list";
@@ -64,7 +65,10 @@ export const watchlistPlugin = definePlugin({
       if (!symbol) return null;
       const key = transport.bytnodeKey?.trim();
       if (!key) return { symbol, error: "These figures come from BytNode: add your key in Settings → Auth." };
-      const res = await readBytnodeTool(key, "get_market_data", { symbol: bytnodeSymbol(symbol), ...INSIGHT_FIELDS }, signal);
+      /* The pull's fields are extras: a pair that refuses them still gets
+         its key figures, asked again without them. */
+      let res = await readBytnodeTool(key, "get_market_data", { symbol: bytnodeSymbol(symbol), ...CORE_FIELDS, ...PRESSURE_FIELDS }, signal);
+      if (!res.ok) res = await readBytnodeTool(key, "get_market_data", { symbol: bytnodeSymbol(symbol), ...CORE_FIELDS }, signal);
       if (!res.ok) return { symbol, error: res.message };
       try {
         const parsed: unknown = JSON.parse(res.text);
@@ -72,6 +76,21 @@ export const watchlistPlugin = definePlugin({
         return { symbol, insight: readInsight(parsed, last?.c) };
       } catch {
         return { symbol, error: `BytNode's figures for ${symbol} could not be read.` };
+      }
+    });
+    /* The asset's technical signals on the chart's interval: one call. */
+    ctx.api("technicals", async (params, { transport, signal }) => {
+      const symbol = normalizeSymbol(String(params.symbol ?? ""));
+      if (!symbol) return null;
+      const interval = isInterval(params.interval) ? params.interval : "1h";
+      const key = transport.bytnodeKey?.trim();
+      if (!key) return { symbol, interval, error: "Signals come from BytNode: add your key in Settings → Auth." };
+      const res = await readBytnodeTool(key, "get_market_indicators", { symbol: bytnodeSymbol(symbol), timeframe: interval, results: RESULTS, indicators: INDICATORS }, signal);
+      if (!res.ok) return { symbol, interval, error: /symbol|symbole|not supported|inconnu|unknown/i.test(res.message) ? `BytNode computes signals on its perpetual pairs only — not on ${symbol}.` : res.message };
+      try {
+        return { symbol, interval, technicals: readTechnicals(JSON.parse(res.text)) };
+      } catch {
+        return { symbol, interval, error: `BytNode's signals for ${symbol} could not be read.` };
       }
     });
     ctx.api("edit", async (params) => {

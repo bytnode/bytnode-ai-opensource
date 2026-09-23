@@ -6,6 +6,9 @@ import { withTick, type Candle, type Interval } from "@/lib/plugins/shared/candl
 import type { CandleSeries, Priced } from "@/lib/plugins/shared/prices";
 import { baseOf, type Quote } from "@/lib/plugins/shared/quote";
 import type { Insight } from "@/lib/plugins/watchlist/insight";
+import type { Technicals } from "@/lib/plugins/watchlist/technicals";
+import type { CalendarEvent } from "@/lib/plugins/calendar/events";
+import { COMING_DAYS, comingFor } from "./coming-up";
 import { WATCHLIST_DEFAULT, WATCHLIST_MAX, WATCHLIST_MIN, clampWatchlistWidth, updateUiPrefs, useUiPrefs } from "@/lib/state/ui";
 import type { ViewProps } from "../views";
 import { ColumnHandle } from "../column-handle";
@@ -44,6 +47,9 @@ const CANDLES = 300;
 const INSIGHT_MS = 60_000;
 
 type InsightReading = { symbol: string; insight: Insight } | { symbol: string; error: string } | null;
+type TechnicalsReading = { symbol: string; interval: Interval; technicals: Technicals } | { symbol: string; interval: Interval; error: string } | null;
+/** The calendar's events are collected in the background: read now and then. */
+const EVENTS_MS = 5 * 60_000;
 
 export function WatchlistView({ settings, params }: ViewProps) {
   const list = usePluginData<Row[]>("watchlist", "list", settings);
@@ -71,6 +77,19 @@ export function WatchlistView({ settings, params }: ViewProps) {
   const facts = usePluginData<InsightReading>("watchlist", "insight", settings, { symbol });
   useAwakeInterval(facts.reload, INSIGHT_MS);
   const factsNow = facts.data && facts.data.symbol === symbol ? facts.data : null;
+  const signals = usePluginData<TechnicalsReading>("watchlist", "technicals", settings, { symbol, interval });
+  useAwakeInterval(signals.reload, INSIGHT_MS);
+  const signalsNow = signals.data && signals.data.symbol === symbol && signals.data.interval === interval ? signals.data : null;
+  /* The Calendar plugin's events of the next weeks, for "coming up" —
+     when the plugin is off, its call fails and the section stays away. */
+  const [from] = useState(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString();
+  });
+  const calendar = usePluginData<{ events: CalendarEvent[] }>("calendar", "week", settings, { from, days: COMING_DAYS });
+  useAwakeInterval(calendar.reload, EVENTS_MS);
+  const coming = calendar.data && symbol ? comingFor(calendar.data.events, baseOf(symbol), Date.parse(from)) : null;
   const liveQuote: Quote | null = live.data && live.data.symbol === symbol && !("error" in live.data) ? live.data : null;
 
   const rows = listed?.map((r) => (liveQuote && r.symbol === liveQuote.symbol ? { ...r, quote: liveQuote, error: null } : r)) ?? null;
@@ -114,6 +133,9 @@ export function WatchlistView({ settings, params }: ViewProps) {
           chartMessage={chartMessage}
           insight={factsNow && "insight" in factsNow ? factsNow.insight : null}
           insightMessage={factsNow && "error" in factsNow ? factsNow.error : (facts.error ?? null)}
+          technicals={signalsNow && "technicals" in signalsNow ? signalsNow.technicals : null}
+          technicalsMessage={signalsNow && "error" in signalsNow ? signalsNow.error : (signals.error ?? null)}
+          coming={coming}
           loading={list.loading && !list.data}
           problem={problem ?? list.error ?? null}
           onWindow={setWin}
@@ -124,6 +146,8 @@ export function WatchlistView({ settings, params }: ViewProps) {
             live.reload();
             series.reload();
             facts.reload();
+            signals.reload();
+            calendar.reload();
           }}
           onRemove={(s) => void edit({ remove: [s] })}
           onNote={(s, note) => void edit({ add: [s], note })}

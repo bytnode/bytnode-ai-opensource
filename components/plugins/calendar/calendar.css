@@ -19,29 +19,13 @@
    the few rules left between things are 2 px.
 --------------------------------------------------------------------------- */
 
+/* The calendars' colours (`--cal-*`) are the bare views' tokens
+   (plugins.css): the watchlist draws the same events. */
 .calv {
-  --cal-macro: #0a84ff;
-  --cal-unlock: #ff9f0a;
-  --cal-listing: #30d158;
-  --cal-expiry: #bf5af2;
-  --cal-upgrade: #40c8e0;
-  --cal-project: #ff375f;
-  --cal-today: #ff453a;
-
   display: flex;
   height: 100%;
   color: var(--label);
   font-variant-numeric: tabular-nums;
-}
-
-html[data-theme="light"] .calv {
-  --cal-macro: #007aff;
-  --cal-unlock: #ff9500;
-  --cal-listing: #28a745;
-  --cal-expiry: #af52de;
-  --cal-upgrade: #0a9dbb;
-  --cal-project: #ff2d55;
-  --cal-today: #ff3b30;
 }
 
 /* The whole tab, from the tab bar down, side to side. */

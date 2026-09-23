@@ -32,10 +32,23 @@ const REFRESH = 30_000;
 /** How long "Collecting" is shown at most: the scheduler says a failure. */
 const COLLECT_MS = 12 * 60_000;
 
-export function CalendarView({ settings }: ViewProps) {
+export function CalendarView({ settings, params }: ViewProps) {
   const [today] = useState(() => startOfDay(new Date()));
-  const [month, setMonth] = useState(() => recall().month ?? firstOfMonth(today));
-  const [period, setPeriod] = useState<Period>(() => recall().period ?? { kind: "day", day: today });
+  /* A day asked from another tab (the watchlist's "coming up"): shown once
+     per request — `params.at` tells two requests for the same day apart —
+     after which the user moves freely. */
+  const askedDay = typeof params?.day === "string" && Number.isFinite(Date.parse(params.day)) ? startOfDay(new Date(params.day)) : null;
+  const asked = askedDay ? `${askedDay.getTime()}|${String(params?.at ?? "")}` : null;
+  const [month, setMonth] = useState(() => (askedDay ? firstOfMonth(askedDay) : (recall().month ?? firstOfMonth(today))));
+  const [period, setPeriod] = useState<Period>(() => (askedDay ? { kind: "day", day: askedDay } : (recall().period ?? { kind: "day", day: today })));
+  const [seen, setSeen] = useState(asked);
+  if (asked !== seen) {
+    setSeen(asked);
+    if (askedDay) {
+      setPeriod({ kind: "day", day: askedDay });
+      setMonth(firstOfMonth(askedDay));
+    }
+  }
   const [requested, setRequested] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const filter = useFilter();

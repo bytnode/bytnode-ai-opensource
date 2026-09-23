@@ -649,16 +649,32 @@ html[data-theme="light"] .wlv-sheet {
   pointer-events: none;
 }
 
-/* What else there is to know: six tiles of one block — square inside,
-   round only at the block's outer corners (the block clips them). */
-.wlv-insight-block {
+/* A part of the sheet under the chart, titled in BytNode's ink. */
+.wlv-section {
   flex: none;
-  padding: 18px var(--side) 0;
+  padding: 22px var(--side) 0;
 }
 
+.wlv-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.wlv-section-title small {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--label-3);
+}
+
+/* A row of tiles of one block — square inside, round only at the block's
+   outer corners (the block clips them); `--cols` per row. */
 .wlv-insights {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
   gap: var(--tile-gap);
   border-radius: var(--r-block);
   overflow: hidden;
@@ -773,24 +789,118 @@ html[data-theme="light"] .wlv-sheet {
   gap: 8px;
 }
 
-.wlv-map-block {
-  flex: none;
-  padding: 22px var(--side) 0;
+/* The RSI on its 0–100 track: the 30 and 70 lines, a dot at the value. */
+.wlv-gauge {
+  position: relative;
+  height: 4px;
+  margin: 8px 5px 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--up) 45%, transparent) 0 30%, rgba(var(--ink), 0.12) 30% 70%, color-mix(in srgb, var(--down) 45%, transparent) 70%);
 }
 
-.wlv-map-title {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin: 0 0 12px;
-  font-size: 15px;
+.wlv-gauge b {
+  position: absolute;
+  top: -3px;
+  width: var(--rule);
+  height: 10px;
+  margin-left: -1px;
+  background: rgba(var(--ink), 0.25);
+}
+
+.wlv-gauge i {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: rgb(var(--ink));
+  box-shadow: 0 0 0 2px rgba(var(--voile), 0.9);
+}
+
+/* The two liquidation levels, one under the other. */
+.wlv-levels {
+  display: grid;
+  gap: 2px;
+  white-space: normal;
+}
+
+/* What is coming: the calendar's blocks, one per row, 2 px apart — its
+   calendar's colour on the left edge, the list round at its ends only. */
+.wlv-events {
+  display: grid;
+  gap: var(--tile-gap);
+  border-radius: var(--r-block);
+  overflow: hidden;
+}
+
+.wlv-event,
+.wlv-event-more {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) auto 14px;
+  align-items: center;
+  gap: 14px;
+  min-height: 46px;
+  padding: 8px 14px 8px 18px;
+  border: 0;
+  background: var(--tile);
+  color: var(--label);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wlv-event {
+  background: color-mix(in srgb, var(--tone) 16%, var(--tile));
+  box-shadow: inset 4px 0 0 var(--tone);
+}
+
+.wlv-event:hover {
+  background: color-mix(in srgb, var(--tone) 24%, var(--tile));
+}
+
+.wlv-event-when {
+  font-size: 13px;
+  color: var(--label-2);
+}
+
+.wlv-event-title {
+  overflow: hidden;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wlv-event.is-strong .wlv-event-title {
   font-weight: 650;
 }
 
-.wlv-map-title small {
-  font-size: 13px;
-  font-weight: 400;
+.wlv-event-kind {
+  font-size: 12.5px;
   color: var(--label-3);
+  white-space: nowrap;
+}
+
+.wlv-event svg,
+.wlv-event-more svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--label-3);
+}
+
+.wlv-event-more {
+  grid-template-columns: minmax(0, 1fr) 14px;
+  min-height: 38px;
+  font-size: 13px;
+  color: var(--label-2);
+}
+
+.wlv-event-more:hover {
+  background: var(--fill);
 }
 
 /* The heat map: tiles of one size, as many per row as fit. */
@@ -889,6 +999,33 @@ html[data-theme="light"] .wlv-sheet {
 
   .wlv-insights {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* An odd tile at the end of a row of two takes the whole row. */
+  .wlv-insight:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .wlv-event {
+    grid-template-columns: minmax(0, 1fr) 14px;
+    gap: 2px 12px;
+  }
+
+  .wlv-event-when {
+    grid-column: 1;
+  }
+
+  .wlv-event-title {
+    grid-column: 1;
+  }
+
+  .wlv-event-kind {
+    display: none;
+  }
+
+  .wlv-event svg {
+    grid-row: 1 / span 2;
+    grid-column: 2;
   }
 }
 

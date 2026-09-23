@@ -57,7 +57,7 @@ export function Insights({ insight, price, message }: Props) {
   );
 }
 
-function Tile({ label, value, tone, children }: { label: string; value: string; tone?: "is-up" | "is-down"; children?: ReactNode }) {
+export function Tile({ label, value, tone, children }: { label: string; value: string; tone?: "is-up" | "is-down"; children?: ReactNode }) {
   return (
     <div className="wlv-insight">
       <span className="wlv-insight-label">{label}</span>
@@ -79,7 +79,7 @@ function Range({ low, high, at }: { low: number; high: number; at: number }) {
 
 /** Two shares side by side: green then red — or, for the liquidations,
     the longs in red (they lost) and the shorts in green. */
-function Split({ left, leftLabel, rightLabel, invert = false }: { left: number; leftLabel: string; rightLabel: string; invert?: boolean }) {
+export function Split({ left, leftLabel, rightLabel, invert = false }: { left: number; leftLabel: string; rightLabel: string; invert?: boolean }) {
   const l = Math.max(0, Math.min(1, left));
   return (
     <span className="wlv-split">

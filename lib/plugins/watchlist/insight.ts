@@ -2,18 +2,25 @@ import { orderCandles } from "../shared/candle";
 
 /* ---------------------------------------------------------------------------
    What the Watchlist tab tells about the chosen asset under its chart,
-   read from ONE `get_market_data` call (`INSIGHT_FIELDS`): the day's range
+   read from ONE `get_market_data` call (`CORE_FIELDS` + `PRESSURE_FIELDS`): the day's range
    and volume (24 hourly klines, whose `taker_buy` gives the buyers' share),
    the market cap (`tokenomics`), the funding (`funding_next`, a fraction
    per 8 h), the open interest (`oi_snapshots.oi_total`, in the ASSET's
    units — BytNode sums the venues' contracts, so it is priced here) with
    the longs' share (`ls_ratio@1h.part_long`), and the day's liquidations
-   (`liq_cumulative`, 5-minute windows over 1 440 minutes). Every figure is
+   (`liq_cumulative`, 5-minute windows over 1 440 minutes). And where the
+   price may be pulled, from the same call: the nearest liquidation
+   clusters above and below (`heatmap`: fractional distance and
+   `attraction` = density / distance²), the order book's imbalance
+   (`orderbook.imbalance`, (bid − ask) / (bid + ask)) and the buyers' share
+   of the last five minutes (`buysell_ratio.buy_ratio`). Every figure is
    optional: a pair BytNode covers only in part shows what there is.
    Pure, tested.
 --------------------------------------------------------------------------- */
 
-export const INSIGHT_FIELDS = { klines_1h: 24, tokenomics: true, funding_next: true, oi_snapshots: true, ls_ratio: true, liq_cumulative: 1440 } as const;
+export const CORE_FIELDS = { klines_1h: 24, tokenomics: true, funding_next: true, oi_snapshots: true, ls_ratio: true, liq_cumulative: 1440 } as const;
+/** The pull's fields: asked with the core ones, dropped if a pair refuses them. */
+export const PRESSURE_FIELDS = { heatmap: true, orderbook: true, buysell_ratio: true } as const;
 
 export type Insight = {
   range?: { low: number; high: number };
@@ -33,6 +40,14 @@ export type Insight = {
   longShare?: number;
   liqLongUsd?: number;
   liqShortUsd?: number;
+  /** The nearest liquidation clusters: distance as a fraction of the
+      price (0.012 = 1.2 %), and their pull. */
+  magnetUp?: { dist: number; pull: number };
+  magnetDown?: { dist: number; pull: number };
+  /** (bid − ask) / (bid + ask), −1..1. */
+  bookImbalance?: number;
+  /** The buyers' share of the last five minutes, 0..1. */
+  flowBuyShare?: number;
 };
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -112,6 +127,18 @@ export function readInsight(response: unknown, price: number | undefined): Insig
     out.liqLongUsd = liqRows.reduce((s, r) => s + (num(r.long_usd) ?? 0), 0);
     out.liqShortUsd = liqRows.reduce((s, r) => s + (num(r.short_usd) ?? 0), 0);
   }
+
+  const heat = latest(under(response, "heatmap"));
+  const du = num(heat?.dist_up);
+  const dd = num(heat?.dist_down);
+  if (du !== undefined && du > 0) out.magnetUp = { dist: du, pull: num(heat?.attraction_up) ?? 0 };
+  if (dd !== undefined && dd > 0) out.magnetDown = { dist: dd, pull: num(heat?.attraction_down) ?? 0 };
+
+  const imbalance = num(latest(under(response, "orderbook"))?.imbalance);
+  if (imbalance !== undefined) out.bookImbalance = Math.max(-1, Math.min(1, imbalance));
+
+  const buy = num(latest(under(response, "buysell_ratio"))?.buy_ratio);
+  if (buy !== undefined) out.flowBuyShare = Math.max(0, Math.min(1, buy));
   return out;
 }
 

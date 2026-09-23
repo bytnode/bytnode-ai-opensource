@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { INTERVALS, type Candle, type Interval } from "@/lib/plugins/shared/candle";
 import { WINDOWS, changeOf, heatOf, type Window } from "@/lib/plugins/watchlist/heat";
 import { Pencil, Refresh, Trash } from "@/components/ui/icons";
@@ -8,6 +8,10 @@ import { Segmented } from "@/components/ui/segmented";
 import { dateOf, moveOf, pairOf, pct, priceText, sourceName, timeOf, type Row } from "./format";
 import { HeatMap } from "./heat-map";
 import { Insights } from "./insights";
+import { Pressure, Signals } from "./signals";
+import { ComingUp } from "./coming-up";
+import type { Technicals } from "@/lib/plugins/watchlist/technicals";
+import type { CalendarEvent } from "@/lib/plugins/calendar/events";
 import type { Insight } from "@/lib/plugins/watchlist/insight";
 import { PriceChart, type ChartMode } from "./price-chart";
 
@@ -15,9 +19,10 @@ import { PriceChart, type ChartMode } from "./price-chart";
    ink and its note (edited in place); one row of figures — the price,
    live, and its move, then the four windows as one row of small tiles;
    the chart, of a modest height — a line like Stocks, candles on demand;
-   under it, six tiles of what else there is to know about the asset;
-   and, when the list has more than one asset, the heat map, in tiles of a
-   fixed size. The state of the
+   under it, what else there is to know about the asset — key figures,
+   technical signals, the pressure on the price, what is coming from the
+   calendar — each a titled block of tiles; and, when the list has more
+   than one asset, the heat map, in tiles of a fixed size. The state of the
    prices and the two actions sit discreetly in the corner, like the
    calendar's collection. */
 
@@ -31,6 +36,10 @@ type Props = {
   chartMessage: string | null;
   insight: Insight | null;
   insightMessage: string | null;
+  technicals: Technicals | null;
+  technicalsMessage: string | null;
+  /** The asset's coming events; null when the Calendar plugin is off. */
+  coming: CalendarEvent[] | null;
   loading: boolean;
   problem: string | null;
   onWindow: (w: Window) => void;
@@ -46,7 +55,7 @@ const MODES: Array<{ value: ChartMode; label: string }> = [
   { value: "candles", label: "Candles" },
 ];
 
-export function Sheet({ rows, asset, live, win, interval, candles, chartMessage, insight, insightMessage, loading, problem, onWindow, onInterval, onPick, onReload, onRemove, onNote }: Props) {
+export function Sheet({ rows, asset, live, win, interval, candles, chartMessage, insight, insightMessage, technicals, technicalsMessage, coming, loading, problem, onWindow, onInterval, onPick, onReload, onRemove, onNote }: Props) {
   const [mode, setMode] = useState<ChartMode>("line");
   const at = asset?.quote?.at;
   const status = loading ? "Loading…" : at ? `${live ? "Live" : "Updated"} ${new Date(at).toLocaleTimeString("en-GB")}` : rows ? "No price yet" : "Loading…";
@@ -87,21 +96,45 @@ export function Sheet({ rows, asset, live, win, interval, candles, chartMessage,
           </section>
         )}
         {asset && (
-          <section className="wlv-insight-block" aria-label={`About ${asset.symbol}`}>
-            <Insights insight={insight} price={asset.quote?.price} message={insightMessage} />
-          </section>
+          <>
+            <Section title="Key figures">
+              <Insights insight={insight} price={asset.quote?.price} message={insightMessage} />
+            </Section>
+            <Section title="Signals" sub={`on ${INTERVALS.find((i) => i.value === interval)?.label ?? interval} candles`}>
+              <Signals technicals={technicals} price={asset.quote?.price} interval={INTERVALS.find((i) => i.value === interval)?.label ?? interval} message={technicalsMessage} />
+            </Section>
+            {insight && (insight.magnetUp || insight.magnetDown || insight.bookImbalance !== undefined || insight.flowBuyShare !== undefined) && (
+              <Section title="Pressure" sub="where the price may be pulled">
+                <Pressure insight={insight} price={asset.quote?.price} />
+              </Section>
+            )}
+            {coming && (
+              <Section title="Coming up" sub="from the calendar">
+                <ComingUp events={coming} base={pairOf(asset.symbol)[0]} />
+              </Section>
+            )}
+          </>
         )}
         {rows && rows.length > 1 && (
-          <section className="wlv-map-block" aria-label="All assets">
-            <p className="wlv-map-title">
-              <span className="pv-ink">All assets</span>
-              <small>{WINDOWS.find((w) => w.value === win)?.label} move</small>
-            </p>
+          <Section title="All assets" sub={`${WINDOWS.find((w) => w.value === win)?.label} move`}>
             <HeatMap rows={rows} win={win} selected={asset?.symbol ?? null} onPick={onPick} />
-          </section>
+          </Section>
         )}
       </div>
     </main>
+  );
+}
+
+/** A part of the sheet under the chart: its title in BytNode's ink. */
+function Section({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
+  return (
+    <section className="wlv-section" aria-label={title}>
+      <p className="wlv-section-title">
+        <span className="pv-ink">{title}</span>
+        {sub && <small>{sub}</small>}
+      </p>
+      {children}
+    </section>
   );
 }
 

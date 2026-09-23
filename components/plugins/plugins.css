@@ -56,6 +56,14 @@
   /* A rise and a fall, in Apple's system green and red. */
   --up: #30d158;
   --down: #ff453a;
+  /* The calendars, one of Apple's system colours each; today in red. */
+  --cal-macro: #0a84ff;
+  --cal-unlock: #ff9f0a;
+  --cal-listing: #30d158;
+  --cal-expiry: #bf5af2;
+  --cal-upgrade: #40c8e0;
+  --cal-project: #ff375f;
+  --cal-today: #ff453a;
 }
 
 html[data-theme="light"] .pv-bare {
@@ -70,6 +78,13 @@ html[data-theme="light"] .pv-bare {
   --title-ink: linear-gradient(180deg, #3a4d6b 0%, #2c3e5a 55%, #22334c 100%);
   --up: #248a3d;
   --down: #d70015;
+  --cal-macro: #007aff;
+  --cal-unlock: #ff9500;
+  --cal-listing: #28a745;
+  --cal-expiry: #af52de;
+  --cal-upgrade: #0a9dbb;
+  --cal-project: #ff2d55;
+  --cal-today: #ff3b30;
 }
 
 /* A title in BytNode's ink. */
