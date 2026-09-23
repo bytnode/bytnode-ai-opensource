@@ -96,9 +96,12 @@ html[data-theme="light"] .pv-bare {
   color: transparent;
 }
 
-/* The handle between the two columns (`column-handle.tsx`): a thin rule,
-   a wider band around it to take hold of it; the rule brightens under the
-   hand. `body.is-resizing` (chat.css) keeps the cursor while dragging. */
+/* The handle between the two columns (`column-handle.tsx`): a band to take
+   hold of, and the rule itself — drawn as the right sheet's own left edge
+   (an inset shadow, which follows the sheet's corners), so its two ends
+   curve inward with the sheet: a little at the top, along the sheet's
+   round corner at the bottom. It brightens under the hand.
+   `body.is-resizing` (chat.css) keeps the cursor while dragging. */
 .pv-resize {
   position: relative;
   z-index: 4;
@@ -116,21 +119,15 @@ html[data-theme="light"] .pv-bare {
   width: 12px;
 }
 
-.pv-resize::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -1px;
-  width: var(--rule);
-  background: rgba(var(--ink), 0.12);
-  transition: background-color 120ms ease;
+.pv-resize + * {
+  box-shadow: inset var(--rule) 0 0 rgba(var(--ink), 0.12);
+  transition: box-shadow 120ms ease;
 }
 
-.pv-resize:hover::after,
-.pv-resize:focus-visible::after,
-body.is-resizing .pv-resize::after {
-  background: rgba(var(--ink), 0.4);
+.pv-resize:hover + *,
+.pv-resize:focus-visible + *,
+body.is-resizing .pv-resize + * {
+  box-shadow: inset var(--rule) 0 0 rgba(var(--ink), 0.4);
 }
 
 .pv-resize:focus-visible {
@@ -141,6 +138,27 @@ body.is-resizing .pv-resize::after {
   .pv-resize {
     display: none;
   }
+
+  .pv-resize + * {
+    box-shadow: none;
+  }
+}
+
+/* A 2 px rule across the top of a block, its ends rounded like the
+   column's. */
+.pv-rule {
+  position: relative;
+}
+
+.pv-rule::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--rule);
+  border-radius: var(--rule);
+  background: var(--sep);
 }
 
 /* A scroller of tiles. ⚠️ ITS MASK ROUNDS THE GRID WHERE IT IS CUT: a

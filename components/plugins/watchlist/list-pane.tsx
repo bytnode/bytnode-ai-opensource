@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { WINDOWS, changeOf, type Window } from "@/lib/plugins/watchlist/heat";
 import { Plus } from "@/components/ui/icons";
 import { Segmented } from "@/components/ui/segmented";
@@ -59,7 +59,7 @@ export function ListPane({ rows, shown, selected, win, byMove, onWindow, onByMov
         </ul>
       )}
       {shown.length > 1 && (
-        <div className="wlv-switches">
+        <div className="wlv-switches pv-rule">
           <label className="wlv-switch">
             <span>Biggest moves first</span>
             <Switch on={byMove} onChange={onByMove} label="Biggest moves first" />
@@ -70,13 +70,20 @@ export function ListPane({ rows, shown, selected, win, byMove, onWindow, onByMov
   );
 }
 
-/** The asset to add, and a note once there is an asset. */
+/** The asset to add, and a note once there is an asset. The "+" is always
+    there to press: with an asset typed it adds it, with none it puts the
+    caret in the field — a greyed, dead "+" read as broken. */
 function AddField({ onAdd }: { onAdd: (symbol: string, note: string) => Promise<boolean> }) {
   const [symbol, setSymbol] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
   const submit = async () => {
-    if (!symbol.trim() || busy) return;
+    if (busy) return;
+    if (!symbol.trim()) {
+      field.current?.focus();
+      return;
+    }
     setBusy(true);
     const ok = await onAdd(symbol, note);
     setBusy(false);
@@ -94,8 +101,8 @@ function AddField({ onAdd }: { onAdd: (symbol: string, note: string) => Promise<
       }}
     >
       <div className="wlv-add-row">
-        <input className="wlv-input" aria-label="Asset to add" placeholder="Add an asset — btc, ETH/USDT…" value={symbol} onChange={(e) => setSymbol(e.target.value)} autoComplete="off" spellCheck={false} />
-        <button type="submit" className="wlv-add-btn" disabled={!symbol.trim() || busy} aria-label="Add to the watchlist" title="Add to the watchlist">
+        <input ref={field} className="wlv-input" aria-label="Asset to add" placeholder="Add an asset — btc, ETH/USDT…" value={symbol} onChange={(e) => setSymbol(e.target.value)} autoComplete="off" spellCheck={false} />
+        <button type="submit" className={`wlv-add-btn${symbol.trim() ? "" : " is-idle"}`} disabled={busy} aria-label="Add to the watchlist" title="Add to the watchlist">
           <Plus />
         </button>
       </div>

@@ -41,7 +41,7 @@ export type FilterState = ReturnType<typeof useFilter>;
 
 export function CalendarFilters({ filter, counts, watchlist }: { filter: FilterState; counts: Partial<Record<Category, number>>; watchlist: boolean }) {
   return (
-    <div className="calv-filters">
+    <div className="calv-filters pv-rule">
       <p className="calv-filters-title">
         <span className="calv-ink">Calendars</span>
       </p>
@@ -57,7 +57,7 @@ export function CalendarFilters({ filter, counts, watchlist }: { filter: FilterS
           );
         })}
       </div>
-      <div className="calv-switches">
+      <div className="calv-switches pv-rule">
         <label className="calv-switch">
           <span>Market-moving only</span>
           <Switch on={filter.strongOnly} onChange={filter.setStrongOnly} label="Market-moving only" />

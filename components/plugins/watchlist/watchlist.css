@@ -167,9 +167,20 @@
   transition: opacity 120ms ease;
 }
 
+/* Nothing typed yet: a quieter circle, still pressable (it focuses the
+   field); busy adding: dimmed. */
+.wlv-add-btn.is-idle {
+  background: rgba(var(--ink), 0.14);
+  color: var(--label);
+}
+
+.wlv-add-btn.is-idle:hover {
+  background: rgba(var(--ink), 0.22);
+}
+
 .wlv-add-btn:disabled {
-  opacity: 0.18;
-  cursor: default;
+  opacity: 0.5;
+  cursor: progress;
 }
 
 .wlv-add-btn svg {
@@ -275,7 +286,6 @@
 .wlv-switches {
   margin: auto 18px 0;
   padding: 20px 10px 26px;
-  border-top: var(--rule) solid var(--sep);
 }
 
 .wlv-switch {
@@ -301,8 +311,9 @@
   /* Its own width decides whether the price and the windows sit side by
      side (the list beside it is the user's to widen). */
   container-type: inline-size;
-  /* Square where it meets the tab bar and the list, round elsewhere. */
-  border-radius: 0 var(--r-panel) var(--r-panel) var(--r-panel);
+  /* Only slightly round where it meets the tab bar and the list (the
+     column's rule curves in there), fully round elsewhere. */
+  border-radius: var(--r-sm) var(--r-panel) var(--r-panel) var(--r-panel);
   background: var(--sheet);
   backdrop-filter: blur(24px) saturate(1.15);
 }

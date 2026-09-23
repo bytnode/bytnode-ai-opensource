@@ -345,7 +345,6 @@ html[data-theme="light"] .calv-pop {
 
 .calv-filters {
   padding: 24px 18px 28px;
-  border-top: var(--rule) solid var(--sep);
 }
 
 .calv-filters-title {
@@ -417,7 +416,6 @@ html[data-theme="light"] .calv-pop {
   gap: 18px;
   margin-top: 22px;
   padding: 22px 10px 0;
-  border-top: var(--rule) solid var(--sep);
 }
 
 .calv-switch {
@@ -440,8 +438,9 @@ html[data-theme="light"] .calv-pop {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  /* Square where it meets the tab bar and the month, round elsewhere. */
-  border-radius: 0 var(--r-panel) var(--r-panel) var(--r-panel);
+  /* Only slightly round where it meets the tab bar and the month (the
+     column's rule curves in there), fully round elsewhere. */
+  border-radius: var(--r-sm) var(--r-panel) var(--r-panel) var(--r-panel);
   background: var(--sheet);
   backdrop-filter: blur(24px) saturate(1.15);
 }
