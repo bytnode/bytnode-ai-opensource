@@ -34,8 +34,8 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  height: 40px;
-  padding: 0 8px;
+  height: 48px;
+  padding: 0 10px;
   flex: none;
   background: var(--veil);
   -webkit-backdrop-filter: blur(24px);
@@ -60,7 +60,7 @@
   display: inline-flex;
   align-items: center;
   flex: none;
-  height: 28px;
+  height: 34px;
   border-radius: var(--radius);
   color: var(--fg-muted);
   transition: background-color 120ms ease, color 120ms ease;
@@ -78,13 +78,13 @@
 
 .tb-home,
 .tb-label {
-  height: 28px;
-  padding: 0 12px;
+  height: 34px;
+  padding: 0 14px;
   border: 0;
   border-radius: var(--radius);
   background: transparent;
   color: inherit;
-  font-size: 0.84rem;
+  font-size: 0.9rem;
   white-space: nowrap;
 }
 
@@ -126,8 +126,8 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   flex: none;
   padding: 0;
   border: 0;
