@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { AppNotification } from "@/lib/domain/plugins";
 import type { Settings } from "@/lib/domain/types";
 import { pluginManifest } from "@/lib/plugins/catalog";
-import { changeNotifications, useNotifications } from "@/lib/state/plugins";
+import { changeNotifications, refreshNotifications, useNotifications } from "@/lib/state/plugins";
 import { openView } from "@/lib/state/tabs";
 import { Bell, Close } from "@/components/ui/icons";
 import { ConfirmationPrompt } from "./confirmation-prompt";
@@ -44,7 +44,18 @@ export function NotificationCenter({ settings, onOpenConversation }: Props) {
 
   return (
     <div className="nc">
-      <button type="button" className={`tb-icon${open ? " is-on" : ""}`} onClick={() => setOpen(!open)} aria-expanded={open} aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"} title="Notifications">
+      <button
+        type="button"
+        className={`tb-icon${open ? " is-on" : ""}`}
+        onClick={() => {
+          /* Opened: read again now rather than at the next poll. */
+          if (!open) void refreshNotifications();
+          setOpen(!open);
+        }}
+        aria-expanded={open}
+        aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
+        title="Notifications"
+      >
         <Bell />
         {unread > 0 && <span className="nc-count">{unread > 99 ? "99+" : unread}</span>}
       </button>
