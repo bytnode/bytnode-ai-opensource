@@ -166,7 +166,8 @@ subject to permission (read-only). Without a key, the agents know it and say so.
 
 All agents share the same base set: Read, Write, Edit, NotebookEdit, Glob, Grep, Bash,
 PowerShell, Monitor, WebSearch, WebFetch, Workflow, Skill — plus four finance tools
-(`lib/tools/finance/`):
+(Memory in `lib/tools/finance/`, the other three in the *Finance tools* plugin,
+`lib/plugins/finance-tools/`):
 
 - **SaveMarketData**: a BytNode tool → a CSV in the workspace, without the rows going
   through the model (the table is found in the JSON response, whatever its shape).

@@ -217,7 +217,7 @@ Tool { name, description, parameters /* JSON Schema */, execute(args, ctx) }
 | `fs/` | Read, Write, Edit, NotebookEdit, Glob, Grep | Read handles text, images, PDF (`pdf-parse` v2), notebooks; Grep uses bundled ripgrep |
 | `exec/` | Bash, PowerShell, Monitor | Git Bash on Windows; bounded spawn |
 | `web/` | WebSearch, WebFetch | search via OpenRouter web plugin (`OPENROUTER_SEARCH_MODEL`); fetch via turndown + GFM |
-| `finance/` | SaveMarketData, Chart, Backtest, Memory | `csv.ts` and `svg.ts` are pure and tested; Chart renders SVG → PNG with resvg; Backtest spawns `py/backtest.py` |
+| `finance/` | Memory | SaveMarketData, Chart and Backtest moved to the *Finance tools* plugin (`lib/plugins/finance-tools/`: `csv.ts` and `svg.ts` pure and tested; Chart renders SVG → PNG with resvg; Backtest spawns `py/backtest.py`) |
 | `skills/` | Skill | reads skill roots (§10) |
 | `agents/` | Workflow | §9 |
 | `exchange/` | 10 exchange tools | §8 |
@@ -317,9 +317,10 @@ Tool { name, description, parameters /* JSON Schema */, execute(args, ctx) }
   `X-API-KEY` header, one cached session per key; `checkBytnodeKey` behind
   `GET /api/bytnode/key`. Its tools are discovered and exposed read-only to every agent.
 - `finance-server.ts` — local **stdio MCP server** (run with `tsx`) that gives ACP agents
-  BytNode-AI's own tools: finance tools, exchange tools (actions dropped at depth ≥ 1) and
-  `Workflow` (depth 0 only). Configured by env: `BYTNODE_AI_WORKSPACE`,
-  `BYTNODE_AI_BYTNODE_KEY`, `BYTNODE_AI_EXCHANGE_ACCOUNTS`, `BYTNODE_AI_DEPTH`,
+  BytNode-AI's own tools: Memory, the plugins' tools (only those allowed to a sub-agent at depth
+  ≥ 1), exchange tools (actions dropped at depth ≥ 1) and `Workflow` (depth 0 only). Configured by
+  env: `BYTNODE_AI_WORKSPACE`, `BYTNODE_AI_AGENT_ID`, `BYTNODE_AI_PLUGINS`,
+  `BYTNODE_AI_PLUGIN_STATE`, `BYTNODE_AI_BYTNODE_KEY`, `BYTNODE_AI_EXCHANGE_ACCOUNTS`, `BYTNODE_AI_DEPTH`,
   `BYTNODE_AI_PARENT`, `BYTNODE_AI_ACP_AGENT`, `BYTNODE_AI_ORIGIN`,
   `BYTNODE_AI_SUBAGENT_TOKEN`. Arguments validated recursively with `validateArgs`.
 - `acp-workflow.ts` — the ACP side of `Workflow` (§9).

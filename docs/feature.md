@@ -63,7 +63,7 @@ execution; an ill-formed call goes back to the model with the reason, without bo
   workspace, returning only a summary: thousands of rows never go through the model.
 - **Chart** — PNG chart from a CSV (candles or line, volume, overlaid columns, markers, levels);
   the image is shown in the thread and to the model.
-- **Backtest** — standard Python engine (`lib/tools/finance/py/backtest.py`, needs pandas): the
+- **Backtest** — standard Python engine (`lib/plugins/finance-tools/py/backtest.py`, needs pandas): the
   agent writes only `signal(df)` / `stop_distance(df)`; the engine handles next-candle execution,
   fees, slippage, funding, risk-based sizing, in/out-of-sample split, per-period and per-year
   metrics, buy-and-hold comparison and equity curve.
