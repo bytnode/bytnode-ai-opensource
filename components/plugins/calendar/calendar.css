@@ -450,9 +450,25 @@ html[data-theme="light"] .calv-pop {
 
 /* --- The agenda pane ---------------------------------------------------------- */
 
+/* The agenda is where the reading happens: a denser veil laid over the
+   panel's (the beams barely come through), firmer lines, larger type. */
 .calv-agenda {
+  --label-2: rgba(var(--ink), 0.74);
+  --label-3: rgba(var(--ink), 0.56);
+  --sep: rgba(var(--ink), 0.15);
+  --fill: rgba(var(--ink), 0.08);
+
   flex: 1;
   min-width: 0;
+  background: rgba(var(--voile), 0.62);
+}
+
+html[data-theme="light"] .calv-agenda {
+  --label-2: rgba(var(--ink), 0.7);
+  --label-3: rgba(var(--ink), 0.54);
+  --sep: rgba(var(--ink), 0.16);
+
+  background: rgba(255, 255, 255, 0.64);
 }
 
 .calv-agenda-head {
@@ -466,20 +482,20 @@ html[data-theme="light"] .calv-pop {
   margin: 0;
   font-family: var(--font-display), sans-serif;
   font-weight: 500;
-  font-size: 28px;
+  font-size: 30px;
   line-height: 1.1;
   letter-spacing: -0.02em;
 }
 
 .calv-agenda-sub {
   margin: 4px 0 0;
-  font-size: 14px;
+  font-size: 15px;
   color: var(--label-2);
 }
 
 .calv-collect-status {
   padding-top: 5px;
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--label-3);
 }
 
@@ -508,7 +524,7 @@ html[data-theme="light"] .calv-pop {
   margin: 0 0 4px;
   padding: 10px 0 8px;
   border-bottom: 1px solid var(--sep);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
 }
 
@@ -521,7 +537,7 @@ html[data-theme="light"] .calv-pop {
 /* An empty day of a week: one line, its title, nothing under it. */
 .calv-day-none {
   margin-left: auto;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 400;
   color: var(--label-3);
 }
@@ -533,7 +549,7 @@ html[data-theme="light"] .calv-pop {
   align-items: center;
   gap: 12px;
   margin: 12px 0 0;
-  font-size: 14px;
+  font-size: 15px;
   color: var(--label-3);
 }
 
@@ -541,14 +557,14 @@ html[data-theme="light"] .calv-pop {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 28px;
+  height: 30px;
   padding: 0 8px 0 12px;
   border: 0;
   border-radius: 999px;
   background: var(--fill);
   color: var(--label);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
 }
 
@@ -568,7 +584,7 @@ html[data-theme="light"] .calv-pop {
 /* The days of the period already gone. */
 .calv-day-section.is-past .calv-day-title,
 .calv-day-section.is-past .calv-rows {
-  opacity: 0.5;
+  opacity: 0.6;
 }
 
 .calv-day-section.is-today .calv-day-title {
@@ -583,7 +599,7 @@ html[data-theme="light"] .calv-pop {
 
 .calv-row-main {
   display: grid;
-  grid-template-columns: 58px 3px minmax(0, 1fr) auto;
+  grid-template-columns: 60px 4px minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
   width: 100%;
@@ -593,7 +609,7 @@ html[data-theme="light"] .calv-pop {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 14px;
+  font-size: 15px;
   text-align: left;
   cursor: pointer;
 }
@@ -604,14 +620,14 @@ html[data-theme="light"] .calv-pop {
 }
 
 .calv-row-time {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--label-2);
   text-align: right;
 }
 
 .calv-row-rule {
-  width: 3px;
-  height: 22px;
+  width: 4px;
+  height: 24px;
   border-radius: 2px;
   background: var(--tone);
 }
@@ -627,12 +643,12 @@ html[data-theme="light"] .calv-pop {
 }
 
 .calv-row-assets {
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--label-3);
 }
 
 .calv-row-detail {
-  padding: 4px 10px 14px 99px;
+  padding: 4px 10px 14px 102px;
 }
 
 .calv-facts {
@@ -644,12 +660,12 @@ html[data-theme="light"] .calv-pop {
 .calv-facts div {
   display: flex;
   gap: 12px;
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .calv-facts dt {
   flex: none;
-  width: 64px;
+  width: 70px;
   color: var(--label-3);
 }
 
@@ -687,7 +703,7 @@ html[data-theme="light"] .calv-pop {
 
 .calv-hour {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr);
+  grid-template-columns: 62px minmax(0, 1fr);
 }
 
 /* The hour sits on its line, like Calendar's. */
@@ -695,7 +711,8 @@ html[data-theme="light"] .calv-pop {
   position: relative;
   top: -0.55em;
   padding-right: 12px;
-  font-size: 11.5px;
+  font-size: 12.5px;
+  font-weight: 500;
   line-height: 1;
   color: var(--label-3);
   text-align: right;
@@ -712,7 +729,7 @@ html[data-theme="light"] .calv-pop {
 }
 
 .calv-hours.is-compact .calv-hour-slot {
-  min-height: 28px;
+  min-height: 30px;
   padding: 3px 0 3px 8px;
 }
 
@@ -733,7 +750,7 @@ html[data-theme="light"] .calv-pop {
   min-height: 0;
   padding: 6px 0 8px 8px;
   border-top: 0;
-  border-bottom: 1px solid rgba(var(--ink), 0.16);
+  border-bottom: 2px solid rgba(var(--ink), 0.22);
 }
 
 /* Room for the first hour's label under the all-day line. */
@@ -752,25 +769,25 @@ html[data-theme="light"] .calv-pop {
   z-index: 1;
   left: -4px;
   right: 0;
-  border-top: 2px solid var(--cal-today);
+  border-top: 2.5px solid var(--cal-today);
   pointer-events: none;
 }
 
 .calv-now::before {
   content: "";
   position: absolute;
-  top: -5px;
-  left: -4px;
-  width: 8px;
-  height: 8px;
+  top: -6.25px;
+  left: -5px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: var(--cal-today);
 }
 
 .calv-block {
   border-radius: 7px;
-  background: color-mix(in srgb, var(--tone) 17%, transparent);
-  box-shadow: inset 3px 0 0 var(--tone);
+  background: color-mix(in srgb, var(--tone) 26%, transparent);
+  box-shadow: inset 4px 0 0 var(--tone);
 }
 
 .calv-block-main {
@@ -779,14 +796,14 @@ html[data-theme="light"] .calv-pop {
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 34px;
-  padding: 6px 12px 6px 14px;
+  min-height: 38px;
+  padding: 7px 12px 7px 16px;
   border: 0;
   border-radius: 7px;
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 13.5px;
+  font-size: 14.5px;
   text-align: left;
   cursor: pointer;
 }
@@ -796,7 +813,7 @@ html[data-theme="light"] .calv-pop {
 }
 
 .calv-block-time {
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--label-2);
 }
 
@@ -812,18 +829,18 @@ html[data-theme="light"] .calv-pop {
 }
 
 .calv-block-assets {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--label-2);
 }
 
 .calv-block-detail {
-  padding: 2px 14px 12px;
+  padding: 2px 16px 12px;
 }
 
 .calv-hours.is-compact .calv-block-main {
-  min-height: 28px;
-  padding: 4px 10px 4px 12px;
-  font-size: 13px;
+  min-height: 32px;
+  padding: 5px 10px 5px 14px;
+  font-size: 14px;
 }
 
 /* --- A week on its days, a month on its weeks ---------------------------------- */
@@ -841,7 +858,7 @@ html[data-theme="light"] .calv-pop {
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 54px;
+  min-height: 58px;
   padding: 8px 8px 8px 4px;
   border: 0;
   border-radius: 9px;
@@ -857,7 +874,7 @@ html[data-theme="light"] .calv-pop {
 }
 
 .calv-fold.is-past > .calv-fold-head {
-  opacity: 0.5;
+  opacity: 0.6;
 }
 
 .calv-fold-chev {
@@ -868,9 +885,9 @@ html[data-theme="light"] .calv-pop {
 }
 
 .calv-fold-chev svg {
-  width: 14px;
-  height: 14px;
-  stroke-width: 2.2;
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.5;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -880,7 +897,7 @@ html[data-theme="light"] .calv-pop {
 }
 
 .calv-fold-title {
-  font-size: 15px;
+  font-size: 16.5px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -890,7 +907,7 @@ html[data-theme="light"] .calv-pop {
 }
 
 .calv-fold-date {
-  font-size: 15px;
+  font-size: 16.5px;
   color: var(--label-2);
   white-space: nowrap;
 }
@@ -906,7 +923,7 @@ html[data-theme="light"] .calv-pop {
 .calv-fold-count {
   margin-left: auto;
   padding-left: 4px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--label-3);
   white-space: nowrap;
 }
@@ -914,14 +931,14 @@ html[data-theme="light"] .calv-pop {
 .calv-chip {
   min-width: 0;
   max-width: 300px;
-  height: 24px;
+  height: 27px;
   padding: 0 9px 0 11px;
   overflow: hidden;
   border-radius: 6px;
-  background: color-mix(in srgb, var(--tone) 17%, transparent);
-  box-shadow: inset 2px 0 0 var(--tone);
-  font-size: 12.5px;
-  line-height: 24px;
+  background: color-mix(in srgb, var(--tone) 26%, transparent);
+  box-shadow: inset 3px 0 0 var(--tone);
+  font-size: 13.5px;
+  line-height: 27px;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -939,7 +956,7 @@ html[data-theme="light"] .calv-pop {
 }
 
 .calv-fold-body .calv-day-title {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 /* --- Small screens and reduced motion ------------------------------------------ */
