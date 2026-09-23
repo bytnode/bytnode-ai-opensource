@@ -280,6 +280,12 @@
   background: var(--matter);
 }
 
+/* --- Paper trading ------------------------------------------------------ */
+
+.pt-form {
+  margin-top: 14px;
+}
+
 /* --- Scheduled tasks ---------------------------------------------------- */
 
 .sv-form .sv-prompt {

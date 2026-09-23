@@ -3,6 +3,7 @@
 import type { ComponentType } from "react";
 import type { Settings } from "@/lib/domain/types";
 import { WatchlistView } from "./watchlist/view";
+import { PaperTradingView } from "./paper-trading/view";
 import { PortfolioView } from "./portfolio/view";
 import { SchedulerView } from "./scheduler/view";
 
@@ -20,6 +21,7 @@ export type ViewProps = {
 
 export const VIEWS: Record<string, ComponentType<ViewProps>> = {
   watchlist: WatchlistView,
+  "paper-trading": PaperTradingView,
   portfolio: PortfolioView,
   scheduler: SchedulerView,
 };
