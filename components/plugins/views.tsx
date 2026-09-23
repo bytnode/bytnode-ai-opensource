@@ -31,3 +31,7 @@ export const VIEWS: Record<string, ComponentType<ViewProps>> = {
   portfolio: PortfolioView,
   scheduler: SchedulerView,
 };
+
+/** The views that draw their own header and fill the tab edge to edge, on
+    the app's backdrop: the frame gives them the whole page, nothing else. */
+export const BARE_VIEWS: ReadonlySet<string> = new Set(["calendar"]);

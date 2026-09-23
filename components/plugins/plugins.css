@@ -15,6 +15,11 @@
   scrollbar-color: rgba(var(--ink), 0.22) transparent;
 }
 
+/* A view that fills the tab itself and scrolls inside its own panes. */
+.pv.pv-bare {
+  overflow: hidden;
+}
+
 .pv-head {
   display: flex;
   align-items: flex-start;
@@ -301,103 +306,15 @@
   margin-top: 14px;
 }
 
-/* --- Calendar ----------------------------------------------------------- */
+/* --- Alerts ------------------------------------------------------------- */
 
-.cv-range {
-  min-width: 170px;
-  text-align: center;
-  font-size: 0.9rem;
-}
-
-.cv-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.cv-filter {
-  height: 30px;
-  padding: 0 12px;
-  border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--fg-muted);
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-
-.cv-filter.is-on {
-  border-color: transparent;
-  background: var(--fg);
-  color: rgb(var(--ink-inv));
-}
-
+/* A switch with its label, in the toolbar. */
 .cv-switch {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   font-size: 0.82rem;
   color: var(--fg-muted);
-}
-
-.cv-days {
-  display: grid;
-  gap: 18px;
-  margin-top: 18px;
-}
-
-.cv-day-title {
-  margin: 0 0 8px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  text-transform: capitalize;
-}
-
-.cv-events {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.cv-event {
-  display: grid;
-  grid-template-columns: 72px 1fr auto;
-  align-items: start;
-  gap: 12px;
-  padding: 9px 12px;
-  border-radius: var(--radius-lg);
-  background: var(--matter);
-  font-size: 0.84rem;
-}
-
-.cv-event.is-3 {
-  box-shadow: inset 3px 0 0 var(--fg);
-}
-
-.cv-time {
-  font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 0.78rem;
-  color: var(--fg-muted);
-}
-
-.cv-what {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.cv-what a {
-  color: inherit;
-}
-
-.cv-filters .picker-trigger.as-field {
-  height: 30px;
-  font-size: 0.8rem;
 }
 
 /* --- Scheduled tasks ---------------------------------------------------- */

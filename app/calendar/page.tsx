@@ -1,10 +1,17 @@
-import type { Metadata } from "next";
-import { CalendarLabClient } from "@/components/design-lab/calendar/client";
+"use client";
 
-export const metadata: Metadata = { title: "Calendar design review — BytNode-AI" };
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { openView } from "@/lib/state/tabs";
 
-/* A review surface for the calendar plugin's redesign: three versions of
-   the view, to be removed once one is chosen. */
-export default function CalendarReviewPage() {
-  return <CalendarLabClient />;
+/* A link straight to the Calendar tab: it opens the view in the app's tab
+   bar and hands over to the app. The tab itself lives at "/", like every
+   other page of the app. */
+export default function CalendarLink() {
+  const router = useRouter();
+  useEffect(() => {
+    openView("calendar");
+    router.replace("/");
+  }, [router]);
+  return null;
 }
