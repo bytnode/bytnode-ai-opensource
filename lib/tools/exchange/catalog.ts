@@ -32,6 +32,10 @@ export type ExchangeInfo = {
   /** The trading account as ccxt sees it for a transfer from Funding, when
       it is not simply "spot" (Bybit: "unified"). */
   tradingWallet?: string;
+  /** The maintenance margin rate of the first tier of the BTC/USDT
+      perpetual, as a fraction: the position calculator's default when the
+      user gives none. Larger positions and other pairs use higher tiers. */
+  maintenanceMargin?: number;
   /** What the user and the agent need to know, in one sentence. */
   note?: string;
 };
@@ -45,6 +49,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     futures: "full",
     transfer: true,
     funding: "funding",
+    maintenanceMargin: 0.004,
     note: "Testnet: spot keys (testnet.binance.vision) and futures keys (testnet.binancefuture.com) are distinct — a testnet account serves only one of the two markets.",
   },
   {
@@ -56,6 +61,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     transfer: false,
     funding: "funding",
     tradingWallet: "unified",
+    maintenanceMargin: 0.005,
     note: "Unified account: spot and futures share the same balance. Deposits land in the Funding wallet, to be transferred to the unified account before trading. Testnet: keys created on testnet.bybit.com.",
   },
   {
@@ -66,6 +72,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     futures: "full",
     transfer: false,
     funding: "funding",
+    maintenanceMargin: 0.004,
     note: "Unified trading account: spot and futures share the same balance; deposits land in the Funding account, to be transferred to trading. Testnet = OKX demo, with API keys created in demo mode.",
   },
   {
@@ -93,6 +100,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     password: true,
     futures: "full",
     transfer: true,
+    maintenanceMargin: 0.004,
     note: "Futures: the account must be in one-way mode (Bitget starts in hedge mode) — checked before every order.",
   },
   {
@@ -104,6 +112,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     futuresId: "kucoinfutures",
     transfer: true,
     funding: "main",
+    maintenanceMargin: 0.004,
     note: "A single key, with the Spot and Futures permissions, serves both markets. Deposits land on the main account, to be transferred to the trading account.",
   },
   {
@@ -113,6 +122,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     password: false,
     futures: "full",
     transfer: true,
+    maintenanceMargin: 0.005,
     note: "Testnet: keys created on testnet.gate.com. The margin mode cannot be set through the API (leverage only).",
   },
   {
@@ -122,6 +132,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     password: false,
     futures: "full",
     transfer: false,
+    maintenanceMargin: 0.005,
     note: "No spot ↔ USDT futures transfer nor margin mode through this integration: do it on the exchange.",
   },
   {
@@ -131,6 +142,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     password: false,
     futures: "read",
     transfer: true,
+    maintenanceMargin: 0.004,
     note: "Futures read-only: MEXC closed futures order placement and cancellation by API (since 2022-07-25). Spot is complete.",
   },
 ];

@@ -21,6 +21,7 @@ An order commits money, sometimes real. The method below is not red tape: it is 
    - you give `quoteAmount` ("200 USDT") and the tool converts at the last price;
    - you compute `amount = quote_amount / price` with an **executed** calculation (skill `calcul-verifie`), never in your head.
    The tool rounds to the market's precision and refuses below the minimum: read its message.
+   When your tools include **PositionSize** (the Position calculator), size the order with it — from the capital and the risk the user accepts, with the stop — rather than from a round amount; before a leveraged order, **LiquidationPrice** says where the position would be liquidated (an estimate: say so), and **RiskReward** whether the targets are worth the stop.
 4. **Order** — `PlaceOrder`. `market` to execute now; `limit` with `price` to wait for a price; `stop` / `stop_limit` / `take_profit` with `stopPrice` for a trigger. In futures: `reduceOnly: true` for any order that must **exit** a position, never to enter one.
    **The user authorises each order.** Wait for the tool's result; a refusal is not an error to work around, it is a decision.
 5. **Confirmation** — `ExchangeOrders` with `status: "open"` (the order is waiting) or `"closed"` (it went through: average price, fees). Never conclude on the `PlaceOrder` response alone if it says `open` or `pending`.

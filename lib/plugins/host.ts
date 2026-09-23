@@ -32,6 +32,9 @@ export type Host = {
   session: SessionHolder;
   /** The first `apply` (from the disk copy): awaited before serving. */
   ready: Promise<void>;
+  /** The definitions it was built from: in development, a reloaded module
+      brings new ones, and the host is rebuilt around them. */
+  definitions: typeof PLUGINS;
 };
 
 const mirrorFile = () => path.join(pluginsDir(), "state.json");
@@ -58,12 +61,16 @@ type Holder = { [KEY]?: Host };
 
 export function pluginHost(): Host {
   const holder = globalThis as Holder;
-  if (holder[KEY]) return holder[KEY];
-  const session = new SessionHolder();
+  const current = holder[KEY];
+  if (current?.definitions === PLUGINS) return current;
+  /* First call — or, in development, the plugin modules were reloaded: the
+     old runtime stops (its timers with it), the session's keys are kept. */
+  if (current) void current.runtime.shutdown();
+  const session = current?.session ?? new SessionHolder();
   const runtime = new PluginRuntime(PLUGINS, env(true, () => session.get()));
   setActiveRuntime(runtime);
   const ready = readJson<PluginsState>(mirrorFile(), {}).then((state) => runtime.apply(state));
-  const host: Host = { runtime, session, ready };
+  const host: Host = { runtime, session, ready, definitions: PLUGINS };
   holder[KEY] = host;
   return host;
 }
