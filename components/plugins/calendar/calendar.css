@@ -38,6 +38,8 @@
   --r-sm: 12px;
   /* Inside a tile (4 px in): concentric with it. */
   --r-in: 10px;
+  /* Between two hour tiles: just enough to part them. */
+  --tile-gap: 2px;
   --fill: rgba(var(--ink), 0.06);
   --pane: rgba(var(--voile), 0.5);
   --sheet: rgba(var(--voile), 0.8);
@@ -640,7 +642,7 @@ html[data-theme="light"] .calv-agenda {
 }
 
 .calv-hour + .calv-hour {
-  margin-top: 5px;
+  margin-top: var(--tile-gap);
 }
 
 /* The hour stands level with the top of its tile. */
@@ -749,11 +751,11 @@ html[data-theme="light"] .calv-agenda {
 .calv-week-row {
   display: grid;
   grid-template-columns: 60px repeat(7, minmax(0, 1fr));
-  column-gap: 5px;
+  column-gap: var(--tile-gap);
 }
 
 .calv-week .calv-week-row + .calv-week-row {
-  margin-top: 5px;
+  margin-top: var(--tile-gap);
 }
 
 /* The days' heads, right above the grid and outside its scroll: the same
