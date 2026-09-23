@@ -20,7 +20,7 @@ export async function GET(req: Request) {
   const { bytnodeKey, exchangeAccounts } = readTransport(req.headers);
   const t0 = Date.now();
   const [{ tools, bytnode }, prof] = await Promise.all([
-    allTools({ platform: process.platform, bytnodeKey, exchangeAccounts }),
+    allTools({ engine: "native", platform: process.platform, bytnodeKey, exchangeAccounts }),
     loadProfession(PROJECT_ROOT, profession),
   ]);
   const skills = await listSkills(workspace, prof.skills);

@@ -19,49 +19,63 @@ import { chartTool } from "./finance/chart";
 import { backtestTool } from "./finance/backtest";
 import { memoryTool } from "./finance/memory";
 import { exchangeTools } from "./exchange";
+import { resolvePolicy } from "./policy";
 import type { ExchangeAccount } from "@/lib/domain/types";
 
 /* ---------------------------------------------------------------------------
-   The base tool set: every agent has it, in full.
+   The tool registry: ONE list, for both engines.
+
+   - The native engine (agents on an OpenRouter key: the browser's loop,
+     Workflow sub-agents) gets the general tools — files, shells, web,
+     skills, plan, Workflow — plus BytNode-AI's own tools, plus the BytNode
+     data tools discovered live.
+   - The MCP engine (`lib/mcp/finance-server.ts`, for subscription agents)
+     gets BytNode-AI's own tools only: the external agent has its own
+     general tools, and BytNode is given to it as a separate MCP server.
+   - A sub-agent or a background run (`depth` ≥ 1) keeps only the tools
+     whose policy allows it (`policy.ts`).
 
    ⚠️ THIS FILE IS SERVER-ONLY (it imports fs, child_process…). The browser
-   only needs the SPECIFICATIONS — name, description, schema — which it gets
-   through `/api/tools`; what it shares is `TOOL_NAMES` and `GATED`, via
-   `./names`.
+   only needs the SPECIFICATIONS and the POLICIES, which it gets through
+   `/api/tools`.
 --------------------------------------------------------------------------- */
 
-export function baseTools(opts: { platform: string }): Tool[] {
-  const { bashTool, powershellTool } = makeShellTools(opts.platform === "win32" ? "PowerShell" : "Bash");
-  return [
-    readTool,
-    writeTool,
-    editTool,
-    notebookEditTool,
-    globTool,
-    grepTool,
-    bashTool,
-    powershellTool,
-    monitorTool,
-    makeWebSearchTool({}),
-    webFetchTool,
-    workflowTool,
-    skillTool,
-    todoTool,
-    /* The finance tools: data to files, charts, standard backtest,
-       memory. */
-    saveMarketDataTool,
-    chartTool,
-    backtestTool,
-    memoryTool,
-  ] as Tool[];
+export type ToolsetOptions = {
+  engine: "native" | "mcp";
+  platform: string;
+  bytnodeKey?: string;
+  /** The exchange accounts the agent may drive: no account, no exchange
+      tool. */
+  exchangeAccounts?: ExchangeAccount[];
+  /** 0: the main agent. 1: a sub-agent or a background run. */
+  depth?: number;
+};
+
+export type BytnodeStatus = { ok: boolean; count: number; message?: string };
+
+/** The general tools: what an external agent already has on its own. */
+export function generalTools(platform: string): Tool[] {
+  const { bashTool, powershellTool } = makeShellTools(platform === "win32" ? "PowerShell" : "Bash");
+  return [readTool, writeTool, editTool, notebookEditTool, globTool, grepTool, bashTool, powershellTool, monitorTool, makeWebSearchTool({}), webFetchTool, workflowTool, skillTool, todoTool] as Tool[];
 }
 
-/** The base tools, plus BytNode's when a key is given. Discovery can fail
-    (missing key, unreachable server): the base tools alone are then
-    returned, along with the reason. */
-export async function allTools(opts: { platform: string; bytnodeKey?: string; exchangeAccounts?: ExchangeAccount[] }): Promise<{ tools: Tool[]; bytnode: { ok: boolean; count: number; message?: string } }> {
-  /* The exchange tools only exist for an agent that has an account. */
-  const base = opts.exchangeAccounts?.length ? [...baseTools(opts), ...exchangeTools()] : baseTools(opts);
+/** BytNode-AI's own tools, served to both engines: the finance tools
+    (data to files, charts, standard backtest, memory) and, for an agent
+    with an account, the exchange tools. */
+export function bytnodeAiTools(opts: Pick<ToolsetOptions, "exchangeAccounts">): Tool[] {
+  const finance = [saveMarketDataTool, chartTool, backtestTool, memoryTool] as Tool[];
+  return opts.exchangeAccounts?.length ? [...finance, ...exchangeTools()] : finance;
+}
+
+const forDepth = (tools: Tool[], depth: number | undefined) => ((depth ?? 0) >= 1 ? tools.filter((t) => resolvePolicy(t.name, t.policy).subagent) : tools);
+
+/** The tools of an engine. The native engine also gets BytNode's when a key
+    is given; discovery can fail (missing key, unreachable server): the
+    other tools are then returned, along with the reason. */
+export async function allTools(opts: ToolsetOptions): Promise<{ tools: Tool[]; bytnode: BytnodeStatus }> {
+  const own = bytnodeAiTools(opts);
+  if (opts.engine === "mcp") return { tools: forDepth(own, opts.depth), bytnode: { ok: false, count: 0, message: "Served as its own MCP server." } };
+  const base = forDepth([...generalTools(opts.platform), ...own], opts.depth);
   if (!opts.bytnodeKey?.trim()) return { tools: base, bytnode: { ok: false, count: 0, message: "No BytNode key." } };
   try {
     const infos = await bytnodeTools(opts.bytnodeKey);

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { describePolicy, mustAsk, policiesOf, policyIn, resolvePolicy } from "./policy";
-import { baseTools } from "./registry";
-import { exchangeTools } from "./exchange";
+import { bytnodeAiTools, generalTools } from "./registry";
 
 describe("resolvePolicy", () => {
   it("a tool that declares nothing is sensitive", () => {
@@ -50,7 +49,8 @@ describe("resolvePolicy", () => {
    that always ask, and "a sub-agent gets everything but Workflow and the
    five exchange actions". */
 describe("the core tools keep their behaviour", () => {
-  const tools = [...baseTools({ platform: "win32" }), ...exchangeTools()];
+  const account = { id: "a", exchange: "binance", label: "A", apiKey: "", secret: "", password: "", testnet: true };
+  const tools = [...generalTools("win32"), ...bytnodeAiTools({ exchangeAccounts: [account] })];
   const policies = policiesOf(tools);
 
   it("every core tool declares its policy", () => {

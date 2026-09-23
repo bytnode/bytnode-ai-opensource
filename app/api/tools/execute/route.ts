@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   if (!body.name || typeof body.model !== "string") {
     return Response.json({ error: { message: "Missing tool name or model." } }, { status: 400 });
   }
-  const { tools } = await allTools({ platform: process.platform, bytnodeKey, exchangeAccounts });
+  const { tools } = await allTools({ engine: "native", platform: process.platform, bytnodeKey, exchangeAccounts });
   const tool = tools.find((t) => t.name === body.name);
   if (!tool) return Response.json({ error: { message: `Unknown tool: ${body.name}` } }, { status: 404 });
   const profession = await loadProfession(PROJECT_ROOT, isProfessionId(body.profession) ? body.profession : DEFAULT_PROFESSION);

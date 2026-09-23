@@ -1,4 +1,3 @@
-import { resolvePolicy } from "../policy";
 import type { Tool, ToolContext } from "../types";
 import { errorText, fail, ok } from "../types";
 import { runAgentLoop, type ToolSpec } from "@/lib/agent/loop";
@@ -51,12 +50,11 @@ async function runOne(task: SubagentTask, index: number, context: string | undef
   const { title, profession } = task;
   ctx.emit({ type: "subagent", id, index, title, profession, status: "running" });
   try {
-    const [prof, { tools: every, bytnode }] = await Promise.all([
+    const [prof, { tools, bytnode }] = await Promise.all([
       loadProfession(ctx.projectRoot, profession),
-      allTools({ platform: process.platform, bytnodeKey: ctx.bytnodeKey, exchangeAccounts: ctx.exchangeAccounts }),
+      allTools({ engine: "native", platform: process.platform, bytnodeKey: ctx.bytnodeKey, exchangeAccounts: ctx.exchangeAccounts, depth: ctx.depth + 1 }),
     ]);
     const skills = await listSkills(ctx.workspace, prof.skills);
-    const tools = every.filter((t) => resolvePolicy(t.name, t.policy).subagent);
     const specs: ToolSpec[] = toToolSpecs(tools);
     const sub: ToolContext = { ...ctx, depth: ctx.depth + 1, callId: id, professionSkills: prof.skills };
     const model = task.model || ctx.llm.model;
