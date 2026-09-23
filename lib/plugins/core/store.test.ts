@@ -43,6 +43,14 @@ describe("pluginStore", () => {
     expect(await store.lines("j.jsonl")).toEqual([{ a: 1 }, { a: 3 }]);
   });
 
+  it("a file that exists but cannot be read is an error, never an empty list", async () => {
+    const store = pluginStore("x", root);
+    /* A folder where the file should be: EISDIR, like any unreadable file. */
+    await fs.mkdir(store.file("tasks.json"), { recursive: true });
+    await expect(store.read("tasks.json", [])).rejects.toThrow();
+    await expect(store.update("tasks.json", [], (l: number[]) => [...l, 1])).rejects.toThrow();
+  });
+
   it("refuses a file name that is a path", () => {
     const store = pluginStore("x", root);
     expect(() => store.file("../escape.json")).toThrow(/Invalid data file name/);

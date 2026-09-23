@@ -26,10 +26,33 @@ export const pluginsDir = (): string => path.join(dataDir(), "plugins");
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Windows refuses a file for a moment when another process holds it (an
+    antivirus scanning what was just renamed): worth a few retries. */
+const BUSY = ["EPERM", "EACCES", "EBUSY"];
+const busy = (e: unknown) => BUSY.includes((e as NodeJS.ErrnoException).code ?? "");
+
+/** The file's text, or `null` if it does not exist. ⚠️ A file that EXISTS
+    but cannot be read throws: read as "empty", the next update would
+    overwrite the user's data. */
+async function readText(file: string): Promise<string | null> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fs.readFile(file, "utf8");
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
+      if (attempt >= 5 || !busy(e)) throw e;
+      await sleep(RETRY_MS * (attempt + 1));
+    }
+  }
+}
+
 export async function readJson<T>(file: string, fallback: T): Promise<T> {
+  const text = await readText(file);
+  if (text === null) return fallback;
   try {
-    return JSON.parse(await fs.readFile(file, "utf8")) as T;
+    return JSON.parse(text) as T;
   } catch {
+    /* never written by us: the writes are atomic */
     return fallback;
   }
 }
@@ -50,7 +73,7 @@ async function writeTextAtomic(file: string, text: string): Promise<void> {
       await fs.rename(tmp, file);
       return;
     } catch (e) {
-      if (attempt >= 5 || !["EPERM", "EACCES", "EBUSY"].includes((e as NodeJS.ErrnoException).code ?? "")) {
+      if (attempt >= 5 || !busy(e)) {
         await fs.rm(tmp, { force: true });
         throw e;
       }
@@ -70,7 +93,9 @@ export async function withLock<T>(file: string, fn: () => Promise<T>): Promise<T
       await handle.close();
       break;
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+      /* Windows answers EPERM, not EEXIST, while the holder's lock is being
+         deleted: the lock is taken all the same. */
+      if ((e as NodeJS.ErrnoException).code !== "EEXIST" && !busy(e)) throw e;
       const stat = await fs.stat(lock).catch(() => null);
       if (stat && Date.now() - stat.mtimeMs > STALE_MS) {
         await fs.rm(lock, { force: true });
@@ -97,12 +122,8 @@ export async function updateJson<T>(file: string, fallback: T, change: (current:
 }
 
 export async function readJsonl<T>(file: string): Promise<T[]> {
-  let text: string;
-  try {
-    text = await fs.readFile(file, "utf8");
-  } catch {
-    return [];
-  }
+  const text = await readText(file);
+  if (text === null) return [];
   const out: T[] = [];
   for (const line of text.split(/\r?\n/)) {
     if (!line.trim()) continue;
