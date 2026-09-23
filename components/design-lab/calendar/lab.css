@@ -835,107 +835,182 @@ html[data-theme="light"] .cl-pop {
   flex-direction: row;
 }
 
-.a-side {
+/* The month: the left half of the sheet, its days as large as it allows. */
+.a-cal {
   display: flex;
   flex-direction: column;
-  gap: 22px;
-  flex: none;
-  width: 272px;
-  padding: 18px 14px;
-  overflow-y: auto;
+  flex: 0 0 clamp(420px, 46%, 660px);
+  min-height: 0;
   border-right: 1px solid var(--sep);
 }
 
-.a-mini-head {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  margin-bottom: 4px;
+.a-cal-bar {
+  padding-bottom: 10px;
 }
 
-.a-mini-title {
-  flex: 1;
-  padding-left: 6px;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.a-mini-grid {
+.a-cal-weekdays,
+.a-cal-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
+  padding: 0 16px;
 }
 
-.a-mini-wd {
-  padding: 6px 0 4px;
-  font-size: 10.5px;
-  font-weight: 600;
-  color: var(--label-3);
+.a-cal-weekdays span {
+  padding: 6px 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--label-2);
   text-align: center;
 }
 
-.a-mini-day {
+.a-cal-grid {
+  flex: 1;
+  min-height: 0;
+  grid-template-rows: repeat(6, minmax(52px, 1fr));
+  gap: 4px;
+  padding-bottom: 12px;
+}
+
+.a-cal-day {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 1px 0 3px;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
   border: 0;
+  border-radius: 12px;
   background: transparent;
   color: inherit;
   font: inherit;
   cursor: pointer;
 }
 
-.a-mini-num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 13px;
-  font-size: 12.5px;
-}
-
-.a-mini-day:hover .a-mini-num {
+.a-cal-day:hover {
   background: var(--fill);
 }
 
-.a-mini-day.is-outside .a-mini-num {
+.a-cal-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  font-family: var(--font-display), sans-serif;
+  font-size: 19px;
+  font-weight: 400;
+}
+
+.a-cal-day.is-outside .a-cal-num {
   color: var(--label-3);
 }
 
-.a-mini-day.is-today .a-mini-num {
+.a-cal-day.is-today .a-cal-num {
   color: var(--cal-today);
-  font-weight: 600;
+  font-weight: 500;
 }
 
-.a-mini-day.is-selected .a-mini-num {
+.a-cal-day.is-selected .a-cal-num {
   background: rgb(var(--ink));
   color: rgb(var(--ink-inv));
-  font-weight: 600;
+  font-weight: 500;
 }
 
-.a-mini-day.is-today.is-selected .a-mini-num {
+.a-cal-day.is-today.is-selected .a-cal-num {
   background: var(--cal-today);
   color: #fff;
 }
 
-.a-mini-dots {
+.a-cal-marks {
   display: flex;
-  gap: 2px;
-  height: 4px;
-  margin-top: 1px;
+  align-items: center;
+  gap: 3px;
+  height: 7px;
 }
 
-.a-mini-dots i {
-  width: 4px;
-  height: 4px;
+.a-cal-marks i {
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
 }
 
-.a-mini-today {
-  margin-top: 10px;
+/* A market-moving event: its mark stretched into a short bar. */
+.a-cal-marks i.is-strong {
+  width: 14px;
+  border-radius: 3px;
 }
 
+.a-cal-marks b {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--label-3);
+}
+
+.a-cal-day.is-outside .a-cal-marks {
+  opacity: 0.5;
+}
+
+/* The calendars under the month: a row of chips. */
+.cl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 14px 20px 18px;
+  border-top: 1px solid var(--sep);
+}
+
+.cl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--sep);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--label);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.cl-chip:hover {
+  background: var(--fill);
+}
+
+.cl-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tone);
+}
+
+.cl-chip-count {
+  color: var(--label-3);
+}
+
+.cl-chip.is-off {
+  color: var(--label-3);
+}
+
+.cl-chip.is-off .cl-chip-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--tone);
+}
+
+.cl-chip-strong {
+  border-color: rgba(var(--ink), 0.2);
+}
+
+.cl-chip-strong:not(.is-off) {
+  background: rgb(var(--ink));
+  color: rgb(var(--ink-inv));
+}
+
+/* The agenda: the right half. */
 .a-main {
   display: flex;
   flex-direction: column;
@@ -944,7 +1019,16 @@ html[data-theme="light"] .cl-pop {
 }
 
 .a-head {
-  padding: 22px 32px 6px;
+  padding: 18px 32px 6px;
+}
+
+.a-head-title {
+  margin: 0;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 500;
+  font-size: 28px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 
 .a-head-date {
@@ -1073,11 +1157,14 @@ html[data-theme="light"] .cl-pop {
     flex-direction: column;
   }
 
-  .a-side {
-    width: auto;
-    max-height: 45vh;
+  .a-cal {
+    flex: none;
     border-right: 0;
     border-bottom: 1px solid var(--sep);
+  }
+
+  .a-cal-grid {
+    grid-template-rows: repeat(6, 52px);
   }
 
   .a-head,

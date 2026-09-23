@@ -78,6 +78,27 @@ export function CalendarList({ filter, counts }: { filter: FilterState; counts?:
   );
 }
 
+/** The calendars as a row of chips: the same filter, in little room. */
+export function CalendarChips({ filter, counts }: { filter: FilterState; counts: Partial<Record<Category, number>> }) {
+  return (
+    <div className="cl-chips" role="group" aria-label="Calendars">
+      {CATEGORIES.map((c) => {
+        const on = !filter.hidden.includes(c);
+        return (
+          <button key={c} type="button" className={`cl-chip${on ? "" : " is-off"}`} aria-pressed={on} style={{ "--tone": CATEGORY_TONE[c] } as CSSProperties} onClick={() => filter.toggle(c)}>
+            <span className="cl-chip-dot" aria-hidden />
+            {CATEGORY_LABELS[c]}
+            {counts[c] ? <span className="cl-chip-count">{counts[c]}</span> : null}
+          </button>
+        );
+      })}
+      <button type="button" className={`cl-chip cl-chip-strong${filter.strongOnly ? "" : " is-off"}`} aria-pressed={filter.strongOnly} onClick={() => filter.setStrongOnly(!filter.strongOnly)}>
+        Market-moving only
+      </button>
+    </div>
+  );
+}
+
 /** The calendars list, behind a toolbar button. */
 export function FilterMenu({ filter }: { filter: FilterState }) {
   const [open, setOpen] = useState(false);

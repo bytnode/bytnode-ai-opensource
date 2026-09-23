@@ -19,7 +19,7 @@ type Version = "month" | "week" | "agenda";
 
 export function CalendarLab() {
   const [today] = useState(() => startOfDay(new Date()));
-  const [version, setVersion] = useState<Version>("month");
+  const [version, setVersion] = useState<Version>("agenda");
   const [source, setSource] = useState<Source>("sample");
 
   return (
