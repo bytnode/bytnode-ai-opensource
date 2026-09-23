@@ -5,6 +5,7 @@ import type { Settings } from "@/lib/domain/types";
 import { WatchlistView } from "./watchlist/view";
 import { AlertsView } from "./alerts/view";
 import { CalendarView } from "./calendar/view";
+import { DcaView } from "./dca/view";
 import { PaperTradingView } from "./paper-trading/view";
 import { PortfolioView } from "./portfolio/view";
 import { SchedulerView } from "./scheduler/view";
@@ -25,6 +26,7 @@ export const VIEWS: Record<string, ComponentType<ViewProps>> = {
   watchlist: WatchlistView,
   alerts: AlertsView,
   calendar: CalendarView,
+  dca: DcaView,
   "paper-trading": PaperTradingView,
   portfolio: PortfolioView,
   scheduler: SchedulerView,

@@ -4,7 +4,7 @@ import type { ReportService } from "../report-export/service";
 import type { SchedulerService } from "../scheduler/service";
 import { normalizeSymbol } from "../shared/quote";
 import { paperDesk, type DeskSettings } from "./desk";
-import type { CheckEvent, OrderType, PaperMarket, Side } from "./engine";
+import { CASH, type CheckEvent, type OrderType, type PaperMarket, type Side } from "./engine";
 import { paperTradingManifest } from "./manifest";
 import { paperCancelTool } from "./paper-cancel";
 import { paperOrderTool } from "./paper-order";
@@ -48,6 +48,7 @@ export const paperTradingPlugin = definePlugin({
     ctx.tool(paperResetTool(desk));
     ctx.prompt(async () => paperPrompt(await desk.read()));
     ctx.provide<PaperService>(() => ({
+      cash: CASH,
       buy: ({ symbol, quoteAmount, note }, sources) => desk.place({ symbol, market: "spot", side: "buy", type: "market", quoteAmount, note }, sources),
     }));
 
