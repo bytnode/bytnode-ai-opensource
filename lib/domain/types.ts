@@ -164,6 +164,9 @@ export type Conversation = {
   /** For a subscription agent: the ACP session that carries this
       conversation at the external agent, to reload after a restart. */
   acpSessionId?: string;
+  /** The report of a scheduled task, imported from the server's run log
+      (`lib/state/scheduled-runs.ts`): a conversation like any other. */
+  scheduled?: { taskId: string; runId: string };
   createdAt: number;
   updatedAt: number;
   messages: Message[];

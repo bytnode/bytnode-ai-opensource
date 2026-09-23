@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Settings } from "@/lib/domain/types";
 import { viewEntry, type ViewEntry } from "@/lib/plugins/catalog";
 import { goToConversation } from "@/lib/state/navigation";
+import { ensureConversation } from "@/lib/state/scheduled-runs";
 import { HOME, activateTab, closeViews, openView, type ViewTab } from "@/lib/state/tabs";
 import { Close, Plus } from "@/components/ui/icons";
 import { SearchPanel } from "@/components/ui/search-panel";
@@ -66,7 +67,7 @@ export function TabBar({ settings, views, tabs, active }: Props) {
         </SearchPanel>
       </div>
       <span className="tb-space" />
-      <NotificationCenter settings={settings} onOpenConversation={goToConversation} />
+      <NotificationCenter settings={settings} onOpenConversation={(id) => void ensureConversation(id, settings).then(() => goToConversation(id))} />
     </div>
   );
 }

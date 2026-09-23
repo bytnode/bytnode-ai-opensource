@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Settings } from "@/lib/domain/types";
 import { callPlugin } from "@/lib/plugins/client";
 import type { Transport } from "@/lib/tools/transport";
@@ -8,7 +8,8 @@ import type { Transport } from "@/lib/tools/transport";
 /* ---------------------------------------------------------------------------
    A view's data: one action of its plugin, called with the user's keys and
    ALL their exchange accounts (a view is the user's, not an agent's).
-   `reload` calls it again; the previous data stays on screen meanwhile.
+   `reload` (stable) calls it again; the previous data stays on screen
+   meanwhile.
 --------------------------------------------------------------------------- */
 
 export const viewTransport = (settings: Settings): Partial<Transport> => ({ bytnodeKey: settings.keys.bytnode, exchangeAccounts: settings.keys.exchanges });
@@ -20,6 +21,7 @@ export function usePluginData<T>(plugin: string, action: string, settings: Setti
   const [loaded, setLoaded] = useState<Loaded<T>>({ round: -1 });
   const query = JSON.stringify(params);
   const keys = settings.keys;
+  const reload = useCallback(() => setRound((r) => r + 1), []);
 
   useEffect(() => {
     let alive = true;
@@ -36,7 +38,7 @@ export function usePluginData<T>(plugin: string, action: string, settings: Setti
     data: loaded.data,
     error: loaded.round === round ? loaded.error : undefined,
     loading: loaded.round !== round,
-    reload: () => setRound((r) => r + 1),
+    reload,
   };
 }
 

@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import type { Settings } from "@/lib/domain/types";
 import { syncSession } from "@/lib/plugins/client";
 import { refreshNotifications, refreshPlugins, setPluginStatus } from "@/lib/state/plugins";
+import { importRuns } from "@/lib/state/scheduled-runs";
 
 /* ---------------------------------------------------------------------------
    The open tab keeps the server informed, and listens.
@@ -15,6 +16,8 @@ import { refreshNotifications, refreshPlugins, setPluginStatus } from "@/lib/sta
    - The notifications are read every 15 s and when the window comes back;
      a new one raises the browser's notification when the page is not in
      front — if the user allowed them.
+   - The reports of the scheduled tasks become conversations: at the start
+     and every minute (`lib/state/scheduled-runs.ts`).
 --------------------------------------------------------------------------- */
 
 const HEARTBEAT = 60_000;
@@ -36,7 +39,11 @@ export function usePluginSession(settings: Settings) {
   }, [settings]);
 
   useEffect(() => {
-    const beat = setInterval(() => void syncSession(latest.current).then(setPluginStatus).catch(() => {}), HEARTBEAT);
+    void importRuns(latest.current);
+    const beat = setInterval(() => {
+      void syncSession(latest.current).then(setPluginStatus).catch(() => {});
+      void importRuns(latest.current);
+    }, HEARTBEAT);
     return () => clearInterval(beat);
   }, []);
 

@@ -253,6 +253,63 @@
   background: var(--matter);
 }
 
+/* --- Scheduled tasks ---------------------------------------------------- */
+
+.sv-form .sv-prompt {
+  flex-basis: 100%;
+}
+
+.sv-form textarea.field-input {
+  height: auto;
+  min-height: 70px;
+  padding-top: 9px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.sv-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 260px;
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+}
+
+.sv-runs {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sv-runs li {
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--matter);
+}
+
+.sv-run-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.86rem;
+}
+
+.sv-run-head .btn {
+  margin-left: auto;
+}
+
+.sv-run-body {
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* --- Cards in the thread ------------------------------------------------ */
 
 .pc {

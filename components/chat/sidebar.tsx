@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
 import type { AgentConfig, Conversation, Settings } from "@/lib/domain/types";
-import { ChevronDown, Dots, Pencil, Plus, Settings as SettingsIcon, Trash } from "@/components/ui/icons";
+import { ChevronDown, Clock, Dots, Pencil, Plus, Settings as SettingsIcon, Trash } from "@/components/ui/icons";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { professionInfo } from "@/lib/professions/catalog";
 
@@ -241,7 +241,8 @@ function ConversationRow({ conversation, active, onSelect, onRemove, onRename }:
           aria-label="New title"
         />
       ) : (
-        <button type="button" className="sb-conv-btn" onClick={onSelect} title={conversation.title}>
+        <button type="button" className="sb-conv-btn" onClick={onSelect} title={conversation.scheduled ? `${conversation.title} — report of a scheduled task` : conversation.title}>
+          {conversation.scheduled && <Clock className="sb-conv-mark" />}
           {conversation.title}
         </button>
       )}

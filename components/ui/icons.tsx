@@ -155,6 +155,13 @@ export const Bell = (p: P) => (
   </svg>
 );
 
+export const Clock = (p: P) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 7.5V12l3 2" />
+  </svg>
+);
+
 export const Refresh = (p: P) => (
   <svg {...base(p)}>
     <path d="M20 11a8 8 0 0 0-14.9-3.5M4 4v4h4M4 13a8 8 0 0 0 14.9 3.5M20 20v-4h-4" />

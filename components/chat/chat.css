@@ -374,6 +374,16 @@ body.is-resizing {
   line-height: 34px;
 }
 
+/* The report of a scheduled task: a small clock before its title. */
+.sb-conv-mark {
+  width: 13px;
+  height: 13px;
+  margin-right: 6px;
+  vertical-align: -2px;
+  stroke-width: 1.8;
+  color: var(--fg-faint);
+}
+
 /* "New conversation": a row like the others, in full ink so it's easy to
    find, separated from the conversations by a bit of air. */
 .sb-conv-new {
