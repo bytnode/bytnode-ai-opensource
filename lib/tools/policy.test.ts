@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import type { Tool } from "./types";
 import { describePolicy, mustAsk, policiesOf, policyIn, resolvePolicy } from "./policy";
 import { bytnodeAiTools, generalTools } from "./registry";
+import { saveMarketDataTool } from "@/lib/plugins/finance-tools/save-market-data";
+import { chartTool } from "@/lib/plugins/finance-tools/chart";
+import { backtestTool } from "@/lib/plugins/finance-tools/backtest";
 
 describe("resolvePolicy", () => {
   it("a tool that declares nothing is sensitive", () => {
@@ -47,13 +51,14 @@ describe("resolvePolicy", () => {
 /* The declarative policies must reproduce, tool for tool, what the core
    decided before they existed: the old `GATED_TOOLS` list, the three tools
    that always ask, and "a sub-agent gets everything but Workflow and the
-   five exchange actions". */
+   five exchange actions" — the finance tools now shipped by the
+   finance-tools plugin included. */
 describe("the core tools keep their behaviour", () => {
   const account = { id: "a", exchange: "binance", label: "A", apiKey: "", secret: "", password: "", testnet: true };
-  const tools = [...generalTools("win32"), ...bytnodeAiTools({ exchangeAccounts: [account] })];
+  const tools = [...generalTools("win32"), ...bytnodeAiTools({ exchangeAccounts: [account] }), saveMarketDataTool, chartTool, backtestTool] as Tool[];
   const policies = policiesOf(tools);
 
-  it("every core tool declares its policy", () => {
+  it("every one of them declares its policy", () => {
     expect(tools.filter((t) => !t.policy).map((t) => t.name)).toEqual([]);
   });
 

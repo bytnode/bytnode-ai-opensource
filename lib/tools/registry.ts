@@ -14,9 +14,6 @@ import { webFetchTool } from "./web/fetch";
 import { skillTool } from "./skills/skill";
 import { todoTool } from "./todo";
 import { workflowTool } from "./agents/workflow";
-import { saveMarketDataTool } from "./finance/data";
-import { chartTool } from "./finance/chart";
-import { backtestTool } from "./finance/backtest";
 import { memoryTool } from "./finance/memory";
 import { exchangeTools } from "./exchange";
 import { resolvePolicy } from "./policy";
@@ -66,12 +63,12 @@ export function generalTools(platform: string): Tool[] {
   return [readTool, writeTool, editTool, notebookEditTool, globTool, grepTool, bashTool, powershellTool, monitorTool, makeWebSearchTool({}), webFetchTool, workflowTool, skillTool, todoTool] as Tool[];
 }
 
-/** BytNode-AI's own core tools, served to both engines: the finance tools
-    (data to files, charts, standard backtest, memory) and, for an agent
-    with an account, the exchange tools. */
+/** BytNode-AI's own core tools, served to both engines: the agent's
+    memory and, for an agent with an account, the exchange tools. The rest
+    comes from the plugins. */
 export function bytnodeAiTools(opts: Pick<ToolsetOptions, "exchangeAccounts">): Tool[] {
-  const finance = [saveMarketDataTool, chartTool, backtestTool, memoryTool] as Tool[];
-  return opts.exchangeAccounts?.length ? [...finance, ...exchangeTools()] : finance;
+  const core = [memoryTool] as Tool[];
+  return opts.exchangeAccounts?.length ? [...core, ...exchangeTools()] : core;
 }
 
 /** The tools of the plugins enabled for the agent, and OpenView for their

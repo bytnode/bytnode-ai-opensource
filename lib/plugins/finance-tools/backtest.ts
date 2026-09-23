@@ -2,22 +2,21 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { Resvg } from "@resvg/resvg-js";
-import type { Tool, ToolContext, ToolResult } from "../types";
-import { errorText, fail } from "../types";
-import { OutsideWorkspaceError, displayPath, resolvePath } from "../paths";
+import type { Tool, ToolContext, ToolResult } from "@/lib/tools/types";
+import { errorText, fail } from "@/lib/tools/types";
+import { OutsideWorkspaceError, displayPath, resolvePath } from "@/lib/tools/paths";
 import { parseCsv, toMillis } from "./csv";
 import { buildChartSvg } from "./svg";
 
 /* ---------------------------------------------------------------------------
-   Backtest : le meme moteur pour toutes les strategies.
+   Backtest: the same engine for every strategy.
 
-   L'agent ecrit un fichier Python minuscule — `signal(df)` qui rend -1/0/1,
-   `stop_distance(df)` en option — et c'est notre moteur (py/backtest.py)
-   qui fait le reste : execution a la bougie suivante, frais, slippage,
-   funding, taille par le risque, decoupage in/out-of-sample, metriques par
-   periode et par annee, reference acheter-et-garder, courbe de capital.
-   Une seule implementation, testee, au lieu d'un script neuf a chaque
-   fois. Exige Python 3 avec pandas et numpy.
+   The agent writes a tiny Python file — `signal(df)` returning -1/0/1,
+   `stop_distance(df)` optionally — and our engine (py/backtest.py) does the
+   rest: execution at the next candle, fees, slippage, funding, sizing by
+   risk, in/out-of-sample split, metrics per period and per year, buy-and-
+   hold reference, equity curve. One tested implementation, instead of a new
+   script every time. Requires Python 3 with pandas and numpy.
 --------------------------------------------------------------------------- */
 
 type Args = {
@@ -45,31 +44,31 @@ type Report = {
   metrics?: Record<string, Metrics>;
 };
 
-/* Le moteur vit dans le projet, pas la ou le processus tourne : le serveur
-   MCP est lance dans le dossier de travail de l'agent. */
-const engineOf = (projectRoot: string) => path.join(projectRoot, "lib", "tools", "finance", "py", "backtest.py");
+/* The engine lives in the package, not where the process runs: the MCP
+   server is launched in the agent's workspace. */
+const engineOf = (projectRoot: string) => path.join(projectRoot, "lib", "plugins", "finance-tools", "py", "backtest.py");
 const TIMEOUT = 10 * 60_000;
 
 export const backtestTool: Tool<Args> = {
   name: "Backtest",
   policy: { gated: true, subagent: true },
   description:
-    "Backteste une stratégie avec le moteur standard de BytNode-AI (exécution à l'ouverture de la bougie suivante, frais + slippage par côté, funding si la colonne existe, taille par le risque quand un stop est donné, découpage in-sample / out-of-sample, métriques par période et par année, référence acheter-et-garder, courbe de capital). " +
-    "`data` : un CSV OHLCV du dossier de travail (SaveMarketData). `strategy` : un fichier Python du dossier de travail qui définit `signal(df, **params) -> pd.Series` à valeurs -1 / 0 / 1, calculées avec les données ≤ t (rolling causal, jamais center=True), et optionnellement `stop_distance(df, **params) -> pd.Series` (distance au stop en prix, ex. 2×ATR). " +
-    "Écrit out/backtests/<name>/{metrics.json, equity.csv, trades.csv, equity.png} et te rend le tableau des métriques + la courbe. Ne réécris pas de moteur en Bash : utilise celui-ci, puis `validation-statistique` pour juger.",
+    "Backtests a strategy with BytNode-AI's standard engine (execution at the next candle's open, fees + slippage per side, funding if the column exists, sizing by risk when a stop is given, in-sample / out-of-sample split, metrics per period and per year, buy-and-hold reference, equity curve). " +
+    "`data`: an OHLCV CSV of the workspace (SaveMarketData). `strategy`: a Python file of the workspace defining `signal(df, **params) -> pd.Series` with values -1 / 0 / 1, computed with the data ≤ t (causal rolling, never center=True), and optionally `stop_distance(df, **params) -> pd.Series` (distance to the stop in price, e.g. 2×ATR). " +
+    "Writes out/backtests/<name>/{metrics.json, equity.csv, trades.csv, equity.png} and returns the metrics table + the curve. Do not rewrite an engine in Bash: use this one, then `validation-statistique` to judge.",
   parameters: {
     type: "object",
     properties: {
-      data: { type: "string", description: "CSV OHLCV, relatif au dossier de travail." },
-      strategy: { type: "string", description: "Fichier Python de la stratégie, relatif au dossier de travail." },
-      name: { type: "string", description: "Nom de l'expérience (dossier de sortie). Défaut : nom du fichier de stratégie." },
-      params: { type: "object", additionalProperties: true, description: "Paramètres passés à signal()/stop_distance()." },
-      fee: { type: "number", description: "Frais par côté, fraction. Défaut 0.0006." },
-      slippage: { type: "number", description: "Slippage par côté, fraction. Défaut 0.0005." },
-      risk: { type: "number", description: "Fraction du capital risquée par position (avec stop). Défaut 0.01." },
-      max_leverage: { type: "number", description: "Levier notionnel maximal. Défaut 3." },
-      periods_per_year: { type: "integer", description: "365 (journalier crypto), 2190 (4 h), 8760 (1 h)… Défaut 365." },
-      split: { type: "number", minimum: 0.1, maximum: 0.95, description: "Part in-sample. Défaut 0.7." },
+      data: { type: "string", description: "OHLCV CSV, relative to the workspace." },
+      strategy: { type: "string", description: "The strategy's Python file, relative to the workspace." },
+      name: { type: "string", description: "The experiment's name (output folder). Default: the strategy file's name." },
+      params: { type: "object", additionalProperties: true, description: "Parameters passed to signal()/stop_distance()." },
+      fee: { type: "number", description: "Fee per side, as a fraction. Default 0.0006." },
+      slippage: { type: "number", description: "Slippage per side, as a fraction. Default 0.0005." },
+      risk: { type: "number", description: "Fraction of the capital risked per position (with a stop). Default 0.01." },
+      max_leverage: { type: "number", description: "Maximum notional leverage. Default 3." },
+      periods_per_year: { type: "integer", description: "365 (daily crypto), 2190 (4 h), 8760 (1 h)… Default 365." },
+      split: { type: "number", minimum: 0.1, maximum: 0.95, description: "In-sample share. Default 0.7." },
     },
     required: ["data", "strategy"],
     additionalProperties: false,
@@ -79,7 +78,7 @@ export const backtestTool: Tool<Args> = {
   },
 };
 
-export async function runBacktest(args: Args, ctx: ToolContext): Promise<ToolResult> {
+async function runBacktest(args: Args, ctx: ToolContext): Promise<ToolResult> {
   let data: string;
   let strategy: string;
   let outDir: string;
@@ -95,7 +94,7 @@ export async function runBacktest(args: Args, ctx: ToolContext): Promise<ToolRes
     try {
       await fs.access(f);
     } catch {
-      return fail(`Fichier introuvable : ${displayPath(ctx.workspace, f)}`);
+      return fail(`File not found: ${displayPath(ctx.workspace, f)}`);
     }
   }
   await fs.mkdir(outDir, { recursive: true });
@@ -115,12 +114,12 @@ export async function runBacktest(args: Args, ctx: ToolContext): Promise<ToolRes
   await fs.writeFile(cfgPath, JSON.stringify(cfg, null, 2));
 
   const python = await findPython();
-  if (!python) return fail("Python 3 introuvable (python / python3 / py). Le backtest exige Python avec pandas et numpy.");
+  if (!python) return fail("Python 3 not found (python / python3 / py). The backtest requires Python with pandas and numpy.");
   const engine = engineOf(ctx.projectRoot);
   try {
     await fs.access(engine);
   } catch {
-    return fail(`Moteur introuvable : ${engine}. L'installation de BytNode-AI est incomplète.`);
+    return fail(`Engine not found: ${engine}. The BytNode-AI installation is incomplete.`);
   }
   const run = await exec(python, [engine, cfgPath], ctx.workspace, ctx.signal);
   const jsonLine = run.stdout.trim().split("\n").reverse().find((l) => l.startsWith("{"));
@@ -132,22 +131,22 @@ export async function runBacktest(args: Args, ctx: ToolContext): Promise<ToolRes
   }
   if (!report) {
     const err = (run.stderr || run.stdout).trim().slice(-3000);
-    if (/No module named/.test(err)) return fail(`Il manque un module Python : ${err}\nInstalle-le (pip install pandas numpy) puis relance.`);
-    return fail(`Le moteur n'a rien rendu (code ${run.code}).\n${err}`);
+    if (/No module named/.test(err)) return fail(`A Python module is missing: ${err}\nInstall it (pip install pandas numpy) and run again.`);
+    return fail(`The engine returned nothing (code ${run.code}).\n${err}`);
   }
-  if (!report.ok) return fail(`Backtest impossible : ${report.error}\n${run.stderr.trim().slice(-1500)}`);
+  if (!report.ok) return fail(`Backtest impossible: ${report.error}\n${run.stderr.trim().slice(-1500)}`);
 
-  /* La courbe de capital, avec acheter-et-garder en reference. */
+  /* The equity curve, with buy-and-hold as the reference. */
   const attachments: ToolResult["attachments"] = [];
   try {
     const eq = parseCsv(await fs.readFile(path.join(outDir, "equity.csv"), "utf8"));
     const rows = eq.rows.filter((r) => typeof r.equity === "number");
     const c0 = typeof rows[0]?.close === "number" ? (rows[0].close as number) : null;
     const svg = buildChartSvg({
-      title: `Capital — ${path.basename(outDir)} (× ${((rows[rows.length - 1]?.equity as number) ?? 1).toFixed(3)})`,
+      title: `Equity — ${path.basename(outDir)} (× ${((rows[rows.length - 1]?.equity as number) ?? 1).toFixed(3)})`,
       type: "line",
       series: rows.map((r, i) => ({ time: toMillis(r.time) ?? i, close: r.equity as number })),
-      overlays: c0 ? [{ name: "acheter-et-garder", values: rows.map((r) => (typeof r.close === "number" ? (r.close as number) / c0 : null)), color: "#8b949e" }] : [],
+      overlays: c0 ? [{ name: "buy and hold", values: rows.map((r) => (typeof r.close === "number" ? (r.close as number) / c0 : null)), color: "#8b949e" }] : [],
       markers: [],
       hlines: [{ price: 1, label: "" }],
       width: 1100,
@@ -158,38 +157,38 @@ export async function runBacktest(args: Args, ctx: ToolContext): Promise<ToolRes
     await fs.writeFile(pngPath, png);
     attachments.push({ type: "image", name: displayPath(ctx.workspace, pngPath), dataUrl: `data:image/png;base64,${png.toString("base64")}`, path: pngPath });
   } catch {
-    /* pas de courbe : le tableau suffit */
+    /* no curve: the table is enough */
   }
 
   const text = [
-    `Backtest ${path.basename(outDir)} : ${report.rows} bougies, ${report.start} → ${report.end}${report.split_at ? `, hors échantillon à partir de ${report.split_at}` : ""}. ${report.trades} trade${(report.trades ?? 0) > 1 ? "s" : ""} aller-retour.`,
-    `Frais ${cfg.fee} + slippage ${cfg.slippage} par côté, risque ${cfg.risk}, levier max ${cfg.max_leverage}, ${cfg.periods_per_year} périodes/an. Paramètres : ${JSON.stringify(cfg.params)}.`,
+    `Backtest ${path.basename(outDir)}: ${report.rows} candles, ${report.start} → ${report.end}${report.split_at ? `, out of sample from ${report.split_at}` : ""}. ${report.trades} round trip${(report.trades ?? 0) > 1 ? "s" : ""}.`,
+    `Fees ${cfg.fee} + slippage ${cfg.slippage} per side, risk ${cfg.risk}, max leverage ${cfg.max_leverage}, ${cfg.periods_per_year} periods/year. Parameters: ${JSON.stringify(cfg.params)}.`,
     "",
     metricsTable(report.metrics ?? {}),
     "",
-    `Fichiers : ${displayPath(ctx.workspace, outDir)}/{metrics.json, equity.csv, trades.csv, equity.png}.`,
-    "Avant de conclure : hors échantillon vs in-sample, nombre de trades, sensibilité aux paramètres (relance avec ±20 %), tests multiples — voir la compétence validation-statistique.",
+    `Files: ${displayPath(ctx.workspace, outDir)}/{metrics.json, equity.csv, trades.csv, equity.png}.`,
+    "Before concluding: out of sample vs in sample, number of trades, sensitivity to the parameters (run again at ±20 %), multiple testing — see the validation-statistique skill.",
   ].join("\n");
   return { ok: true, output: text, ...(attachments.length ? { attachments } : {}) };
 }
 
 const ORDER = ["all", "in_sample", "out_of_sample", "buy_and_hold"];
 const COLS: Array<[string, string, (v: number) => string]> = [
-  ["total_return", "Rendement", (v) => `${(v * 100).toFixed(1)} %`],
-  ["cagr", "Annualisé", (v) => `${(v * 100).toFixed(1)} %`],
+  ["total_return", "Return", (v) => `${(v * 100).toFixed(1)} %`],
+  ["cagr", "Annualised", (v) => `${(v * 100).toFixed(1)} %`],
   ["volatility", "Vol.", (v) => `${(v * 100).toFixed(1)} %`],
   ["sharpe", "Sharpe", (v) => v.toFixed(2)],
   ["sortino", "Sortino", (v) => v.toFixed(2)],
-  ["max_drawdown", "DD max", (v) => `${(v * 100).toFixed(1)} %`],
+  ["max_drawdown", "Max DD", (v) => `${(v * 100).toFixed(1)} %`],
   ["calmar", "Calmar", (v) => v.toFixed(2)],
-  ["exposure", "Exposition", (v) => `${(v * 100).toFixed(0)} %`],
-  ["trades", "Changements", (v) => String(v)],
-  ["longest_losing_streak", "Série pertes", (v) => String(v)],
+  ["exposure", "Exposure", (v) => `${(v * 100).toFixed(0)} %`],
+  ["trades", "Changes", (v) => String(v)],
+  ["longest_losing_streak", "Losing streak", (v) => String(v)],
 ];
 
 function metricsTable(m: Record<string, Metrics>): string {
   const keys = [...ORDER.filter((k) => k in m), ...Object.keys(m).filter((k) => !ORDER.includes(k)).sort()];
-  const head = `| Période | ${COLS.map((c) => c[1]).join(" | ")} |`;
+  const head = `| Period | ${COLS.map((c) => c[1]).join(" | ")} |`;
   const sep = `|---|${COLS.map(() => "---:").join("|")}|`;
   const rows = keys.map((k) => {
     const cells = COLS.map(([id, , fmt]) => {

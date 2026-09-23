@@ -1,10 +1,10 @@
 /* ---------------------------------------------------------------------------
-   Un graphique de marche en SVG, sans dependance.
+   A market chart in SVG, with no dependency.
 
-   Bougies (ou une ligne quand il n'y a que le prix), volume en bas,
-   indicateurs superposes, marqueurs d'entree/sortie, niveaux horizontaux,
-   graduations rondes. Le SVG est ensuite rasterise en PNG (chart.ts) pour
-   le fil et pour le modele. Pur : teste sans disque.
+   Candles (or a line when there is only the price), volume at the bottom,
+   overlaid indicators, entry/exit markers, horizontal levels, round
+   ticks. The SVG is then rasterised to PNG (chart.ts) for the thread and
+   for the model. Pure: tested without a disk.
 --------------------------------------------------------------------------- */
 
 export type Candle = { time: number; open?: number; high?: number; low?: number; close: number; volume?: number };
@@ -33,7 +33,7 @@ const BG = "#0d1117";
 
 export const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-/** Des graduations rondes (1, 2, 5 × 10^n) couvrant [lo, hi]. */
+/** Round ticks (1, 2, 5 × 10^n) covering [lo, hi]. */
 export function niceTicks(lo: number, hi: number, count = 5): number[] {
   if (!(hi > lo)) return [lo];
   const raw = (hi - lo) / count;
@@ -99,14 +99,14 @@ export function buildChartSvg(spec: ChartSpec): string {
   parts.push(`<rect width="${W}" height="${H}" fill="${BG}"/>`);
   parts.push(`<text x="${padL}" y="20" fill="${INK}" font-size="14" font-weight="600">${esc(spec.title)}</text>`);
 
-  /* Grille et axe des prix. */
+  /* Grid and price axis. */
   for (const t of niceTicks(lo, hi, 6)) {
     if (t < lo || t > hi) continue;
     const yy = y(t);
     parts.push(`<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${padL + plotW}" y2="${yy.toFixed(1)}" stroke="${GRID}" stroke-width="1"/>`);
     parts.push(`<text x="${padL + plotW + 6}" y="${(yy + 4).toFixed(1)}" fill="${MUTED}">${fmtPrice(t)}</text>`);
   }
-  /* Axe du temps : ~6 etiquettes. */
+  /* Time axis: ~6 labels. */
   if (n > 1) {
     const span = series[n - 1].time - series[0].time;
     const step = Math.max(1, Math.round(n / 6));
@@ -126,7 +126,7 @@ export function buildChartSvg(spec: ChartSpec): string {
     });
   }
 
-  /* Prix. */
+  /* Price. */
   if (hasOhlc) {
     series.forEach((c, i) => {
       const up = c.close >= c.open!;
@@ -156,7 +156,7 @@ export function buildChartSvg(spec: ChartSpec): string {
     parts.push(`<text x="${padL + 4 + k * 90}" y="${padT - 6}" fill="${color}">${esc(o.name)}</text>`);
   });
 
-  /* Niveaux horizontaux. */
+  /* Horizontal levels. */
   for (const h of spec.hlines) {
     const yy = y(h.price);
     const color = h.color ?? "#d2a8ff";
@@ -164,7 +164,7 @@ export function buildChartSvg(spec: ChartSpec): string {
     if (h.label) parts.push(`<text x="${padL + 4}" y="${(yy - 4).toFixed(1)}" fill="${color}">${esc(h.label)}</text>`);
   }
 
-  /* Marqueurs : le point le plus proche dans le temps. */
+  /* Markers: the closest point in time. */
   for (const m of spec.markers) {
     if (n === 0) break;
     let best = 0;

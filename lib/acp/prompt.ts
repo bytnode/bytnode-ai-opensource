@@ -41,10 +41,7 @@ export function buildAcpPrompt(
     "",
     "## Additional BytNode-AI tools (external)",
     "",
-    `On top of your native tools, BytNode-AI provides you with ${subagent ? "four" : "five"} EXTERNAL, finance-specific tools through the \`bytnode-ai\` MCP server. They are not part of your native set: they are BytNode-AI programs that read and write in your workspace. Prefer them for what they cover, rather than a home-made script:`,
-    "- SaveMarketData: calls a BytNode tool and saves the table as CSV, without the rows going through the conversation. For any series longer than a few dozen rows.",
-    "- Chart: draws a PNG chart from a CSV (candles, volume, indicators, markers, levels); the user sees it in the thread, and so do you.",
-    "- Backtest: BytNode-AI's standard backtest engine; you only write `signal(df)` (and `stop_distance(df)`). Never rewrite an engine.",
+    "On top of your native tools, BytNode-AI provides you with EXTERNAL, finance-specific tools through the `bytnode-ai` MCP server. They are not part of your native set: they are BytNode-AI programs that read and write in your workspace. Prefer them for what they cover, rather than a home-made script. Its plugins describe theirs below; the core gives you:",
     "- Memory: your memory across conversations (add / list / search / remove).",
   );
   if (!subagent) {

@@ -134,8 +134,8 @@ function armReaper() {
 }
 
 /* The MCP servers given to the external agent: BytNode (data) and
-   BytNode-AI's finance tools (SaveMarketData, Chart, Backtest, Memory),
-   served by a small stdio process in the workspace. */
+   BytNode-AI's own tools (the core's and the plugins'), served by a small
+   stdio process in the workspace. */
 /* The version of the tools' code: the date of the most recent file. It
    goes into the server's environment, hence into the session key — a
    change to the tools recreates the session, and the agent restarts the

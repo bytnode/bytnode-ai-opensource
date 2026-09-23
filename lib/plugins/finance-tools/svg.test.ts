@@ -35,11 +35,11 @@ describe("buildChartSvg", () => {
       ...base,
       overlays: [{ name: "sma", values: candles.map((c) => c.close - 1), color: "#f00" }],
       markers: [{ time: candles[5].time, price: 106, label: "achat", kind: "buy" }],
-      hlines: [{ price: 110, label: "résistance" }],
+      hlines: [{ price: 110, label: "resistance" }],
     });
     expect(svg).toContain('class="overlay"');
     expect(svg).toContain("achat");
-    expect(svg).toContain("résistance");
+    expect(svg).toContain("resistance");
   });
 
   it("dessine une ligne quand il n'y a pas d'OHLC", () => {

@@ -1,28 +1,28 @@
-"""Moteur de backtest de BytNode-AI — la meme implementation a chaque fois.
+"""BytNode-AI's backtest engine — the same implementation every time.
 
-Usage (par l'outil Backtest) :
+Usage (by the Backtest tool):
     python backtest.py <config.json>
 
-Le fichier de configuration :
-    data            CSV OHLCV (colonnes reconnues par leurs noms usuels)
-    strategy        fichier Python qui definit `signal(df) -> pd.Series`
-                    (valeurs -1 / 0 / 1, calculees avec les donnees <= t)
-                    et, optionnellement, `stop_distance(df) -> pd.Series`
-                    (distance au stop en prix ; sans elle, taille fixe)
-    params          dict passe a signal(df, **params) si la fonction l'accepte
-    fee, slippage   par cote, en fraction (0.0006 = 6 bp)
-    risk            fraction du capital risquee par position (avec stop)
-    max_leverage    borne de la taille (notionnel / capital)
-    periods_per_year  365 (journalier crypto), 365*6 (4 h), 365*24 (1 h)…
-    split           fraction in-sample (0.7 = 70 % IS, 30 % OOS)
-    out_dir         dossier de sortie
+The configuration file:
+    data            OHLCV CSV (columns recognised by their usual names)
+    strategy        Python file that defines `signal(df) -> pd.Series`
+                    (values -1 / 0 / 1, computed with the data <= t)
+                    and, optionally, `stop_distance(df) -> pd.Series`
+                    (distance to the stop in price; without it, fixed size)
+    params          dict passed to signal(df, **params) if the function accepts it
+    fee, slippage   per side, as a fraction (0.0006 = 6 bp)
+    risk            fraction of the capital risked per position (with a stop)
+    max_leverage    bound on the size (notional / capital)
+    periods_per_year  365 (daily crypto), 365*6 (4 h), 365*24 (1 h)…
+    split           in-sample fraction (0.7 = 70 % IS, 30 % OOS)
+    out_dir         output folder
 
-Principes non negociables (voir skill backtest-python) :
-  - execution a l'OUVERTURE de la bougie SUIVANTE, jamais a celle du signal ;
-  - frais + slippage sur chaque changement de position ;
-  - funding (colonne `funding`, par periode) si present ;
-  - metriques par periode (IS / OOS / par annee) ;
-  - le compte de trades est celui des changements de position.
+Non-negotiable principles (see the backtest-python skill):
+  - execution at the OPEN of the NEXT candle, never at the signal's;
+  - fees + slippage on every position change;
+  - funding (`funding` column, per period) when present;
+  - metrics per period (IS / OOS / per year);
+  - the trade count is the number of position changes.
 """
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ def load_data(path: str) -> pd.DataFrame:
     cols = list(raw.columns)
     tcol = find_col(cols, TIME_NAMES)
     if tcol is None:
-        fail(f"Aucune colonne de temps dans {cols}")
+        fail(f"No time column in {cols}")
     t = raw[tcol]
     if np.issubdtype(t.dtype, np.number):
         unit = "ms" if t.iloc[0] > 1e11 else "s"
@@ -83,11 +83,11 @@ def load_data(path: str) -> pd.DataFrame:
         if c is not None:
             df[std] = pd.to_numeric(raw[c], errors="coerce").values
     if "close" not in df:
-        fail(f"Aucune colonne de prix dans {cols}")
+        fail(f"No price column in {cols}")
     for k in ("open", "high", "low"):
         if k not in df:
             df[k] = df["close"]
-    # Les autres colonnes (indicateurs deja calcules) restent disponibles.
+    # The other columns (indicators already computed) stay available.
     for c in cols:
         if c != tcol and c not in df.columns:
             df[c] = pd.to_numeric(raw[c], errors="coerce").values
@@ -99,12 +99,12 @@ def load_data(path: str) -> pd.DataFrame:
 def load_strategy(path: str):
     spec = importlib.util.spec_from_file_location("strategy", path)
     if spec is None or spec.loader is None:
-        fail(f"Stratégie illisible : {path}")
+        fail(f"Unreadable strategy: {path}")
     mod = importlib.util.module_from_spec(spec)
     sys.modules["strategy"] = mod
     spec.loader.exec_module(mod)
     if not hasattr(mod, "signal"):
-        fail("Le fichier de stratégie doit définir `signal(df) -> pd.Series` (valeurs -1, 0, 1).")
+        fail("The strategy file must define `signal(df) -> pd.Series` (values -1, 0, 1).")
     return mod
 
 
@@ -123,7 +123,7 @@ def run(df: pd.DataFrame, signal: pd.Series, stop_dist: pd.Series | None, cfg: d
     max_lev = float(cfg.get("max_leverage", 3.0))
 
     sig = pd.Series(signal, index=df.index).astype(float).clip(-1, 1).fillna(0.0)
-    # Execution a l'ouverture de la bougie suivante.
+    # Execution at the open of the next candle.
     pos = sig.shift(1).fillna(0.0)
     px = df["open"].astype(float)
     if stop_dist is not None:
@@ -133,8 +133,8 @@ def run(df: pd.DataFrame, signal: pd.Series, stop_dist: pd.Series | None, cfg: d
         size = size.clip(upper=max_lev).fillna(0.0)
     else:
         size = pd.Series(1.0, index=df.index)
-    # La taille est fixee a l'ENTREE et gardee jusqu'a la sortie : un stop
-    # qui bouge ne fait pas trader la position chaque bougie.
+    # The size is set at ENTRY and kept until the exit: a moving stop does
+    # not make the position trade at every candle.
     entry = pos.ne(pos.shift(1).fillna(0.0)) & (pos != 0)
     size = size.where(entry).ffill().fillna(0.0)
     exposure = pos * size
@@ -229,7 +229,7 @@ def main() -> None:
             continue
         eq = (1.0 + part["net"]).cumprod()
         report[name] = metrics(part["net"], eq, part["exposure"], ppy)
-    # Reference : acheter-et-garder.
+    # Reference: buy and hold.
     bh = res["ret"]
     report["buy_and_hold"] = metrics(bh, (1.0 + bh).cumprod(), pd.Series(1.0, index=res.index), ppy)
 

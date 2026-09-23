@@ -2,6 +2,7 @@ import type { PluginManifest, PluginNeed, PluginView } from "@/lib/domain/plugin
 import type { Settings } from "@/lib/domain/types";
 import { enabledPlugins, pluginsForAgent } from "./core/state";
 import { positionCalcManifest } from "./position-calc/manifest";
+import { financeToolsManifest } from "./finance-tools/manifest";
 
 /* ---------------------------------------------------------------------------
    The plugins shipped with the app, by their manifests.
@@ -12,7 +13,7 @@ import { positionCalcManifest } from "./position-calc/manifest";
    folder under `lib/plugins/<id>/` + a line here + a line there.
 --------------------------------------------------------------------------- */
 
-export const PLUGIN_MANIFESTS: PluginManifest[] = [positionCalcManifest];
+export const PLUGIN_MANIFESTS: PluginManifest[] = [positionCalcManifest, financeToolsManifest];
 
 export const pluginManifest = (id: string): PluginManifest | undefined => PLUGIN_MANIFESTS.find((m) => m.id === id);
 
