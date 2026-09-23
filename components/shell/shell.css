@@ -2,8 +2,9 @@
    The app's frame: the tab bar on top, the page underneath.
 
    The bar is a thin veil like the column, never a coloured band: the tab in
-   front is a pill of matter, the others are text in muted ink. It carries
-   the page's structure, not its decoration.
+   front is a pill of matter, the others are text in muted ink, parted by
+   short rules. Like a browser's, the tabs share the whole width and narrow
+   as more open. It carries the page's structure, not its decoration.
 --------------------------------------------------------------------------- */
 
 .shell {
@@ -45,6 +46,7 @@
 
 .tb-tabs {
   display: flex;
+  flex: 1;
   align-items: center;
   gap: 2px;
   min-width: 0;
@@ -56,10 +58,14 @@
   display: none;
 }
 
+/* Every tab takes an equal share of the bar, down to a narrowest width
+   where its title is cut short. */
 .tb-tab {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  flex: none;
+  flex: 1 1 0;
+  min-width: 96px;
   height: 34px;
   border-radius: var(--radius);
   color: var(--fg-muted);
@@ -76,6 +82,26 @@
   color: var(--fg);
 }
 
+/* A short rule between two tabs, gone beside the one in front and the one
+   under the hand. */
+.tb-tab + .tb-tab::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: -2px;
+  width: 1px;
+  background: var(--line-strong);
+  transition: opacity 120ms ease;
+}
+
+.tb-tab.is-on::before,
+.tb-tab.is-on + .tb-tab::before,
+.tb-tab:hover::before,
+.tb-tab:hover + .tb-tab::before {
+  opacity: 0;
+}
+
 .tb-home,
 .tb-label {
   height: 34px;
@@ -85,16 +111,23 @@
   background: transparent;
   color: inherit;
   font-size: 0.9rem;
+  overflow: hidden;
   white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: left;
 }
 
 .tb-home {
+  flex: 1;
+  min-width: 0;
   font-family: var(--font-display), sans-serif;
   font-weight: 500;
   letter-spacing: -0.01em;
 }
 
 .tb-label {
+  flex: 1;
+  min-width: 0;
   padding-right: 4px;
 }
 
@@ -155,6 +188,8 @@
   flex: none;
 }
 
+/* A spring that pushes what follows to the end of a row (the views'
+   toolbars use it: paper trading, portfolio). */
 .tb-space {
   flex: 1;
 }

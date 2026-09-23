@@ -13,8 +13,9 @@ import { NotificationCenter } from "./notification-center";
 /* ---------------------------------------------------------------------------
    The tab bar, like a browser's: "Conversations" first, always there and
    never closed; then one tab per open view, each with its cross; "+" lists
-   the views of the plugins that run; the bell on the right. Too many tabs
-   for the width: the strip scrolls sideways.
+   the views of the plugins that run; the bell on the right. The tabs share
+   the whole width of the bar, and narrow as more of them open; past their
+   narrowest, the strip scrolls sideways.
 --------------------------------------------------------------------------- */
 
 type Props = { settings: Settings; views: ViewEntry[]; tabs: ViewTab[]; active: string };
@@ -24,9 +25,13 @@ export function TabBar({ settings, views, tabs, active }: Props) {
   return (
     <div className="tb">
       <div className="tb-tabs" role="tablist" aria-label="Open pages">
-        <button type="button" role="tab" aria-selected={active === HOME} className={`tb-tab tb-home${active === HOME ? " is-on" : ""}`} onClick={() => activateTab(HOME)}>
-          Conversations
-        </button>
+        {/* Built like the others (a tab around its label), so every tab
+            gets the same share of the bar. */}
+        <div className={`tb-tab${active === HOME ? " is-on" : ""}`}>
+          <button type="button" role="tab" aria-selected={active === HOME} className="tb-home" onClick={() => activateTab(HOME)}>
+            Conversations
+          </button>
+        </div>
         {tabs.map((t) => {
           const entry = viewEntry(t.view);
           if (!entry) return null;
@@ -66,7 +71,6 @@ export function TabBar({ settings, views, tabs, active }: Props) {
           )}
         </SearchPanel>
       </div>
-      <span className="tb-space" />
       <NotificationCenter settings={settings} onOpenConversation={(id) => void ensureConversation(id, settings).then(() => goToConversation(id))} />
     </div>
   );

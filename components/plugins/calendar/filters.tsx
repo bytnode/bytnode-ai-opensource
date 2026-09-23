@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CATEGORIES, CATEGORY_LABELS, type CalendarEvent, type Category } from "@/lib/plugins/calendar/events";
 import { Switch } from "@/components/ui/switch";
 import { toneOf } from "./format";
+import { recall, remember } from "./memory";
 
 /* The calendars as filters, in two aligned columns — a colour, a short
    name, the count of the month on screen — and two switches: only the
@@ -19,9 +20,12 @@ const SHORT: Record<Category, string> = {
 };
 
 export function useFilter() {
-  const [hidden, setHidden] = useState<Category[]>([]);
-  const [strongOnly, setStrongOnly] = useState(false);
-  const [watchlistOnly, setWatchlistOnly] = useState(false);
+  const [hidden, setHidden] = useState<Category[]>(() => recall().hidden ?? []);
+  const [strongOnly, setStrongOnly] = useState(() => recall().strongOnly ?? false);
+  const [watchlistOnly, setWatchlistOnly] = useState(() => recall().watchlistOnly ?? false);
+  useEffect(() => {
+    remember({ hidden, strongOnly, watchlistOnly });
+  }, [hidden, strongOnly, watchlistOnly]);
   return {
     hidden,
     strongOnly,
