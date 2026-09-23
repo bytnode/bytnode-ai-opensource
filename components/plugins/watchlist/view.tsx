@@ -1,125 +1,90 @@
 "use client";
 
-import { useState } from "react";
-import type { WatchItem } from "@/lib/plugins/watchlist/list";
-import type { Quote } from "@/lib/plugins/shared/quote";
-import { Close, Plus } from "@/components/ui/icons";
+import { useRef, useState, type CSSProperties } from "react";
+import { sortByMove, type Window } from "@/lib/plugins/watchlist/heat";
+import { baseOf } from "@/lib/plugins/shared/quote";
+import { WATCHLIST_DEFAULT, WATCHLIST_MAX, WATCHLIST_MIN, clampWatchlistWidth, updateUiPrefs, useUiPrefs } from "@/lib/state/ui";
 import type { ViewProps } from "../views";
+import { ColumnHandle } from "../column-handle";
 import { act, usePluginData } from "../use-plugin-data";
-import { useOnWake } from "../view-activity";
-import { Change, Loading, Problem, fmt } from "../bits";
+import { useAwakeInterval } from "../view-activity";
+import type { Row } from "./format";
+import { ListPane } from "./list-pane";
+import { Sheet } from "./sheet";
+import "./watchlist.css";
 
 /* ---------------------------------------------------------------------------
-   The Watchlist tab: the assets the user follows, their price and their
-   changes, added and removed right here — the same list the agents read.
+   The Watchlist tab: the assets the user follows — the same list the
+   agents read — in the calendar's language. The list on the left (a
+   light veil, its width the user's, `../column-handle.tsx`), the chosen
+   asset on the right (one sheet): its price, its moves over four
+   windows, and the whole list as a heat map painted on the GPU.
+
+   The asset shown is the one clicked, else the one an agent opened the
+   tab on (`params.symbol`), else the first. A new `params.symbol` wins
+   over an earlier click: the pick is kept with the focus it was made
+   under.
 --------------------------------------------------------------------------- */
 
-type Row = WatchItem & { quote: Quote | null; error: string | null };
+/** Prices are read again every minute while the tab is in front. */
+const REFRESH = 60_000;
 
 export function WatchlistView({ settings, params }: ViewProps) {
   const { data, error, loading, reload } = usePluginData<Row[]>("watchlist", "list", settings);
-  useOnWake(reload);
-  const [symbol, setSymbol] = useState("");
-  const [note, setNote] = useState("");
+  useAwakeInterval(reload, REFRESH);
+  const ui = useUiPrefs();
+  const panel = useRef<HTMLDivElement>(null);
+  const [win, setWin] = useState<Window>("24h");
+  const [byMove, setByMove] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const focus = typeof params?.symbol === "string" ? params.symbol.toUpperCase() : null;
+  const [pick, setPick] = useState<{ focus: string | null; symbol: string | null }>({ focus, symbol: null });
+
+  const rows = data ?? null;
+  const shown = sortByMove(rows ?? [], win, byMove);
+  const picked = pick.focus === focus ? pick.symbol : null;
+  const asset = rows?.find((r) => r.symbol === picked) ?? (focus ? rows?.find((r) => baseOf(r.symbol) === baseOf(focus)) : undefined) ?? shown[0] ?? null;
+  const choose = (symbol: string) => setPick({ focus, symbol });
 
   const edit = async (change: Record<string, unknown>) => {
-    setProblem(await act("watchlist", "edit", change, settings));
+    const p = await act("watchlist", "edit", change, settings);
+    setProblem(p);
     reload();
+    return p === null;
   };
-
-  const add = async () => {
-    if (!symbol.trim()) return;
-    await edit({ add: [symbol], note });
-    setSymbol("");
-    setNote("");
+  const add = async (symbol: string, note: string) => {
+    const ok = await edit({ add: [symbol], ...(note.trim() ? { note } : {}) });
+    return ok;
   };
 
   return (
-    <>
-      <form
-        className="pv-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void add();
-        }}
-      >
-        <div className="field">
-          <label className="field-label" htmlFor="wl-symbol">
-            Asset
-          </label>
-          <input id="wl-symbol" className="field-input" placeholder="btc, ETH/USDT, SOLUSDT…" value={symbol} onChange={(e) => setSymbol(e.target.value)} />
-        </div>
-        <div className="field">
-          <label className="field-label" htmlFor="wl-note">
-            Note <small>optional</small>
-          </label>
-          <input id="wl-note" className="field-input" placeholder="Why you follow it" value={note} onChange={(e) => setNote(e.target.value)} />
-        </div>
-        <button type="submit" className="btn btn-primary" disabled={!symbol.trim()}>
-          <Plus />
-          Add
-        </button>
-      </form>
-      {problem && <Problem message={problem} />}
-      {error && <Problem message={error} />}
-      {!data ? (
-        <Loading />
-      ) : data.length === 0 ? (
-        <p className="pv-note">Your watchlist is empty. Add an asset above, or ask an agent: &quot;add BTC and ETH to my watchlist&quot;.</p>
-      ) : (
-        <section className="pv-section">
-          <h2 className="pv-section-title">
-            {data.length} asset{data.length > 1 ? "s" : ""}
-            {loading && <span className="pv-chip">Updating…</span>}
-          </h2>
-          <div className="pv-table-wrap">
-            <table className="pv-table">
-              <thead>
-                <tr>
-                  <th>Asset</th>
-                  <th className="num">Price</th>
-                  <th className="num">24 h</th>
-                  <th className="num">7 d</th>
-                  <th>Source</th>
-                  <th>Note</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {data.map((r) => (
-                  <tr key={r.symbol} className={focus && r.symbol.startsWith(focus.split("/")[0]) ? "is-focus" : undefined}>
-                    <td>
-                      <strong>{r.symbol}</strong>
-                      {r.tags?.map((t) => (
-                        <span key={t} className="pv-chip pv-tag">
-                          {t}
-                        </span>
-                      ))}
-                    </td>
-                    <td className="num">{r.quote ? fmt(r.quote.price) : "—"}</td>
-                    <td className="num">
-                      <Change pct={r.quote?.change24h} />
-                    </td>
-                    <td className="num">
-                      <Change pct={r.quote?.change7d} />
-                    </td>
-                    <td className="pv-muted">{r.quote ? `${r.quote.source} · ${new Date(r.quote.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : (r.error ?? "—")}</td>
-                    <td className="pv-muted">{r.note ?? ""}</td>
-                    <td className="pv-actions">
-                      <button type="button" className="st-icon" onClick={() => void edit({ remove: [r.symbol] })} aria-label={`Remove ${r.symbol}`} title="Remove">
-                        <Close />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="pv-note">Prices from BytNode, or from your exchange for a pair BytNode does not cover. Your agents see this list in their prompt.</p>
-        </section>
-      )}
-    </>
+    <div className="wlv">
+      <div className="wlv-panel" ref={panel} style={{ "--wlv-list": `${ui.watchlistWidth}px` } as CSSProperties}>
+        <ListPane rows={rows} shown={shown} selected={asset?.symbol ?? null} win={win} byMove={byMove} onWindow={setWin} onByMove={setByMove} onPick={choose} onAdd={add} />
+        <ColumnHandle
+          panel={panel}
+          cssVar="--wlv-list"
+          width={ui.watchlistWidth}
+          min={WATCHLIST_MIN}
+          max={WATCHLIST_MAX}
+          reset={WATCHLIST_DEFAULT}
+          clamp={clampWatchlistWidth}
+          onCommit={(w) => updateUiPrefs({ watchlistWidth: w })}
+          label="Width of the list"
+        />
+        <Sheet
+          rows={rows}
+          asset={asset}
+          win={win}
+          loading={loading}
+          problem={problem ?? error ?? null}
+          onWindow={setWin}
+          onPick={choose}
+          onReload={reload}
+          onRemove={(symbol) => void edit({ remove: [symbol] })}
+          onNote={(symbol, note) => void edit({ add: [symbol], note })}
+        />
+      </div>
+    </div>
   );
 }

@@ -1,0 +1,732 @@
+/* ---------------------------------------------------------------------------
+   The Watchlist tab, in the calendar's language (the tokens and the rules
+   are the bare views', plugins.css): the app's beams behind, the list on a
+   light veil, the chosen asset on one sheet round everywhere but where it
+   meets the tab bar and the list. Colour is the data's only: Apple's
+   green for a rise, red for a fall — in the pills, the figures and the
+   heat map's wash. The titles wear BytNode's ink. Figures are tabular.
+--------------------------------------------------------------------------- */
+
+.wlv {
+  display: flex;
+  height: 100%;
+  color: var(--label);
+  font-variant-numeric: tabular-nums;
+}
+
+.wlv-panel {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.wlv-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.wlv :focus-visible {
+  outline: 2px solid #0a84ff;
+  outline-offset: 1px;
+}
+
+.wlv-spacer {
+  flex: 1;
+}
+
+.wlv .is-up {
+  --tone: var(--up);
+}
+
+.wlv .is-down {
+  --tone: var(--down);
+}
+
+.wlv .is-flat {
+  --tone: var(--label-3);
+}
+
+.wlv-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--label-2);
+  cursor: pointer;
+}
+
+.wlv-icon svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.wlv-icon:hover:not(:disabled) {
+  background: var(--fill);
+  color: var(--label);
+}
+
+.wlv-icon:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.wlv-input {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r);
+  background: var(--fill);
+  color: var(--label);
+  font: inherit;
+  font-size: 14.5px;
+}
+
+.wlv-input::placeholder {
+  color: var(--label-3);
+}
+
+.wlv-input:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 var(--rule) rgba(var(--ink), 0.22);
+}
+
+/* --- The list (left) ---------------------------------------------------------- */
+
+.wlv-side {
+  /* Its width is the user's (the handle, `lib/state/ui.ts`). */
+  flex: 0 0 var(--wlv-list, 370px);
+  overflow-y: auto;
+  background: var(--pane);
+  backdrop-filter: blur(22px) saturate(1.2);
+  scrollbar-width: thin;
+}
+
+.wlv-side-bar {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 24px 24px 16px;
+}
+
+.wlv-title {
+  margin: 0;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.wlv-count {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 300;
+  font-size: 20px;
+  line-height: 1.1;
+  color: var(--label-3);
+}
+
+.wlv-add {
+  display: grid;
+  gap: 6px;
+  padding: 0 18px 18px;
+}
+
+.wlv-add-row {
+  position: relative;
+}
+
+.wlv-add-row .wlv-input {
+  padding-right: 46px;
+}
+
+/* The "+" inside the field, a circle like every round button here. */
+.wlv-add-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(var(--ink));
+  color: rgb(var(--ink-inv));
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+
+.wlv-add-btn:disabled {
+  opacity: 0.18;
+  cursor: default;
+}
+
+.wlv-add-btn svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.wlv-note-input {
+  height: 36px;
+  font-size: 13.5px;
+}
+
+.wlv-windows {
+  padding: 0 18px 18px;
+}
+
+.wlv-windows .seg {
+  border-radius: var(--r);
+}
+
+.wlv-windows .seg button {
+  border-radius: var(--r-sm);
+}
+
+.wlv-rows {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0 12px 18px;
+  list-style: none;
+}
+
+.wlv-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 58px;
+  padding: 8px 10px 8px 14px;
+  border: 0;
+  border-radius: var(--r);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wlv-row:hover {
+  background: var(--fill);
+}
+
+.wlv-row.is-selected {
+  background: rgba(var(--ink), 0.1);
+}
+
+.wlv-row-name {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.wlv-row-name b {
+  font-family: var(--font-display), sans-serif;
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.wlv-row-name small {
+  overflow: hidden;
+  font-size: 12.5px;
+  color: var(--label-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wlv-row-price {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* The move, as Stocks writes it: a pill of the move's colour. */
+.wlv-pill {
+  min-width: 84px;
+  padding: 5px 9px;
+  border-radius: 9px;
+  background: var(--tone);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: right;
+}
+
+.wlv-pill.is-flat {
+  background: var(--fill);
+  color: var(--label-3);
+}
+
+.wlv-switches {
+  margin: auto 18px 0;
+  padding: 20px 10px 26px;
+  border-top: var(--rule) solid var(--sep);
+}
+
+.wlv-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* --- The chosen asset (right) ------------------------------------------------- */
+
+.wlv-sheet {
+  --label-2: rgba(var(--ink), 0.8);
+  --label-3: rgba(var(--ink), 0.62);
+  --fill: rgba(var(--ink), 0.08);
+
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  /* Its own width decides whether the price and the windows sit side by
+     side (the list beside it is the user's to widen). */
+  container-type: inline-size;
+  /* Square where it meets the tab bar and the list, round elsewhere. */
+  border-radius: 0 var(--r-panel) var(--r-panel) var(--r-panel);
+  background: var(--sheet);
+  backdrop-filter: blur(24px) saturate(1.15);
+}
+
+html[data-theme="light"] .wlv-sheet {
+  --label-2: rgba(var(--ink), 0.76);
+  --label-3: rgba(var(--ink), 0.6);
+}
+
+.wlv-head {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 18px 20px 4px 30px;
+}
+
+/* It shares the head's free room with the spacer, so a long note has
+   somewhere to go before it is cut. */
+.wlv-title-block {
+  flex: 1;
+  min-width: 0;
+}
+
+.wlv-sheet-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 500;
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.wlv-pair {
+  font-weight: 300;
+  color: var(--label-3);
+}
+
+.wlv-sheet-sub {
+  margin: 4px 0 0;
+  font-size: 15px;
+  color: var(--label-2);
+}
+
+.wlv-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  margin: 4px 0 0 -8px;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--label-2);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: text;
+}
+
+.wlv-note span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wlv-note svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  stroke-width: 1.9;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.wlv-note:hover {
+  background: var(--fill);
+}
+
+.wlv-note:hover svg,
+.wlv-note:focus-visible svg,
+.wlv-note.is-empty svg {
+  opacity: 1;
+}
+
+.wlv-note.is-empty {
+  color: var(--label-3);
+}
+
+.wlv-note-edit {
+  width: min(420px, 100%);
+  height: 32px;
+  margin-top: 4px;
+  font-size: 15px;
+}
+
+.wlv-status {
+  padding-top: 5px;
+  font-size: 12.5px;
+  color: var(--label-3);
+  white-space: nowrap;
+}
+
+.wlv-problem {
+  margin: 4px 30px 0;
+  font-size: 13px;
+  color: var(--down);
+}
+
+.wlv-figures {
+  display: grid;
+  flex: none;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  align-items: end;
+  gap: 20px 32px;
+  padding: 16px 30px 26px;
+}
+
+.wlv-price {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 300;
+  font-size: 54px;
+  line-height: 1;
+  letter-spacing: -0.035em;
+}
+
+.wlv-price-unit {
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--label-3);
+}
+
+.wlv-move {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 10px 0 0;
+  color: var(--tone);
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.wlv-move span {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--label-3);
+}
+
+.wlv-source {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--label-3);
+}
+
+/* The four windows: one row of square tiles, round at its ends only. */
+.wlv-ladder {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--tile-gap);
+}
+
+.wlv-rung {
+  display: grid;
+  align-content: space-between;
+  gap: 6px;
+  min-width: 0;
+  min-height: 92px;
+  padding: 12px 14px 14px;
+  border: 0;
+  background: var(--tile);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wlv-rung:first-child {
+  border-radius: var(--r-block) 0 0 var(--r-block);
+}
+
+.wlv-rung:last-child {
+  border-radius: 0 var(--r-block) var(--r-block) 0;
+}
+
+.wlv-rung:hover {
+  background: var(--fill);
+}
+
+.wlv-rung.is-on {
+  background: var(--tile-today);
+}
+
+.wlv-rung-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.wlv-rung-value {
+  font-family: var(--font-display), sans-serif;
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--tone);
+  white-space: nowrap;
+}
+
+.wlv-rung.is-flat .wlv-rung-value {
+  color: var(--label-3);
+}
+
+/* The move on its window's scale, grown from the middle. */
+.wlv-rung-bar {
+  position: relative;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(var(--ink), 0.08);
+}
+
+.wlv-rung-bar::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  width: var(--rule);
+  height: 10px;
+  margin-left: -1px;
+  background: rgba(var(--ink), 0.2);
+}
+
+.wlv-rung-bar i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--tone);
+}
+
+.wlv-map-title {
+  display: flex;
+  flex: none;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  padding: 0 30px 12px;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.wlv-map-title small {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--label-3);
+}
+
+/* The heat map's scroller: tiles only, masked into the grid's shape. */
+.wlv-map {
+  padding: 0 var(--side) 36px;
+}
+
+/* The tiles fill the sheet: a short list gets large fields, a long one
+   scrolls; a few assets share the whole width (`auto-fit`). */
+.wlv-heat {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(156px, 1fr));
+  grid-auto-rows: minmax(104px, 1fr);
+  gap: var(--tile-gap);
+  min-height: 100%;
+  /* Without the GPU the grid itself is rounded (a short last row leaves
+     a square corner above it — the shader draws that one right). */
+  border-radius: var(--r-block);
+  overflow: hidden;
+}
+
+.wlv-heat-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.wlv-tile {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 0;
+  /* The ground without the GPU: the tone mixed in by the move's size. */
+  background: color-mix(in srgb, var(--tone) calc(var(--mag, 0) * 42%), var(--tile));
+  color: var(--label);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wlv-tile.is-flat {
+  background: var(--tile);
+}
+
+.wlv-tile.is-selected {
+  box-shadow: inset 0 0 0 2px rgba(var(--ink), 0.85);
+}
+
+/* With the GPU the canvas paints the ground, the hover and the ring. */
+.wlv-heat:has(> .wlv-heat-canvas.is-live) {
+  overflow: visible;
+  border-radius: 0;
+}
+
+.wlv-heat:has(> .wlv-heat-canvas.is-live) .wlv-tile {
+  background: transparent;
+  box-shadow: none;
+}
+
+.wlv-heat:not(:has(> .wlv-heat-canvas.is-live)) .wlv-tile:hover {
+  filter: brightness(1.12);
+}
+
+.wlv-tile-name {
+  font-family: var(--font-display), sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.wlv-tile-move {
+  align-self: center;
+  margin: 6px 0;
+  font-family: var(--font-display), sans-serif;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.wlv-tile.is-flat .wlv-tile-move {
+  color: var(--label-3);
+}
+
+.wlv-tile-price {
+  overflow: hidden;
+  font-size: 13px;
+  color: var(--label-2);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* --- Narrow sheets and small screens ---------------------------------------------- */
+
+/* A narrow sheet: the windows go under the price, full width. */
+@container (max-width: 860px) {
+  .wlv-figures {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+}
+
+@media (max-width: 900px) {
+  .wlv-panel {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .wlv-side {
+    flex: none;
+    overflow: visible;
+  }
+
+  .wlv-sheet {
+    flex: none;
+    min-height: 70vh;
+  }
+
+  .wlv-head,
+  .wlv-figures,
+  .wlv-map-title {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .wlv-figures {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wlv-map {
+    --side: 16px;
+  }
+}
+
+@media (max-width: 560px) {
+  .wlv-ladder {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .wlv-rung:first-child {
+    border-radius: var(--r-block) 0 0 0;
+  }
+
+  .wlv-rung:nth-child(2) {
+    border-radius: 0 var(--r-block) 0 0;
+  }
+
+  .wlv-rung:nth-child(3) {
+    border-radius: 0 0 0 var(--r-block);
+  }
+
+  .wlv-rung:last-child {
+    border-radius: 0 0 var(--r-block) 0;
+  }
+
+  .wlv-price {
+    font-size: 42px;
+  }
+}

@@ -11,7 +11,7 @@ import "./plugins.css";
 /* ---------------------------------------------------------------------------
    A plugin's tab: its title, a refresh button, and the view itself. The
    refresh remounts the view — it reloads its data from the start, like
-   opening the tab again. A bare view (the calendar) draws its own header
+   opening the tab again. A bare view (the calendar, the watchlist) draws its own header
    and keeps its data fresh itself: it gets the whole page.
 --------------------------------------------------------------------------- */
 export function ViewFrame({ entry, tab, settings }: { entry: ViewEntry; tab: ViewTab; settings: Settings }) {
