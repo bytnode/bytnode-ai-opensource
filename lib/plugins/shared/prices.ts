@@ -1,6 +1,6 @@
 import type { Ticker } from "ccxt";
 import type { ExchangeAccount } from "@/lib/domain/types";
-import { callBytnodeTool } from "@/lib/mcp/bytnode";
+import { readBytnodeTool } from "@/lib/mcp/bytnode";
 import { clientFor } from "@/lib/tools/exchange/client";
 import { describeExchangeError } from "@/lib/tools/exchange/errors";
 import { orderCandles, readKlines, type Candle, type Interval } from "./candle";
@@ -28,10 +28,10 @@ const cache = new Map<string, { at: number; value: Priced }>();
 export const isQuote = (p: Priced): p is Quote => !("error" in p);
 
 async function fromBytnode(symbol: string, key: string, signal: AbortSignal): Promise<Quote | null> {
-  const res = await callBytnodeTool(key, "get_market_data", { symbol: bytnodeSymbol(symbol), price_change: true }, signal);
+  const res = await readBytnodeTool(key, "get_market_data", { symbol: bytnodeSymbol(symbol), price_change: true }, signal);
   if (!res.ok) return null;
   try {
-    return readPriceChange(JSON.parse(res.output), symbol, new Date());
+    return readPriceChange(JSON.parse(res.text), symbol, new Date());
   } catch {
     return null;
   }
@@ -88,10 +88,10 @@ export async function quotes(symbols: string[], sources: PriceSources): Promise<
 export async function fundingRate(symbol: string, sources: PriceSources): Promise<number | undefined> {
   const signal = sources.signal ?? AbortSignal.timeout(60_000);
   if (sources.bytnodeKey?.trim()) {
-    const res = await callBytnodeTool(sources.bytnodeKey, "get_market_data", { symbol: bytnodeSymbol(symbol), funding_next: true }, signal);
+    const res = await readBytnodeTool(sources.bytnodeKey, "get_market_data", { symbol: bytnodeSymbol(symbol), funding_next: true }, signal);
     if (res.ok) {
       try {
-        const rate = readFunding(JSON.parse(res.output));
+        const rate = readFunding(JSON.parse(res.text));
         if (rate !== undefined) return rate;
       } catch {
         /* next source */
@@ -119,14 +119,22 @@ export type CandleSeries = { symbol: string; interval: Interval; candles: Candle
 export async function candles(symbol: string, interval: Interval, limit: number, sources: PriceSources): Promise<CandleSeries> {
   const signal = sources.signal ?? AbortSignal.timeout(60_000);
   const n = Math.max(10, Math.min(1000, Math.round(limit)));
+  let bytnodeError: string | null = null;
   try {
     if (sources.bytnodeKey?.trim()) {
       const key = `klines_${interval}`;
-      const res = await callBytnodeTool(sources.bytnodeKey, "get_market_data", { symbol: bytnodeSymbol(symbol), [key]: n }, signal);
+      const res = await readBytnodeTool(sources.bytnodeKey, "get_market_data", { symbol: bytnodeSymbol(symbol), [key]: n }, signal);
       if (res.ok) {
-        const bars = readKlines(JSON.parse(res.output), key);
+        /* An answer that does not parse is BytNode's problem, not an
+           exchange's: the accounts are tried, then the error says so. */
+        let bars: Candle[] = [];
+        try {
+          bars = readKlines(JSON.parse(res.text), key);
+        } catch {
+          bytnodeError = `BytNode's candles for ${symbol} could not be read.`;
+        }
         if (bars.length) return { symbol, interval, candles: bars, source: "bytnode" };
-      }
+      } else bytnodeError = res.message;
     }
     for (const account of sources.accounts ?? []) {
       try {
@@ -142,5 +150,6 @@ export async function candles(symbol: string, interval: Interval, limit: number,
   } catch (e) {
     return { symbol, interval, error: describeExchangeError(e) };
   }
+  if (bytnodeError) return { symbol, interval, error: bytnodeError };
   return { symbol, interval, error: sources.bytnodeKey?.trim() ? `No chart for ${symbol}: BytNode does not cover it and no exchange account lists it.` : `No chart for ${symbol}: no BytNode key, and no exchange account lists it.` };
 }

@@ -3,7 +3,7 @@ import path from "node:path";
 import type { Tool } from "@/lib/tools/types";
 import { errorText, fail, ok } from "@/lib/tools/types";
 import { OutsideWorkspaceError, displayPath, resolvePath } from "@/lib/tools/paths";
-import { bytnodeTools, callBytnodeTool } from "@/lib/mcp/bytnode";
+import { bytnodeTools, readBytnodeTool } from "@/lib/mcp/bytnode";
 import { detectColumns, rowsOf, toCsv, toMillis, type Row } from "./csv";
 
 /* ---------------------------------------------------------------------------
@@ -52,19 +52,22 @@ export const saveMarketDataTool: Tool<Args> = {
     if (infos.length && !infos.some((t) => t.name === args.tool)) {
       return fail(`Unknown BytNode tool: ${args.tool}. Available: ${infos.map((t) => t.name).join(", ")}.`);
     }
-    const res = await callBytnodeTool(key, args.tool, args.args ?? {}, ctx.signal);
-    if (!res.ok) return res;
+    /* The whole answer: this tool exists for series too long for the
+       model's context, so it must not read them through the model's cut. */
+    const res = await readBytnodeTool(key, args.tool, args.args ?? {}, ctx.signal);
+    if (!res.ok) return fail(res.message);
+    const text = res.text;
     let parsed: unknown;
     try {
-      parsed = JSON.parse(res.output);
+      parsed = JSON.parse(text);
     } catch {
       /* not JSON: maybe CSV, or text */
-      if (/^[^\n]+,[^\n]+\n/.test(res.output)) {
+      if (/^[^\n]+,[^\n]+\n/.test(text)) {
         await fs.mkdir(path.dirname(out), { recursive: true });
-        await fs.writeFile(out, res.output);
-        return ok(`BytNode returned CSV; written as is to ${displayPath(ctx.workspace, out)} (${res.output.split("\n").length - 1} rows).`);
+        await fs.writeFile(out, text);
+        return ok(`BytNode returned CSV; written as is to ${displayPath(ctx.workspace, out)} (${text.split("\n").length - 1} rows).`);
       }
-      return fail(`The response of ${args.tool} is not a table (free text):\n${res.output.slice(0, 1500)}`);
+      return fail(`The response of ${args.tool} is not a table (free text):\n${text.slice(0, 1500)}`);
     }
     let rows = rowsOf(parsed);
     if (!rows || rows.length === 0) return fail(`No table found in the response of ${args.tool}:\n${JSON.stringify(parsed).slice(0, 1500)}`);

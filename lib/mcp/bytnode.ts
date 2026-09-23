@@ -104,19 +104,30 @@ export function contentToText(content: unknown): string {
     .join("\n");
 }
 
-export async function callBytnodeTool(apiKey: string, name: string, args: Record<string, unknown>, signal: AbortSignal) {
+/** A BytNode tool's WHOLE answer, for code that parses it (the plugins'
+    prices and candles, SaveMarketData). ⚠️ Never through `ok()`: that one
+    cuts at `OUTPUT_LIMIT` (40 000 characters) for the model's context, and
+    300 candles already pass it — a cut JSON does not parse ("Expected
+    double-quoted property name… at position 40002"). */
+export async function readBytnodeTool(apiKey: string, name: string, args: Record<string, unknown>, signal: AbortSignal): Promise<{ ok: true; text: string } | { ok: false; message: string }> {
   const key = apiKey.trim();
   const s = await session(key);
   try {
     const res = await s.client.callTool({ name, arguments: args }, undefined, { signal, timeout: CALL_TIMEOUT });
     const r = res as { content?: unknown; isError?: boolean; structuredContent?: unknown };
     const text = r.content !== undefined ? contentToText(r.content) : JSON.stringify(r.structuredContent ?? r);
-    return r.isError ? fail(text || "BytNode a signalé une erreur.") : ok(text);
+    return r.isError ? { ok: false, message: text || "BytNode a signalé une erreur." } : { ok: true, text };
   } catch (e) {
     const message = errorText(e);
     if (/fetch|ECONN|socket|transport|closed|401|403/i.test(message)) drop(key);
-    return fail(`BytNode (${name}) a échoué : ${message}`);
+    return { ok: false, message: `BytNode (${name}) a échoué : ${message}` };
   }
+}
+
+/** A BytNode tool's answer as the model receives it: bounded. */
+export async function callBytnodeTool(apiKey: string, name: string, args: Record<string, unknown>, signal: AbortSignal) {
+  const res = await readBytnodeTool(apiKey, name, args, signal);
+  return res.ok ? ok(res.text) : fail(res.message);
 }
 
 /** Les outils BytNode, sous la forme que le registre et la boucle attendent. */
