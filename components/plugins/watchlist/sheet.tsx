@@ -7,12 +7,15 @@ import { Pencil, Refresh, Trash } from "@/components/ui/icons";
 import { Segmented } from "@/components/ui/segmented";
 import { dateOf, moveOf, pairOf, pct, priceText, sourceName, timeOf, type Row } from "./format";
 import { HeatMap } from "./heat-map";
+import { Insights } from "./insights";
+import type { Insight } from "@/lib/plugins/watchlist/insight";
 import { PriceChart, type ChartMode } from "./price-chart";
 
 /* The right sheet, top to bottom: the chosen asset's name in BytNode's
    ink and its note (edited in place); one row of figures — the price,
    live, and its move, then the four windows as one row of small tiles;
    the chart, of a modest height — a line like Stocks, candles on demand;
+   under it, six tiles of what else there is to know about the asset;
    and, when the list has more than one asset, the heat map, in tiles of a
    fixed size. The state of the
    prices and the two actions sit discreetly in the corner, like the
@@ -26,6 +29,8 @@ type Props = {
   interval: Interval;
   candles: Candle[] | null;
   chartMessage: string | null;
+  insight: Insight | null;
+  insightMessage: string | null;
   loading: boolean;
   problem: string | null;
   onWindow: (w: Window) => void;
@@ -41,7 +46,7 @@ const MODES: Array<{ value: ChartMode; label: string }> = [
   { value: "candles", label: "Candles" },
 ];
 
-export function Sheet({ rows, asset, live, win, interval, candles, chartMessage, loading, problem, onWindow, onInterval, onPick, onReload, onRemove, onNote }: Props) {
+export function Sheet({ rows, asset, live, win, interval, candles, chartMessage, insight, insightMessage, loading, problem, onWindow, onInterval, onPick, onReload, onRemove, onNote }: Props) {
   const [mode, setMode] = useState<ChartMode>("line");
   const at = asset?.quote?.at;
   const status = loading ? "Loading…" : at ? `${live ? "Live" : "Updated"} ${new Date(at).toLocaleTimeString("en-GB")}` : rows ? "No price yet" : "Loading…";
@@ -79,6 +84,11 @@ export function Sheet({ rows, asset, live, win, interval, candles, chartMessage,
               <Segmented label="Chart style" value={mode} options={MODES} onChange={setMode} />
             </div>
             <PriceChart candles={candles} interval={interval} mode={mode} message={chartMessage} />
+          </section>
+        )}
+        {asset && (
+          <section className="wlv-insight-block" aria-label={`About ${asset.symbol}`}>
+            <Insights insight={insight} price={asset.quote?.price} message={insightMessage} />
           </section>
         )}
         {rows && rows.length > 1 && (

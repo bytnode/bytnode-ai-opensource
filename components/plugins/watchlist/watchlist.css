@@ -590,7 +590,7 @@ html[data-theme="light"] .wlv-sheet {
    leave — a little less, so it stays one figure of the sheet. */
 .wlv-chart-block {
   display: flex;
-  flex: 0 0 clamp(300px, 42vh, 440px);
+  flex: 0 0 clamp(270px, 36vh, 380px);
   flex-direction: column;
   margin: 0 var(--side);
   padding: 12px 0 4px 18px;
@@ -647,6 +647,130 @@ html[data-theme="light"] .wlv-sheet {
   color: var(--label-3);
   text-align: center;
   pointer-events: none;
+}
+
+/* What else there is to know: six tiles of one block — square inside,
+   round only at the block's outer corners (the block clips them). */
+.wlv-insight-block {
+  flex: none;
+  padding: 18px var(--side) 0;
+}
+
+.wlv-insights {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--tile-gap);
+  border-radius: var(--r-block);
+  overflow: hidden;
+}
+
+.wlv-insight {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+  min-height: 96px;
+  padding: 12px 14px 13px;
+  background: var(--tile);
+}
+
+.wlv-insight-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.wlv-insight-value {
+  overflow: hidden;
+  font-family: var(--font-display), sans-serif;
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wlv-insight-value.is-up,
+.wlv-insight-value.is-down {
+  color: var(--tone);
+}
+
+.wlv-insight-sub {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--label-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wlv-insight-message {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: var(--r-block);
+  background: var(--tile);
+  font-size: 13px;
+  color: var(--label-3);
+}
+
+/* The day's range: a thin track, a dot where the price is. */
+.wlv-range {
+  position: relative;
+  height: 4px;
+  margin: 8px 5px 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--down) 55%, transparent), rgba(var(--ink), 0.12) 50%, color-mix(in srgb, var(--up) 55%, transparent));
+}
+
+.wlv-range i {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: rgb(var(--ink));
+  box-shadow: 0 0 0 2px rgba(var(--voile), 0.9);
+}
+
+/* Two shares side by side, 2 px apart like the tiles. */
+.wlv-split {
+  display: grid;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.wlv-split-bar {
+  display: flex;
+  gap: 2px;
+  height: 4px;
+}
+
+.wlv-split-bar i,
+.wlv-split-bar b {
+  min-width: 2px;
+  border-radius: 2px;
+}
+
+.wlv-split-bar i {
+  background: var(--up);
+}
+
+.wlv-split-bar b {
+  background: var(--down);
+}
+
+.wlv-split-bar.is-inverted i {
+  background: var(--down);
+}
+
+.wlv-split-bar.is-inverted b {
+  background: var(--up);
+}
+
+.wlv-split-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .wlv-map-block {
@@ -761,6 +885,10 @@ html[data-theme="light"] .wlv-sheet {
   .wlv-figures {
     grid-template-columns: minmax(0, 1fr);
     gap: 14px;
+  }
+
+  .wlv-insights {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

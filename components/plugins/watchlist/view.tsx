@@ -5,6 +5,7 @@ import { sortByMove, type Window } from "@/lib/plugins/watchlist/heat";
 import { withTick, type Candle, type Interval } from "@/lib/plugins/shared/candle";
 import type { CandleSeries, Priced } from "@/lib/plugins/shared/prices";
 import { baseOf, type Quote } from "@/lib/plugins/shared/quote";
+import type { Insight } from "@/lib/plugins/watchlist/insight";
 import { WATCHLIST_DEFAULT, WATCHLIST_MAX, WATCHLIST_MIN, clampWatchlistWidth, updateUiPrefs, useUiPrefs } from "@/lib/state/ui";
 import type { ViewProps } from "../views";
 import { ColumnHandle } from "../column-handle";
@@ -27,7 +28,8 @@ import "./watchlist.css";
    list, the heat map and the sheet never disagree), its candles every
    minute (the live price moves the last one between two readings), the
    whole list every 30 s — every asset every 5 s would spend the user's
-   BytNode quota for prices nobody is looking at.
+   BytNode quota for prices nobody is looking at. What is told about the
+   asset under its chart (`insight`, one BytNode call) every minute.
 
    The asset shown is the one clicked, else the one an agent opened the
    tab on (`params.symbol`), else the first. A new `params.symbol` wins
@@ -39,6 +41,9 @@ const LIST_MS = 30_000;
 const LIVE_MS = 5_000;
 const CANDLES_MS = 60_000;
 const CANDLES = 300;
+const INSIGHT_MS = 60_000;
+
+type InsightReading = { symbol: string; insight: Insight } | { symbol: string; error: string } | null;
 
 export function WatchlistView({ settings, params }: ViewProps) {
   const list = usePluginData<Row[]>("watchlist", "list", settings);
@@ -63,6 +68,9 @@ export function WatchlistView({ settings, params }: ViewProps) {
   useAwakeInterval(live.reload, LIVE_MS);
   const series = usePluginData<CandleSeries | null>("watchlist", "candles", settings, { symbol, interval, limit: CANDLES });
   useAwakeInterval(series.reload, CANDLES_MS);
+  const facts = usePluginData<InsightReading>("watchlist", "insight", settings, { symbol });
+  useAwakeInterval(facts.reload, INSIGHT_MS);
+  const factsNow = facts.data && facts.data.symbol === symbol ? facts.data : null;
   const liveQuote: Quote | null = live.data && live.data.symbol === symbol && !("error" in live.data) ? live.data : null;
 
   const rows = listed?.map((r) => (liveQuote && r.symbol === liveQuote.symbol ? { ...r, quote: liveQuote, error: null } : r)) ?? null;
@@ -104,6 +112,8 @@ export function WatchlistView({ settings, params }: ViewProps) {
           interval={interval}
           candles={candles}
           chartMessage={chartMessage}
+          insight={factsNow && "insight" in factsNow ? factsNow.insight : null}
+          insightMessage={factsNow && "error" in factsNow ? factsNow.error : (facts.error ?? null)}
           loading={list.loading && !list.data}
           problem={problem ?? list.error ?? null}
           onWindow={setWin}
@@ -113,6 +123,7 @@ export function WatchlistView({ settings, params }: ViewProps) {
             list.reload();
             live.reload();
             series.reload();
+            facts.reload();
           }}
           onRemove={(s) => void edit({ remove: [s] })}
           onNote={(s, note) => void edit({ add: [s], note })}

@@ -1,6 +1,8 @@
 import { definePlugin } from "../core/contract";
-import { isInterval } from "../shared/candle";
-import { normalizeSymbol } from "../shared/quote";
+import { readBytnodeTool } from "@/lib/mcp/bytnode";
+import { isInterval, readKlines } from "../shared/candle";
+import { INSIGHT_FIELDS, readInsight } from "./insight";
+import { bytnodeSymbol, normalizeSymbol } from "../shared/quote";
 import { candles, isQuote, quote, quotes } from "../shared/prices";
 import { EMPTY, editWatchlist, watchlistPrompt, type Watchlist } from "./list";
 import { watchlistManifest } from "./manifest";
@@ -54,6 +56,23 @@ export const watchlistPlugin = definePlugin({
       const interval = isInterval(params.interval) ? params.interval : "1h";
       const limit = typeof params.limit === "number" ? params.limit : 300;
       return candles(symbol, interval, limit, { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal });
+    });
+    /* What the view tells about the asset under its chart: one BytNode
+       call; the open interest is priced with the last hourly close. */
+    ctx.api("insight", async (params, { transport, signal }) => {
+      const symbol = normalizeSymbol(String(params.symbol ?? ""));
+      if (!symbol) return null;
+      const key = transport.bytnodeKey?.trim();
+      if (!key) return { symbol, error: "These figures come from BytNode: add your key in Settings → Auth." };
+      const res = await readBytnodeTool(key, "get_market_data", { symbol: bytnodeSymbol(symbol), ...INSIGHT_FIELDS }, signal);
+      if (!res.ok) return { symbol, error: res.message };
+      try {
+        const parsed: unknown = JSON.parse(res.text);
+        const last = readKlines(parsed, "klines_1h").at(-1);
+        return { symbol, insight: readInsight(parsed, last?.c) };
+      } catch {
+        return { symbol, error: `BytNode's figures for ${symbol} could not be read.` };
+      }
     });
     ctx.api("edit", async (params) => {
       const change = {
