@@ -1,4 +1,4 @@
-import type { ExchangeAccount } from "@/lib/domain/types";
+import { transportHeaders, type Transport } from "@/lib/tools/transport";
 import type { AcpAgentId } from "./agents";
 import type { WireEvent } from "./wire";
 
@@ -27,17 +27,19 @@ export type AcpTurnInput = {
   firstTurn: boolean;
   images?: string[];
   history?: string;
-  bytnodeKey: string;
-  exchangeAccounts: ExchangeAccount[];
+  /** The BytNode key, the agent's exchange accounts and plugins — sent as
+      headers. The OpenRouter key is not needed: the agent has its own
+      subscription. */
+  transport: Transport;
 };
 
 export class AcpError extends Error {}
 
 export async function runAcpTurn(input: AcpTurnInput, onEvent: (e: WireEvent) => void, signal: AbortSignal): Promise<void> {
-  const { bytnodeKey, ...body } = input;
+  const { transport, ...body } = input;
   const res = await fetch("/api/acp/prompt", {
     method: "POST",
-    headers: { "content-type": "application/json", "x-bytnode-key": bytnodeKey },
+    headers: { "content-type": "application/json", ...transportHeaders({ ...transport, openrouterKey: "" }) },
     body: JSON.stringify(body),
     signal,
   });

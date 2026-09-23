@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { acpWorkflowTool, agentModels, parentLinkFromEnv } from "./acp-workflow";
 
 const link = { conversationId: "c1", origin: "http://localhost:3777", token: "t0k", agent: "claude" };
+const none = { openrouterKey: "", bytnodeKey: "", exchangeAccounts: [], plugins: null };
 
 describe("parentLinkFromEnv", () => {
   it("lit les quatre variables, et rien s'il en manque une", () => {
@@ -41,7 +42,7 @@ describe("acpWorkflowTool", () => {
   const ctx = { depth: 0, signal: new AbortController().signal } as Parameters<ReturnType<typeof acpWorkflowTool>["execute"]>[1];
 
   it("borne le modele a la liste et refuse la profondeur 1", async () => {
-    const tool = acpWorkflowTool(link, ["opus", "haiku"], "", []);
+    const tool = acpWorkflowTool(link, ["opus", "haiku"], none);
     expect(tool.parameters.properties).toHaveProperty("tasks");
     const items = (tool.parameters.properties.tasks as { items: { properties: { model: { enum: string[] } } } }).items;
     expect(items.properties.model.enum).toEqual(["opus", "haiku"]);
@@ -57,7 +58,7 @@ describe("acpWorkflowTool", () => {
       return ndjson([{ type: "tick" }, { type: "done", report: `Rapport ${body.profession} (${body.model ?? "courant"}) : ${body.text}` }]);
     });
     vi.stubGlobal("fetch", fetchMock);
-    const tool = acpWorkflowTool(link, [], "bn-key", []);
+    const tool = acpWorkflowTool(link, [], { ...none, bytnodeKey: "bn-key" });
     const r = await tool.execute(
       {
         tasks: [

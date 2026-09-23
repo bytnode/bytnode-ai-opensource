@@ -49,7 +49,7 @@ const toolset = () =>
   (tools ??= (async () => {
     if (depth >= 1) return base.filter((t) => resolvePolicy(t.name, t.policy).subagent);
     if (!parent) return base;
-    return [...base, acpWorkflowTool(parent, await agentModels(parent), bytnodeKey, exchangeAccounts) as Tool];
+    return [...base, acpWorkflowTool(parent, await agentModels(parent), { openrouterKey: "", bytnodeKey, exchangeAccounts, plugins: null }) as Tool];
   })());
 
 const server = new Server({ name: "bytnode-ai", version: "0.1.0" }, { capabilities: { tools: {} } });

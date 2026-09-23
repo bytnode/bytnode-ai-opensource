@@ -3,12 +3,12 @@ import type { ToolSpec } from "@/lib/agent/loop";
 import type { ToolCall } from "@/lib/agent/tool-calls";
 import type { SkillInfo } from "./skills/skill";
 import type { ToolPolicy, ToolResult } from "./types";
-import type { ExchangeAccount } from "@/lib/domain/types";
-import { encodeAccountsHeader } from "./exchange/accounts";
+import { transportHeaders, type Transport } from "./transport";
 
 /* ---------------------------------------------------------------------------
    The tools, seen from the browser: their specifications on one side, their
-   execution on the other — both through the server's routes.
+   execution on the other — both through the server's routes, with what the
+   agent's requests carry (`transport.ts`).
 --------------------------------------------------------------------------- */
 
 export type Toolset = {
@@ -24,20 +24,20 @@ export type Toolset = {
 
 const cache = new Map<string, Toolset>();
 
-export async function fetchToolset(
-  agentId: string,
-  workspace: string,
-  profession: string,
-  bytnodeKey: string,
-  exchangeAccounts: ExchangeAccount[] = [],
-  force = false,
-): Promise<Toolset> {
-  const key = `${agentId}::${workspace}::${profession}::${bytnodeKey ? "k" : "-"}::${exchangeAccounts.map((a) => a.id).join(",")}`;
+export async function fetchToolset(agentId: string, workspace: string, profession: string, transport: Transport, force = false): Promise<Toolset> {
+  const key = [
+    agentId,
+    workspace,
+    profession,
+    transport.bytnodeKey ? "k" : "-",
+    transport.exchangeAccounts.map((a) => a.id).join(","),
+    transport.plugins?.join(",") ?? "*",
+  ].join("::");
   const hit = cache.get(key);
   if (hit && !force) return hit;
   const res = await fetch(
     `/api/tools?agentId=${encodeURIComponent(agentId)}&workspace=${encodeURIComponent(workspace)}&profession=${encodeURIComponent(profession)}`,
-    { headers: { ...(bytnodeKey ? { "x-bytnode-key": bytnodeKey } : {}), ...exchangeHeader(exchangeAccounts) } },
+    { headers: transportHeaders({ ...transport, openrouterKey: "" }) },
   );
   if (!res.ok) throw new Error("Could not load the tools.");
   const set = (await res.json()) as Toolset;
@@ -46,26 +46,20 @@ export async function fetchToolset(
 }
 
 export type ExecuteParams = {
-  apiKey: string;
   agentId: string;
   workspace: string;
   model: string;
   effort: string | null;
   scope: "workspace" | "disk";
   profession: string;
-  bytnodeKey: string;
-  exchangeAccounts: ExchangeAccount[];
+  transport: Transport;
 };
-
-/** The agent's exchange accounts, as a header — nothing when there are none. */
-const exchangeHeader = (accounts: ExchangeAccount[]): Record<string, string> =>
-  accounts.length ? { "x-exchange-accounts": encodeAccountsHeader(accounts) } : {};
 
 /** Executes a tool on the server and relays what it reports along the way. */
 export async function executeTool(call: ToolCall, p: ExecuteParams, signal: AbortSignal, emit: (e: AgentEvent) => void): Promise<ToolResult> {
   const res = await fetch("/api/tools/execute", {
     method: "POST",
-    headers: { "content-type": "application/json", "x-openrouter-key": p.apiKey, ...(p.bytnodeKey ? { "x-bytnode-key": p.bytnodeKey } : {}), ...exchangeHeader(p.exchangeAccounts) },
+    headers: { "content-type": "application/json", ...transportHeaders(p.transport) },
     body: JSON.stringify({
       name: call.name,
       args: call.args,

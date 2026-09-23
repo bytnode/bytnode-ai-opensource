@@ -1,6 +1,6 @@
 import { runSubagent } from "@/lib/acp/sessions";
 import { isProfessionId } from "@/lib/professions/catalog";
-import { parseAccounts } from "@/lib/tools/exchange/accounts";
+import { readTransport } from "@/lib/tools/transport";
 
 /* ---------------------------------------------------------------------------
    A sub-agent for a subscription agent.
@@ -20,7 +20,6 @@ type Body = {
   profession?: string;
   text?: string;
   model?: string | null;
-  exchangeAccounts?: unknown;
 };
 
 const TICK = 15_000;
@@ -35,14 +34,15 @@ export async function POST(req: Request) {
   if (!body.conversationId || !body.token || !isProfessionId(body.profession) || typeof body.text !== "string" || !body.text.trim()) {
     return Response.json({ error: { message: "Missing parent conversation, token, profession or task." } }, { status: 400 });
   }
+  const { bytnodeKey, exchangeAccounts } = readTransport(req.headers);
   const input = {
     conversationId: body.conversationId,
     token: body.token,
     profession: body.profession,
     text: body.text,
     modelId: typeof body.model === "string" && body.model.trim() ? body.model.trim() : null,
-    bytnodeKey: req.headers.get("x-bytnode-key") ?? "",
-    exchangeAccounts: parseAccounts(body.exchangeAccounts),
+    bytnodeKey,
+    exchangeAccounts,
   };
 
   const encoder = new TextEncoder();

@@ -1,11 +1,11 @@
-import { KEY_HEADER, missingKey } from "@/lib/server/openrouter";
+import { missingKey } from "@/lib/server/openrouter";
 import { PROJECT_ROOT, resolveWorkspace } from "@/lib/server/workspace";
 import { allTools } from "@/lib/tools/registry";
+import { readTransport } from "@/lib/tools/transport";
 import { loadProfession } from "@/lib/professions/load";
 import { DEFAULT_PROFESSION, isProfessionId } from "@/lib/professions/catalog";
 import type { ToolContext } from "@/lib/tools/types";
 import type { AgentEvent } from "@/lib/agent/events";
-import { parseAccountsHeader } from "@/lib/tools/exchange/accounts";
 
 /* ---------------------------------------------------------------------------
    Execute a tool, and tell what happens along the way.
@@ -28,7 +28,7 @@ type Body = {
 };
 
 export async function POST(req: Request) {
-  const apiKey = req.headers.get(KEY_HEADER);
+  const { openrouterKey: apiKey, bytnodeKey, exchangeAccounts } = readTransport(req.headers);
   if (!apiKey) return missingKey();
   let body: Body;
   try {
@@ -39,8 +39,6 @@ export async function POST(req: Request) {
   if (!body.name || typeof body.model !== "string") {
     return Response.json({ error: { message: "Missing tool name or model." } }, { status: 400 });
   }
-  const bytnodeKey = req.headers.get("x-bytnode-key") ?? "";
-  const exchangeAccounts = parseAccountsHeader(req.headers.get("x-exchange-accounts"));
   const { tools } = await allTools({ platform: process.platform, bytnodeKey, exchangeAccounts });
   const tool = tools.find((t) => t.name === body.name);
   if (!tool) return Response.json({ error: { message: `Unknown tool: ${body.name}` } }, { status: 404 });

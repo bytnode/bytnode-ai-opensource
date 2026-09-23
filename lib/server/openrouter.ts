@@ -1,3 +1,5 @@
+import { HEADER } from "@/lib/tools/transport";
+
 /* What the server knows about OpenRouter: the address, and the headers the
    service requires to attribute traffic to an application. */
 
@@ -5,7 +7,7 @@
    that replays streams. Read at startup, server-side only. */
 export const OPENROUTER = process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
 
-export const KEY_HEADER = "x-openrouter-key";
+export const KEY_HEADER = HEADER.openrouter;
 
 export function openRouterHeaders(apiKey: string): HeadersInit {
   return {

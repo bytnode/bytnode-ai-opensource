@@ -30,7 +30,7 @@ import { LlmError, OpenRouterClient } from "@/lib/llm/client";
 import { executeTool, fetchToolset } from "@/lib/tools/client";
 import { isAlwaysAskTitle } from "@/lib/tools/names";
 import { mustAsk, policyIn } from "@/lib/tools/policy";
-import { allowedAccounts } from "@/lib/tools/exchange/accounts";
+import { agentTransport } from "@/lib/tools/transport";
 import {
   getConversation,
   patchLastMessage,
@@ -66,9 +66,10 @@ import type { WireEvent } from "@/lib/acp/wire";
    end of the stream, whatever remains is applied at once.
 
    In "ask" mode, a tool that acts (its declared policy, see
-   `lib/tools/policy.ts`) shows up with two buttons and the loop waits. `answer` decides; "always" flips the agent to
-   direct mode. This mode ONLY concerns agents on OpenRouter: a subscription
-   agent has its own modes.
+   `lib/tools/policy.ts`) shows up with two buttons and the loop waits.
+   `answer` decides; "always" flips the agent to direct mode. This mode
+   ONLY concerns agents on OpenRouter: a subscription agent has its own
+   modes.
 
    TWO ENGINES, ONE THREAD. An agent on OpenRouter runs our loop right here
    (model + our tools). A subscription agent (`acp:…`) delegates the turn to
@@ -423,18 +424,13 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
         let caught: unknown;
         const acp = acpAgentOf(agent.providerId);
         try {
-          /* The exchange accounts THIS agent may drive: they leave with
-             every tool request, and decide which tools it sees. */
-          const exchangeAccounts = allowedAccounts(settings.keys.exchanges, agent.exchangeAccountIds);
+          /* What THIS agent's requests carry: the keys, the exchange
+             accounts it may drive (they decide which tools it sees). */
+          const transport = agentTransport(settings, agent);
+          const exchangeAccounts = transport.exchangeAccounts;
           const unattachedExchanges = settings.keys.exchanges.length - exchangeAccounts.length;
           const [toolset, memory] = await Promise.all([
-            fetchToolset(
-              agent.id,
-              agent.workspace ?? "",
-              agent.profession,
-              settings.keys.bytnode,
-              exchangeAccounts,
-            ),
+            fetchToolset(agent.id, agent.workspace ?? "", agent.profession, transport),
             fetchMemory(agent.id, agent.workspace ?? ""),
           ]);
           if (acp) {
@@ -536,8 +532,7 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
                 sessionId: base.acpSessionId ?? null,
                 firstTurn: previous.length === 0,
                 history: previous.length > 0 ? transcriptOf(previous) : undefined,
-                bytnodeKey: settings.keys.bytnode,
-                exchangeAccounts,
+                transport,
               },
               onEvent,
               controller.signal,
@@ -591,15 +586,13 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
             const replay = opts.hardPrune ? pruneToolOutputs(history, HARD_PRUNE) : before.level !== "ok" ? pruneToolOutputs(history, SOFT_PRUNE) : history;
             const client = new OpenRouterClient(settings.keys.openrouter);
             const exec = {
-              apiKey: settings.keys.openrouter,
               agentId: agent.id,
               workspace: toolset.workspace,
               model: modelId,
               effort,
               scope: agent.scope ?? "workspace",
               profession: agent.profession,
-              bytnodeKey: settings.keys.bytnode,
-              exchangeAccounts,
+              transport,
             };
             await runAgentLoop(replay, {
               complete: (messages, tools, signal) =>

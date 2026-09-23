@@ -1,4 +1,4 @@
-import { parseAccounts } from "@/lib/tools/exchange/accounts";
+import { readTransport } from "@/lib/tools/transport";
 import { isAcpAgentId } from "@/lib/acp/agents";
 import { runTurn, type WireEvent } from "@/lib/acp/sessions";
 import { syncSkills } from "@/lib/acp/skills-sync";
@@ -32,7 +32,6 @@ type Body = {
   firstTurn?: boolean;
   images?: string[];
   history?: string;
-  exchangeAccounts?: unknown;
 };
 
 export async function POST(req: Request) {
@@ -46,7 +45,7 @@ export async function POST(req: Request) {
     return Response.json({ error: { message: "Missing conversation, agent or message." } }, { status: 400 });
   }
   const agent = body.agent;
-  const bytnodeKey = req.headers.get("x-bytnode-key") ?? "";
+  const { bytnodeKey, exchangeAccounts } = readTransport(req.headers);
   const workspace = await resolveWorkspace(body.agentId ?? "", body.workspace);
   const profession = await loadProfession(PROJECT_ROOT, isProfessionId(body.profession) ? body.profession : DEFAULT_PROFESSION);
   try {
@@ -76,7 +75,7 @@ export async function POST(req: Request) {
             workspace,
             origin: new URL(req.url).origin,
             bytnodeKey,
-            exchangeAccounts: parseAccounts(body.exchangeAccounts),
+            exchangeAccounts,
             system: body.system ?? "",
             text: body.text!,
             modelId: body.modelId ?? null,
