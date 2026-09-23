@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { CATEGORIES, CATEGORY_LABELS, type CalendarEvent, type Category } from "@/lib/plugins/calendar/events";
 import { ChevronLeft, ChevronRight, Filter } from "@/components/ui/icons";
+import { Switch } from "@/components/ui/switch";
 import { CATEGORY_TONE, eventDay, LOCALE, timeOf } from "./model";
 
 /* The pieces the three calendar designs share: the segmented control, the
@@ -78,23 +79,46 @@ export function CalendarList({ filter, counts }: { filter: FilterState; counts?:
   );
 }
 
-/** The calendars as a row of chips: the same filter, in little room. */
-export function CalendarChips({ filter, counts }: { filter: FilterState; counts: Partial<Record<Category, number>> }) {
+/** The short names a two-column filter has room for. */
+const SHORT: Record<Category, string> = {
+  macro: "Macro",
+  unlock: "Unlocks",
+  listing: "Listings",
+  expiry: "Expiries",
+  upgrade: "Upgrades",
+  project: "Projects",
+};
+
+/** The calendars under the month: an ordered two-column grid (a colour, a
+    name, a count), and the market-moving switch on its own line. */
+export function CalendarFilters({ filter, counts }: { filter: FilterState; counts: Partial<Record<Category, number>> }) {
   return (
-    <div className="cl-chips" role="group" aria-label="Calendars">
-      {CATEGORIES.map((c) => {
-        const on = !filter.hidden.includes(c);
-        return (
-          <button key={c} type="button" className={`cl-chip${on ? "" : " is-off"}`} aria-pressed={on} style={{ "--tone": CATEGORY_TONE[c] } as CSSProperties} onClick={() => filter.toggle(c)}>
-            <span className="cl-chip-dot" aria-hidden />
-            {CATEGORY_LABELS[c]}
-            {counts[c] ? <span className="cl-chip-count">{counts[c]}</span> : null}
-          </button>
-        );
-      })}
-      <button type="button" className={`cl-chip cl-chip-strong${filter.strongOnly ? "" : " is-off"}`} aria-pressed={filter.strongOnly} onClick={() => filter.setStrongOnly(!filter.strongOnly)}>
-        Market-moving only
-      </button>
+    <div className="cl-filters">
+      <p className="cl-filters-title">Calendars</p>
+      <div className="cl-filters-grid" role="group" aria-label="Calendars">
+        {CATEGORIES.map((c) => {
+          const on = !filter.hidden.includes(c);
+          return (
+            <button
+              key={c}
+              type="button"
+              className={`cl-filter${on ? "" : " is-off"}`}
+              aria-pressed={on}
+              title={CATEGORY_LABELS[c]}
+              style={{ "--tone": CATEGORY_TONE[c] } as CSSProperties}
+              onClick={() => filter.toggle(c)}
+            >
+              <span className="cl-filter-dot" aria-hidden />
+              <span className="cl-filter-name">{SHORT[c]}</span>
+              <span className="cl-filter-count">{counts[c] ?? 0}</span>
+            </button>
+          );
+        })}
+      </div>
+      <label className="cl-filters-strong">
+        <span>Market-moving only</span>
+        <Switch on={filter.strongOnly} onChange={filter.setStrongOnly} label="Market-moving only" />
+      </label>
     </div>
   );
 }

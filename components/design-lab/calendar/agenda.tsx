@@ -3,15 +3,15 @@
 import { useState } from "react";
 import type { CalendarEvent, Category } from "@/lib/plugins/calendar/events";
 import { addDays, byDay, CATEGORY_TONE, DAY, dayKey, LOCALE, monthGrid, sameDay, timeOf } from "./model";
-import { CalendarChips, EventCard, Stepper, tone, useFilter } from "./parts";
+import { CalendarFilters, EventCard, Stepper, tone, useFilter } from "./parts";
 import { useCalendarEvents, type Source } from "./use-events";
 
 /* ---------------------------------------------------------------------------
    Version 3 — Up Next.
 
    The month and what is coming, side by side, like Calendar on the iPad:
-   on the left the month itself, large — every day with its coloured marks
-   — and the calendars as a row of filters under it; on the right the next
+   on the left the month — every day with its coloured marks — and the
+   calendars as an ordered grid of filters under it; on the right the next
    three weeks from the chosen day, one section per day. A row says the
    time and the title; opening it shows the rest in place.
 --------------------------------------------------------------------------- */
@@ -89,7 +89,7 @@ export function AgendaView({ source, today }: { source: Source; today: Date }) {
             );
           })}
         </div>
-        <CalendarChips filter={filter} counts={counts} />
+        <CalendarFilters filter={filter} counts={counts} />
       </section>
 
       <main className="a-main">

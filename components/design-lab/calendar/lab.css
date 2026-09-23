@@ -840,19 +840,19 @@ html[data-theme="light"] .cl-pop {
 .a-cal {
   display: flex;
   flex-direction: column;
-  flex: 0 0 clamp(340px, 30%, 420px);
+  flex: 0 0 clamp(300px, 26%, 370px);
   min-height: 0;
   overflow-y: auto;
   border-right: 1px solid var(--sep);
 }
 
 .a-cal-bar {
-  padding: 18px 14px 10px 22px;
+  padding: 18px 12px 8px 20px;
 }
 
 .a-cal .cl-title {
   flex: none;
-  font-size: 22px;
+  font-size: 20px;
   white-space: nowrap;
 }
 
@@ -860,21 +860,21 @@ html[data-theme="light"] .cl-pop {
 .a-cal-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  padding: 0 16px;
+  padding: 0 12px;
 }
 
 .a-cal-weekdays span {
-  padding: 6px 0 8px;
-  font-size: 12px;
+  padding: 4px 0 6px;
+  font-size: 11.5px;
   font-weight: 500;
   color: var(--label-2);
   text-align: center;
 }
 
 .a-cal-grid {
-  grid-template-rows: repeat(6, 50px);
-  gap: 2px;
-  padding-bottom: 14px;
+  grid-template-rows: repeat(6, 44px);
+  gap: 1px;
+  padding-bottom: 12px;
 }
 
 .a-cal-day {
@@ -882,12 +882,12 @@ html[data-theme="light"] .cl-pop {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
   min-height: 0;
   padding: 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: 9px;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -902,11 +902,11 @@ html[data-theme="light"] .cl-pop {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   font-family: var(--font-display), sans-serif;
-  font-size: 15.5px;
+  font-size: 14.5px;
   font-weight: 400;
 }
 
@@ -959,61 +959,85 @@ html[data-theme="light"] .cl-pop {
   opacity: 0.5;
 }
 
-/* The calendars under the month: a row of chips. */
-.cl-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 14px 16px 18px;
+/* The calendars under the month: two aligned columns, then the switch. */
+.cl-filters {
+  padding: 12px 14px 16px;
   border-top: 1px solid var(--sep);
 }
 
-.cl-chip {
-  display: inline-flex;
+.cl-filters-title {
+  margin: 0 0 6px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.cl-filters-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 6px;
+}
+
+.cl-filter {
+  display: flex;
   align-items: center;
-  gap: 7px;
-  height: 28px;
-  padding: 0 11px;
-  border: 1px solid var(--sep);
-  border-radius: 14px;
+  gap: 8px;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
   background: transparent;
   color: var(--label);
   font: inherit;
-  font-size: 12.5px;
+  font-size: 13px;
+  text-align: left;
   cursor: pointer;
 }
 
-.cl-chip:hover {
+.cl-filter:hover {
   background: var(--fill);
 }
 
-.cl-chip-dot {
-  width: 8px;
-  height: 8px;
+.cl-filter-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: var(--tone);
 }
 
-.cl-chip-count {
+.cl-filter-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cl-filter-count {
+  font-size: 12px;
   color: var(--label-3);
 }
 
-.cl-chip.is-off {
+.cl-filter.is-off {
   color: var(--label-3);
 }
 
-.cl-chip.is-off .cl-chip-dot {
+.cl-filter.is-off .cl-filter-dot {
   background: transparent;
   box-shadow: inset 0 0 0 1.5px var(--tone);
 }
 
-.cl-chip-strong {
-  border-color: rgba(var(--ink), 0.2);
-}
-
-.cl-chip-strong:not(.is-off) {
-  background: rgb(var(--ink));
-  color: rgb(var(--ink-inv));
+.cl-filters-strong {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding: 10px 8px 0;
+  border-top: 1px solid var(--sep);
+  font-size: 13px;
+  cursor: pointer;
 }
 
 /* The agenda: the right half. */
