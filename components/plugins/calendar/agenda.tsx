@@ -4,15 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import type { CalendarEvent } from "@/lib/plugins/calendar/events";
 import { dayKey, nextBusyDay, sameDay, type Period } from "@/lib/plugins/calendar/days";
 import { ChevronRight, Refresh } from "@/components/ui/icons";
-import { MonthScale, WeekScale } from "./folds";
+import { MonthScale } from "./folds";
 import { HourScale } from "./hours";
+import { WeekGrid } from "./week-grid";
 import { LOCALE, dayLabel } from "./format";
 
 /* The right pane: the chosen period on a scale of time — a day on its
-   hours, this week on its days (each opening on its hours), this month on
-   its weeks (each opening on its days). An empty day points to the next
-   day that has something. The collection's state and "Collect now" sit
-   discreetly in the corner. */
+   hours, this week as a grid of days by hours, this month on its weeks
+   (each opening on its days). An empty day points to the next day that
+   has something. The collection's state and "Collect now" sit discreetly
+   in the corner. */
 
 export type Collection = { at: string; days: number; added: number; updated: number; rejected: string[] } | null;
 
@@ -44,19 +45,21 @@ export function Agenda({ period, span, today, days, last, loading, problem, coll
     return () => clearInterval(t);
   }, []);
 
-  /* A day opens on the first hours that matter (under its all-day
-     events, which stay pinned on top); a week or a month at its start. */
+  /* A day or the week opens on the first hours that matter (under what
+     stays pinned on top: the all-day events, the days' heads); the month
+     at its start. */
   useEffect(() => {
     const box = list.current;
     if (!box) return;
     box.scrollTop = 0;
     const anchor = box.querySelector<HTMLElement>("[data-anchor]");
     if (!anchor) return;
-    const pinned = box.querySelector<HTMLElement>(".calv-hour.is-allday")?.offsetHeight ?? 0;
+    const pinned = box.querySelector<HTMLElement>("[data-pinned]")?.offsetHeight ?? 0;
     box.scrollTop = anchor.getBoundingClientRect().top - box.getBoundingClientRect().top - pinned - LABEL_ROOM;
   }, [periodId, loading]);
 
   const dayEvents = period.kind === "day" ? (days.get(dayKey(period.day)) ?? []) : [];
+  const weekEvents = period.kind === "week" ? span.flatMap((d) => days.get(dayKey(d)) ?? []) : [];
   const empty = period.kind === "day" && !loading && dayEvents.length === 0;
   const next = empty ? nextBusyDay(days, period.day) : null;
   const head =
@@ -102,9 +105,9 @@ export function Agenda({ period, span, today, days, last, loading, problem, coll
       {problem && <p className="calv-problem">{problem}</p>}
       <div className="calv-list" ref={list}>
         {period.kind === "day" ? (
-          <HourScale key={periodId} day={period.day} events={dayEvents} now={now} anchor={anchorHour(period.day, dayEvents, now)} />
+          <HourScale key={periodId} day={period.day} events={dayEvents} now={now} anchor={anchorHour(dayEvents, sameDay(period.day, now) ? now : null)} />
         ) : period.kind === "week" ? (
-          <WeekScale span={span} days={days} today={today} now={now} />
+          <WeekGrid span={span} days={days} today={today} now={now} anchor={anchorHour(weekEvents, span.some((d) => sameDay(d, now)) ? now : null)} onPick={onPick} />
         ) : (
           <MonthScale span={span} days={days} today={today} />
         )}
@@ -113,10 +116,11 @@ export function Agenda({ period, span, today, days, last, loading, problem, coll
   );
 }
 
-/** The hour a day opens on: an hour before its first timed event, or
-    before now on today, whichever comes first; 08:00 on an empty day. */
-function anchorHour(day: Date, events: CalendarEvent[], now: Date): number {
-  const first = events.find((e) => !e.allDay);
-  const hours = [first ? new Date(first.startsAt).getHours() : null, sameDay(day, now) ? now.getHours() : null].filter((h): h is number => h !== null);
+/** The hour a day or the week opens on: an hour before its earliest
+    timed event, or before now when it holds today, whichever comes first;
+    08:00 when there is neither. */
+function anchorHour(events: CalendarEvent[], now: Date | null): number {
+  const hours = events.filter((e) => !e.allDay).map((e) => new Date(e.startsAt).getHours());
+  if (now) hours.push(now.getHours());
   return hours.length ? Math.max(0, Math.min(...hours) - 1) : 8;
 }

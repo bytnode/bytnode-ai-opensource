@@ -11,7 +11,9 @@
    and to today, in red. The titles wear BytNode's own title ink: the
    metal gradient of bytnode.com's headings (« Start to integrate. »,
    « First call »), cut to the letters — light steel on dark, slate blue on
-   light. The lines between things are 2 px: firm, never hairlines.
+   light. The lines between things are 2 px: firm, never hairlines. The
+   corners are round, on one scale: the panel, the bubbles, the controls,
+   the events.
 --------------------------------------------------------------------------- */
 
 .calv {
@@ -27,9 +29,13 @@
   --label-3: rgba(var(--ink), 0.52);
   --sep: rgba(var(--ink), 0.1);
   --rule: 2px;
+  --r-panel: 26px;
+  --r-pop: 18px;
+  --r: 13px;
+  --r-sm: 10px;
   --fill: rgba(var(--ink), 0.06);
   --pane: rgba(var(--voile), 0.5);
-  --pin: rgba(var(--voile), 0.94);
+  --pin: rgb(var(--voile));
   --title-ink: linear-gradient(180deg, #f1f4f9 0%, #e1e6ee 45%, #c3cad5 100%);
 
   display: flex;
@@ -52,7 +58,7 @@ html[data-theme="light"] .calv {
   --label-3: rgba(var(--ink), 0.52);
   --sep: rgba(var(--ink), 0.11);
   --pane: rgba(255, 255, 255, 0.6);
-  --pin: rgba(250, 251, 253, 0.96);
+  --pin: rgb(250, 251, 253);
   --title-ink: linear-gradient(180deg, #3a4d6b 0%, #2c3e5a 55%, #22334c 100%);
 }
 
@@ -80,7 +86,7 @@ html[data-theme="light"] .calv {
   overflow: hidden;
   border: 1px solid rgba(var(--ink), 0.075);
   border-top: 0;
-  border-radius: 0 0 16px 16px;
+  border-radius: 0 0 var(--r-panel) var(--r-panel);
   background: var(--pane);
   backdrop-filter: blur(22px) saturate(1.2);
 }
@@ -115,7 +121,7 @@ html[data-theme="light"] .calv {
   height: 28px;
   padding: 0;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--label-2);
   cursor: pointer;
@@ -183,7 +189,7 @@ html[data-theme="light"] .calv {
   margin: 0 -4px;
   padding: 0 4px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -209,7 +215,7 @@ html[data-theme="light"] .calv {
   z-index: 20;
   padding: 10px;
   border: 1px solid rgba(var(--ink), 0.12);
-  border-radius: 12px;
+  border-radius: var(--r-pop);
   background: rgba(var(--voile), 0.985);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
   animation: calv-pop-in 140ms var(--ease) both;
@@ -251,7 +257,7 @@ html[data-theme="light"] .calv-pop {
 .calv-picker-item {
   height: 34px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--label);
   font: inherit;
@@ -276,6 +282,15 @@ html[data-theme="light"] .calv-pop {
 
 .calv-periods {
   padding: 0 12px 10px;
+}
+
+/* The shared segmented control, rounder here like the rest. */
+.calv-periods .seg {
+  border-radius: var(--r);
+}
+
+.calv-periods .seg button {
+  border-radius: var(--r-sm);
 }
 
 .calv-weekdays,
@@ -308,7 +323,7 @@ html[data-theme="light"] .calv-pop {
   min-width: 0;
   padding: 0;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--r);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -412,7 +427,7 @@ html[data-theme="light"] .calv-pop {
   height: 38px;
   padding: 0 10px;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--r);
   background: transparent;
   color: var(--label);
   font: inherit;
@@ -625,7 +640,7 @@ html[data-theme="light"] .calv-agenda {
   width: 100%;
   padding: 10px;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--r);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -795,7 +810,7 @@ html[data-theme="light"] .calv-agenda {
 }
 
 .calv-block {
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   background: color-mix(in srgb, var(--tone) 26%, transparent);
   box-shadow: inset 4px 0 0 var(--tone);
 }
@@ -809,7 +824,7 @@ html[data-theme="light"] .calv-agenda {
   min-height: 42px;
   padding: 7px 12px 7px 16px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -847,7 +862,197 @@ html[data-theme="light"] .calv-agenda {
   padding: 2px 16px 12px;
 }
 
-/* --- A week on its days, a month on its weeks ---------------------------------- */
+/* --- This week, a grid of days by hours ------------------------------------------ */
+
+.calv-week {
+  min-width: 640px;
+  padding-bottom: 28px;
+}
+
+.calv-week-row {
+  display: grid;
+  grid-template-columns: 60px repeat(7, minmax(0, 1fr));
+}
+
+/* The days' heads and the all-day events stay on top. */
+.calv-week-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding-top: 6px;
+  border-bottom: 3px solid rgba(var(--ink), 0.24);
+  background: var(--pin);
+}
+
+.calv-week-head + .calv-week-row {
+  margin-top: 12px;
+}
+
+.calv-week-gutter {
+  position: relative;
+  top: -0.55em;
+  padding-right: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--label-3);
+  text-align: right;
+}
+
+.calv-week-head .calv-week-gutter {
+  top: 0;
+  padding-top: 14px;
+}
+
+.calv-week-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin: 0 3px 6px;
+  padding: 6px 0 8px;
+  border: 0;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--label);
+  font: inherit;
+  cursor: pointer;
+}
+
+.calv-week-day:hover {
+  background: var(--fill);
+}
+
+.calv-week-day.is-past {
+  opacity: 0.6;
+}
+
+.calv-week-dow {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.calv-week-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-family: var(--font-display), sans-serif;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.calv-week-day.is-today .calv-week-dow {
+  color: var(--cal-today);
+}
+
+.calv-week-day.is-today .calv-week-num {
+  background: var(--cal-today);
+  color: #fff;
+}
+
+.calv-week-cell {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+  min-height: 52px;
+  padding: 4px;
+  border-top: var(--rule) solid var(--sep);
+  border-left: var(--rule) solid var(--sep);
+}
+
+/* Today's column, washed a little lighter from top to bottom. */
+.calv-week-cell.is-today {
+  background: rgba(var(--ink), 0.045);
+}
+
+.calv-week-row.is-allday .calv-week-cell {
+  min-height: 0;
+  padding-bottom: 8px;
+  border-top: 0;
+}
+
+.calv-wblock {
+  position: relative;
+  min-width: 0;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--tone) 26%, transparent);
+  box-shadow: inset 4px 0 0 var(--tone);
+}
+
+.calv-wblock-main {
+  display: grid;
+  gap: 1px;
+  width: 100%;
+  padding: 5px 8px 6px 11px;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.calv-wblock-main:hover,
+.calv-wblock.is-open .calv-wblock-main {
+  background: color-mix(in srgb, var(--tone) 14%, transparent);
+}
+
+.calv-wblock-time {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--label-2);
+}
+
+.calv-wblock-title {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.calv-wblock.is-strong .calv-wblock-title {
+  font-weight: 650;
+}
+
+/* An event's details, in a bubble under its block. */
+.calv-event-pop {
+  top: calc(100% + 6px);
+  left: 0;
+  width: 320px;
+  padding: 14px 16px;
+  cursor: default;
+}
+
+.calv-event-pop.is-flipped {
+  left: auto;
+  right: 0;
+}
+
+.calv-event-pop-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.calv-event-pop-when {
+  margin: 3px 0 12px;
+  font-size: 13px;
+  color: var(--label-2);
+}
+
+/* --- A month on its weeks ------------------------------------------------------- */
 
 .calv-folds {
   padding: 4px 0 28px;
@@ -865,7 +1070,7 @@ html[data-theme="light"] .calv-agenda {
   min-height: 58px;
   padding: 8px 8px 8px 4px;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--r);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -934,7 +1139,7 @@ html[data-theme="light"] .calv-agenda {
   height: 27px;
   padding: 0 9px 0 11px;
   overflow: hidden;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: color-mix(in srgb, var(--tone) 26%, transparent);
   box-shadow: inset 3px 0 0 var(--tone);
   font-size: 13.5px;

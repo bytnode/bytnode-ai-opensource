@@ -5,15 +5,13 @@ import type { CalendarEvent } from "@/lib/plugins/calendar/events";
 import { dayKey, isoWeek, sameDay, weeksOf } from "@/lib/plugins/calendar/days";
 import { ChevronRight } from "@/components/ui/icons";
 import { EventFacts } from "./event-facts";
-import { HourScale } from "./hours";
 import { LOCALE, dayLabel, timeOf, toneOf } from "./format";
 
-/* The week and the month as scales that fold: a week is its seven days,
-   each one opening on its hours; a month is its weeks, each one opening
-   on its days. A closed row still says what it holds — its first events
-   as tinted chips, the rest as a count. Today, or this week, is open
-   when the view comes up; a row the user opens scrolls up to the top of
-   the list, so what it holds comes into view. */
+/* The month as a scale that folds: its weeks, each one opening on its
+   days. A closed week still says what it holds — its first events as
+   tinted chips, the rest as a count. This week is open when the view
+   comes up; a week the user opens scrolls up to the top of the list, so
+   what it holds comes into view. */
 
 const CHIPS = 2;
 
@@ -25,32 +23,6 @@ function useFolds(initial: string[]) {
     has: (k: string) => open.includes(k),
     toggle: (k: string) => setOpen((o) => (o.includes(k) ? o.filter((x) => x !== k) : [...o, k])),
   };
-}
-
-export function WeekScale({ span, days, today, now }: { span: Date[]; days: Days; today: Date; now: Date }) {
-  const folds = useFolds([dayKey(today)]);
-  return (
-    <div className="calv-folds">
-      {span.map((d) => {
-        const k = dayKey(d);
-        const events = days.get(k) ?? [];
-        return (
-          <Fold
-            key={k}
-            open={folds.has(k)}
-            onToggle={() => folds.toggle(k)}
-            past={d < today}
-            current={sameDay(d, today)}
-            title={dayLabel(d, today)}
-            date={d.toLocaleDateString(LOCALE, { day: "numeric", month: "long" })}
-            events={events}
-          >
-            <HourScale day={d} events={events} now={now} />
-          </Fold>
-        );
-      })}
-    </div>
-  );
 }
 
 export function MonthScale({ span, days, today }: { span: Date[]; days: Days; today: Date }) {
@@ -105,7 +77,7 @@ type FoldProps = {
   open: boolean;
   onToggle: () => void;
   past: boolean;
-  /** Today's row, or this week's: its title in red. */
+  /** This week's row: its title in red. */
   current: boolean;
   title: string;
   date: string;

@@ -29,7 +29,7 @@ export function HourScale({ day, events, now, anchor }: Props) {
   return (
     <div className="calv-hours">
       {allDay.length > 0 && (
-        <div className="calv-hour is-allday">
+        <div className="calv-hour is-allday" data-pinned>
           <span className="calv-hour-label">all-day</span>
           <div className="calv-hour-slot">
             {allDay.map((e) => (
