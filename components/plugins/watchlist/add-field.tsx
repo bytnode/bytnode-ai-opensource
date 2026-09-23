@@ -1,38 +1,38 @@
 "use client";
 
 import { useId, useState } from "react";
-import { baseOf, normalizeSymbol } from "@/lib/plugins/shared/quote";
 import { suggest, type Candidate } from "@/lib/plugins/watchlist/suggest";
 import { Search } from "@/components/ui/icons";
-import { sourceName } from "./format";
 
-/* The field that adds an asset, as a search: from the first letter, a
-   list opens under it with the assets that can be followed — ticker, name,
-   where the price will come from — and a pair typed that the list does
-   not know, last. A click, or Enter on the lit one (the first by default;
-   ↑ ↓ to move, Escape to close), adds it and shows it. An asset already
-   followed says so, and choosing it just shows it. */
+/* The field that adds an asset, as a search among BytNode's assets only:
+   from the first letter, a list opens under it — ticker, name, quote —
+   and what BytNode does not cover is "not found", never offered. A
+   click, or Enter on the lit one (the first by default; ↑ ↓ to move,
+   Escape to close), adds it and shows it. An asset already followed says
+   so, and choosing it just shows it. Without BytNode's list (no key), the
+   field says why it cannot add. */
 
-type Option = Candidate & { followed: boolean; free?: boolean };
+type Option = Candidate & { followed: boolean };
 
 type Props = {
   catalog: Candidate[];
+  /** Why nothing can be added (no BytNode key); the field is off. */
+  unavailable: string | null;
   followed: ReadonlySet<string>;
   onAdd: (symbol: string) => Promise<boolean>;
   onPick: (symbol: string) => void;
 };
 
-export function AddField({ catalog, followed, onAdd, onPick }: Props) {
+export function AddField({ catalog, unavailable, followed, onAdd, onPick }: Props) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const [busy, setBusy] = useState(false);
   const list = useId();
 
-  const hits: Option[] = suggest(query, catalog).map((c) => ({ ...c, followed: followed.has(c.symbol) }));
-  const typed = query.trim() ? normalizeSymbol(query) : null;
-  const options: Option[] = typed && !hits.some((h) => h.symbol === typed) ? [...hits, { symbol: typed, base: baseOf(typed), sources: [], followed: followed.has(typed), free: true }] : hits;
+  const options: Option[] = suggest(query, catalog).map((c) => ({ ...c, followed: followed.has(c.symbol) }));
   const shown = open && options.length > 0;
+  const notFound = open && query.trim() !== "" && options.length === 0;
   const lit = Math.min(active, options.length - 1);
 
   const reset = () => {
@@ -68,11 +68,11 @@ export function AddField({ catalog, followed, onAdd, onPick }: Props) {
           aria-controls={list}
           aria-autocomplete="list"
           aria-activedescendant={shown ? `${list}-${lit}` : undefined}
-          placeholder="Add an asset — btc, Solana, ETH/USDC…"
+          placeholder={unavailable ? "Add an asset" : "Add an asset — btc, Solana…"}
           value={query}
           autoComplete="off"
           spellCheck={false}
-          disabled={busy}
+          disabled={busy || unavailable !== null}
           onChange={(e) => {
             setQuery(e.target.value);
             setOpen(true);
@@ -95,6 +95,12 @@ export function AddField({ catalog, followed, onAdd, onPick }: Props) {
           }}
         />
       </div>
+      {unavailable && <p className="wlv-add-note">{unavailable}</p>}
+      {notFound && (
+        <p className="wlv-suggest wlv-suggest-none" role="status">
+          Not found — BytNode does not cover “{query.trim()}”.
+        </p>
+      )}
       {shown && (
         <ul className="wlv-suggest" id={list} role="listbox" aria-label="Assets to add">
           {options.map((o, i) => (
@@ -111,8 +117,8 @@ export function AddField({ catalog, followed, onAdd, onPick }: Props) {
               onClick={() => void choose(o)}
             >
               <b>{o.base}</b>
-              <span className="wlv-suggest-name">{o.free ? `Add ${o.symbol}` : (o.name ?? o.symbol)}</span>
-              <small className="wlv-suggest-src">{o.followed ? "In your list" : o.free ? "As typed" : o.sources.length ? o.sources.map(sourceName).slice(0, 2).join(" · ") : "No price source yet"}</small>
+              <span className="wlv-suggest-name">{o.name ?? o.symbol}</span>
+              {o.followed && <small className="wlv-suggest-src">In your list</small>}
               <span className="wlv-suggest-pair">{o.symbol.split("/")[1]}</span>
             </li>
           ))}

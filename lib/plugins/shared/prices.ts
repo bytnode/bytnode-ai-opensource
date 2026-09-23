@@ -154,50 +154,33 @@ export async function candles(symbol: string, interval: Interval, limit: number,
   return { symbol, interval, error: sources.bytnodeKey?.trim() ? `No chart for ${symbol}: BytNode does not cover it and no exchange account lists it.` : `No chart for ${symbol}: no BytNode key, and no exchange account lists it.` };
 }
 
-export type Listed = { symbol: string; base: string; name?: string; sources: string[] };
+export type Listed = { symbol: string; base: string; name?: string };
 
 const LISTED_MS = 10 * 60_000;
-const listed = new Map<string, { at: number; value: Listed[][] }>();
+const listed = new Map<string, { at: number; value: Listed[] }>();
 
-/** The pairs that can be priced, per source: BytNode's symbols (with their
-    names), then each account's spot pairs quoted in USDT or USDC. A few
-    minutes of cache: the lists barely move. */
-export async function listedPairs(sources: PriceSources): Promise<Listed[][]> {
-  const key = `${sources.bytnodeKey?.trim() ? "b" : "-"}|${(sources.accounts ?? []).map((a) => a.id).join(",")}`;
+/** The pairs BytNode covers (`get_system_info`), with their names — the
+    only assets the watchlist's field offers. Stablecoin pairs are left
+    out. A few minutes of cache: the list barely moves. Empty without a
+    key, or when BytNode cannot be read (and then not cached). */
+export async function bytnodePairs(bytnodeKey: string | undefined, signal?: AbortSignal): Promise<Listed[]> {
+  const key = bytnodeKey?.trim();
+  if (!key) return [];
   const hit = listed.get(key);
   if (hit && Date.now() - hit.at < LISTED_MS) return hit.value;
-  const signal = sources.signal ?? AbortSignal.timeout(30_000);
-  const out: Listed[][] = [];
-  if (sources.bytnodeKey?.trim()) {
-    const res = await readBytnodeTool(sources.bytnodeKey, "get_system_info", { include_status: false }, signal);
-    if (res.ok) {
-      try {
-        const info = JSON.parse(res.text) as { symbols?: Array<{ symbol?: string; base_asset?: string; name?: string }> };
-        out.push(
-          (info.symbols ?? []).flatMap((x) => {
-            const base = (x.base_asset ?? "").toUpperCase();
-            const quote = x.symbol?.toUpperCase().slice(base.length) ?? "";
-            if (!base || !quote || base === "USDC" || base === "USDT") return [];
-            return [{ symbol: `${base}/${quote}`, base, name: x.name, sources: ["bytnode"] }];
-          }),
-        );
-      } catch {
-        /* no list from BytNode: the accounts' still count */
-      }
-    }
+  const res = await readBytnodeTool(key, "get_system_info", { include_status: false }, signal ?? AbortSignal.timeout(30_000));
+  if (!res.ok) return [];
+  try {
+    const info = JSON.parse(res.text) as { symbols?: Array<{ symbol?: string; base_asset?: string; name?: string }> };
+    const value = (info.symbols ?? []).flatMap((x) => {
+      const base = (x.base_asset ?? "").toUpperCase();
+      const quote = x.symbol?.toUpperCase().slice(base.length) ?? "";
+      if (!base || !quote || base === "USDC" || base === "USDT") return [];
+      return [{ symbol: `${base}/${quote}`, base, ...(x.name ? { name: x.name } : {}) }];
+    });
+    if (value.length) listed.set(key, { at: Date.now(), value });
+    return value;
+  } catch {
+    return [];
   }
-  for (const account of sources.accounts ?? []) {
-    try {
-      const ex = await clientFor(account, "spot");
-      out.push(
-        Object.values(ex.markets ?? {}).flatMap((m) =>
-          m && m.spot && m.active !== false && (m.quote === "USDT" || m.quote === "USDC") && m.base ? [{ symbol: `${m.base}/${m.quote}`, base: m.base, sources: [ex.id] }] : [],
-        ),
-      );
-    } catch {
-      /* next account */
-    }
-  }
-  listed.set(key, { at: Date.now(), value: out });
-  return out;
 }

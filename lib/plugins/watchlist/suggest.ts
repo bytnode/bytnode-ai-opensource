@@ -1,18 +1,16 @@
 /* ---------------------------------------------------------------------------
-   What the Watchlist's field proposes as the user types: the assets that
-   can be followed with a price — BytNode's symbols, then the USDT / USDC
-   pairs of the user's exchange accounts — or, with neither, well-known
-   assets. Ranked: the ticker itself, a ticker that starts with what is
+   What the Watchlist's field proposes as the user types: BytNode's assets,
+   and nothing else — one that BytNode does not cover cannot be added from
+   the view. Ranked: the ticker itself, a ticker that starts with what is
    typed, a name that does, then (from two letters) the ones that merely
-   contain it. A typed
-   pair that matches nothing is still offered as it is, last.
+   contain it; nothing found is said as such.
    Pure, tested.
 --------------------------------------------------------------------------- */
 
-export type Candidate = { symbol: string; base: string; name?: string; sources: string[] };
+export type Candidate = { symbol: string; base: string; name?: string };
 
-/** Well-known assets, for a user with no source yet (and for the names of
-    an exchange's pairs, which come without one). */
+/** Well-known assets: a name for a pair that comes without one, and the
+    order of fame that ranks equal matches. */
 export const KNOWN: Array<[string, string]> = [
   ["BTC", "Bitcoin"],
   ["ETH", "Ethereum"],
@@ -55,22 +53,13 @@ const NAMES = new Map(KNOWN);
 /** How well known an asset is: its place in `KNOWN` (roughly by size). */
 const RANK = new Map(KNOWN.map(([base], i) => [base, i]));
 const fame = (c: Candidate) => RANK.get(c.base) ?? KNOWN.length;
+const usdt = (c: Candidate) => (c.symbol.endsWith("/USDT") ? 1 : 0);
 
-export const knownCandidates = (): Candidate[] => KNOWN.map(([base, name]) => ({ symbol: `${base}/USDT`, base, name, sources: [] }));
-
-/** One entry per pair: the sources of a pair listed twice are merged, the
-    first name found is kept (else a well-known one). */
-export function mergeCandidates(lists: Candidate[][]): Candidate[] {
+/** BytNode's pairs, once each, each named (its own name, else a
+    well-known one). */
+export function named(pairs: Candidate[]): Candidate[] {
   const by = new Map<string, Candidate>();
-  for (const list of lists) {
-    for (const c of list) {
-      const had = by.get(c.symbol);
-      if (had) {
-        had.sources = [...new Set([...had.sources, ...c.sources])];
-        had.name ??= c.name;
-      } else by.set(c.symbol, { ...c, name: c.name ?? NAMES.get(c.base), sources: [...c.sources] });
-    }
-  }
+  for (const c of pairs) if (!by.has(c.symbol)) by.set(c.symbol, { ...c, name: c.name ?? NAMES.get(c.base) });
   return [...by.values()];
 }
 
@@ -95,16 +84,14 @@ export function suggest(query: string, catalog: Candidate[], limit = 8): Candida
     if (text.length >= 2 && name.includes(text)) return 4;
     return -1;
   };
-  const hits = catalog
-    .map((c) => ({ c, r: rank(c) }))
-    .filter((x) => x.r >= 0)
-    /* Same rank: the better-known asset first (so an asset's pairs stay
-       together), then a priced pair (BytNode before an exchange, USDT
-       before other quotes), then the shorter ticker. */
-    .sort((a, b) => a.r - b.r || fame(a.c) - fame(b.c) || score(b.c) - score(a.c) || a.c.base.length - b.c.base.length || a.c.symbol.localeCompare(b.c.symbol))
-    .slice(0, limit)
-    .map((x) => x.c);
-  return hits;
+  return (
+    catalog
+      .map((c) => ({ c, r: rank(c) }))
+      .filter((x) => x.r >= 0)
+      /* Same rank: the better-known asset first, USDT before another
+         quote, then the shorter ticker. */
+      .sort((a, b) => a.r - b.r || fame(a.c) - fame(b.c) || usdt(b.c) - usdt(a.c) || a.c.base.length - b.c.base.length || a.c.symbol.localeCompare(b.c.symbol))
+      .slice(0, limit)
+      .map((x) => x.c)
+  );
 }
-
-const score = (c: Candidate) => (c.sources.includes("bytnode") ? 4 : c.sources.length ? 2 : 0) + (c.symbol.endsWith("/USDT") ? 1 : 0);

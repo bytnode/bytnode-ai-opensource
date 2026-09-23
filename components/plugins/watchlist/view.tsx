@@ -4,7 +4,7 @@ import { useRef, useState, type CSSProperties } from "react";
 import { sortByMove, type Window } from "@/lib/plugins/watchlist/heat";
 import { withTick, type Candle, type Interval } from "@/lib/plugins/shared/candle";
 import type { CandleSeries, Listed, Priced } from "@/lib/plugins/shared/prices";
-import { knownCandidates, mergeCandidates } from "@/lib/plugins/watchlist/suggest";
+import { named } from "@/lib/plugins/watchlist/suggest";
 import { baseOf, type Quote } from "@/lib/plugins/shared/quote";
 import type { Insight } from "@/lib/plugins/watchlist/insight";
 import type { Technicals } from "@/lib/plugins/watchlist/technicals";
@@ -100,13 +100,13 @@ export function WatchlistView({ settings, params }: ViewProps) {
   const candles: Candle[] | null = current && "candles" in current ? (liveQuote ? withTick(current.candles, liveQuote.price, Date.parse(liveQuote.at), interval) : current.candles) : null;
   const chartMessage = !symbol ? null : current && "error" in current ? current.error : candles ? (candles.length ? null : "No candles for this pair.") : series.error ?? "Loading the chart…";
 
-  /* What the add field proposes: the priceable pairs, or well-known
-     assets when there is no source yet. Read once; a key or an account
-     added later is read at the next visit of the tab. */
-  const pairs = usePluginData<Listed[][]>("watchlist", "symbols", settings);
+  /* What the add field proposes: BytNode's assets only. Read once, and
+     again when the tab wakes (a key added meanwhile). */
+  const pairs = usePluginData<Listed[]>("watchlist", "symbols", settings);
   useOnWake(pairs.reload);
-  const sourced = (pairs.data ?? []).flat();
-  const catalog = mergeCandidates(sourced.length ? (pairs.data ?? []) : [knownCandidates()]);
+  const listedPairs = Array.isArray(pairs.data) ? pairs.data : null;
+  const catalog = named(listedPairs ?? []);
+  const addUnavailable = !settings.keys.bytnode.trim() ? "Assets come from BytNode: add your key in Settings → Auth." : listedPairs && !listedPairs.length ? "BytNode's list of assets could not be read — try again in a moment." : null;
 
   const choose = (s: string) => setPick({ focus, symbol: s });
   const edit = async (change: Record<string, unknown>) => {
@@ -120,7 +120,7 @@ export function WatchlistView({ settings, params }: ViewProps) {
   return (
     <div className="wlv">
       <div className="wlv-panel" ref={panel} style={{ "--wlv-list": `${ui.watchlistWidth}px` } as CSSProperties}>
-        <ListPane rows={rows} shown={shown} selected={symbol || null} win={win} byMove={byMove} catalog={catalog} onWindow={setWin} onByMove={setByMove} onPick={choose} onAdd={add} />
+        <ListPane rows={rows} shown={shown} selected={symbol || null} win={win} byMove={byMove} catalog={catalog} addUnavailable={addUnavailable} onWindow={setWin} onByMove={setByMove} onPick={choose} onAdd={add} />
         <ColumnHandle
           panel={panel}
           cssVar="--wlv-list"

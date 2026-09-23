@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { knownCandidates, mergeCandidates, queryBase, suggest, type Candidate } from "./suggest";
+import { named, queryBase, suggest, type Candidate } from "./suggest";
 
-const c = (symbol: string, sources: string[], name?: string): Candidate => ({ symbol, base: symbol.split("/")[0], name, sources });
+const c = (symbol: string, name?: string): Candidate => ({ symbol, base: symbol.split("/")[0], name });
 
 describe("queryBase", () => {
   it("reads a ticker from what is typed", () => {
@@ -13,25 +13,19 @@ describe("queryBase", () => {
   });
 });
 
-describe("mergeCandidates", () => {
-  it("merges a pair's sources and names it", () => {
-    const merged = mergeCandidates([[c("BTC/USDT", ["bytnode"], "Bitcoin")], [c("BTC/USDT", ["binance"]), c("PEPE/USDT", ["binance"])]]);
-    expect(merged).toEqual([
-      { symbol: "BTC/USDT", base: "BTC", name: "Bitcoin", sources: ["bytnode", "binance"] },
-      { symbol: "PEPE/USDT", base: "PEPE", name: "Pepe", sources: ["binance"] },
-    ]);
+describe("named", () => {
+  it("keeps a pair once and names it", () => {
+    expect(named([c("BTC/USDT", "Bitcoin"), c("BTC/USDT"), c("HYPE/USDT")])).toEqual([c("BTC/USDT", "Bitcoin"), c("HYPE/USDT", "Hyperliquid")]);
   });
 });
 
 describe("suggest", () => {
-  const catalog = mergeCandidates([
-    [c("BTC/USDT", ["bytnode"], "Bitcoin"), c("ETH/USDT", ["bytnode"], "Ethereum"), c("SOL/USDT", ["bytnode"], "Solana")],
-    [c("ETH/USDC", ["kraken"]), c("ETHFI/USDT", ["binance"]), c("BTC/USDC", ["kraken"]), c("WBTC/USDT", ["binance"])],
-  ]);
+  const catalog = named([c("BTC/USDT", "Bitcoin"), c("ETH/USDT", "Ethereum"), c("SOL/USDT", "Solana"), c("SUI/USDT"), c("ETHFI/USDT"), c("WBTC/USDT")]);
 
   it("proposes from the first letter, the ticker itself first", () => {
-    expect(suggest("e", catalog).map((x) => x.symbol)).toEqual(["ETH/USDT", "ETH/USDC", "ETHFI/USDT"]);
-    expect(suggest("btc", catalog).map((x) => x.symbol)).toEqual(["BTC/USDT", "BTC/USDC", "WBTC/USDT"]);
+    expect(suggest("e", catalog).map((x) => x.symbol)).toEqual(["ETH/USDT", "ETHFI/USDT"]);
+    expect(suggest("btc", catalog).map((x) => x.symbol)).toEqual(["BTC/USDT", "WBTC/USDT"]);
+    expect(suggest("s", catalog).map((x) => x.base)).toEqual(["SOL", "SUI"]);
   });
 
   it("finds an asset by its name", () => {
@@ -39,17 +33,14 @@ describe("suggest", () => {
     expect(suggest("bitc", catalog)[0].symbol).toBe("BTC/USDT");
   });
 
-  it("proposes nothing for nothing, and stops at the limit", () => {
+  it("finds nothing for what BytNode does not cover", () => {
+    expect(suggest("bbad/usdt", catalog)).toEqual([]);
     expect(suggest("  ", catalog)).toEqual([]);
-    expect(suggest("e", catalog, 2)).toHaveLength(2);
   });
 
-  it("lists only what starts with a single letter", () => {
+  it("lists only what starts with a single letter, and stops at the limit", () => {
     expect(suggest("t", catalog)).toEqual([]);
-    expect(suggest("th", catalog).map((x) => x.base)).toEqual(["ETH", "ETH", "ETHFI"]);
-  });
-
-  it("falls back on well-known assets", () => {
-    expect(suggest("do", knownCandidates()).map((x) => x.base)).toEqual(["DOGE", "DOT"]);
+    expect(suggest("th", catalog).map((x) => x.base)).toEqual(["ETH", "ETHFI"]);
+    expect(suggest("e", catalog, 1)).toHaveLength(1);
   });
 });

@@ -70,10 +70,13 @@ function clampView(view: View, n: number): View {
 /** Draws the chart; returns the price scale's width (the handlers need
     the plot's). */
 function draw(canvas: HTMLCanvasElement, data: Candle[], interval: Interval, mode: ChartMode, view: View, hover: { x: number; y: number } | null, pal: Palette): number {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  /* Drawn in the canvas's CSS pixels; the bitmap follows its size ON
+     SCREEN — a zoomed view (90 %) shows it smaller, and a bitmap of its
+     CSS size would be scaled down, blurred. */
   const W = canvas.clientWidth;
   const H = canvas.clientHeight;
   if (W < 10 || H < 10) return AXIS_MIN;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2) * (canvas.getBoundingClientRect().width / W || 1);
   if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
@@ -306,9 +309,11 @@ export function PriceChart({ candles, interval, mode, message }: Props) {
     const scheme = matchMedia("(prefers-color-scheme: dark)");
     scheme.addEventListener("change", retheme);
 
+    /* The pointer, in the canvas's CSS pixels (a zoomed view divides). */
     const at = (e: PointerEvent | WheelEvent) => {
       const r = el.getBoundingClientRect();
-      return { x: e.clientX - r.left, y: e.clientY - r.top, w: r.width - s.axisW };
+      const z = r.width / (el.clientWidth || r.width) || 1;
+      return { x: (e.clientX - r.left) / z, y: (e.clientY - r.top) / z, w: r.width / z - s.axisW };
     };
     /* The wheel zooms around the bar under the pointer. */
     const wheel = (e: WheelEvent) => {
@@ -336,7 +341,8 @@ export function PriceChart({ candles, interval, mode, message }: Props) {
       s.hover = { x: p.x, y: p.y };
       if (s.drag) {
         const barW = p.w / s.view.bars;
-        s.view = clampView({ bars: s.view.bars, offset: s.drag.offset + (e.clientX - s.drag.x) / barW }, s.data.length);
+        const z = el.getBoundingClientRect().width / (el.clientWidth || 1) || 1;
+        s.view = clampView({ bars: s.view.bars, offset: s.drag.offset + (e.clientX - s.drag.x) / z / barW }, s.data.length);
       }
       paint();
     };

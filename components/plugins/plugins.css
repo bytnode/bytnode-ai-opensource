@@ -15,9 +15,14 @@
   scrollbar-color: rgba(var(--ink), 0.22) transparent;
 }
 
-/* A view that fills the tab itself and scrolls inside its own panes. */
+/* A view that fills the tab itself and scrolls inside its own panes —
+   read at 90 %, as a browser zoomed out one step: the calendar and the
+   watchlist hold a lot, and read better a size smaller. ⚠️ `zoom` scales
+   what the page measures: a canvas that sizes itself (the watchlist's
+   chart and heat map) compares its box on screen to its CSS size. */
 .pv.pv-bare {
   overflow: hidden;
+  zoom: 0.9;
 }
 
 /* --- The bare views' language (the calendar, the watchlist) -----------------

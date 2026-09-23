@@ -197,8 +197,7 @@ html[data-theme="light"] .wlv-suggest {
 }
 
 .wlv-suggest-item {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  display: flex;
   align-items: baseline;
   gap: 10px;
   padding: 9px 12px;
@@ -217,11 +216,27 @@ html[data-theme="light"] .wlv-suggest {
 }
 
 .wlv-suggest-name {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   font-size: 13.5px;
   color: var(--label-2);
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* Nothing BytNode covers matches: said in the same bubble. */
+.wlv-suggest-none {
+  display: block;
+  padding: 12px 14px;
+  font-size: 13.5px;
+  color: var(--label-3);
+}
+
+.wlv-add-note {
+  margin: 8px 4px 0;
+  font-size: 12.5px;
+  color: var(--label-3);
 }
 
 .wlv-suggest-src {

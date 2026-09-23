@@ -22,10 +22,11 @@ type Props = {
   onByMove: (on: boolean) => void;
   onPick: (symbol: string) => void;
   catalog: Candidate[];
+  addUnavailable: string | null;
   onAdd: (symbol: string) => Promise<boolean>;
 };
 
-export function ListPane({ rows, shown, selected, win, byMove, catalog, onWindow, onByMove, onPick, onAdd }: Props) {
+export function ListPane({ rows, shown, selected, win, byMove, catalog, addUnavailable, onWindow, onByMove, onPick, onAdd }: Props) {
   return (
     <section className="wlv-pane wlv-side" aria-label="Your assets">
       <header className="wlv-side-bar">
@@ -34,7 +35,7 @@ export function ListPane({ rows, shown, selected, win, byMove, catalog, onWindow
         </h2>
         {rows && rows.length > 0 && <span className="wlv-count">{rows.length}</span>}
       </header>
-      <AddField catalog={catalog} followed={new Set((rows ?? []).map((r) => r.symbol))} onAdd={onAdd} onPick={onPick} />
+      <AddField catalog={catalog} unavailable={addUnavailable} followed={new Set((rows ?? []).map((r) => r.symbol))} onAdd={onAdd} onPick={onPick} />
       <div className="wlv-windows">
         <Segmented label="Change over" value={win} options={WINDOWS} onChange={onWindow} wide />
       </div>

@@ -334,7 +334,10 @@ export function useHeatField(canvas: RefObject<HTMLCanvasElement | null>, grid: 
       gl.uniform2f(u.uOrigin, first.left - rect.left, first.top - rect.top);
       gl.uniform2f(u.uTile, first.width, first.height);
       gl.uniform1f(u.uGap, Math.max(0, gap));
-      gl.uniform1f(u.uRadius, parseFloat(getComputedStyle(box).getPropertyValue("--r-block")) || 16);
+      /* The corner's radius is in CSS pixels; everything else here is
+         measured on screen — a zoomed view (90 %) scales it. */
+      const zoom = rect.width / (box.clientWidth || rect.width) || 1;
+      gl.uniform1f(u.uRadius, (parseFloat(getComputedStyle(box).getPropertyValue("--r-block")) || 16) * zoom);
       gl.uniform1i(u.uCols, Math.max(1, cols));
       gl.uniform1i(u.uCount, f.count);
       gl.uniform3f(u.uInk, colors.ink[0], colors.ink[1], colors.ink[2]);

@@ -4,7 +4,7 @@ import { isInterval, readKlines } from "../shared/candle";
 import { CORE_FIELDS, PRESSURE_FIELDS, readInsight } from "./insight";
 import { INDICATORS, RESULTS, readTechnicals } from "./technicals";
 import { bytnodeSymbol, normalizeSymbol } from "../shared/quote";
-import { candles, isQuote, listedPairs, quote, quotes } from "../shared/prices";
+import { bytnodePairs, candles, isQuote, quote, quotes } from "../shared/prices";
 import { EMPTY, editWatchlist, watchlistPrompt, type Watchlist } from "./list";
 import { watchlistManifest } from "./manifest";
 import type { WatchlistService } from "./service";
@@ -93,12 +93,28 @@ export const watchlistPlugin = definePlugin({
         return { symbol, interval, error: `BytNode's signals for ${symbol} could not be read.` };
       }
     });
-    /* What the add field proposes: the pairs that can be priced, per
-       source (merged and ranked in the browser, `suggest.ts`). */
-    ctx.api("symbols", async (_params, { transport, signal }) => listedPairs({ bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal }));
-    ctx.api("edit", async (params) => {
+    /* What the add field proposes: BytNode's pairs only (ranked in the
+       browser, `suggest.ts`). */
+    ctx.api("symbols", async (_params, { transport, signal }) => bytnodePairs(transport.bytnodeKey, signal));
+    /* The view's edits. An asset added from the view must be one BytNode
+       covers — the field offers nothing else, and this holds it server
+       side too; the others come back in `invalid`. One already followed
+       passes (a note is edited through `add`). (The agents' tool is not
+       bound by it.) */
+    ctx.api("edit", async (params, { transport, signal }) => {
+      let refused: string[] = [];
+      let add = Array.isArray(params.add) ? params.add.map(String) : undefined;
+      if (add?.length) {
+        const covered = new Set((await bytnodePairs(transport.bytnodeKey, signal)).map((x) => x.symbol));
+        const followed = new Set((await read()).map((x) => x.symbol));
+        refused = add.filter((s) => {
+          const symbol = normalizeSymbol(s) ?? "";
+          return !covered.has(symbol) && !followed.has(symbol);
+        });
+        add = add.filter((s) => !refused.includes(s));
+      }
       const change = {
-        add: Array.isArray(params.add) ? params.add.map(String) : undefined,
+        add,
         remove: Array.isArray(params.remove) ? params.remove.map(String) : undefined,
         note: typeof params.note === "string" ? params.note : undefined,
       };
@@ -109,7 +125,7 @@ export const watchlistPlugin = definePlugin({
         return r.list;
       });
       changed();
-      return { count: list.items.length, invalid };
+      return { count: list.items.length, invalid: [...refused, ...invalid] };
     });
   },
 });

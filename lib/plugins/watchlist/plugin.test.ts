@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { quotes } from "../shared/prices";
+import { bytnodePairs, quotes } from "../shared/prices";
 import { harness, type Harness } from "../test-fixture";
 import { watchlistPlugin } from ".";
 import type { WatchlistService } from "./service";
 
-vi.mock("../shared/prices", async (orig) => ({ ...(await orig<typeof import("../shared/prices")>()), quotes: vi.fn() }));
+vi.mock("../shared/prices", async (orig) => ({ ...(await orig<typeof import("../shared/prices")>()), quotes: vi.fn(), bytnodePairs: vi.fn() }));
 
 let h: Harness;
 afterEach(async () => h?.close());
@@ -44,10 +44,16 @@ describe("watchlist plugin", () => {
     expect(await service!.symbols()).toEqual(["SOL/USDT"]);
   });
 
-  it("the view edits through the same rules", async () => {
+  it("the view adds only what BytNode covers — an asset already followed stays editable", async () => {
     h = await harness([watchlistPlugin]);
+    vi.mocked(bytnodePairs).mockResolvedValue([
+      { symbol: "BTC/USDT", base: "BTC", name: "Bitcoin" },
+      { symbol: "ETH/USDT", base: "ETH", name: "Ethereum" },
+    ]);
+    await h.tool("WatchlistEdit").execute({ add: ["pepe"] }, h.ctx());
     const edit = h.runtime.handler("watchlist", "edit")!;
-    const res = await edit({ add: ["btc", "not a symbol"] }, { transport: { openrouterKey: "", bytnodeKey: "", exchangeAccounts: [], plugins: null }, signal: new AbortController().signal });
-    expect(res).toEqual({ count: 1, invalid: ["not a symbol"] });
+    const opts = { transport: { openrouterKey: "", bytnodeKey: "k", exchangeAccounts: [], plugins: null }, signal: new AbortController().signal };
+    expect(await edit({ add: ["btc", "bbad/usdt", "not a symbol"] }, opts)).toEqual({ count: 2, invalid: ["bbad/usdt", "not a symbol"] });
+    expect(await edit({ add: ["PEPE/USDT"], note: "meme" }, opts)).toEqual({ count: 2, invalid: [] });
   });
 });

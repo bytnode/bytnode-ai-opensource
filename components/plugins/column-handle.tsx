@@ -28,10 +28,13 @@ export function ColumnHandle({ panel, cssVar, width, min, max, reset, clamp, onC
     e.preventDefault();
     const box = panel.current;
     if (!box) return;
-    const left = box.getBoundingClientRect().left;
+    const rect = box.getBoundingClientRect();
+    /* The mouse moves in screen pixels, the width is in the view's CSS
+       pixels: a zoomed view (the bare ones are at 90 %) divides. */
+    const zoom = rect.width / (box.offsetWidth || rect.width) || 1;
     let next = width;
     const move = (ev: MouseEvent) => {
-      next = clamp(ev.clientX - left);
+      next = clamp((ev.clientX - rect.left) / zoom);
       box.style.setProperty(cssVar, `${next}px`);
     };
     const up = () => {
