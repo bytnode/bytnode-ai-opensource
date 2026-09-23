@@ -17,6 +17,7 @@ import type { CalendarService } from "./service";
 const EVENTS = "events.json";
 const LAST = "collection.json";
 const DAY = 24 * 3600_000;
+const MAX_VIEW_DAYS = 62;
 
 type LastCollection = { at: string; days: number; added: number; updated: number; rejected: string[] };
 
@@ -74,8 +75,10 @@ export const calendarPlugin = definePlugin({
       const mine = params.watchlist === true ? await watchlist() : null;
       const categories = Array.isArray(params.categories) ? (params.categories.filter((c) => typeof c === "string") as Category[]) : undefined;
       const minImportance = typeof params.minImportance === "number" ? params.minImportance : undefined;
+      /* A week by default; a month view asks for its six weeks. */
+      const days = typeof params.days === "number" ? Math.min(Math.max(Math.round(params.days), 1), MAX_VIEW_DAYS) : 7;
       return {
-        events: await search({ from, to: new Date(from.getTime() + 7 * DAY), categories, minImportance, assets: mine ?? undefined }),
+        events: await search({ from, to: new Date(from.getTime() + days * DAY), categories, minImportance, assets: mine ?? undefined }),
         last: await last(),
         watchlist: (await watchlist()) !== null,
       };

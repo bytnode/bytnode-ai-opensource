@@ -68,6 +68,24 @@ export const ChevronDown = (p: P) => (
   </svg>
 );
 
+export const ChevronLeft = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M14.5 6 8.5 12l6 6" />
+  </svg>
+);
+
+export const ChevronRight = (p: P) => (
+  <svg {...base(p)}>
+    <path d="m9.5 6 6 6-6 6" />
+  </svg>
+);
+
+export const Filter = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M4.5 7h15M7.5 12h9M10.5 17h3" />
+  </svg>
+);
+
 export const Close = (p: P) => (
   <svg {...base(p)}>
     <path d="M6 6l12 12M18 6 6 18" />
