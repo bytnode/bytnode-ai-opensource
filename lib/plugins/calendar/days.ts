@@ -60,6 +60,35 @@ export function byDay(events: CalendarEvent[]): Map<string, CalendarEvent[]> {
   return map;
 }
 
+/** A day's events by local hour: the all-day ones apart, then one list
+    per hour, 0 to 23 (in the order they come, `byDay`'s). */
+export function byHour(events: CalendarEvent[]): { allDay: CalendarEvent[]; hours: CalendarEvent[][] } {
+  const allDay: CalendarEvent[] = [];
+  const hours: CalendarEvent[][] = Array.from({ length: 24 }, () => []);
+  for (const e of events) (e.allDay ? allDay : hours[new Date(e.startsAt).getHours()]).push(e);
+  return { allDay, hours };
+}
+
+/** Consecutive days grouped by week, Monday to Sunday: a month's days
+    give its weeks, the first and the last often partial. */
+export function weeksOf(days: Date[]): Date[][] {
+  const weeks: Date[][] = [];
+  for (const d of days) {
+    const last = weeks[weeks.length - 1];
+    if (last && sameDay(startOfWeek(last[0]), startOfWeek(d))) last.push(d);
+    else weeks.push([d]);
+  }
+  return weeks;
+}
+
+/** The ISO 8601 week number: weeks start on Monday, and week 1 is the one
+    that holds the year's first Thursday. */
+export function isoWeek(d: Date): number {
+  const thursday = addDays(startOfWeek(d), 3);
+  const jan1 = new Date(thursday.getFullYear(), 0, 1);
+  return Math.floor(Math.round((thursday.getTime() - jan1.getTime()) / DAY_MS) / 7) + 1;
+}
+
 /** The first day after `day` that has an event in `days` (as `byDay`
     groups them), or null — what an empty day points to. */
 export function nextBusyDay(days: Map<string, CalendarEvent[]>, day: Date): Date | null {

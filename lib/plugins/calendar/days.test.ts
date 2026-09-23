@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, byDay, dayKey, eventDay, monthGrid, nextBusyDay, periodDays, startOfWeek } from "./days";
+import { addDays, byDay, byHour, dayKey, eventDay, isoWeek, monthGrid, nextBusyDay, periodDays, startOfWeek, weeksOf } from "./days";
 import type { CalendarEvent } from "./events";
 
 const ev = (id: string, startsAt: string, over: Partial<CalendarEvent> = {}): CalendarEvent => ({
@@ -44,6 +44,27 @@ describe("calendar days", () => {
     const map = byDay([ev("late", at(18)), ev("allday", "2026-09-24T00:00:00.000Z", { allDay: true }), ev("minor", at(9)), ev("major", at(9), { importance: 3 })]);
     expect(map.get(dayKey(new Date(2026, 8, 24)))!.map((e) => e.id)).toEqual(["allday", "major", "minor", "late"]);
     expect(addDays(new Date(2026, 9, 25), 7)).toEqual(new Date(2026, 10, 1));
+  });
+
+  it("a day by hour: the all-day events apart, one list per hour", () => {
+    const { allDay, hours } = byHour([ev("allday", "2026-09-24T00:00:00.000Z", { allDay: true }), ev("nine", new Date(2026, 8, 24, 9, 30).toISOString()), ev("nine2", new Date(2026, 8, 24, 9).toISOString()), ev("late", new Date(2026, 8, 24, 23, 59).toISOString())]);
+    expect(allDay.map((e) => e.id)).toEqual(["allday"]);
+    expect(hours).toHaveLength(24);
+    expect(hours[9].map((e) => e.id)).toEqual(["nine", "nine2"]);
+    expect(hours[23].map((e) => e.id)).toEqual(["late"]);
+    expect(hours[0]).toEqual([]);
+  });
+
+  it("a month's days fall into weeks; weeks carry their ISO number", () => {
+    const weeks = weeksOf(periodDays({ kind: "month" }, wed));
+    expect(weeks.map((w) => w.length)).toEqual([6, 7, 7, 7, 3]);
+    expect(weeks[0][0]).toEqual(new Date(2026, 8, 1));
+    expect(weeks[4][2]).toEqual(new Date(2026, 8, 30));
+    expect(isoWeek(wed)).toBe(39);
+    expect(isoWeek(new Date(2026, 0, 1))).toBe(1);
+    expect(isoWeek(new Date(2027, 0, 1))).toBe(53);
+    expect(isoWeek(new Date(2027, 0, 4))).toBe(1);
+    expect(isoWeek(new Date(2024, 11, 30))).toBe(1);
   });
 
   it("an empty day points to the next busy one", () => {

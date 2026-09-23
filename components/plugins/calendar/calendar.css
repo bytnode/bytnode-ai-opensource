@@ -25,6 +25,7 @@
   --sep: rgba(var(--ink), 0.085);
   --fill: rgba(var(--ink), 0.06);
   --pane: rgba(var(--voile), 0.5);
+  --pin: rgba(var(--voile), 0.94);
 
   display: flex;
   height: 100%;
@@ -46,6 +47,7 @@ html[data-theme="light"] .calv {
   --label-3: rgba(var(--ink), 0.42);
   --sep: rgba(var(--ink), 0.1);
   --pane: rgba(255, 255, 255, 0.6);
+  --pin: rgba(250, 251, 253, 0.96);
 }
 
 /* The block hangs from the tab bar: no gap above it, square top corners,
@@ -524,54 +526,37 @@ html[data-theme="light"] .calv-pop {
   color: var(--label-3);
 }
 
-.calv-day-empty {
-  padding: 10px 0 2px;
-}
-
-.calv-none {
-  padding: 18px 0;
-}
-
-/* An empty day: said once, plainly, with the way to the next busy day. */
-.calv-rest {
+/* An empty day, said in the header, with the way to the next busy day. */
+.calv-agenda-empty {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
   gap: 12px;
-  min-height: min(360px, 55vh);
-  text-align: center;
-}
-
-.calv-rest-title {
-  margin: 0;
-  font-family: var(--font-display), sans-serif;
-  font-weight: 400;
-  font-size: 22px;
-  letter-spacing: -0.015em;
+  margin: 12px 0 0;
+  font-size: 14px;
   color: var(--label-3);
 }
 
-.calv-rest-next {
+.calv-next {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 30px;
-  padding: 0 8px 0 13px;
+  height: 28px;
+  padding: 0 8px 0 12px;
   border: 0;
   border-radius: 999px;
   background: var(--fill);
   color: var(--label);
   font: inherit;
-  font-size: 13.5px;
+  font-size: 13px;
   cursor: pointer;
 }
 
-.calv-rest-next:hover {
+.calv-next:hover {
   background: rgba(var(--ink), 0.1);
 }
 
-.calv-rest-next svg {
+.calv-next svg {
   width: 14px;
   height: 14px;
   stroke-width: 2;
@@ -582,9 +567,12 @@ html[data-theme="light"] .calv-pop {
 
 /* The days of the period already gone. */
 .calv-day-section.is-past .calv-day-title,
-.calv-day-section.is-past .calv-rows,
-.calv-day-section.is-past .calv-day-empty {
+.calv-day-section.is-past .calv-rows {
   opacity: 0.5;
+}
+
+.calv-day-section.is-today .calv-day-title {
+  color: var(--cal-today);
 }
 
 .calv-rows {
@@ -691,6 +679,269 @@ html[data-theme="light"] .calv-pop {
   background: var(--tone);
 }
 
+/* --- A day on its hours ------------------------------------------------------- */
+
+.calv-hours {
+  padding: 8px 0 28px;
+}
+
+.calv-hour {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+}
+
+/* The hour sits on its line, like Calendar's. */
+.calv-hour-label {
+  position: relative;
+  top: -0.55em;
+  padding-right: 12px;
+  font-size: 11.5px;
+  line-height: 1;
+  color: var(--label-3);
+  text-align: right;
+}
+
+.calv-hour-slot {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-height: 48px;
+  padding: 4px 0 4px 8px;
+  border-top: 1px solid var(--sep);
+}
+
+.calv-hours.is-compact .calv-hour-slot {
+  min-height: 28px;
+  padding: 3px 0 3px 8px;
+}
+
+/* The all-day events stay on top while the hours scroll under them. */
+.calv-hour.is-allday {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--pin);
+}
+
+.calv-hour.is-allday .calv-hour-label {
+  top: 0;
+  padding-top: 12px;
+}
+
+.calv-hour.is-allday .calv-hour-slot {
+  min-height: 0;
+  padding: 6px 0 8px 8px;
+  border-top: 0;
+  border-bottom: 1px solid rgba(var(--ink), 0.16);
+}
+
+/* Room for the first hour's label under the all-day line. */
+.calv-hour.is-allday + .calv-hour {
+  margin-top: 12px;
+}
+
+.calv-hours.is-compact .calv-hour.is-allday {
+  position: static;
+  background: none;
+}
+
+/* Now: a red line across the hour, a dot where it starts. */
+.calv-now {
+  position: absolute;
+  z-index: 1;
+  left: -4px;
+  right: 0;
+  border-top: 2px solid var(--cal-today);
+  pointer-events: none;
+}
+
+.calv-now::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cal-today);
+}
+
+.calv-block {
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--tone) 17%, transparent);
+  box-shadow: inset 3px 0 0 var(--tone);
+}
+
+.calv-block-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 12px 6px 14px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.calv-block-main:hover {
+  background: color-mix(in srgb, var(--tone) 10%, transparent);
+}
+
+.calv-block-time {
+  font-size: 12.5px;
+  color: var(--label-2);
+}
+
+.calv-block-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.calv-block.is-strong .calv-block-title {
+  font-weight: 600;
+}
+
+.calv-block-assets {
+  font-size: 12px;
+  color: var(--label-2);
+}
+
+.calv-block-detail {
+  padding: 2px 14px 12px;
+}
+
+.calv-hours.is-compact .calv-block-main {
+  min-height: 28px;
+  padding: 4px 10px 4px 12px;
+  font-size: 13px;
+}
+
+/* --- A week on its days, a month on its weeks ---------------------------------- */
+
+.calv-folds {
+  padding: 4px 0 28px;
+}
+
+.calv-fold {
+  border-bottom: 1px solid var(--sep);
+}
+
+.calv-fold-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 54px;
+  padding: 8px 8px 8px 4px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.calv-fold-head:hover {
+  background: var(--fill);
+}
+
+.calv-fold.is-past > .calv-fold-head {
+  opacity: 0.5;
+}
+
+.calv-fold-chev {
+  display: inline-flex;
+  flex: none;
+  color: var(--label-3);
+  transition: transform 160ms var(--ease);
+}
+
+.calv-fold-chev svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.calv-fold.is-open .calv-fold-chev {
+  transform: rotate(90deg);
+}
+
+.calv-fold-title {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.calv-fold.is-current .calv-fold-title {
+  color: var(--cal-today);
+}
+
+.calv-fold-date {
+  font-size: 15px;
+  color: var(--label-2);
+  white-space: nowrap;
+}
+
+.calv-fold-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-left: auto;
+}
+
+.calv-fold-count {
+  margin-left: auto;
+  padding-left: 4px;
+  font-size: 13px;
+  color: var(--label-3);
+  white-space: nowrap;
+}
+
+.calv-chip {
+  min-width: 0;
+  max-width: 300px;
+  height: 24px;
+  padding: 0 9px 0 11px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--tone) 17%, transparent);
+  box-shadow: inset 2px 0 0 var(--tone);
+  font-size: 12.5px;
+  line-height: 24px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.calv-chip.is-strong {
+  font-weight: 600;
+}
+
+.calv-fold-body {
+  padding: 0 0 16px 28px;
+}
+
+.calv-fold-body .calv-day-section {
+  padding-top: 4px;
+}
+
+.calv-fold-body .calv-day-title {
+  font-size: 14px;
+}
+
 /* --- Small screens and reduced motion ------------------------------------------ */
 
 @media (max-width: 900px) {
@@ -718,6 +969,16 @@ html[data-theme="light"] .calv-pop {
   }
 }
 
+@media (max-width: 640px) {
+  .calv-fold-chips {
+    display: none;
+  }
+
+  .calv-fold-body {
+    padding-left: 8px;
+  }
+}
+
 /* A short window: the month's rows and the calendars tighten so the pane
    still holds without scrolling. */
 @media (max-height: 800px) and (min-width: 901px) {
@@ -733,5 +994,9 @@ html[data-theme="light"] .calv-pop {
 @media (prefers-reduced-motion: reduce) {
   .calv-pop {
     animation: none;
+  }
+
+  .calv-fold-chev {
+    transition: none;
   }
 }
