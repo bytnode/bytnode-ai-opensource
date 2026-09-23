@@ -33,6 +33,9 @@ export async function GET(req: Request) {
   if (!isInside(workspace, target)) return new Response("outside the workspace", { status: 403 });
   const type = TYPES[path.extname(target).toLowerCase()];
   if (!type) return new Response("type not served", { status: 415 });
+  /* A page, only where reports are written: an HTML file anywhere else in
+     the workspace is not served, even inert. */
+  if (type.startsWith("text/html") && !isInside(path.join(workspace, "reports"), target)) return new Response("HTML is only served from reports/", { status: 415 });
   try {
     const buf = await fs.readFile(target);
     /* Served from the application's origin, where the keys live: an SVG (or
