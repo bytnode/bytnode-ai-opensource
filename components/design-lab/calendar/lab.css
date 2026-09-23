@@ -113,6 +113,76 @@ html[data-theme="light"] .cl {
   color: var(--label-2);
 }
 
+/* The month and the year of a title, each opening its picker. */
+.cl-title-btn {
+  margin: 0 -4px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.cl-title-btn:hover,
+.cl-title-btn.is-open {
+  background: var(--fill);
+}
+
+.cl-title-btn.cl-title-year {
+  font-weight: 300;
+  color: var(--label-2);
+}
+
+.cl-picker {
+  top: 38px;
+  left: 0;
+  width: 252px;
+}
+
+.cl-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cl-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.cl-picker-item {
+  height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--label);
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.cl-picker-item:hover {
+  background: var(--fill);
+}
+
+.cl-picker-item.is-today {
+  color: var(--cal-today);
+  font-weight: 600;
+}
+
+.cl-picker-item.is-current {
+  background: rgb(var(--ink));
+  color: rgb(var(--ink-inv));
+  font-weight: 600;
+}
+
 .cl-status {
   font-size: 12px;
   color: var(--label-3);
@@ -840,7 +910,7 @@ html[data-theme="light"] .cl-pop {
 .a-cal {
   display: flex;
   flex-direction: column;
-  flex: 0 0 clamp(300px, 26%, 370px);
+  flex: 0 0 clamp(330px, 29%, 410px);
   min-height: 0;
   overflow-y: auto;
   border-right: 1px solid var(--sep);
@@ -854,6 +924,18 @@ html[data-theme="light"] .cl-pop {
   flex: none;
   font-size: 20px;
   white-space: nowrap;
+}
+
+.a-periods {
+  padding: 0 12px 10px;
+}
+
+.a-periods .cl-seg {
+  display: flex;
+}
+
+.a-periods .cl-seg button {
+  flex: 1;
 }
 
 .a-cal-weekdays,
@@ -896,6 +978,11 @@ html[data-theme="light"] .cl-pop {
 
 .a-cal-day:hover {
   background: var(--fill);
+}
+
+/* The days of the chosen week, as one band. */
+.a-cal-day.in-range {
+  background: rgba(var(--ink), 0.07);
 }
 
 .a-cal-num {
@@ -961,13 +1048,13 @@ html[data-theme="light"] .cl-pop {
 
 /* The calendars under the month: two aligned columns, then the switch. */
 .cl-filters {
-  padding: 12px 14px 16px;
+  padding: 14px 12px 18px;
   border-top: 1px solid var(--sep);
 }
 
 .cl-filters-title {
-  margin: 0 0 6px 8px;
-  font-size: 12px;
+  margin: 0 0 8px 10px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--label-2);
 }
@@ -975,22 +1062,22 @@ html[data-theme="light"] .cl-pop {
 .cl-filters-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 2px 6px;
+  gap: 4px 8px;
 }
 
 .cl-filter {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
-  height: 30px;
-  padding: 0 8px;
+  height: 38px;
+  padding: 0 10px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 9px;
   background: transparent;
   color: var(--label);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   text-align: left;
   cursor: pointer;
 }
@@ -1001,8 +1088,8 @@ html[data-theme="light"] .cl-pop {
 
 .cl-filter-dot {
   flex: none;
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: var(--tone);
 }
@@ -1016,7 +1103,7 @@ html[data-theme="light"] .cl-pop {
 }
 
 .cl-filter-count {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--label-3);
 }
 
@@ -1033,10 +1120,10 @@ html[data-theme="light"] .cl-pop {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 8px;
-  padding: 10px 8px 0;
+  margin-top: 10px;
+  padding: 12px 10px 0;
   border-top: 1px solid var(--sep);
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
 }
 
@@ -1068,6 +1155,7 @@ html[data-theme="light"] .cl-pop {
 }
 
 .a-list {
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -1096,8 +1184,19 @@ html[data-theme="light"] .cl-pop {
   color: var(--label-2);
 }
 
-.a-day:first-child .cl-empty {
-  padding: 14px 0;
+.a-day-empty {
+  padding: 10px 0 2px;
+}
+
+.a-none {
+  padding: 18px 0;
+}
+
+/* The days of the period already gone. */
+.a-day.is-past .a-day-title,
+.a-day.is-past .a-rows,
+.a-day.is-past .a-day-empty {
+  opacity: 0.5;
 }
 
 .a-rows {
@@ -1160,10 +1259,6 @@ html[data-theme="light"] .cl-pop {
   padding: 4px 10px 14px 99px;
 }
 
-.a-end {
-  padding: 32px 0 0;
-  text-align: center;
-}
 
 /* --- Small screens and reduced motion ------------------------------------------ */
 

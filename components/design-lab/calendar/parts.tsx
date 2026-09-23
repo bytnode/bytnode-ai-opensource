@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { CATEGORIES, CATEGORY_LABELS, type CalendarEvent, type Category } from "@/lib/plugins/calendar/events";
 import { ChevronLeft, ChevronRight, Filter } from "@/components/ui/icons";
 import { Switch } from "@/components/ui/switch";
@@ -12,7 +12,9 @@ import { CATEGORY_TONE, eventDay, LOCALE, timeOf } from "./model";
 
 export const tone = (e: CalendarEvent) => ({ "--tone": CATEGORY_TONE[e.category] }) as CSSProperties;
 
-export function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: Array<{ value: T; label: string }>; onChange: (v: T) => void; label: string }) {
+/** Apple's segmented control; `value` null: no segment is on (the view
+    shows something none of them names). */
+export function Segmented<T extends string>({ value, options, onChange, label }: { value: T | null; options: Array<{ value: T; label: string }>; onChange: (v: T) => void; label: string }) {
   return (
     <div className="cl-seg" role="radiogroup" aria-label={label}>
       {options.map((o) => (
@@ -123,21 +125,31 @@ export function CalendarFilters({ filter, counts }: { filter: FilterState; count
   );
 }
 
-/** The calendars list, behind a toolbar button. */
-export function FilterMenu({ filter }: { filter: FilterState }) {
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
+/** Closes a popover on a click outside `root` or on Escape. */
+function useDismiss(open: boolean, close: () => void, root: RefObject<HTMLElement | null>) {
   useEffect(() => {
     if (!open) return;
-    const down = (e: MouseEvent) => root.current && !root.current.contains(e.target as Node) && setOpen(false);
-    const key = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const down = (e: MouseEvent) => {
+      if (root.current && !root.current.contains(e.target as Node)) close();
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
     document.addEventListener("mousedown", down);
     document.addEventListener("keydown", key);
     return () => {
       document.removeEventListener("mousedown", down);
       document.removeEventListener("keydown", key);
     };
-  }, [open]);
+  }, [open, close, root]);
+}
+
+/** The calendars list, behind a toolbar button. */
+export function FilterMenu({ filter }: { filter: FilterState }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  useDismiss(open, close, root);
   const active = filter.hidden.length > 0 || filter.strongOnly;
   return (
     <div className="cl-pop-anchor" ref={root}>
@@ -147,6 +159,82 @@ export function FilterMenu({ filter }: { filter: FilterState }) {
       {open && (
         <div className="cl-pop cl-pop-end" role="dialog" aria-label="Calendars">
           <CalendarList filter={filter} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+const YEARS = 12;
+
+/** The month and the year of the title, each a button: the month opens the
+    twelve months, the year twelve years at a time. */
+export function MonthTitle({ month, today, onChange }: { month: Date; today: Date; onChange: (month: Date) => void }) {
+  const [open, setOpen] = useState<"month" | "year" | null>(null);
+  const [first, setFirst] = useState(month.getFullYear() - 5);
+  const root = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => setOpen(null), []);
+  useDismiss(open !== null, close, root);
+  const year = month.getFullYear();
+  const pick = (d: Date) => {
+    onChange(d);
+    setOpen(null);
+  };
+
+  return (
+    <div className="cl-pop-anchor cl-month-title" ref={root}>
+      <h1 className="cl-title">
+        <button type="button" className={`cl-title-btn${open === "month" ? " is-open" : ""}`} aria-expanded={open === "month"} onClick={() => setOpen(open === "month" ? null : "month")}>
+          {month.toLocaleDateString(LOCALE, { month: "long" })}
+        </button>{" "}
+        <button
+          type="button"
+          className={`cl-title-btn cl-title-year${open === "year" ? " is-open" : ""}`}
+          aria-expanded={open === "year"}
+          onClick={() => {
+            setFirst(year - 5);
+            setOpen(open === "year" ? null : "year");
+          }}
+        >
+          {year}
+        </button>
+      </h1>
+      {open === "month" && (
+        <div className="cl-pop cl-picker" role="dialog" aria-label="Months">
+          <div className="cl-picker-grid">
+            {Array.from({ length: 12 }, (_, i) => new Date(year, i, 1)).map((d) => (
+              <button
+                key={d.getMonth()}
+                type="button"
+                className={`cl-picker-item${d.getMonth() === month.getMonth() ? " is-current" : ""}${d.getMonth() === today.getMonth() && year === today.getFullYear() ? " is-today" : ""}`}
+                onClick={() => pick(d)}
+              >
+                {d.toLocaleDateString(LOCALE, { month: "short" })}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {open === "year" && (
+        <div className="cl-pop cl-picker" role="dialog" aria-label="Years">
+          <div className="cl-picker-head">
+            <button type="button" className="cl-icon is-small" onClick={() => setFirst(first - YEARS)} aria-label="Earlier years">
+              <ChevronLeft />
+            </button>
+            <span>
+              {first} – {first + YEARS - 1}
+            </span>
+            <button type="button" className="cl-icon is-small" onClick={() => setFirst(first + YEARS)} aria-label="Later years">
+              <ChevronRight />
+            </button>
+          </div>
+          <div className="cl-picker-grid">
+            {Array.from({ length: YEARS }, (_, i) => first + i).map((y) => (
+              <button key={y} type="button" className={`cl-picker-item${y === year ? " is-current" : ""}${y === today.getFullYear() ? " is-today" : ""}`} onClick={() => pick(new Date(y, month.getMonth(), 1))}>
+                {y}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>
