@@ -586,11 +586,11 @@ html[data-theme="light"] .wlv-sheet {
   background: var(--tone);
 }
 
-/* The chart: one tile of a modest height, so it reads as one figure of the
-   sheet rather than a trading screen. */
+/* The chart: one tile, nearly the room the figures and the heat map
+   leave — a little less, so it stays one figure of the sheet. */
 .wlv-chart-block {
   display: flex;
-  flex: 0 0 clamp(240px, 34vh, 320px);
+  flex: 0 0 clamp(300px, 42vh, 440px);
   flex-direction: column;
   margin: 0 var(--side);
   padding: 12px 0 4px 18px;
