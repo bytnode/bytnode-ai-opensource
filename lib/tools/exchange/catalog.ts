@@ -25,6 +25,9 @@ export type ExchangeInfo = {
   futuresId?: string;
   /** Internal spot ↔ futures transfer possible through the API. */
   transfer: boolean;
+  /** One balance for spot and futures (unified account): reading both
+      markets would count it twice. */
+  unified?: boolean;
   /** The wallet where deposits land when it is NOT the trading account
       (ccxt name): Bybit and OKX "funding", KuCoin "main", Binance "funding"
       (P2P, Pay). Absent: deposits go to spot. */
@@ -59,6 +62,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     password: false,
     futures: "full",
     transfer: false,
+    unified: true,
     funding: "funding",
     tradingWallet: "unified",
     maintenanceMargin: 0.005,
@@ -71,6 +75,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     password: true,
     futures: "full",
     transfer: false,
+    unified: true,
     funding: "funding",
     maintenanceMargin: 0.004,
     note: "Unified trading account: spot and futures share the same balance; deposits land in the Funding account, to be transferred to trading. Testnet = OKX demo, with API keys created in demo mode.",

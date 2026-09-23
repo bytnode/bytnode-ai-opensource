@@ -6,6 +6,7 @@ import { financeToolsManifest } from "./finance-tools/manifest";
 import { watchlistManifest } from "./watchlist/manifest";
 import { reportExportManifest } from "./report-export/manifest";
 import { schedulerManifest } from "./scheduler/manifest";
+import { portfolioManifest } from "./portfolio/manifest";
 
 /* ---------------------------------------------------------------------------
    The plugins shipped with the app, by their manifests.
@@ -16,7 +17,7 @@ import { schedulerManifest } from "./scheduler/manifest";
    folder under `lib/plugins/<id>/` + a line here + a line there.
 --------------------------------------------------------------------------- */
 
-export const PLUGIN_MANIFESTS: PluginManifest[] = [positionCalcManifest, financeToolsManifest, watchlistManifest, reportExportManifest, schedulerManifest];
+export const PLUGIN_MANIFESTS: PluginManifest[] = [positionCalcManifest, financeToolsManifest, watchlistManifest, reportExportManifest, schedulerManifest, portfolioManifest];
 
 export const pluginManifest = (id: string): PluginManifest | undefined => PLUGIN_MANIFESTS.find((m) => m.id === id);
 
