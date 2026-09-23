@@ -2,6 +2,7 @@
 
 import type { ComponentType } from "react";
 import type { Settings } from "@/lib/domain/types";
+import { WatchlistView } from "./watchlist/view";
 
 /* ---------------------------------------------------------------------------
    The plugins' views, by view id: each one is a small application that
@@ -15,4 +16,6 @@ export type ViewProps = {
   params?: Record<string, unknown>;
 };
 
-export const VIEWS: Record<string, ComponentType<ViewProps>> = {};
+export const VIEWS: Record<string, ComponentType<ViewProps>> = {
+  watchlist: WatchlistView,
+};

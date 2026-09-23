@@ -1,0 +1,77 @@
+/* ---------------------------------------------------------------------------
+   A price, as the plugins use it: the last price of a pair, its changes
+   over a few windows, where it comes from and when it was read.
+
+   Pure: reading BytNode's `price_change` field wherever the response nests
+   it, and the symbol forms (`BTC/USDT` for the user, `BTCUSDT` for
+   BytNode). Tested.
+--------------------------------------------------------------------------- */
+
+export type Quote = {
+  symbol: string;
+  price: number;
+  /** In %, when known. */
+  change1h?: number;
+  change4h?: number;
+  change24h?: number;
+  change7d?: number;
+  /** `bytnode`, or the exchange's id. */
+  source: string;
+  /** ISO 8601. */
+  at: string;
+};
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : undefined);
+
+/** `BTC/USDT` → `BTCUSDT` (BytNode's form). */
+export const bytnodeSymbol = (symbol: string): string => symbol.replace("/", "").replace(/:.*$/, "").toUpperCase();
+
+/** The base asset of a pair: `BTC/USDT` → `BTC`. */
+export const baseOf = (symbol: string): string => symbol.split("/")[0].toUpperCase();
+
+/** BytNode's `price_change` block, found wherever the response puts it:
+    `{ price, timestamp, changes: { "1h", "4h", "1d", "1w", … } }`. */
+export function readPriceChange(response: unknown, symbol: string, now: Date): Quote | null {
+  const found = find(response, (o) => num(o.price) !== undefined && isRecord(o.changes));
+  if (!found) return null;
+  const changes = found.changes as Record<string, unknown>;
+  const ts = num(found.timestamp);
+  const at = typeof found.timestamp === "string" && !Number.isFinite(Number(found.timestamp)) ? found.timestamp : ts ? new Date(ts > 1e12 ? ts : ts * 1000).toISOString() : now.toISOString();
+  return {
+    symbol,
+    price: num(found.price) as number,
+    change1h: num(changes["1h"]),
+    change4h: num(changes["4h"]),
+    change24h: num(changes["1d"]),
+    change7d: num(changes["1w"]),
+    source: "bytnode",
+    at,
+  };
+}
+
+function find(v: unknown, test: (o: Record<string, unknown>) => boolean, depth = 0): Record<string, unknown> | null {
+  if (depth > 6) return null;
+  if (Array.isArray(v)) {
+    for (const x of v) {
+      const r = find(x, test, depth + 1);
+      if (r) return r;
+    }
+    return null;
+  }
+  if (!isRecord(v)) return null;
+  if (test(v)) return v;
+  for (const x of Object.values(v)) {
+    const r = find(x, test, depth + 1);
+    if (r) return r;
+  }
+  return null;
+}
+
+/** BytNode's funding rate for a pair (`funding_next.estimated_rate`, a
+    fraction per 8 h), in %. */
+export function readFunding(response: unknown): number | undefined {
+  const found = find(response, (o) => num(o.estimated_rate) !== undefined);
+  const rate = found ? num(found.estimated_rate) : undefined;
+  return rate === undefined ? undefined : rate * 100;
+}

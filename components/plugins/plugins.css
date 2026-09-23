@@ -245,6 +245,14 @@
   margin-top: 14px;
 }
 
+.pv-tag {
+  margin-left: 6px;
+}
+
+.pv-table tr.is-focus td {
+  background: var(--matter);
+}
+
 /* --- Cards in the thread ------------------------------------------------ */
 
 .pc {
