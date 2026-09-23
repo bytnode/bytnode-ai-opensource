@@ -1,6 +1,6 @@
 {
   "name": "bytnode-ai",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Local AI finance agents: professions, tools, BytNode market data, models by OpenRouter key or by subscription (ACP).",
   "license": "MIT",
   "repository": {
@@ -33,6 +33,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "prepublishOnly": "tsx scripts/next-version.ts",
     "prepack": "tsx scripts/prepack.ts",
     "smoke:pack": "node scripts/smoke-pack.mjs",
     "vierge": "node scripts/vierge.mjs"
