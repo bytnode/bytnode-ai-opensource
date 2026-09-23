@@ -1,4 +1,5 @@
 import type { AgentConfig, Conversation, ExchangeAccount, Profile, Settings } from "@/lib/domain/types";
+import type { PluginConfig, PluginSettings, PluginsState } from "@/lib/domain/plugins";
 import { DEFAULT_PROFESSION, isProfessionId } from "@/lib/professions/catalog";
 import type { Storage } from "./storage";
 
@@ -14,7 +15,7 @@ export const LEGACY_AGENT_ID = "agent-1";
 
 export function defaultSettings(): Settings {
   return {
-    version: 3,
+    version: 4,
     onboardingDone: false,
     theme: "dark",
     profile: { firstName: "", lastName: "", email: "", bio: "" },
@@ -22,6 +23,7 @@ export function defaultSettings(): Settings {
     keys: { openrouter: "", bytnode: "", exchanges: [] },
     agents: [],
     activeAgentId: null,
+    plugins: {},
   };
 }
 
@@ -94,7 +96,36 @@ function normalizeExchangeAccount(raw: unknown): ExchangeAccount | null {
   };
 }
 
-function normalizeSettings(raw: unknown): Settings {
+/** A plugin's settings as read: a switch (on unless explicitly off), a flat
+    configuration of simple values, and the allowed agents (`null` = all).
+    The values are checked against the plugin's schema where it runs
+    (`lib/plugins/core/state.ts`). */
+function normalizePlugin(raw: unknown): PluginSettings | null {
+  if (!isRecord(raw)) return null;
+  const config: PluginConfig = {};
+  if (isRecord(raw.config)) {
+    for (const [k, v] of Object.entries(raw.config)) if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") config[k] = v;
+  }
+  return {
+    enabled: raw.enabled !== false,
+    config,
+    agentIds: Array.isArray(raw.agentIds) ? raw.agentIds.filter((a): a is string => typeof a === "string") : null,
+  };
+}
+
+function normalizePlugins(raw: unknown): PluginsState {
+  if (!isRecord(raw)) return {};
+  const out: PluginsState = {};
+  for (const [id, value] of Object.entries(raw)) {
+    const p = normalizePlugin(value);
+    if (p) out[id] = p;
+  }
+  return out;
+}
+
+/** Full settings from anything read (storage, a request body): each
+    missing or malformed field falls back to its default. */
+export function normalizeSettings(raw: unknown): Settings {
   const d = defaultSettings();
   if (!isRecord(raw)) return d;
   const profile = isRecord(raw.profile) ? raw.profile : {};
@@ -120,7 +151,7 @@ function normalizeSettings(raw: unknown): Settings {
   const activeAgentId = agents.some((a) => a.id === wanted) ? wanted : (agents[0]?.id ?? null);
 
   return {
-    version: 3,
+    version: 4,
     onboardingDone: raw.onboardingDone === true,
     theme: raw.theme === "light" ? "light" : "dark",
     profile: p,
@@ -133,6 +164,8 @@ function normalizeSettings(raw: unknown): Settings {
     },
     agents,
     activeAgentId,
+    /* v4: the plugins. Before, none was configured: all start enabled. */
+    plugins: normalizePlugins(raw.plugins),
   };
 }
 

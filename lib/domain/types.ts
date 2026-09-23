@@ -6,6 +6,7 @@
 import type { Step, UsageInfo } from "@/lib/agent/events";
 import type { Attachment } from "@/lib/agent/attachments";
 import type { ProfessionId } from "@/lib/professions/catalog";
+import type { PluginsState } from "./plugins";
 
 export type Profile = {
   firstName: string;
@@ -97,7 +98,7 @@ export type Theme = "dark" | "light";
 export type AuthMode = "subscription" | "keys";
 
 export type Settings = {
-  version: 3;
+  version: 4;
   onboardingDone: boolean;
   theme: Theme;
   profile: Profile;
@@ -107,6 +108,9 @@ export type Settings = {
       left column lists them; conversations are attached to one of them. */
   agents: AgentConfig[];
   activeAgentId: string | null;
+  /** Each plugin's switch, configuration and allowed agents, by id. A
+      plugin absent from here is enabled with its defaults. */
+  plugins: PluginsState;
 };
 
 export type Role = "user" | "assistant";

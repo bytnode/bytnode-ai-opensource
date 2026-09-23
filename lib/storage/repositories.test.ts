@@ -53,7 +53,7 @@ describe("SettingsRepository", () => {
       }),
     );
     const loaded = new SettingsRepository(store).load();
-    expect(loaded.version).toBe(3);
+    expect(loaded.version).toBe(4);
     expect(loaded.agents).toHaveLength(1);
     expect(loaded.agents[0]).toMatchObject({ id: LEGACY_AGENT_ID, name: "Nova", providerId: "anthropic", contextText: "ctx" });
     expect(loaded.activeAgentId).toBe(LEGACY_AGENT_ID);
@@ -72,7 +72,7 @@ describe("SettingsRepository", () => {
       }),
     );
     const s = new SettingsRepository(storage).load();
-    expect(s.version).toBe(3);
+    expect(s.version).toBe(4);
     expect(s.keys.exchanges).toEqual([]);
     expect(s.agents[0].exchangeAccountIds).toEqual([]);
   });
@@ -119,6 +119,27 @@ describe("SettingsRepository", () => {
     expect(repo.load()).toEqual(s);
   });
 
+  test("v4: plugins start enabled; a stored switch, config and agents are kept, the rest dropped", () => {
+    const storage = new MemoryStorage();
+    storage.set(
+      "agentchat:settings",
+      JSON.stringify({
+        version: 3,
+        plugins: {
+          watchlist: { enabled: false, config: { size: 3, label: "x", nested: { no: 1 } }, agentIds: ["a1", 2] },
+          alerts: { config: {} },
+          broken: "yes",
+        },
+      }),
+    );
+    const s = new SettingsRepository(storage).load();
+    expect(s.version).toBe(4);
+    expect(s.plugins).toEqual({
+      watchlist: { enabled: false, config: { size: 3, label: "x" }, agentIds: ["a1"] },
+      alerts: { enabled: true, config: {}, agentIds: null },
+    });
+    expect(new SettingsRepository(new MemoryStorage()).load().plugins).toEqual({});
+  });
   test("drops an active id that names no agent", () => {
     const store = new MemoryStorage();
     store.set("agentchat:settings", JSON.stringify({ version: 2, agents: [], activeAgentId: "ghost" }));
