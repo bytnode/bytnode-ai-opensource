@@ -27,12 +27,18 @@ export type JsonSchema = {
     when it sits in the workspace, shown in the thread (path). */
 export type ToolAttachment = { type: "image"; dataUrl: string; name: string; path?: string };
 
+/** What the thread shows of a result, beyond the raw output: a card, drawn
+    by the plugin that produced it (`components/plugins/cards.tsx`). Small:
+    it is stored with the conversation. */
+export type ToolCard = { kind: string; data: Record<string, unknown> };
+
 export type ToolResult = {
   ok: boolean;
   /** What the model receives. Always text; bounded by `truncate`. */
   output: string;
   /** What the model receives IN ADDITION, beyond text: an image that was read. */
   attachments?: ToolAttachment[];
+  card?: ToolCard;
 };
 
 export type ToolContext = {
@@ -58,6 +64,11 @@ export type ToolContext = {
   bytnodeKey?: string;
   /** The exchange accounts the agent may drive (already filtered). */
   exchangeAccounts?: ExchangeAccount[];
+  /** The plugins enabled for the agent (`null`: every running one), so a
+      sub-agent gets the same plugin tools. */
+  plugins?: string[] | null;
+  /** The agent the call works for (a scheduled task is created for it). */
+  agentId?: string;
 };
 
 /** What a tool may do without the user, as it declares it. Every field

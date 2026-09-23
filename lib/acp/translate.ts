@@ -10,7 +10,8 @@ import type {
 import type { Model } from "@/lib/domain/types";
 import { ACP_PREFIX, type AcpAgentId } from "./agents";
 import type { PlanEntry, UsageInfo } from "@/lib/agent/events";
-import type { WireEvent } from "./wire";
+import { CARD_URI, type WireEvent } from "./wire";
+import type { ToolCard } from "@/lib/tools/types";
 
 /* ---------------------------------------------------------------------------
    Translate what an ACP agent narrates into BytNode-AI's vocabulary.
@@ -95,7 +96,8 @@ export function eventsOfUpdate(update: SessionUpdate): WireEvent[] {
     case "tool_call_update": {
       if (update.status === "completed" || update.status === "failed") {
         const images = imagesOf(update);
-        return [{ type: "tool_result", id: update.toolCallId, ok: update.status === "completed", output: toolOutputOf(update), ...(images.length ? { images } : {}) }];
+        const card = cardOf(update);
+        return [{ type: "tool_result", id: update.toolCallId, ok: update.status === "completed", output: toolOutputOf(update), ...(images.length ? { images } : {}), ...(card ? { card } : {}) }];
       }
       /* In progress: the agent refines the name, the arguments, sometimes
          a partial output (Claude Code sends the arguments in a second
@@ -128,6 +130,27 @@ export function imagesOf(update: Pick<ToolCallUpdate, "content" | "rawOutput">):
     }
   }
   return out;
+}
+
+/** A plugin's card, carried as a resource by our MCP server's result
+    (`CARD_URI`): in the call's contents, or in its raw output depending on
+    the agent. */
+export function cardOf(update: Pick<ToolCallUpdate, "content" | "rawOutput">): ToolCard | undefined {
+  const blocks: unknown[] = [
+    ...(update.content ?? []).map((c) => (c.type === "content" ? c.content : null)),
+    ...(Array.isArray(update.rawOutput) ? update.rawOutput : isRecord(update.rawOutput) && Array.isArray(update.rawOutput.content) ? update.rawOutput.content : []),
+  ];
+  for (const b of blocks) {
+    const resource = isRecord(b) && b.type === "resource" && isRecord(b.resource) ? b.resource : null;
+    if (resource?.uri !== CARD_URI || typeof resource.text !== "string") continue;
+    try {
+      const card = JSON.parse(resource.text) as unknown;
+      if (isRecord(card) && typeof card.kind === "string" && isRecord(card.data)) return { kind: card.kind, data: card.data };
+    } catch {
+      /* not ours after all */
+    }
+  }
+  return undefined;
 }
 
 /** What we show as a call's output: its text contents, a diff summarised

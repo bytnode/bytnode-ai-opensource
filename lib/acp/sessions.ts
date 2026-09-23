@@ -34,11 +34,18 @@ import { DEFAULT_MODEL, effortsOfConfig, eventsOfUpdate, modelConfigId, modesOfS
 import type { WireEvent } from "./wire";
 import type { ExchangeAccount } from "@/lib/domain/types";
 import { isAlwaysAskTitle } from "@/lib/tools/names";
+import { activeRuntime } from "@/lib/plugins/core/active";
 export type { WireEvent };
+
+/** A call that commits funds, or whose tool always asks by its policy:
+    it is never answered « always », never auto-allowed. */
+const critical = (title: string) => isAlwaysAskTitle(title, activeRuntime()?.alwaysAskTools() ?? []);
 
 export type TurnInput = {
   conversationId: string;
   agent: AcpAgentId;
+  /** The BytNode-AI agent the conversation belongs to. */
+  agentId: string;
   workspace: string;
   /** The server's origin (`http://localhost:3777`): the MCP server sends
       Workflow tasks back to it. */
@@ -46,6 +53,8 @@ export type TurnInput = {
   bytnodeKey: string;
   /** The exchange accounts the agent may drive, for the MCP server. */
   exchangeAccounts: ExchangeAccount[];
+  /** The plugins enabled for the agent (`null`: every running one). */
+  plugins: string[] | null;
   /** BytNode-AI's system prompt (profile, profession, environment). */
   system: string;
   text: string;
@@ -74,6 +83,9 @@ type Pending = {
 
 type Live = {
   agent: AcpAgentId;
+  agentId: string;
+  /** The agent's plugins: its sub-agents get the same ones. */
+  plugins: string[] | null;
   conn: AcpConnection;
   sessionId: string;
   cwd: string;
@@ -139,8 +151,9 @@ function toolsVersion(): string {
   };
   try {
     /* Everything the MCP server embeds: the tools (finance, exchange,
-       their shared trunk) and the server itself. */
+       their shared trunk), the plugins and the server itself. */
     visit(path.join(PROJECT_ROOT, "lib", "tools"));
+    visit(path.join(PROJECT_ROOT, "lib", "plugins"));
     visit(path.join(PROJECT_ROOT, "lib", "mcp"));
   } catch {
     /* no big deal: the key just will not move */
@@ -173,7 +186,13 @@ const tokenFor = (conversationId: string) => {
     Workflow nor any tool that commits funds). */
 type Depth = { depth: 0; conversationId: string; agent: AcpAgentId; origin: string } | { depth: 1 };
 
-const mcpServersFor = (workspace: string, bytnodeKey: string, exchangeAccounts: ExchangeAccount[], depth: Depth): McpServer[] => {
+/** What the MCP server serves: the agent's keys, accounts and plugins —
+    with the plugins' state, so its own runtime starts the same ones. A
+    plugin switched on or off, or reconfigured, changes this environment,
+    hence the session key: the session is recreated with the right tools. */
+type Served = { workspace: string; bytnodeKey: string; exchangeAccounts: ExchangeAccount[]; plugins: string[] | null; agentId: string };
+
+const mcpServersFor = ({ workspace, bytnodeKey, exchangeAccounts, plugins, agentId }: Served, depth: Depth): McpServer[] => {
   const parent =
     depth.depth === 0
       ? [
@@ -204,6 +223,9 @@ const mcpServersFor = (workspace: string, bytnodeKey: string, exchangeAccounts: 
         { name: "BYTNODE_AI_EXCHANGE_ACCOUNTS", value: exchangeAccounts.length ? JSON.stringify(exchangeAccounts) : "" },
         { name: "BYTNODE_AI_TOOLS_VERSION", value: toolsVersion() },
         { name: "BYTNODE_AI_DEPTH", value: String(depth.depth) },
+        { name: "BYTNODE_AI_AGENT_ID", value: agentId },
+        { name: "BYTNODE_AI_PLUGINS", value: plugins === null ? "" : JSON.stringify(plugins) },
+        { name: "BYTNODE_AI_PLUGIN_STATE", value: JSON.stringify(activeRuntime()?.currentState ?? {}) },
         ...parent,
       ],
     },
@@ -229,7 +251,7 @@ function sessionMeta(agent: AcpAgentId, input: Pick<TurnInput, "system" | "model
 
 async function ensureSession(input: TurnInput): Promise<{ l: Live; fresh: boolean; loaded: boolean }> {
   const current = live.get(input.conversationId);
-  const servers = mcpServersFor(input.workspace, input.bytnodeKey, input.exchangeAccounts, { depth: 0, conversationId: input.conversationId, agent: input.agent, origin: input.origin });
+  const servers = mcpServersFor(input, { depth: 0, conversationId: input.conversationId, agent: input.agent, origin: input.origin });
   const serversKey = JSON.stringify(servers);
   if (
     current &&
@@ -251,6 +273,8 @@ async function ensureSession(input: TurnInput): Promise<{ l: Live; fresh: boolea
   const meta = sessionMeta(input.agent, input);
   const l: Live = {
     agent: input.agent,
+    agentId: input.agentId,
+    plugins: input.plugins,
     conn,
     sessionId: "",
     cwd: input.workspace,
@@ -390,7 +414,7 @@ export async function runTurn(input: TurnInput, emit: (e: WireEvent) => void, si
     },
     async (req) => {
       /* An order, a close, a transfer: we ask even in direct execution. */
-      const auto = input.permissionMode === "skip" && !isAlwaysAskTitle(req.toolCall.title ?? "");
+      const auto = input.permissionMode === "skip" && !critical(req.toolCall.title ?? "");
       const id = req.toolCall.toolCallId;
       if (auto) {
         const optionId = pickPermissionOption(req.options, true, false);
@@ -425,7 +449,7 @@ export function answerPermission(conversationId: string, callId: string, allow: 
   const l = live.get(conversationId);
   const p = l?.pending.get(callId);
   if (!p) return false;
-  p.resolve(pickPermissionOption(p.options, allow, always && !isAlwaysAskTitle(p.title)));
+  p.resolve(pickPermissionOption(p.options, allow, always && !critical(p.title)));
   return true;
 }
 
@@ -504,7 +528,7 @@ export async function runSubagent(input: SubagentInput, signal: AbortSignal): Pr
     subagentFrame(input.profession, prof.prompt, workspace),
     buildAcpPrompt(workspace, [...prof.skills, ...project], bytnode, acpAgentInfo(agent).product, input.exchangeAccounts, 0, true),
   ].join("\n\n");
-  const servers = mcpServersFor(workspace, input.bytnodeKey, input.exchangeAccounts, { depth: 1 });
+  const servers = mcpServersFor({ workspace, bytnodeKey: input.bytnodeKey, exchangeAccounts: input.exchangeAccounts, plugins: parent.plugins, agentId: parent.agentId }, { depth: 1 });
   const config = { system, modelId: input.modelId, effort: parent.effort, mode: null };
 
   await prepareWorkspace(agent, workspace);
@@ -515,6 +539,8 @@ export async function runSubagent(input: SubagentInput, signal: AbortSignal): Pr
     trace(`${agent}: sub-agent ${input.profession} opened in ${opened()} (model ${input.modelId ?? "current"})`);
     const l: Live = {
       agent,
+      agentId: parent.agentId,
+      plugins: parent.plugins,
       conn,
       sessionId: res.sessionId,
       cwd: workspace,
@@ -539,7 +565,7 @@ export async function runSubagent(input: SubagentInput, signal: AbortSignal): Pr
       },
       async (req) => {
         /* Nobody to answer: yes, except to commit funds. */
-        if (isAlwaysAskTitle(req.toolCall.title ?? "")) return { outcome: { outcome: "cancelled" } };
+        if (critical(req.toolCall.title ?? "")) return { outcome: { outcome: "cancelled" } };
         const optionId = pickPermissionOption(req.options, true, false);
         return optionId ? { outcome: { outcome: "selected", optionId } } : { outcome: { outcome: "cancelled" } };
       },

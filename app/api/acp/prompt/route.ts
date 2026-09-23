@@ -6,6 +6,7 @@ import { loadProfession } from "@/lib/professions/load";
 import { DEFAULT_PROFESSION, isProfessionId } from "@/lib/professions/catalog";
 import { PROJECT_ROOT, resolveWorkspace } from "@/lib/server/workspace";
 import { userSkills } from "@/lib/tools/skills/skill";
+import { pluginSkills, readyRuntime } from "@/lib/plugins/host";
 
 /* ---------------------------------------------------------------------------
    One conversation turn with a subscription agent.
@@ -45,13 +46,19 @@ export async function POST(req: Request) {
     return Response.json({ error: { message: "Missing conversation, agent or message." } }, { status: 400 });
   }
   const agent = body.agent;
-  const { bytnodeKey, exchangeAccounts } = readTransport(req.headers);
-  const workspace = await resolveWorkspace(body.agentId ?? "", body.workspace);
-  const profession = await loadProfession(PROJECT_ROOT, isProfessionId(body.profession) ? body.profession : DEFAULT_PROFESSION);
+  const agentId = body.agentId ?? "";
+  const { bytnodeKey, exchangeAccounts, plugins } = readTransport(req.headers);
+  const workspace = await resolveWorkspace(agentId, body.workspace);
+  const runtime = await readyRuntime();
+  const [profession, extra] = await Promise.all([
+    loadProfession(PROJECT_ROOT, isProfessionId(body.profession) ? body.profession : DEFAULT_PROFESSION),
+    pluginSkills(runtime, plugins),
+  ]);
   try {
-    /* The profession's skills, then your own (`~/.bytnode-ai/skills/`). */
+    /* The profession's skills, the plugins', then your own
+       (`~/.bytnode-ai/skills/`). */
     const t0 = Date.now();
-    await syncSkills(workspace, [...profession.skills, ...(await userSkills())]);
+    await syncSkills(workspace, [...profession.skills, ...extra, ...(await userSkills())]);
     console.info(`[acp] skills synced in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   } catch {
     /* a read-only folder does not prevent talking */
@@ -72,10 +79,12 @@ export async function POST(req: Request) {
           {
             conversationId: body.conversationId!,
             agent,
+            agentId,
             workspace,
             origin: new URL(req.url).origin,
             bytnodeKey,
             exchangeAccounts,
+            plugins,
             system: body.system ?? "",
             text: body.text!,
             modelId: body.modelId ?? null,

@@ -102,7 +102,7 @@ export async function executeTool(call: ToolCall, p: ExecuteParams, signal: Abor
         continue;
       }
       if (!obj) continue;
-      if (obj.type === "result") result = { ok: obj.ok, output: obj.output, attachments: obj.attachments };
+      if (obj.type === "result") result = { ok: obj.ok, output: obj.output, attachments: obj.attachments, ...(obj.card ? { card: obj.card } : {}) };
       else emit(obj);
     }
   }

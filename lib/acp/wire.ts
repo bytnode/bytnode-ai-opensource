@@ -10,3 +10,8 @@ export type WireEvent =
   | { type: "session"; sessionId: string }
   | { type: "permission"; id: string; title: string; options: PermissionOption[] }
   | { type: "tool_update"; id: string; name?: string; args?: Record<string, unknown>; line?: string };
+
+/** The address of a plugin card inside an MCP tool result: the external
+    agent passes the resource along, the translation turns it back into
+    the thread's card. */
+export const CARD_URI = "bytnode-ai://card";

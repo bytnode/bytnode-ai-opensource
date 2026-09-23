@@ -158,7 +158,7 @@ export async function runAgentLoop(messages: ProviderMessage[], deps: LoopDeps):
         .filter((a) => a.type === "image")
         .map((a) => ({ name: a.name, src: a.path && !a.name.includes(":") ? `file:${a.name}` : a.dataUrl }));
       if (result.ok) guard.succeeded(call);
-      deps.emit({ type: "tool_result", id: call.id, ok: result.ok, output: result.output, ...(shown.length ? { images: shown } : {}) });
+      deps.emit({ type: "tool_result", id: call.id, ok: result.ok, output: result.output, ...(shown.length ? { images: shown } : {}), ...(result.card ? { card: result.card } : {}) });
       history.push({ role: "tool", tool_call_id: call.id, content: result.output });
       for (const a of result.attachments ?? []) if (a.type === "image") images.push({ name: a.name, dataUrl: a.dataUrl });
     }

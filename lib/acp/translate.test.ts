@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eventsOfUpdate, modelsOfConfig, modelsOfSession, effortsOfConfig, pickPermissionOption, toolOutputOf, DEFAULT_MODEL } from "./translate";
+import { cardOf, eventsOfUpdate, modelsOfConfig, modelsOfSession, effortsOfConfig, pickPermissionOption, toolOutputOf, DEFAULT_MODEL } from "./translate";
 import type { SessionConfigOption, SessionUpdate, PermissionOption } from "@agentclientprotocol/sdk";
 
 describe("eventsOfUpdate", () => {
@@ -197,5 +197,24 @@ describe("pickPermissionOption", () => {
   });
   it("without a reject option, returns null", () => {
     expect(pickPermissionOption(options.slice(0, 2), false, false)).toBeNull();
+  });
+});
+
+describe("cardOf", () => {
+  const card = { kind: "position-size", data: { size: 0.05 } };
+  const resource = { type: "resource", resource: { uri: "bytnode-ai://card", mimeType: "application/json", text: JSON.stringify(card) } };
+  it("finds our card in the contents or in the raw output", () => {
+    expect(cardOf({ content: [{ type: "content", content: resource as never }] })).toEqual(card);
+    expect(cardOf({ rawOutput: [{ type: "text", text: "ok" }, resource] })).toEqual(card);
+    expect(cardOf({ rawOutput: { content: [resource] } })).toEqual(card);
+  });
+  it("ignores anything else", () => {
+    expect(cardOf({ rawOutput: [{ type: "resource", resource: { uri: "file:///x", text: "{}" } }] })).toBeUndefined();
+    expect(cardOf({ rawOutput: [{ type: "resource", resource: { uri: "bytnode-ai://card", text: "not json" } }] })).toBeUndefined();
+    expect(cardOf({})).toBeUndefined();
+  });
+  it("rides on the result event", () => {
+    const events = eventsOfUpdate({ sessionUpdate: "tool_call_update", toolCallId: "t1", status: "completed", content: [{ type: "content", content: resource as never }] });
+    expect(events[0]).toMatchObject({ type: "tool_result", card });
   });
 });

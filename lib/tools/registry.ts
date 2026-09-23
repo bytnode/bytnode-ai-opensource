@@ -20,7 +20,9 @@ import { backtestTool } from "./finance/backtest";
 import { memoryTool } from "./finance/memory";
 import { exchangeTools } from "./exchange";
 import { resolvePolicy } from "./policy";
+import { openViewTool } from "./views/open-view";
 import type { ExchangeAccount } from "@/lib/domain/types";
+import { activeRuntime } from "@/lib/plugins/core/active";
 
 /* ---------------------------------------------------------------------------
    The tool registry: ONE list, for both engines.
@@ -32,6 +34,9 @@ import type { ExchangeAccount } from "@/lib/domain/types";
    - The MCP engine (`lib/mcp/finance-server.ts`, for subscription agents)
      gets BytNode-AI's own tools only: the external agent has its own
      general tools, and BytNode is given to it as a separate MCP server.
+   - Both get the tools of the plugins enabled for the agent (whose needs it
+     meets: an exchange account, a BytNode key) and, for a main agent,
+     OpenView to open their views.
    - A sub-agent or a background run (`depth` ≥ 1) keeps only the tools
      whose policy allows it (`policy.ts`).
 
@@ -49,6 +54,8 @@ export type ToolsetOptions = {
   exchangeAccounts?: ExchangeAccount[];
   /** 0: the main agent. 1: a sub-agent or a background run. */
   depth?: number;
+  /** The plugins enabled for the agent; `null` or absent: every running one. */
+  plugins?: string[] | null;
 };
 
 export type BytnodeStatus = { ok: boolean; count: number; message?: string };
@@ -59,12 +66,23 @@ export function generalTools(platform: string): Tool[] {
   return [readTool, writeTool, editTool, notebookEditTool, globTool, grepTool, bashTool, powershellTool, monitorTool, makeWebSearchTool({}), webFetchTool, workflowTool, skillTool, todoTool] as Tool[];
 }
 
-/** BytNode-AI's own tools, served to both engines: the finance tools
+/** BytNode-AI's own core tools, served to both engines: the finance tools
     (data to files, charts, standard backtest, memory) and, for an agent
     with an account, the exchange tools. */
 export function bytnodeAiTools(opts: Pick<ToolsetOptions, "exchangeAccounts">): Tool[] {
   const finance = [saveMarketDataTool, chartTool, backtestTool, memoryTool] as Tool[];
   return opts.exchangeAccounts?.length ? [...finance, ...exchangeTools()] : finance;
+}
+
+/** The tools of the plugins enabled for the agent, and OpenView for their
+    views (main agent only: its policy keeps it from sub-agents anyway). */
+function pluginTools(opts: ToolsetOptions): Tool[] {
+  const runtime = activeRuntime();
+  if (!runtime) return [];
+  const ids = opts.plugins ?? null;
+  const tools = runtime.tools(ids, { "exchange-account": (opts.exchangeAccounts?.length ?? 0) > 0, "bytnode-key": Boolean(opts.bytnodeKey?.trim()) });
+  const views = runtime.views(ids);
+  return views.length ? [...tools, openViewTool(views) as Tool] : tools;
 }
 
 const forDepth = (tools: Tool[], depth: number | undefined) => ((depth ?? 0) >= 1 ? tools.filter((t) => resolvePolicy(t.name, t.policy).subagent) : tools);
@@ -73,7 +91,7 @@ const forDepth = (tools: Tool[], depth: number | undefined) => ((depth ?? 0) >= 
     is given; discovery can fail (missing key, unreachable server): the
     other tools are then returned, along with the reason. */
 export async function allTools(opts: ToolsetOptions): Promise<{ tools: Tool[]; bytnode: BytnodeStatus }> {
-  const own = bytnodeAiTools(opts);
+  const own = [...bytnodeAiTools(opts), ...pluginTools(opts)];
   if (opts.engine === "mcp") return { tools: forDepth(own, opts.depth), bytnode: { ok: false, count: 0, message: "Served as its own MCP server." } };
   const base = forDepth([...generalTools(opts.platform), ...own], opts.depth);
   if (!opts.bytnodeKey?.trim()) return { tools: base, bytnode: { ok: false, count: 0, message: "No BytNode key." } };

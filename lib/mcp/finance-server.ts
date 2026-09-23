@@ -5,6 +5,10 @@ import type { Tool, ToolContext } from "@/lib/tools/types";
 import { allTools } from "@/lib/tools/registry";
 import { parseAccountsHeader } from "@/lib/tools/exchange/accounts";
 import { validateArgs } from "@/lib/tools/validate";
+import { parsePluginIds } from "@/lib/tools/transport";
+import { startToolsRuntime } from "@/lib/plugins/host";
+import type { PluginsState } from "@/lib/domain/plugins";
+import { CARD_URI } from "@/lib/acp/wire";
 import { acpWorkflowTool, agentModels, parentLinkFromEnv } from "./acp-workflow";
 
 /* ---------------------------------------------------------------------------
@@ -33,15 +37,29 @@ const depth = process.env.BYTNODE_AI_DEPTH === "1" ? 1 : 0;
    are served too. */
 const exchangeAccounts = parseAccountsHeader(process.env.BYTNODE_AI_EXCHANGE_ACCOUNTS);
 const parent = depth === 0 ? parentLinkFromEnv(process.env) : null;
+const agentId = process.env.BYTNODE_AI_AGENT_ID ?? "";
+/* The plugins enabled for the agent (empty variable: every running one),
+   and the state to start them with — the same as the Next server's. */
+const plugins = process.env.BYTNODE_AI_PLUGINS ? parsePluginIds(safeJson(process.env.BYTNODE_AI_PLUGINS)) : null;
+const pluginState = (safeJson(process.env.BYTNODE_AI_PLUGIN_STATE ?? "") ?? {}) as PluginsState;
+
+function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
 
 /* The list of the agent's models is read at the first `tools/list` (the
    Next server has it cached); the tool set is built once. */
 let tools: Promise<Tool[]> | null = null;
 const toolset = () =>
   (tools ??= (async () => {
-    const { tools: own } = await allTools({ engine: "mcp", platform: process.platform, bytnodeKey, exchangeAccounts, depth });
+    await startToolsRuntime(pluginState);
+    const { tools: own } = await allTools({ engine: "mcp", platform: process.platform, bytnodeKey, exchangeAccounts, depth, plugins });
     if (!parent) return own;
-    return [...own, acpWorkflowTool(parent, await agentModels(parent), { openrouterKey: "", bytnodeKey, exchangeAccounts, plugins: null }) as Tool];
+    return [...own, acpWorkflowTool(parent, await agentModels(parent), { openrouterKey: "", bytnodeKey, exchangeAccounts, plugins }) as Tool];
   })());
 
 const server = new Server({ name: "bytnode-ai", version: "0.1.0" }, { capabilities: { tools: {} } });
@@ -69,15 +87,22 @@ server.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
     callId: String(extra.requestId),
     bytnodeKey,
     exchangeAccounts,
+    plugins,
+    agentId,
   };
   try {
     const result = await tool.execute(args, ctx);
-    const content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }> = [{ type: "text", text: result.output }];
+    const content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string } | { type: "resource"; resource: { uri: string; mimeType: string; text: string } }> = [
+      { type: "text", text: result.output },
+    ];
     for (const a of result.attachments ?? []) {
       if (a.type !== "image") continue;
       const m = /^data:([^;]+);base64,(.*)$/s.exec(a.dataUrl);
       if (m) content.push({ type: "image", data: m[2], mimeType: m[1] });
     }
+    /* The plugin's card for the thread, as a resource the translation
+       picks up (`lib/acp/translate.ts`, `cardOf`). */
+    if (result.card) content.push({ type: "resource", resource: { uri: CARD_URI, mimeType: "application/json", text: JSON.stringify(result.card) } });
     return { content, isError: !result.ok };
   } catch (e) {
     return { content: [{ type: "text", text: `The tool failed: ${e instanceof Error ? e.message : String(e)}` }], isError: true };

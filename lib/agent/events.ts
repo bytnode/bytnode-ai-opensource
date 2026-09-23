@@ -7,6 +7,8 @@
    result, the sub-agents. The same type serves on both sides.
 --------------------------------------------------------------------------- */
 
+import type { ToolCard } from "@/lib/tools/types";
+
 /** An image to show in the thread: a path relative to the workspace
     (served by /api/files), or a data URL. */
 export type ToolImage = { name: string; src: string };
@@ -24,7 +26,7 @@ export type AgentEvent =
   | { type: "plan"; entries: PlanEntry[] }
   | { type: "usage"; usage: UsageInfo }
   | { type: "tool_call"; id: string; name: string; args: Record<string, unknown> }
-  | { type: "tool_result"; id: string; ok: boolean; output: string; images?: ToolImage[] }
+  | { type: "tool_result"; id: string; ok: boolean; output: string; images?: ToolImage[]; card?: ToolCard }
   /** A line produced while a tool is running (Monitor). */
   | { type: "tool_line"; id: string; line: string }
   /** A sub-agent (Workflow): `id` = `<call>:<index>`. Its profession and,
@@ -57,6 +59,8 @@ export type Step =
       subagents?: SubagentState[];
       /** The tool always asks (its policy): the prompt offers no "Always". */
       alwaysAsk?: boolean;
+      /** The plugin's card for the result. */
+      card?: ToolCard;
     };
 
 export type SubagentState = { index: number; title: string; profession?: string; status: "running" | "done" | "failed"; report?: string };

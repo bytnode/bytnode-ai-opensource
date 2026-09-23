@@ -31,6 +31,8 @@ import { executeTool, fetchToolset } from "@/lib/tools/client";
 import { isAlwaysAskTitle } from "@/lib/tools/names";
 import { mustAsk, policyIn } from "@/lib/tools/policy";
 import { agentTransport } from "@/lib/tools/transport";
+import { agentPlugins } from "@/lib/plugins/catalog";
+import { fetchPluginPrompt } from "@/lib/plugins/client";
 import {
   getConversation,
   patchLastMessage,
@@ -410,6 +412,7 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
                     ? `${e.output.slice(0, STORED_OUTPUT)}\n[…]`
                     : e.output;
                 if (e.images?.length) t.images = e.images;
+                if (e.card) t.card = e.card;
                 mark(true);
               }
               break;
@@ -426,12 +429,15 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
         try {
           /* What THIS agent's requests carry: the keys, the exchange
              accounts it may drive (they decide which tools it sees). */
-          const transport = agentTransport(settings, agent);
+          const transport = agentTransport(settings, agent, agentPlugins(settings, agent.id));
           const exchangeAccounts = transport.exchangeAccounts;
           const unattachedExchanges = settings.keys.exchanges.length - exchangeAccounts.length;
-          const [toolset, memory] = await Promise.all([
+          /* What the agent's plugins add to its prompt (its watchlist, the
+             coming events…) is re-read at every turn, like the memory. */
+          const [toolset, memory, plugged] = await Promise.all([
             fetchToolset(agent.id, agent.workspace ?? "", agent.profession, transport),
             fetchMemory(agent.id, agent.workspace ?? ""),
+            fetchPluginPrompt(agent.id, acp ? "mcp" : "native", transport),
           ]);
           if (acp) {
             /* --- By subscription: the server drives the external agent. --- */
@@ -446,6 +452,7 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
                 exchangeAccounts,
                 unattachedExchanges,
               ),
+              plugged,
               memory,
             ]
               .filter(Boolean)
@@ -550,6 +557,7 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
                 exchangeAccounts,
                 unattachedExchanges,
               ),
+              plugged,
               memory,
             ]
               .filter(Boolean)

@@ -6,6 +6,7 @@ import { loadProfession } from "@/lib/professions/load";
 import { DEFAULT_PROFESSION, isProfessionId } from "@/lib/professions/catalog";
 import type { ToolContext } from "@/lib/tools/types";
 import type { AgentEvent } from "@/lib/agent/events";
+import { pluginSkills, readyRuntime } from "@/lib/plugins/host";
 
 /* ---------------------------------------------------------------------------
    Execute a tool, and tell what happens along the way.
@@ -28,7 +29,7 @@ type Body = {
 };
 
 export async function POST(req: Request) {
-  const { openrouterKey: apiKey, bytnodeKey, exchangeAccounts } = readTransport(req.headers);
+  const { openrouterKey: apiKey, bytnodeKey, exchangeAccounts, plugins } = readTransport(req.headers);
   if (!apiKey) return missingKey();
   let body: Body;
   try {
@@ -39,12 +40,17 @@ export async function POST(req: Request) {
   if (!body.name || typeof body.model !== "string") {
     return Response.json({ error: { message: "Missing tool name or model." } }, { status: 400 });
   }
-  const { tools } = await allTools({ engine: "native", platform: process.platform, bytnodeKey, exchangeAccounts });
+  const runtime = await readyRuntime();
+  const { tools } = await allTools({ engine: "native", platform: process.platform, bytnodeKey, exchangeAccounts, plugins });
   const tool = tools.find((t) => t.name === body.name);
   if (!tool) return Response.json({ error: { message: `Unknown tool: ${body.name}` } }, { status: 404 });
-  const profession = await loadProfession(PROJECT_ROOT, isProfessionId(body.profession) ? body.profession : DEFAULT_PROFESSION);
+  const agentId = body.agentId ?? "";
+  const [profession, extra] = await Promise.all([
+    loadProfession(PROJECT_ROOT, isProfessionId(body.profession) ? body.profession : DEFAULT_PROFESSION),
+    pluginSkills(runtime, plugins),
+  ]);
 
-  const workspace = await resolveWorkspace(body.agentId ?? "", body.workspace);
+  const workspace = await resolveWorkspace(agentId, body.workspace);
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -64,9 +70,11 @@ export async function POST(req: Request) {
         depth: 0,
         llm: { apiKey, model: body.model as string, effort: body.effort ?? null },
         callId: body.callId ?? "call",
-        professionSkills: profession.skills,
+        professionSkills: [...profession.skills, ...extra],
         bytnodeKey,
         exchangeAccounts,
+        plugins,
+        agentId,
       };
       try {
         const result = await tool.execute(body.args ?? {}, ctx);

@@ -6,6 +6,7 @@ import { streamOpenRouter } from "@/lib/server/openrouter-stream";
 import { loadProfession } from "@/lib/professions/load";
 import { listSkills } from "../skills/skill";
 import { allTools, toToolSpecs } from "../registry";
+import { activeRuntime } from "@/lib/plugins/core/active";
 import { failureBody, readTasks, reportSection, runInPool, subagentFrame, subagentMessage, workflowDescription, workflowParameters, type SubagentTask } from "./subagent";
 
 /* ---------------------------------------------------------------------------
@@ -50,9 +51,11 @@ async function runOne(task: SubagentTask, index: number, context: string | undef
   const { title, profession } = task;
   ctx.emit({ type: "subagent", id, index, title, profession, status: "running" });
   try {
-    const [prof, { tools, bytnode }] = await Promise.all([
+    const needs = { "exchange-account": (ctx.exchangeAccounts?.length ?? 0) > 0, "bytnode-key": Boolean(ctx.bytnodeKey?.trim()) };
+    const [prof, { tools, bytnode }, pluginSections] = await Promise.all([
       loadProfession(ctx.projectRoot, profession),
-      allTools({ engine: "native", platform: process.platform, bytnodeKey: ctx.bytnodeKey, exchangeAccounts: ctx.exchangeAccounts, depth: ctx.depth + 1 }),
+      allTools({ engine: "native", platform: process.platform, bytnodeKey: ctx.bytnodeKey, exchangeAccounts: ctx.exchangeAccounts, depth: ctx.depth + 1, plugins: ctx.plugins }),
+      activeRuntime()?.prompts(ctx.plugins ?? null, { agentId: ctx.agentId ?? "", engine: "native", subagent: true }, needs) ?? [],
     ]);
     const skills = await listSkills(ctx.workspace, prof.skills);
     const specs: ToolSpec[] = toToolSpecs(tools);
@@ -61,6 +64,7 @@ async function runOne(task: SubagentTask, index: number, context: string | undef
     const system = [
       subagentFrame(profession, prof.prompt, ctx.workspace),
       buildToolsPrompt(ctx.workspace, skills, `${process.platform} (${process.arch})`, ctx.scope, bytnode, ctx.exchangeAccounts, 0, true),
+      ...pluginSections,
     ].join("\n\n");
     const out = await runAgentLoop(
       [

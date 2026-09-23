@@ -26,6 +26,12 @@ export const isAlwaysAskTitle = (title: string, extra: Iterable<string> = []) =>
     (`mcp__bytnode-ai__Workflow`). */
 export const isWorkflowName = (name: string) => /(?:^|[_/.:-])Workflow$/.test(name);
 
+/** An OpenView call, native or served over MCP (`mcp__bytnode-ai__OpenView`). */
+export const isOpenViewName = (name: string) => /(?:^|[_/.:-])OpenView$/.test(name);
+
+/** The paper trading tools: simulated, never real money — badge PAPER. */
+export const isPaperTool = (name: string) => /(?:^|[_/.:-])Paper[A-Z]\w*$/.test(name);
+
 /** The exchange tools, for the LIVE / TESTNET badge. */
 export const isExchangeTool = (name: string) => name.startsWith("Exchange") || EXCHANGE_ACTIONS.has(name);
 
@@ -95,6 +101,7 @@ export function summarizeCall(name: string, args: Record<string, unknown>): stri
       return [s("account"), `${s("symbol")} ×${args.leverage ?? "?"}${s("marginMode") ? ` ${s("marginMode")}` : ""}`].filter(Boolean).join(" · ");
     default:
       if (isWorkflowName(name)) return Array.isArray(args.tasks) ? `${(args.tasks as unknown[]).length} sub-agent${(args.tasks as unknown[]).length > 1 ? "s" : ""}` : "";
+      if (isOpenViewName(name)) return s("view");
       return "";
   }
 }
