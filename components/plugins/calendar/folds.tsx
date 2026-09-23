@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { CalendarEvent } from "@/lib/plugins/calendar/events";
 import { dayKey, isoWeek, sameDay, weeksOf } from "@/lib/plugins/calendar/days";
 import { ChevronRight } from "@/components/ui/icons";
@@ -12,7 +12,8 @@ import { LOCALE, dayLabel, timeOf, toneOf } from "./format";
    each one opening on its hours; a month is its weeks, each one opening
    on its days. A closed row still says what it holds — its first events
    as tinted chips, the rest as a count. Today, or this week, is open
-   when the view comes up. */
+   when the view comes up; a row the user opens scrolls up to the top of
+   the list, so what it holds comes into view. */
 
 const CHIPS = 2;
 
@@ -44,7 +45,7 @@ export function WeekScale({ span, days, today, now }: { span: Date[]; days: Days
             date={d.toLocaleDateString(LOCALE, { day: "numeric", month: "long" })}
             events={events}
           >
-            <HourScale day={d} events={events} now={now} compact />
+            <HourScale day={d} events={events} now={now} />
           </Fold>
         );
       })}
@@ -80,7 +81,7 @@ export function MonthScale({ span, days, today }: { span: Date[]; days: Days; to
               return (
                 <section key={d.getTime()} className={`calv-day-section${d < today ? " is-past" : ""}${sameDay(d, today) ? " is-today" : ""}`}>
                   <h4 className="calv-day-title">
-                    {dayLabel(d, today)} <span className="calv-day-date">{d.toLocaleDateString(LOCALE, { day: "numeric", month: "long" })}</span>
+                    <span className="calv-ink">{dayLabel(d, today)}</span> <span className="calv-day-date">{d.toLocaleDateString(LOCALE, { day: "numeric", month: "long" })}</span>
                     {list.length === 0 && <span className="calv-day-none">No events</span>}
                   </h4>
                   {list.length > 0 && (
@@ -113,13 +114,36 @@ type FoldProps = {
 };
 
 function Fold({ open, onToggle, past, current, title, date, events, children }: FoldProps) {
+  const root = useRef<HTMLElement>(null);
+  /* Set by the click that opens the row: the rows open when the view
+     comes up stay where they are. */
+  const opening = useRef(false);
+
+  useEffect(() => {
+    if (!open || !opening.current) return;
+    opening.current = false;
+    const row = root.current;
+    const list = row?.closest<HTMLElement>(".calv-list");
+    if (!row || !list) return;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    list.scrollTo({ top: list.scrollTop + row.getBoundingClientRect().top - list.getBoundingClientRect().top, behavior: still ? "auto" : "smooth" });
+  }, [open]);
+
   return (
-    <section className={`calv-fold${open ? " is-open" : ""}${past ? " is-past" : ""}${current ? " is-current" : ""}`}>
-      <button type="button" className="calv-fold-head" aria-expanded={open} onClick={onToggle}>
+    <section ref={root} className={`calv-fold${open ? " is-open" : ""}${past ? " is-past" : ""}${current ? " is-current" : ""}`}>
+      <button
+        type="button"
+        className="calv-fold-head"
+        aria-expanded={open}
+        onClick={() => {
+          opening.current = !open;
+          onToggle();
+        }}
+      >
         <span className="calv-fold-chev" aria-hidden>
           <ChevronRight />
         </span>
-        <span className="calv-fold-title">{title}</span>
+        <span className="calv-fold-title calv-ink">{title}</span>
         <span className="calv-fold-date">{date}</span>
         {events.length === 0 ? (
           <span className="calv-fold-count">No events</span>

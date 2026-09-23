@@ -18,18 +18,16 @@ type Props = {
   now: Date;
   /** The hour the view opens on (marked for the scroll), if any. */
   anchor?: number;
-  /** Tighter hours, inside a week's open day. */
-  compact?: boolean;
 };
 
-export function HourScale({ day, events, now, anchor, compact }: Props) {
+export function HourScale({ day, events, now, anchor }: Props) {
   const [opened, setOpened] = useState<string | null>(null);
   const { allDay, hours } = byHour(events);
   const today = sameDay(day, now);
   const toggle = (id: string) => setOpened(opened === id ? null : id);
 
   return (
-    <div className={`calv-hours${compact ? " is-compact" : ""}`}>
+    <div className="calv-hours">
       {allDay.length > 0 && (
         <div className="calv-hour is-allday">
           <span className="calv-hour-label">all-day</span>

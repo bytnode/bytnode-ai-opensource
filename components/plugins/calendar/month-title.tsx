@@ -26,7 +26,7 @@ export function MonthTitle({ month, today, onChange }: { month: Date; today: Dat
     <div className="calv-anchor" ref={root}>
       <h1 className="calv-title">
         <button type="button" className={`calv-title-btn${open === "month" ? " is-open" : ""}`} aria-expanded={open === "month"} aria-label="Choose the month" onClick={() => setOpen(open === "month" ? null : "month")}>
-          {month.toLocaleDateString(LOCALE, { month: "long" })}
+          <span className="calv-ink">{month.toLocaleDateString(LOCALE, { month: "long" })}</span>
         </button>{" "}
         <button
           type="button"
@@ -38,7 +38,7 @@ export function MonthTitle({ month, today, onChange }: { month: Date; today: Dat
             setOpen(open === "year" ? null : "year");
           }}
         >
-          {year}
+          <span className="calv-ink">{year}</span>
         </button>
       </h1>
       {open === "month" && (

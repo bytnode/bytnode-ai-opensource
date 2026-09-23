@@ -38,7 +38,9 @@ export type FilterState = ReturnType<typeof useFilter>;
 export function CalendarFilters({ filter, counts, watchlist }: { filter: FilterState; counts: Partial<Record<Category, number>>; watchlist: boolean }) {
   return (
     <div className="calv-filters">
-      <p className="calv-filters-title">Calendars</p>
+      <p className="calv-filters-title">
+        <span className="calv-ink">Calendars</span>
+      </p>
       <div className="calv-filters-grid" role="group" aria-label="Calendars">
         {CATEGORIES.map((c) => {
           const on = !filter.hidden.includes(c);

@@ -77,7 +77,7 @@ export function Agenda({ period, span, today, days, last, loading, problem, coll
     <main className="calv-pane calv-agenda">
       <header className="calv-agenda-head">
         <div>
-          <h2 className="calv-agenda-title">{head.title}</h2>
+          <h2 className="calv-agenda-title calv-ink">{head.title}</h2>
           <p className="calv-agenda-sub">{head.sub}</p>
           {empty && (
             <p className="calv-agenda-empty">
