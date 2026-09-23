@@ -835,17 +835,25 @@ html[data-theme="light"] .cl-pop {
   flex-direction: row;
 }
 
-/* The month: the left half of the sheet, its days as large as it allows. */
+/* The month: a third of the sheet — large enough to read every day at a
+   glance, small enough to leave the agenda the room. */
 .a-cal {
   display: flex;
   flex-direction: column;
-  flex: 0 0 clamp(420px, 46%, 660px);
+  flex: 0 0 clamp(340px, 30%, 420px);
   min-height: 0;
+  overflow-y: auto;
   border-right: 1px solid var(--sep);
 }
 
 .a-cal-bar {
-  padding-bottom: 10px;
+  padding: 18px 14px 10px 22px;
+}
+
+.a-cal .cl-title {
+  flex: none;
+  font-size: 22px;
+  white-space: nowrap;
 }
 
 .a-cal-weekdays,
@@ -864,11 +872,9 @@ html[data-theme="light"] .cl-pop {
 }
 
 .a-cal-grid {
-  flex: 1;
-  min-height: 0;
-  grid-template-rows: repeat(6, minmax(52px, 1fr));
-  gap: 4px;
-  padding-bottom: 12px;
+  grid-template-rows: repeat(6, 50px);
+  gap: 2px;
+  padding-bottom: 14px;
 }
 
 .a-cal-day {
@@ -876,12 +882,12 @@ html[data-theme="light"] .cl-pop {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 4px;
   min-width: 0;
   min-height: 0;
   padding: 0;
   border: 0;
-  border-radius: 12px;
+  border-radius: 10px;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -896,11 +902,11 @@ html[data-theme="light"] .cl-pop {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   font-family: var(--font-display), sans-serif;
-  font-size: 19px;
+  font-size: 15.5px;
   font-weight: 400;
 }
 
@@ -927,24 +933,24 @@ html[data-theme="light"] .cl-pop {
 .a-cal-marks {
   display: flex;
   align-items: center;
-  gap: 3px;
-  height: 7px;
+  gap: 2px;
+  height: 5px;
 }
 
 .a-cal-marks i {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
 }
 
 /* A market-moving event: its mark stretched into a short bar. */
 .a-cal-marks i.is-strong {
-  width: 14px;
+  width: 11px;
   border-radius: 3px;
 }
 
 .a-cal-marks b {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 500;
   color: var(--label-3);
 }
@@ -958,7 +964,7 @@ html[data-theme="light"] .cl-pop {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 14px 20px 18px;
+  padding: 14px 16px 18px;
   border-top: 1px solid var(--sep);
 }
 
@@ -1163,8 +1169,8 @@ html[data-theme="light"] .cl-pop {
     border-bottom: 1px solid var(--sep);
   }
 
-  .a-cal-grid {
-    grid-template-rows: repeat(6, 52px);
+  .a-cal {
+    overflow: visible;
   }
 
   .a-head,
