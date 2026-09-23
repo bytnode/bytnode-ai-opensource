@@ -57,6 +57,7 @@ export function editNotebook(
 
 export const notebookEditTool: Tool<Args> = {
   name: "NotebookEdit",
+  policy: { gated: true, subagent: true },
   description:
     "Modifies a cell of a Jupyter notebook (.ipynb): replaces its source (`replace`, default), inserts a new cell after the index (`insert`) or deletes it (`delete`). Indexes start at 0; read the notebook with Read to know them.",
   parameters: {

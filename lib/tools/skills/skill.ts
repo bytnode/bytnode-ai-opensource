@@ -76,6 +76,7 @@ type Args = { name: string };
 
 export const skillTool: Tool<Args> = {
   name: "Skill",
+  policy: { readOnly: true, subagent: true },
   description:
     "Loads a skill (a reusable set of instructions) by its name and returns its instructions, to follow for the current task. The available skills are listed in the system prompt.",
   parameters: {

@@ -8,6 +8,7 @@ type Args = BaseArgs & { orderId?: string; symbol?: string; all?: boolean };
 
 export const cancelOrderTool: Tool<Args> = {
   name: "CancelOrder",
+  policy: { gated: true, subagent: false },
   description: "Cancels a pending order (`orderId`, with `symbol` if the exchange requires it) or every order on a pair (`symbol` + `all: true`).",
   parameters: {
     type: "object",

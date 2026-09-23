@@ -29,6 +29,7 @@ export function applyEdit(content: string, oldString: string, newString: string,
 
 export const editTool: Tool<Args> = {
   name: "Edit",
+  policy: { gated: true, subagent: true },
   description:
     "Replaces an exact string in an existing file. `old_string` must be unique in the file (widen the excerpt with surrounding context), unless `replace_all: true`, which replaces every occurrence. Read the file before modifying it.",
   parameters: {

@@ -27,6 +27,7 @@ const MAX_MISSES = 3;
 
 export const watchTool: Tool<Args> = {
   name: "ExchangeWatch",
+  policy: { readOnly: true, subagent: true },
   description:
     "Watches a pair (and the futures position on it): one reading every `every` seconds (5–300, default 30), shown to the user as it comes. " +
     "Stops when `until` is true (`price>=70000`, `pnl<-50`, `pnl%<-2`, `liq<3%`, `closed`), when the position closes, or after `timeout` ms (default 300000, max 600000). Read-only, no permission needed.",

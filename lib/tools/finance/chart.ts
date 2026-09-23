@@ -32,6 +32,7 @@ type Args = {
 
 export const chartTool: Tool<Args> = {
   name: "Chart",
+  policy: { gated: false, subagent: true },
   description:
     "Trace un graphique de marché (PNG) depuis un CSV du dossier de travail — bougies ou ligne, volume, indicateurs superposés, marqueurs et niveaux — et l'affiche à l'utilisateur. " +
     "`data` : le CSV (colonnes time/open/high/low/close/volume reconnues par leurs noms usuels ; une série time+prix suffit pour une ligne). " +

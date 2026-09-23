@@ -13,6 +13,7 @@ const ALREADY = /no need to change|already|not modified|same as/i;
 
 export const setLeverageTool: Tool<Args> = {
   name: "SetLeverage",
+  policy: { gated: true, subagent: false },
   description: "Sets the leverage of a futures pair (1 to 125), and the margin mode (`isolated` or `cross`) if given. The leverage applies to subsequent orders.",
   parameters: {
     type: "object",

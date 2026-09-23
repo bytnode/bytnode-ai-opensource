@@ -176,6 +176,7 @@ type Args = { queries: string[] };
 export function makeWebSearchTool(keys: SearchKeys): Tool<Args> {
   return {
     name: "WebSearch",
+    policy: { readOnly: true, subagent: true },
     description:
       `Searches the web. Give 1 to ${MAX_QUERIES} short, precise queries (keywords rather than sentences; different wordings cover the topic better). Returns a list of sources (title, URL, excerpt, date) to cite. ` +
       "Then choose your sources: favour primary sources and official documentation, discard pages with no author or date and compilations without citations, cross-check every important fact on two independent sources, and check freshness on an evolving topic. To read a page in full, follow up with WebFetch.",

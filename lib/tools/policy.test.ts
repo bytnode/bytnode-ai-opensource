@@ -1,0 +1,83 @@
+import { describe, expect, it } from "vitest";
+import { describePolicy, mustAsk, policiesOf, policyIn, resolvePolicy } from "./policy";
+import { baseTools } from "./registry";
+import { exchangeTools } from "./exchange";
+
+describe("resolvePolicy", () => {
+  it("a tool that declares nothing is sensitive", () => {
+    expect(resolvePolicy("Anything")).toEqual({ readOnly: false, gated: true, alwaysAsk: false, subagent: false });
+  });
+
+  it("fills what is missing: a read-only tool does not ask", () => {
+    expect(resolvePolicy("Look", { readOnly: true })).toEqual({ readOnly: true, gated: false, alwaysAsk: false, subagent: false });
+    expect(resolvePolicy("Note", { gated: false, subagent: true })).toEqual({ readOnly: false, gated: false, alwaysAsk: false, subagent: true });
+  });
+
+  it("always asking means asking, and never for a sub-agent", () => {
+    expect(resolvePolicy("Payout", { alwaysAsk: true, readOnly: true, subagent: true, gated: false })).toEqual({ readOnly: false, gated: true, alwaysAsk: true, subagent: false });
+  });
+
+  it("no declaration lowers the core's floor", () => {
+    for (const name of ["PlaceOrder", "ClosePosition", "Transfer"]) {
+      expect(resolvePolicy(name, { readOnly: true, gated: false, subagent: true })).toEqual({ readOnly: false, gated: true, alwaysAsk: true, subagent: false });
+    }
+    for (const name of ["Workflow", "CancelOrder", "SetLeverage"]) expect(resolvePolicy(name, { subagent: true }).subagent).toBe(false);
+  });
+
+  it("an unknown tool in the browser is treated as sensitive", () => {
+    expect(policyIn({}, "Mystery").gated).toBe(true);
+    expect(policyIn({ Read: resolvePolicy("Read", { readOnly: true }) }, "Read").gated).toBe(false);
+  });
+
+  it("who waits for the user", () => {
+    const gated = resolvePolicy("Write", { gated: true });
+    const funds = resolvePolicy("PlaceOrder");
+    const read = resolvePolicy("Read", { readOnly: true });
+    expect(mustAsk(gated, false)).toBe(true);
+    expect(mustAsk(gated, true)).toBe(false);
+    expect(mustAsk(funds, true)).toBe(true);
+    expect(mustAsk(read, false)).toBe(false);
+  });
+
+  it("says the policy in plain words", () => {
+    expect(describePolicy(resolvePolicy("PlaceOrder"))).toMatch(/Always confirmed/);
+    expect(describePolicy(resolvePolicy("Read", { readOnly: true, subagent: true }))).toBe("Read-only, runs without asking · available to sub-agents and scheduled runs");
+  });
+});
+
+/* The declarative policies must reproduce, tool for tool, what the core
+   decided before they existed: the old `GATED_TOOLS` list, the three tools
+   that always ask, and "a sub-agent gets everything but Workflow and the
+   five exchange actions". */
+describe("the core tools keep their behaviour", () => {
+  const tools = [...baseTools({ platform: "win32" }), ...exchangeTools()];
+  const policies = policiesOf(tools);
+
+  it("every core tool declares its policy", () => {
+    expect(tools.filter((t) => !t.policy).map((t) => t.name)).toEqual([]);
+  });
+
+  it("the same tools ask in ask mode", () => {
+    const gated = Object.entries(policies)
+      .filter(([, p]) => p.gated)
+      .map(([n]) => n)
+      .sort();
+    expect(gated).toEqual(["Backtest", "Bash", "CancelOrder", "ClosePosition", "Edit", "Monitor", "NotebookEdit", "PlaceOrder", "PowerShell", "SetLeverage", "Transfer", "Workflow", "Write"]);
+  });
+
+  it("the same three always ask", () => {
+    const always = Object.entries(policies)
+      .filter(([, p]) => p.alwaysAsk)
+      .map(([n]) => n)
+      .sort();
+    expect(always).toEqual(["ClosePosition", "PlaceOrder", "Transfer"]);
+  });
+
+  it("a sub-agent gets everything but Workflow and the exchange actions", () => {
+    const refused = Object.entries(policies)
+      .filter(([, p]) => !p.subagent)
+      .map(([n]) => n)
+      .sort();
+    expect(refused).toEqual(["CancelOrder", "ClosePosition", "PlaceOrder", "SetLeverage", "Transfer", "Workflow"]);
+  });
+});

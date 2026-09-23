@@ -55,6 +55,8 @@ export type Step =
       images?: ToolImage[];
       /** The sub-agents of a Workflow, by index: state then report. */
       subagents?: SubagentState[];
+      /** The tool always asks (its policy): the prompt offers no "Always". */
+      alwaysAsk?: boolean;
     };
 
 export type SubagentState = { index: number; title: string; profession?: string; status: "running" | "done" | "failed"; report?: string };

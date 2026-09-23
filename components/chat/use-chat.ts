@@ -28,7 +28,8 @@ import { runAgentLoop } from "@/lib/agent/loop";
 import type { ToolCall } from "@/lib/agent/tool-calls";
 import { LlmError, OpenRouterClient } from "@/lib/llm/client";
 import { executeTool, fetchToolset } from "@/lib/tools/client";
-import { alwaysAsks, isGated } from "@/lib/tools/names";
+import { isAlwaysAskTitle } from "@/lib/tools/names";
+import { mustAsk, policyIn } from "@/lib/tools/policy";
 import { allowedAccounts } from "@/lib/tools/exchange/accounts";
 import {
   getConversation,
@@ -64,8 +65,8 @@ import type { WireEvent } from "@/lib/acp/wire";
    larger if the reserve grows (we must never fall visibly behind); at the
    end of the stream, whatever remains is applied at once.
 
-   In "ask" mode, a tool that acts (see `GATED_TOOLS`) shows up with two
-   buttons and the loop waits. `answer` decides; "always" flips the agent to
+   In "ask" mode, a tool that acts (its declared policy, see
+   `lib/tools/policy.ts`) shows up with two buttons and the loop waits. `answer` decides; "always" flips the agent to
    direct mode. This mode ONLY concerns agents on OpenRouter: a subscription
    agent has its own modes.
 
@@ -182,11 +183,11 @@ export function useChat({
   }, []);
 
   /* Record an "Always" rule: the tool, or the start of the command for a
-     shell. A dangerous command produces no rule — `ruleFor` refuses it
-     upstream. */
+     shell. A dangerous command, or a tool that always asks, produces no
+     rule — `ruleFor` refuses it upstream. */
   const rememberRule = useCallback(
-    (name: string, args: Record<string, unknown>) => {
-      const rule = ruleFor(name, args);
+    (name: string, args: Record<string, unknown>, critical: boolean) => {
+      const rule = ruleFor(name, args, critical);
       if (rule) onAllowRule(rule);
     },
     [onAllowRule],
@@ -456,6 +457,11 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
             /* What precedes this turn: without the reply in progress, nor
                the user's message (a compaction has none). */
             const previous = conversation.messages.slice(0, compact ? -1 : -2);
+            /* The tools that always ask beyond the core's floor, to
+               recognise them in an external agent's call title. */
+            const critical = Object.entries(toolset.policies ?? {})
+              .filter(([, p]) => p.alwaysAsk)
+              .map(([name]) => name);
             const onEvent = (e: WireEvent) => {
               switch (e.type) {
                 case "session": {
@@ -490,11 +496,12 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
                     };
                     steps.push(t);
                   } else t.status = "pending";
+                  if (isAlwaysAskTitle(e.title, critical)) t.alwaysAsk = true;
                   mark(true);
                   waiting.current.set(e.id, (allow, always) => {
                     const step = tool(e.id);
                     if (step) step.status = allow ? "running" : "denied";
-                    if (allow && always && step) rememberRule(step.name, step.args);
+                    if (allow && always && step) rememberRule(step.name, step.args, step.alwaysAsk === true);
                     mark(true);
                     void answerAcpPermission(
                       conversation.id,
@@ -606,22 +613,28 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
               execute: (call, signal, em) => executeTool(call, exec, signal, em),
               /* A tool that acts goes through the user's permission — except
                  in direct execution, or if an already memorised rule covers
-                 it (`Write`, `Bash(git status *)`…). */
-              gated: (name) => alwaysAsks(name) || (!skipAll.current && isGated(name)),
+                 it (`Write`, `Bash(git status *)`…). What commits funds
+                 always asks. The policy is the one each tool declares
+                 (`lib/tools/policy.ts`). */
+              gated: (name) => mustAsk(policyIn(toolset.policies, name), skipAll.current),
               permission: (call: ToolCall) =>
                 new Promise<boolean>((resolve) => {
-                  if (matchesRule(agent.allowRules, call.name, call.args)) {
+                  const critical = policyIn(toolset.policies, call.name).alwaysAsk;
+                  if (matchesRule(agent.allowRules, call.name, call.args, critical)) {
                     resolve(true);
                     return;
                   }
                   const t = tool(call.id);
-                  if (t) t.status = "pending";
+                  if (t) {
+                    t.status = "pending";
+                    if (critical) t.alwaysAsk = true;
+                  }
                   mark(true);
                   waiting.current.set(call.id, (allow, always) => {
                     const step = tool(call.id);
                     if (step) step.status = allow ? "running" : "denied";
                     mark(true);
-                    if (allow && always) rememberRule(call.name, call.args);
+                    if (allow && always) rememberRule(call.name, call.args, critical);
                     resolve(allow);
                   });
                 }),

@@ -21,6 +21,7 @@ type Args = { todos: Array<{ content: string; status: string }> };
 
 export const todoTool: Tool<Args> = {
   name: "TodoWrite",
+  policy: { readOnly: true, subagent: true },
   description:
     "Your task list for the work in progress, shown to the user. Send the COMPLETE list on every call (it replaces the previous one). " +
     "Use it as soon as a request has more than two steps: write the steps down before starting, set ONE task to `in_progress` when you tackle it, to `completed` as soon as it is done. " +

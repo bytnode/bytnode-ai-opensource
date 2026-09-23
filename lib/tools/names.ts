@@ -1,15 +1,11 @@
-/* What the browser knows about the tools without importing them: which
-   ones wait for the user's approval in "ask" mode, and how to summarise
-   a call in one line. Shared with the server. */
+/* What the browser knows about the tools without importing them: the
+   core's floor of guarantees, and how to summarise a call in one line.
+   Each tool's own policy is declared next to its code (`Tool.policy`,
+   resolved by `policy.ts`); what is here cannot be lowered by any
+   declaration. Shared with the server. */
 
-/** The tools that act — on files, on the system, or by launching other
-    agents. In `ask` mode, each one waits for approval. */
-export const GATED_TOOLS = new Set(["Bash", "PowerShell", "Monitor", "Write", "Edit", "NotebookEdit", "Workflow", "Backtest", "PlaceOrder", "CancelOrder", "ClosePosition", "Transfer", "SetLeverage"]);
-
-export const isGated = (name: string) => GATED_TOOLS.has(name);
-
-/** The exchange tools that act (the five gated ones). */
-const GATED_EXCHANGE = new Set(["PlaceOrder", "CancelOrder", "ClosePosition", "Transfer", "SetLeverage"]);
+/** The exchange tools that act. */
+export const EXCHANGE_ACTIONS = new Set(["PlaceOrder", "CancelOrder", "ClosePosition", "Transfer", "SetLeverage"]);
 
 /** ⚠️ The tools that commit funds: they ALWAYS ask, whatever the agent's
     mode, with no "Always" button and no rule possible. */
@@ -17,20 +13,21 @@ export const ALWAYS_ASK = new Set(["PlaceOrder", "ClosePosition", "Transfer"]);
 
 export const alwaysAsks = (name: string) => ALWAYS_ASK.has(name);
 
-/** Does the title of an external agent's call (`mcp__bytnode-ai__PlaceOrder`…)
-    designate one of these tools? */
-export const isAlwaysAskTitle = (title: string) => [...ALWAYS_ASK].some((n) => title.includes(n));
+/** ⚠️ What a sub-agent (Workflow) or a background run never receives: it
+    has nobody to ask. Workflow itself, and every exchange tool that acts. */
+export const NEVER_BACKGROUND = new Set(["Workflow", ...EXCHANGE_ACTIONS]);
 
-/** ⚠️ A sub-agent (Workflow) has nobody to ask: it never receives a tool
-    that commits funds, nor Workflow itself. */
-export const allowedForSubagent = (name: string) => name !== "Workflow" && !GATED_EXCHANGE.has(name);
+/** Does the title of an external agent's call (`mcp__bytnode-ai__PlaceOrder`…)
+    designate a tool that always asks? `extra`: the always-ask tools
+    declared beyond the core's floor. */
+export const isAlwaysAskTitle = (title: string, extra: Iterable<string> = []) => [...ALWAYS_ASK, ...extra].some((n) => title.includes(n));
 
 /** A Workflow call, under its native name or that of an MCP server
     (`mcp__bytnode-ai__Workflow`). */
 export const isWorkflowName = (name: string) => /(?:^|[_/.:-])Workflow$/.test(name);
 
 /** The exchange tools, for the LIVE / TESTNET badge. */
-export const isExchangeTool = (name: string) => name.startsWith("Exchange") || GATED_EXCHANGE.has(name);
+export const isExchangeTool = (name: string) => name.startsWith("Exchange") || EXCHANGE_ACTIONS.has(name);
 
 /** The argument that summarises a call: the path, the command, the pattern… */
 export function summarizeCall(name: string, args: Record<string, unknown>): string {

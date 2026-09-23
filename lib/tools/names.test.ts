@@ -1,21 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { allowedForSubagent, alwaysAsks, isAlwaysAskTitle, isExchangeTool, isGated, isWorkflowName, summarizeCall } from "./names";
+import { NEVER_BACKGROUND, alwaysAsks, isAlwaysAskTitle, isExchangeTool, isWorkflowName, summarizeCall } from "./names";
 
-describe("exchange tools: who asks", () => {
-  it("the five write tools are gated; three always ask", () => {
-    for (const n of ["PlaceOrder", "CancelOrder", "ClosePosition", "Transfer", "SetLeverage"]) expect(isGated(n)).toBe(true);
-    expect(isGated("ExchangeBalance")).toBe(false);
+describe("exchange tools: the core's floor", () => {
+  it("three tools always ask", () => {
     expect(alwaysAsks("PlaceOrder")).toBe(true);
     expect(alwaysAsks("Transfer")).toBe(true);
+    expect(alwaysAsks("ClosePosition")).toBe(true);
     expect(alwaysAsks("CancelOrder")).toBe(false);
   });
-  it("recognises an external agent's title", () => {
+  it("recognises an external agent's title, core or declared", () => {
     expect(isAlwaysAskTitle("mcp__bytnode-ai__PlaceOrder")).toBe(true);
     expect(isAlwaysAskTitle("Read file")).toBe(false);
+    expect(isAlwaysAskTitle("mcp__bytnode-ai__Payout", ["Payout"])).toBe(true);
   });
-  it("a sub-agent never receives a tool that commits funds", () => {
-    for (const n of ["PlaceOrder", "CancelOrder", "ClosePosition", "Transfer", "SetLeverage", "Workflow"]) expect(allowedForSubagent(n)).toBe(false);
-    for (const n of ["ExchangeBalance", "ExchangeTicker", "Bash", "Write"]) expect(allowedForSubagent(n)).toBe(true);
+  it("Workflow and every exchange action stay out of reach of sub-agents", () => {
+    for (const n of ["PlaceOrder", "CancelOrder", "ClosePosition", "Transfer", "SetLeverage", "Workflow"]) expect(NEVER_BACKGROUND.has(n)).toBe(true);
+    for (const n of ["ExchangeBalance", "ExchangeTicker", "Bash", "Write"]) expect(NEVER_BACKGROUND.has(n)).toBe(false);
   });
   it("recognises a Workflow call, native or served over MCP", () => {
     for (const n of ["Workflow", "mcp__bytnode-ai__Workflow", "bytnode-ai/Workflow", "bytnode-ai.Workflow"]) expect(isWorkflowName(n)).toBe(true);

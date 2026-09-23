@@ -23,6 +23,7 @@ const MAX_ROWS = 200_000;
 
 export const saveMarketDataTool: Tool<Args> = {
   name: "SaveMarketData",
+  policy: { gated: false, subagent: true },
   description:
     "Interroge un outil de données BytNode (`get_history`, `get_market_data`, `get_market_indicators`…) et enregistre le tableau obtenu en CSV dans le dossier de travail, sans le faire passer par la conversation. " +
     "Utilise-le dès qu'il y a plus de quelques dizaines de lignes (historique de bougies, séries d'indicateurs) : tu reçois un résumé (colonnes, nombre de lignes, période) et le fichier est prêt pour Chart, Backtest ou un script pandas. " +

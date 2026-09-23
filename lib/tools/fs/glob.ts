@@ -14,6 +14,7 @@ const IGNORE = ["**/node_modules/**", "**/.git/**", "**/.next/**", "**/dist/**",
 
 export const globTool: Tool<Args> = {
   name: "Glob",
+  policy: { readOnly: true, subagent: true },
   description:
     "Searches for files by pattern (`**/*.ts`, `src/**/*.test.tsx`, `*.md`…) in a folder. Returns the paths, from the most recently modified to the oldest. node_modules, .git, .next, dist and build are ignored.",
   parameters: {

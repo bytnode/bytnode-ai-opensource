@@ -26,6 +26,7 @@ const LIMIT_LINES = 400;
 
 export const grepTool: Tool<Args> = {
   name: "Grep",
+  policy: { readOnly: true, subagent: true },
   description:
     "Searches a pattern (regular expression) in the content of files, with ripgrep. `output_mode`: `files_with_matches` (default, the files), `content` (the lines, with `context` lines around) or `count`. `glob` filters the files (`*.ts`, `**/*.{js,tsx}`).",
   parameters: {

@@ -11,6 +11,7 @@ type Args = { account?: string; symbol: string; fraction?: number };
 
 export const closePositionTool: Tool<Args> = {
   name: "ClosePosition",
+  policy: { alwaysAsk: true },
   description: "Closes a futures position (all of it, or a `fraction` from 0.01 to 1) with an opposite reduce-only market order. The user must authorize each close.",
   parameters: {
     type: "object",

@@ -2,7 +2,7 @@ import type { AgentEvent } from "@/lib/agent/events";
 import type { ToolSpec } from "@/lib/agent/loop";
 import type { ToolCall } from "@/lib/agent/tool-calls";
 import type { SkillInfo } from "./skills/skill";
-import type { ToolResult } from "./types";
+import type { ToolPolicy, ToolResult } from "./types";
 import type { ExchangeAccount } from "@/lib/domain/types";
 import { encodeAccountsHeader } from "./exchange/accounts";
 
@@ -14,6 +14,8 @@ import { encodeAccountsHeader } from "./exchange/accounts";
 export type Toolset = {
   workspace: string;
   tools: ToolSpec[];
+  /** Each tool's resolved policy, by name (`lib/tools/policy.ts`). */
+  policies: Record<string, ToolPolicy>;
   skills: SkillInfo[];
   platform: string;
   profession: { id: string; prompt: string };

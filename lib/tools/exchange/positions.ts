@@ -11,6 +11,7 @@ type Args = { account?: string; symbol?: string };
 
 export const positionsTool: Tool<Args> = {
   name: "ExchangePositions",
+  policy: { readOnly: true, subagent: true },
   description: "An account's open futures positions: side, size, entry price, mark, unrealized PnL, leverage, liquidation price. Read-only, no permission needed.",
   parameters: { type: "object", properties: { account: ACCOUNT_PROP, symbol: { ...SYMBOL_PROP, description: "Limit to one pair (optional)." } }, additionalProperties: false },
   async execute(args, ctx) {

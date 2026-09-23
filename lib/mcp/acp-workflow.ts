@@ -47,6 +47,7 @@ export async function agentModels(link: ParentLink): Promise<string[]> {
 export function acpWorkflowTool(link: ParentLink, models: string[], bytnodeKey: string, exchangeAccounts: ExchangeAccount[]): Tool<Args> {
   return {
     name: "Workflow",
+    policy: { gated: true, subagent: false },
     description: workflowDescription({ kind: "list", ids: models }),
     parameters: workflowParameters({ kind: "list", ids: models }),
     async execute(args, ctx) {

@@ -153,8 +153,9 @@ function WorkflowRow({ row }: { row: Row }) {
 --------------------------------------------------------------------------- */
 function Ask({ step, onAnswer }: { step: ToolStep; onAnswer: (allow: boolean, always?: boolean) => void }) {
   const dangereux = isDangerous(step.name, step.args);
-  /* An order, a close, a transfer: never an "Always". */
-  const fonds = alwaysAsks(step.name) || isAlwaysAskTitle(step.name);
+  /* An order, a close, a transfer — or any tool whose policy always asks:
+     never an "Always". */
+  const fonds = step.alwaysAsk === true || alwaysAsks(step.name) || isAlwaysAskTitle(step.name);
   const rule = dangereux || fonds ? null : ruleFor(step.name, step.args);
   return (
     <div className={`ts-ask${dangereux || fonds ? " is-danger" : ""}`}>

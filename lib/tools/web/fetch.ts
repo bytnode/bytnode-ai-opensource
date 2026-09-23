@@ -132,6 +132,7 @@ type Args = { url: string };
 
 export const webFetchTool: Tool<Args> = {
   name: "WebFetch",
+  policy: { readOnly: true, subagent: true },
   description:
     "Fetches the content of a URL (http/https) and returns it as markdown (converted HTML) or text (JSON, XML, plain text). Follows same-origin redirects. Limited to 100,000 characters.",
   parameters: {

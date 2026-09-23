@@ -21,6 +21,7 @@ const MAX_LINES = 500;
 
 export const monitorTool: Tool<Args> = {
   name: "Monitor",
+  policy: { gated: true, subagent: true },
   description:
     "Watches a command (`command`) or a WebSocket (`url` ws:// or wss://) and returns every line or message received. Stops when a line matches `until` (regular expression), when the process ends, or after `timeout` ms (default 60000, max 600000). Useful to wait for a server to be ready, for a build to finish, or to observe a stream.",
   parameters: {

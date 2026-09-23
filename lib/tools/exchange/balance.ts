@@ -37,6 +37,7 @@ export async function fundingRows(ex: Exchange, exchange: string): Promise<Balan
 
 export const balanceTool: Tool<BaseArgs> = {
   name: "ExchangeBalance",
+  policy: { readOnly: true, subagent: true },
   description: "The balances of an exchange account (spot or futures): per asset, free / locked, and a USD estimate. Read-only, no permission needed.",
   parameters: { type: "object", properties: { account: ACCOUNT_PROP, market: MARKET_PROP }, additionalProperties: false },
   async execute(args, ctx) {

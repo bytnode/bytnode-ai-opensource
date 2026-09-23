@@ -8,7 +8,7 @@ import { memoryTool } from "@/lib/tools/finance/memory";
 import type { Tool, ToolContext } from "@/lib/tools/types";
 import { exchangeTools } from "@/lib/tools/exchange";
 import { parseAccountsHeader } from "@/lib/tools/exchange/accounts";
-import { allowedForSubagent } from "@/lib/tools/names";
+import { resolvePolicy } from "@/lib/tools/policy";
 import { validateArgs } from "@/lib/tools/validate";
 import { acpWorkflowTool, agentModels, parentLinkFromEnv } from "./acp-workflow";
 
@@ -47,7 +47,7 @@ const base: Tool[] = [saveMarketDataTool, chartTool, backtestTool, memoryTool, .
 let tools: Promise<Tool[]> | null = null;
 const toolset = () =>
   (tools ??= (async () => {
-    if (depth >= 1) return base.filter((t) => allowedForSubagent(t.name));
+    if (depth >= 1) return base.filter((t) => resolvePolicy(t.name, t.policy).subagent);
     if (!parent) return base;
     return [...base, acpWorkflowTool(parent, await agentModels(parent), bytnodeKey, exchangeAccounts) as Tool];
   })());

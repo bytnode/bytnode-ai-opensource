@@ -33,6 +33,7 @@ const shortId = () => randomUUID().slice(0, 8);
 
 export const memoryTool: Tool<Args> = {
   name: "Memory",
+  policy: { gated: false, subagent: true },
   description:
     "Ta mémoire entre les conversations, propre à cet agent. `add` : retenir une note courte et datée (une thèse de marché, un niveau surveillé, une stratégie testée et son verdict, une préférence de l'utilisateur) avec des tags ; " +
     "`list` : tout relire ; `search` : chercher par mots ; `remove` : retirer une note par son id. Les dernières notes sont déjà dans ton prompt (section Mémoire). " +

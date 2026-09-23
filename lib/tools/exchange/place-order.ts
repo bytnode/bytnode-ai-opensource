@@ -33,6 +33,7 @@ type MarketInfo = { base?: string; quote?: string; limits?: { amount?: { min?: n
 
 export const placeOrderTool: Tool<Args> = {
   name: "PlaceOrder",
+  policy: { alwaysAsk: true },
   description:
     "Places an order on an exchange account (spot or futures). Types: `market`, `limit` (requires `price`), `stop` (market triggered at `stopPrice`), `stop_limit` (`price` + `stopPrice`), `take_profit` (market triggered at `stopPrice`). " +
     "Quantity: `amount` in base asset (0.05 BTC) OR `quoteAmount` in quote currency (200 USDT, converted at the current price). On futures: `reduceOnly` to only ever reduce a position, `leverage` to set the leverage before the order. " +

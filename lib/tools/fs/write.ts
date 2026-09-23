@@ -11,6 +11,7 @@ type Args = { file_path: string; content: string };
 
 export const writeTool: Tool<Args> = {
   name: "Write",
+  policy: { gated: true, subagent: true },
   description:
     "Creates a file or replaces its content entirely. Intermediate folders are created. For a partial change, prefer Edit.",
   parameters: {

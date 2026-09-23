@@ -58,9 +58,10 @@ export function isDangerous(name: string, args: Record<string, unknown>): boolea
 }
 
 /** The rule an "Always" would store for this call, or `null` when the call
-    does not lend itself to one. */
-export function ruleFor(name: string, args: Record<string, unknown>): string | null {
-  if (alwaysAsks(name)) return null;
+    does not lend itself to one. `critical`: the tool's own policy says it
+    always asks (beyond the core's floor). */
+export function ruleFor(name: string, args: Record<string, unknown>, critical = false): string | null {
+  if (critical || alwaysAsks(name)) return null;
   if (!SHELLS.has(name)) return name;
   const cmd = commande(args);
   if (!cmd) return null;
@@ -71,9 +72,9 @@ export function ruleFor(name: string, args: Record<string, unknown>): string | n
 }
 
 /** Is this call covered by a rule already stored? */
-export function matchesRule(rules: string[] | undefined, name: string, args: Record<string, unknown>): boolean {
+export function matchesRule(rules: string[] | undefined, name: string, args: Record<string, unknown>, critical = false): boolean {
   if (!rules?.length) return false;
-  if (alwaysAsks(name) || isDangerous(name, args)) return false;
+  if (critical || alwaysAsks(name) || isDangerous(name, args)) return false;
   if (rules.includes(name)) return true;
   const r = ruleFor(name, args);
   return r !== null && rules.includes(r);

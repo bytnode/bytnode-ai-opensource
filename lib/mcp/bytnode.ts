@@ -125,6 +125,8 @@ export function wrapBytnodeTools(apiKey: string, infos: McpToolInfo[]): Tool[] {
     name: info.name,
     description: `[BytNode, source de données] ${info.description}`.trim(),
     parameters: info.inputSchema,
+    /* Market data: reading only, for every agent and every run. */
+    policy: { readOnly: true, subagent: true },
     execute: (args, ctx) => callBytnodeTool(apiKey, info.name, args, ctx.signal),
   }));
 }

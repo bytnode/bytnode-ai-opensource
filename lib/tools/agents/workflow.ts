@@ -1,4 +1,4 @@
-import { allowedForSubagent } from "../names";
+import { resolvePolicy } from "../policy";
 import type { Tool, ToolContext } from "../types";
 import { errorText, fail, ok } from "../types";
 import { runAgentLoop, type ToolSpec } from "@/lib/agent/loop";
@@ -32,6 +32,7 @@ const SUBAGENT_TURNS = 25;
 
 export const workflowTool: Tool<Args> = {
   name: "Workflow",
+  policy: { gated: true, subagent: false },
   description: workflowDescription({ kind: "openrouter" }),
   parameters: workflowParameters({ kind: "openrouter" }),
   async execute(args, ctx) {
@@ -55,7 +56,7 @@ async function runOne(task: SubagentTask, index: number, context: string | undef
       allTools({ platform: process.platform, bytnodeKey: ctx.bytnodeKey, exchangeAccounts: ctx.exchangeAccounts }),
     ]);
     const skills = await listSkills(ctx.workspace, prof.skills);
-    const tools = every.filter((t) => allowedForSubagent(t.name));
+    const tools = every.filter((t) => resolvePolicy(t.name, t.policy).subagent);
     const specs: ToolSpec[] = toToolSpecs(tools);
     const sub: ToolContext = { ...ctx, depth: ctx.depth + 1, callId: id, professionSkills: prof.skills };
     const model = task.model || ctx.llm.model;

@@ -16,6 +16,7 @@ const WALLET_PROP = { type: "string", enum: ["spot", "futures", "funding"], desc
 
 export const transferTool: Tool<Args> = {
   name: "Transfer",
+  policy: { alwaysAsk: true },
   description:
     "Moves an asset between the wallets of the same account: spot ↔ futures, or from the Funding wallet (where deposits land on Bybit, OKX, KuCoin, Binance) to trading. Internal to the account only — no external withdrawal exists. The user must authorize each transfer.",
   parameters: {

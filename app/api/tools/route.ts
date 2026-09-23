@@ -1,4 +1,5 @@
 import { allTools, toToolSpecs } from "@/lib/tools/registry";
+import { policiesOf } from "@/lib/tools/policy";
 import { listSkills } from "@/lib/tools/skills/skill";
 import { PROJECT_ROOT, resolveWorkspace } from "@/lib/server/workspace";
 import { KEY_HEADER } from "@/lib/server/openrouter";
@@ -30,6 +31,9 @@ export async function GET(req: Request) {
   return Response.json({
     workspace,
     tools: toToolSpecs(tools),
+    /* What each tool may do without the user: the browser decides with
+       it which call waits for approval. */
+    policies: policiesOf(tools),
     skills,
     platform: `${process.platform} (${process.arch})`,
     profession: { id: prof.id, prompt: prof.prompt },

@@ -60,10 +60,31 @@ export type ToolContext = {
   exchangeAccounts?: ExchangeAccount[];
 };
 
+/** What a tool may do without the user, as it declares it. Every field
+    is optional; `resolvePolicy` (`policy.ts`) fills in the rest and
+    applies the core's floor — a tool that declares nothing is treated as
+    sensitive: it asks, and no sub-agent receives it. */
+export type DeclaredPolicy = {
+  /** No side effect beyond reading. */
+  readOnly?: boolean;
+  /** Waits for the user's approval in "Ask before acting" mode. */
+  gated?: boolean;
+  /** Asks even in "Direct execution", never offers "Always". */
+  alwaysAsk?: boolean;
+  /** Given to Workflow sub-agents and to background runs, which have
+      nobody to ask. */
+  subagent?: boolean;
+};
+
+/** The policy once resolved: every field decided. */
+export type ToolPolicy = Required<DeclaredPolicy>;
+
 export interface Tool<A = Record<string, unknown>> {
   name: string;
   description: string;
   parameters: JsonSchema;
+  /** See `DeclaredPolicy`. Absent: sensitive. */
+  policy?: DeclaredPolicy;
   execute(args: A, ctx: ToolContext): Promise<ToolResult>;
 }
 

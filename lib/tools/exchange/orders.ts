@@ -11,6 +11,7 @@ type Args = BaseArgs & { status: "open" | "closed"; symbol?: string; since?: str
 
 export const ordersTool: Tool<Args> = {
   name: "ExchangeOrders",
+  policy: { readOnly: true, subagent: true },
   description: "An account's orders: `open` (pending) or `closed` (filled / canceled, with average price and fees). Filter by pair and by date. Read-only, no permission needed.",
   parameters: {
     type: "object",

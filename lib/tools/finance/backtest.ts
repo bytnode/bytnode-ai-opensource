@@ -52,6 +52,7 @@ const TIMEOUT = 10 * 60_000;
 
 export const backtestTool: Tool<Args> = {
   name: "Backtest",
+  policy: { gated: true, subagent: true },
   description:
     "Backteste une stratégie avec le moteur standard de BytNode-AI (exécution à l'ouverture de la bougie suivante, frais + slippage par côté, funding si la colonne existe, taille par le risque quand un stop est donné, découpage in-sample / out-of-sample, métriques par période et par année, référence acheter-et-garder, courbe de capital). " +
     "`data` : un CSV OHLCV du dossier de travail (SaveMarketData). `strategy` : un fichier Python du dossier de travail qui définit `signal(df, **params) -> pd.Series` à valeurs -1 / 0 / 1, calculées avec les données ≤ t (rolling causal, jamais center=True), et optionnellement `stop_distance(df, **params) -> pd.Series` (distance au stop en prix, ex. 2×ATR). " +

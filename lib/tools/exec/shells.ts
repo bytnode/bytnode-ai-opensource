@@ -63,6 +63,7 @@ export function makeShellTools(defaultShell: "Bash" | "PowerShell") {
 
 export const bashTool: Tool<Args> = {
   name: "Bash",
+  policy: { gated: true, subagent: true },
   description:
     "Runs a shell command (bash) in the workspace and returns its output. To read, search or modify files, prefer Read, Glob, Grep and Edit. No interactive command.",
   parameters: {
@@ -94,6 +95,7 @@ export const bashTool: Tool<Args> = {
 
 export const powershellTool: Tool<Args> = {
   name: "PowerShell",
+  policy: { gated: true, subagent: true },
   description:
     "Runs a PowerShell command in the workspace and returns its output. Native on Windows (pwsh 7 when present, otherwise Windows PowerShell). No interactive command.",
   parameters: {

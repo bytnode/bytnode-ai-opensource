@@ -93,6 +93,14 @@ describe("isDangerous", () => {
   });
 });
 
+describe("a tool whose policy always asks", () => {
+  it("gets no rule and is never covered by one", () => {
+    expect(ruleFor("Payout", {}, true)).toBeNull();
+    expect(matchesRule(["Payout"], "Payout", {}, true)).toBe(false);
+    expect(matchesRule(["Payout"], "Payout", {})).toBe(true);
+  });
+});
+
 describe("addRule / ruleLabel", () => {
   it("adds without duplicates", () => {
     expect(addRule(["Write"], "Bash(python *)")).toEqual(["Write", "Bash(python *)"]);

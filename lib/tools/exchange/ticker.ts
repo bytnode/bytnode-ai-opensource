@@ -13,6 +13,7 @@ type Args = BaseArgs & { symbol: string; depth?: number };
 
 export const tickerTool: Tool<Args> = {
   name: "ExchangeTicker",
+  policy: { readOnly: true, subagent: true },
   description: "The price of a pair on the account's exchange: last, bid/ask, 24 h change, volume; the order book (`depth` levels, default 5); on futures, the funding rate. Read-only, no permission needed.",
   parameters: {
     type: "object",
