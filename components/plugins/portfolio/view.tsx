@@ -6,13 +6,11 @@ import type { Money } from "@/lib/plugins/portfolio/present";
 import { CURRENCIES } from "@/lib/plugins/shared/fx";
 import { pluginManifest } from "@/lib/plugins/catalog";
 import { pluginSettings, resolveConfig } from "@/lib/plugins/core/state";
-import { callPlugin } from "@/lib/plugins/client";
 import { goToSettings } from "@/lib/state/navigation";
-import { usePlugins } from "@/lib/state/plugins";
 import { Select } from "@/components/ui/select";
-import { File } from "@/components/ui/icons";
 import type { ViewProps } from "../views";
-import { usePluginData, viewTransport } from "../use-plugin-data";
+import { usePluginData } from "../use-plugin-data";
+import { useReportExport } from "../use-report-export";
 import { Change, Kpi, Loading, Problem, Sparkline, fmt, money } from "../bits";
 
 /* ---------------------------------------------------------------------------
@@ -29,11 +27,7 @@ export function PortfolioView({ settings }: ViewProps) {
   const [currency, setCurrency] = useState(configured);
   const { data, error, loading } = usePluginData<Current>("portfolio", "summary", settings, { currency });
   const history = usePluginData<{ points: Snapshot[] }>("portfolio", "history", settings, { days: 90 });
-  const { status } = usePlugins();
-  const canExport = status.some((s) => s.id === "report-export" && s.state === "active");
-  const [exported, setExported] = useState<{ href: string; path: string } | null>(null);
-  const [exportError, setExportError] = useState<string | null>(null);
-  const [exporting, setExporting] = useState(false);
+  const report = useReportExport("portfolio", settings, { currency });
 
   if (settings.keys.exchanges.length === 0) {
     return (
@@ -45,21 +39,6 @@ export function PortfolioView({ settings }: ViewProps) {
       </div>
     );
   }
-
-  const agent = settings.agents.find((a) => a.id === settings.activeAgentId) ?? settings.agents[0];
-  const doExport = async () => {
-    if (!agent) return;
-    setExporting(true);
-    setExportError(null);
-    try {
-      const r = await callPlugin<{ path: string; agentId: string; workspace: string }>("portfolio", "export", { currency, agentId: agent.id, workspace: agent.workspace ?? "" }, viewTransport(settings));
-      setExported({ path: r.path, href: `/api/files?agentId=${encodeURIComponent(r.agentId)}&workspace=${encodeURIComponent(r.workspace)}&path=${encodeURIComponent(r.path)}` });
-    } catch (e) {
-      setExportError((e as Error).message);
-    } finally {
-      setExporting(false);
-    }
-  };
 
   const s = data?.summary;
   const m = data?.money;
@@ -77,22 +56,9 @@ export function PortfolioView({ settings }: ViewProps) {
         </div>
         {loading && data && <span className="pv-chip">Updating…</span>}
         <span className="tb-space" />
-        {canExport && (
-          <button type="button" className="btn btn-sm" onClick={() => void doExport()} disabled={exporting || !s}>
-            <File />
-            {exporting ? "Exporting…" : "Export as a report"}
-          </button>
-        )}
+        {report.button(!s)}
       </div>
-      {exported && (
-        <p className="pv-note">
-          Report written in {agent?.name}&apos;s workspace:{" "}
-          <a href={exported.href} target="_blank" rel="noreferrer" className="mono">
-            {exported.path}
-          </a>
-        </p>
-      )}
-      {exportError && <Problem message={exportError} />}
+      {report.result}
       {error && <Problem message={error} />}
       {!s || !m ? (
         <Loading />
