@@ -14,9 +14,9 @@ import "./calendar.css";
    The Calendar tab: the market events, the month on the left and the
    chosen period on the right, like Calendar on the iPad.
 
-   It lies on the app's own backdrop: its two panes are veils that darken
-   the light beams behind them, never cards of their own — the backdrop
-   belongs to the app, and the text keeps its contrast whatever it shows.
+   It lies on the app's own backdrop: one veil that darkens the light
+   beams behind it, never a card of its own — the backdrop belongs to the
+   app, and the text keeps its contrast whatever it shows.
 --------------------------------------------------------------------------- */
 
 type Week = { events: CalendarEvent[]; last: Collection; watchlist: boolean };
@@ -78,20 +78,22 @@ export function CalendarView({ settings }: ViewProps) {
 
   return (
     <div className="calv">
-      <MonthPane
-        month={month}
-        today={today}
-        period={period}
-        span={span}
-        days={days}
-        counts={counts}
-        filter={filter}
-        watchlist={data?.watchlist ?? false}
-        onMonth={setMonth}
-        onPeriod={choose}
-        onDay={pick}
-      />
-      <Agenda period={period} span={span} today={today} days={days} last={data?.last ?? null} loading={loading && !data} problem={problem ?? error ?? null} collecting={collecting} onCollect={() => void collect()} onPick={pick} />
+      <div className="calv-panel">
+        <MonthPane
+          month={month}
+          today={today}
+          period={period}
+          span={span}
+          days={days}
+          counts={counts}
+          filter={filter}
+          watchlist={data?.watchlist ?? false}
+          onMonth={setMonth}
+          onPeriod={choose}
+          onDay={pick}
+        />
+        <Agenda period={period} span={span} today={today} days={days} last={data?.last ?? null} loading={loading && !data} problem={problem ?? error ?? null} collecting={collecting} onCollect={() => void collect()} onPick={pick} />
+      </div>
     </div>
   );
 }

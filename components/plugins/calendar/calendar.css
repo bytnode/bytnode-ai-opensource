@@ -1,11 +1,12 @@
 /* ---------------------------------------------------------------------------
    The Calendar tab.
 
-   ⚠️ THE BACKDROP IS THE APP'S, NOT THE CALENDAR'S. The two panes are veils
-   laid on the light beams — they darken them without hiding them, and the
-   beams run on, unbroken, behind both panes and the gap between them. No
-   card, no shadow: the page is the app, the calendar only sits on it. The
-   veil is dense enough that the text never depends on what passes behind.
+   ⚠️ THE BACKDROP IS THE APP'S, NOT THE CALENDAR'S. The calendar is one
+   veil laid on the light beams — it darkens them without hiding them, and
+   the beams run on, unbroken, behind it. No card, no shadow: the page is
+   the app, the calendar only sits on it. The month and the agenda share
+   that veil, parted by a hairline. The veil is dense enough that the text
+   never depends on what passes behind.
    Colour belongs to the data — Apple's system colours, one per calendar —
    and to today, in red.
 --------------------------------------------------------------------------- */
@@ -26,7 +27,6 @@
   --pane: rgba(var(--voile), 0.5);
 
   display: flex;
-  gap: 14px;
   height: 100%;
   padding: 14px 16px 16px;
   color: var(--label);
@@ -48,14 +48,22 @@ html[data-theme="light"] .calv {
   --pane: rgba(255, 255, 255, 0.6);
 }
 
-.calv-pane {
+.calv-panel {
   display: flex;
-  flex-direction: column;
+  flex: 1;
+  min-width: 0;
   min-height: 0;
+  overflow: hidden;
   border: 1px solid rgba(var(--ink), 0.075);
   border-radius: 16px;
   background: var(--pane);
   backdrop-filter: blur(22px) saturate(1.2);
+}
+
+.calv-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .calv :focus-visible {
@@ -120,6 +128,7 @@ html[data-theme="light"] .calv {
 
 .calv-month {
   flex: 0 0 clamp(330px, 29%, 410px);
+  border-right: 1px solid var(--sep);
   overflow-y: auto;
   scrollbar-width: thin;
 }
@@ -682,7 +691,7 @@ html[data-theme="light"] .calv-pop {
 /* --- Small screens and reduced motion ------------------------------------------ */
 
 @media (max-width: 900px) {
-  .calv {
+  .calv-panel {
     flex-direction: column;
     overflow-y: auto;
   }
@@ -690,6 +699,8 @@ html[data-theme="light"] .calv-pop {
   .calv-month {
     flex: none;
     overflow: visible;
+    border-right: 0;
+    border-bottom: 1px solid var(--sep);
   }
 
   .calv-agenda {
