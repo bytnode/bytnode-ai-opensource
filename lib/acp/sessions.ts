@@ -512,44 +512,94 @@ export async function runSubagent(input: SubagentInput, signal: AbortSignal): Pr
   if (!parent.busy) throw new Error("The requester's turn is over.");
   const { agent, cwd: workspace } = parent;
 
-  const [prof, skillSet, project, bytnode] = await Promise.all([
-    loadProfession(PROJECT_ROOT, input.profession),
-    subagentSkillSet(),
-    userSkills(),
-    input.bytnodeKey.trim()
-      ? bytnodeTools(input.bytnodeKey).then(
-          (infos) => ({ ok: true, count: infos.length }),
-          (e: unknown) => ({ ok: false, count: 0, message: e instanceof Error ? e.message : String(e) }),
-        )
-      : Promise.resolve({ ok: false, count: 0, message: "no key" }),
-  ]);
+  const [prof, skillSet, project, bytnode] = await Promise.all([loadProfession(PROJECT_ROOT, input.profession), subagentSkillSet(), userSkills(), bytnodeStatus(input.bytnodeKey)]);
   await syncSubagentSkills(workspace, skillSet);
   const system = [
     subagentFrame(input.profession, prof.prompt, workspace),
     buildAcpPrompt(workspace, [...prof.skills, ...project], bytnode, acpAgentInfo(agent).product, input.exchangeAccounts, 0, true),
   ].join("\n\n");
-  const servers = mcpServersFor({ workspace, bytnodeKey: input.bytnodeKey, exchangeAccounts: input.exchangeAccounts, plugins: parent.plugins, agentId: parent.agentId }, { depth: 1 });
-  const config = { system, modelId: input.modelId, effort: parent.effort, mode: null };
-
-  await prepareWorkspace(agent, workspace);
-  const opened = clock();
-  const conn = await AcpConnection.open(agent, workspace);
-  try {
-    const res = await conn.newSession(workspace, servers, sessionMeta(agent, config));
-    trace(`${agent}: sub-agent ${input.profession} opened in ${opened()} (model ${input.modelId ?? "current"})`);
-    const l: Live = {
+  return throwawayTurn(
+    {
       agent,
-      agentId: parent.agentId,
-      plugins: parent.plugins,
+      workspace,
+      system,
+      text: input.text,
+      modelId: input.modelId,
+      effort: parent.effort,
+      served: { workspace, bytnodeKey: input.bytnodeKey, exchangeAccounts: input.exchangeAccounts, plugins: parent.plugins, agentId: parent.agentId },
+      label: `sub-agent ${input.profession}`,
+    },
+    signal,
+  );
+}
+
+/* ---------------------------------------------------------------------------
+   A subscription agent in the background (a scheduled task, the calendar's
+   collector): the same throwaway session as a sub-agent — depth-1 tools,
+   permissions granted except what commits funds — for an agent of the
+   user's, with the system prompt the caller built.
+--------------------------------------------------------------------------- */
+
+export type BackgroundInput = {
+  agent: AcpAgentId;
+  agentId: string;
+  workspace: string;
+  system: string;
+  text: string;
+  modelId: string | null;
+  effort: string | null;
+  bytnodeKey: string;
+  exchangeAccounts: ExchangeAccount[];
+  plugins: string[] | null;
+};
+
+export async function runBackground(input: BackgroundInput, signal: AbortSignal): Promise<string> {
+  await syncSubagentSkills(input.workspace, await subagentSkillSet());
+  return throwawayTurn(
+    {
+      ...input,
+      served: { workspace: input.workspace, bytnodeKey: input.bytnodeKey, exchangeAccounts: input.exchangeAccounts, plugins: input.plugins, agentId: input.agentId },
+      label: "background run",
+    },
+    signal,
+  );
+}
+
+const bytnodeStatus = (key: string) =>
+  key.trim()
+    ? bytnodeTools(key).then(
+        (infos) => ({ ok: true, count: infos.length }),
+        (e: unknown) => ({ ok: false, count: 0, message: e instanceof Error ? e.message : String(e) }),
+      )
+    : Promise.resolve({ ok: false, count: 0, message: "no key" });
+
+type Throwaway = { agent: AcpAgentId; workspace: string; system: string; text: string; modelId: string | null; effort: string | null; served: Served; label: string };
+
+/** One prompt in a session opened for it and closed after: nobody answers
+    its permission requests — granted, except what commits funds. The text
+    it produces is the result. */
+async function throwawayTurn(t: Throwaway, signal: AbortSignal): Promise<string> {
+  const servers = mcpServersFor(t.served, { depth: 1 });
+  const config = { system: t.system, modelId: t.modelId, effort: t.effort, mode: null };
+  await prepareWorkspace(t.agent, t.workspace);
+  const opened = clock();
+  const conn = await AcpConnection.open(t.agent, t.workspace);
+  try {
+    const res = await conn.newSession(t.workspace, servers, sessionMeta(t.agent, config));
+    trace(`${t.agent}: ${t.label} opened in ${opened()} (model ${t.modelId ?? "current"})`);
+    const l: Live = {
+      agent: t.agent,
+      agentId: t.served.agentId,
+      plugins: t.served.plugins,
       conn,
       sessionId: res.sessionId,
-      cwd: workspace,
+      cwd: t.workspace,
       configOptions: res.configOptions ?? [],
       legacyModel: legacyModelOf(res),
       modes: modesOfSession(res as Parameters<typeof modesOfSession>[0]),
-      effort: parent.effort,
+      effort: t.effort,
       serversKey: "",
-      system,
+      system: t.system,
       lastUsed: Date.now(),
       busy: true,
       pending: new Map(),
@@ -578,7 +628,7 @@ export async function runSubagent(input: SubagentInput, signal: AbortSignal): Pr
     }, SUBAGENT_TIMEOUT);
     signal.addEventListener("abort", cancel, { once: true });
     try {
-      await conn.prompt(l.sessionId, agent === "claude" ? input.text : wrapContext(system, input.text));
+      await conn.prompt(l.sessionId, t.agent === "claude" ? t.text : wrapContext(t.system, t.text));
     } catch (e) {
       if (!signal.aborted && !timedOut) throw describe(e, conn);
     } finally {
@@ -586,7 +636,7 @@ export async function runSubagent(input: SubagentInput, signal: AbortSignal): Pr
       signal.removeEventListener("abort", cancel);
       conn.listen(l.sessionId, null, null);
     }
-    if (signal.aborted) throw new Error("Sub-agent interrupted.");
+    if (signal.aborted) throw new Error("Interrupted.");
     if (timedOut) throw new Error(`Timed out (${SUBAGENT_TIMEOUT / 60_000} min).`);
     return chunks.join("").trim();
   } finally {
