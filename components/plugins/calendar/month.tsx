@@ -9,17 +9,17 @@ import { LOCALE, TONE } from "./format";
 import { MonthTitle } from "./month-title";
 
 /* The left pane: the month (its title opens the month and year pickers),
-   the period to show on the right, the days with a coloured mark per
-   event — a market-moving one as a short bar — and the calendars. */
+   the period to show on the right (today or this week), the days with a
+   coloured mark per event — a market-moving one as a short bar — and the
+   calendars. */
 
 const MARKS = 4;
 
-export type PeriodKey = "today" | "week" | "month";
+export type PeriodKey = "today" | "week";
 
 const PERIODS: Array<{ value: PeriodKey; label: string }> = [
   { value: "today", label: "Today" },
   { value: "week", label: "This week" },
-  { value: "month", label: "This month" },
 ];
 
 type Props = {

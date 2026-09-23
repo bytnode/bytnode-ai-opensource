@@ -6,10 +6,10 @@ import { byHour, sameDay } from "@/lib/plugins/calendar/days";
 import { EventFacts } from "./event-facts";
 import { LOCALE, timeOf, toneOf } from "./format";
 
-/* A day on a scale of hours, like Calendar's day view: the 24 hours,
-   each timed event in its hour as a tinted block that opens in place (the
-   events of the whole day sit in the agenda's header, above the scale).
-   On today, a red line says where the day stands. */
+/* A day on a scale of hours, like Calendar's day view: the 24 hours as
+   rounded tiles, each event in its hour as a tinted block that opens in
+   place (an event without a time opens the day, in the first hour). On
+   today, a red line says where the day stands. */
 
 const hourLabel = (h: number) => `${String(h).padStart(2, "0")}:00`;
 
@@ -23,7 +23,7 @@ type Props = {
 
 export function HourScale({ day, events, now, anchor }: Props) {
   const [opened, setOpened] = useState<string | null>(null);
-  const { hours } = byHour(events);
+  const hours = byHour(events);
   const today = sameDay(day, now);
   const toggle = (id: string) => setOpened(opened === id ? null : id);
 
@@ -44,7 +44,7 @@ export function HourScale({ day, events, now, anchor }: Props) {
   );
 }
 
-export function EventBlock({ event, open, onToggle }: { event: CalendarEvent; open: boolean; onToggle: () => void }) {
+function EventBlock({ event, open, onToggle }: { event: CalendarEvent; open: boolean; onToggle: () => void }) {
   return (
     <div className={`calv-block${open ? " is-open" : ""}${event.importance === 3 ? " is-strong" : ""}`} style={toneOf(event.category)}>
       <button type="button" className="calv-block-main" onClick={onToggle} aria-expanded={open}>

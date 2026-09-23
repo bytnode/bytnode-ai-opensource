@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { absorb, collectorPrompt, parseCollected } from "./collect";
 import { calendarPrompt, eventKey, eventLine, mergeEvents, prune, searchEvents, validateEvent, type CalendarEvent } from "./events";
-import { expiries } from "./expiries";
+import { expiries, londonFourPm } from "./expiries";
 
 const now = new Date("2026-09-23T10:00:00Z");
 const raw = (over: Record<string, unknown> = {}) => ({ startsAt: "2026-10-29T18:00:00Z", category: "macro", title: "FOMC rate decision", assets: [], importance: 3, source: "Federal Reserve", url: "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm", ...over });
@@ -72,10 +72,14 @@ describe("expiries", () => {
     /* Marked as computed, never passed off as collected. */
     expect(list.every((e) => e.computed === true)).toBe(true);
     expect(eventLine(deribit[0])).toMatch(/\(computed, not collected\)$/);
-    expect(list.filter((e) => e.id.startsWith("cme")).map((e) => [e.id, e.allDay, e.importance])).toEqual([
-      ["cme-2026-09", true, 3],
-      ["cme-2026-10", true, 2],
+    /* 4 pm London: 15:00 UTC in British Summer Time, 16:00 UTC after the
+       last Sunday of October (the 25th in 2026). */
+    expect(list.filter((e) => e.id.startsWith("cme")).map((e) => [e.id, e.startsAt, e.allDay, e.importance])).toEqual([
+      ["cme-2026-09", "2026-09-25T15:00:00.000Z", false, 3],
+      ["cme-2026-10", "2026-10-30T16:00:00.000Z", false, 2],
     ]);
+    expect(londonFourPm(2026, 2, 27).toISOString()).toBe("2026-03-27T16:00:00.000Z");
+    expect(londonFourPm(2026, 3, 24).toISOString()).toBe("2026-04-24T15:00:00.000Z");
   });
 });
 

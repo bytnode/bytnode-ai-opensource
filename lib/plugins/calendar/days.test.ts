@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, byDay, byHour, dayKey, eventDay, isoWeek, monthGrid, nextBusyDay, periodDays, startOfWeek, weeksOf } from "./days";
+import { addDays, byDay, byHour, dayKey, eventDay, monthGrid, nextBusyDay, periodDays, startOfWeek } from "./days";
 import type { CalendarEvent } from "./events";
 
 const ev = (id: string, startsAt: string, over: Partial<CalendarEvent> = {}): CalendarEvent => ({
@@ -28,14 +28,11 @@ describe("calendar days", () => {
     expect(grid[41]).toEqual(new Date(2026, 9, 11));
   });
 
-  it("a period is a day, this week or this month", () => {
+  it("a period is a day or this week", () => {
     expect(periodDays({ kind: "day", day: wed }, wed)).toEqual([new Date(2026, 8, 23)]);
     const week = periodDays({ kind: "week" }, wed);
+    expect(week).toHaveLength(7);
     expect([week[0], week[6]]).toEqual([new Date(2026, 8, 21), new Date(2026, 8, 27)]);
-    const month = periodDays({ kind: "month" }, wed);
-    expect(month).toHaveLength(30);
-    expect(month[29]).toEqual(new Date(2026, 8, 30));
-    expect(periodDays({ kind: "month" }, new Date(2028, 1, 10))).toHaveLength(29);
   });
 
   it("an all-day event keeps its date; events of a day are ordered", () => {
@@ -46,25 +43,13 @@ describe("calendar days", () => {
     expect(addDays(new Date(2026, 9, 25), 7)).toEqual(new Date(2026, 10, 1));
   });
 
-  it("a day by hour: the all-day events apart, one list per hour", () => {
-    const { allDay, hours } = byHour([ev("allday", "2026-09-24T00:00:00.000Z", { allDay: true }), ev("nine", new Date(2026, 8, 24, 9, 30).toISOString()), ev("nine2", new Date(2026, 8, 24, 9).toISOString()), ev("late", new Date(2026, 8, 24, 23, 59).toISOString())]);
-    expect(allDay.map((e) => e.id)).toEqual(["allday"]);
+  it("a day by hour, one list per hour; an event without a time opens the day", () => {
+    const hours = byHour([ev("allday", "2026-09-24T00:00:00.000Z", { allDay: true }), ev("nine", new Date(2026, 8, 24, 9, 30).toISOString()), ev("nine2", new Date(2026, 8, 24, 9).toISOString()), ev("late", new Date(2026, 8, 24, 23, 59).toISOString())]);
     expect(hours).toHaveLength(24);
+    expect(hours[0].map((e) => e.id)).toEqual(["allday"]);
     expect(hours[9].map((e) => e.id)).toEqual(["nine", "nine2"]);
     expect(hours[23].map((e) => e.id)).toEqual(["late"]);
-    expect(hours[0]).toEqual([]);
-  });
-
-  it("a month's days fall into weeks; weeks carry their ISO number", () => {
-    const weeks = weeksOf(periodDays({ kind: "month" }, wed));
-    expect(weeks.map((w) => w.length)).toEqual([6, 7, 7, 7, 3]);
-    expect(weeks[0][0]).toEqual(new Date(2026, 8, 1));
-    expect(weeks[4][2]).toEqual(new Date(2026, 8, 30));
-    expect(isoWeek(wed)).toBe(39);
-    expect(isoWeek(new Date(2026, 0, 1))).toBe(1);
-    expect(isoWeek(new Date(2027, 0, 1))).toBe(53);
-    expect(isoWeek(new Date(2027, 0, 4))).toBe(1);
-    expect(isoWeek(new Date(2024, 11, 30))).toBe(1);
+    expect(hours[1]).toEqual([]);
   });
 
   it("an empty day points to the next busy one", () => {

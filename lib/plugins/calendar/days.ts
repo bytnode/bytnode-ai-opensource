@@ -2,9 +2,9 @@ import type { CalendarEvent } from "./events";
 
 /* ---------------------------------------------------------------------------
    The calendar view's arithmetic of days, in the viewer's local time:
-   weeks start on Monday, a month is shown as six weeks, a period (a day,
-   this week, this month) is a list of days, and the events are grouped by
-   the day they fall on. Pure, tested; the browser uses it.
+   weeks start on Monday, a month is shown as six weeks, a period (a day
+   or this week) is a list of days, and the events are grouped by the day
+   and the hour they fall on. Pure, tested; the browser uses it.
 --------------------------------------------------------------------------- */
 
 export const DAY_MS = 24 * 3600_000;
@@ -26,16 +26,12 @@ export function monthGrid(month: Date): Date[] {
   return Array.from({ length: 42 }, (_, i) => addDays(first, i));
 }
 
-export type Period = { kind: "day"; day: Date } | { kind: "week" } | { kind: "month" };
+export type Period = { kind: "day"; day: Date } | { kind: "week" };
 
-/** The days a period covers: the day, this week (Monday to Sunday), or
-    every day of this month. */
+/** The days a period covers: the day, or this week (Monday to Sunday). */
 export function periodDays(period: Period, today: Date): Date[] {
   if (period.kind === "day") return [startOfDay(period.day)];
-  if (period.kind === "week") return Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(today), i));
-  const first = firstOfMonth(today);
-  const count = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-  return Array.from({ length: count }, (_, i) => addDays(first, i));
+  return Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(today), i));
 }
 
 /** The local day an event falls on; an all-day event keeps its date. */
@@ -60,33 +56,13 @@ export function byDay(events: CalendarEvent[]): Map<string, CalendarEvent[]> {
   return map;
 }
 
-/** A day's events by local hour: the all-day ones apart, then one list
-    per hour, 0 to 23 (in the order they come, `byDay`'s). */
-export function byHour(events: CalendarEvent[]): { allDay: CalendarEvent[]; hours: CalendarEvent[][] } {
-  const allDay: CalendarEvent[] = [];
+/** A day's events by local hour, one list per hour, 0 to 23, in the order
+    they come (`byDay`'s). An event without a time has no area of its own:
+    it opens the day, in the first hour. */
+export function byHour(events: CalendarEvent[]): CalendarEvent[][] {
   const hours: CalendarEvent[][] = Array.from({ length: 24 }, () => []);
-  for (const e of events) (e.allDay ? allDay : hours[new Date(e.startsAt).getHours()]).push(e);
-  return { allDay, hours };
-}
-
-/** Consecutive days grouped by week, Monday to Sunday: a month's days
-    give its weeks, the first and the last often partial. */
-export function weeksOf(days: Date[]): Date[][] {
-  const weeks: Date[][] = [];
-  for (const d of days) {
-    const last = weeks[weeks.length - 1];
-    if (last && sameDay(startOfWeek(last[0]), startOfWeek(d))) last.push(d);
-    else weeks.push([d]);
-  }
-  return weeks;
-}
-
-/** The ISO 8601 week number: weeks start on Monday, and week 1 is the one
-    that holds the year's first Thursday. */
-export function isoWeek(d: Date): number {
-  const thursday = addDays(startOfWeek(d), 3);
-  const jan1 = new Date(thursday.getFullYear(), 0, 1);
-  return Math.floor(Math.round((thursday.getTime() - jan1.getTime()) / DAY_MS) / 7) + 1;
+  for (const e of events) hours[e.allDay ? 0 : new Date(e.startsAt).getHours()].push(e);
+  return hours;
 }
 
 /** The first day after `day` that has an event in `days` (as `byDay`

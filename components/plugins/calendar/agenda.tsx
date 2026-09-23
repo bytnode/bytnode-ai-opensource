@@ -4,16 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import type { CalendarEvent } from "@/lib/plugins/calendar/events";
 import { dayKey, nextBusyDay, sameDay, type Period } from "@/lib/plugins/calendar/days";
 import { ChevronRight, Refresh } from "@/components/ui/icons";
-import { MonthScale } from "./folds";
-import { EventBlock, HourScale } from "./hours";
-import { WeekGrid } from "./week-grid";
+import { HourScale } from "./hours";
+import { WeekGrid, WeekHead } from "./week-grid";
 import { LOCALE, dayLabel } from "./format";
 
 /* The right pane: the chosen period on a scale of time — a day on its
-   hours (its whole-day events under its title), this week as a grid of
-   days by hours, this month on its weeks (each opening on its days). An
-   empty day points to the next day that has something. The collection's
-   state and "Collect now" sit discreetly in the corner. */
+   hours, or this week as a grid of days by hours, the days' heads right
+   above it. An empty day points to the next day that has something. The
+   collection's state and "Collect now" sit discreetly in the corner. */
 
 export type Collection = { at: string; days: number; added: number; updated: number; rejected: string[] } | null;
 
@@ -32,12 +30,9 @@ type Props = {
 
 /** The red line of the day moves with the clock. */
 const TICK = 60_000;
-/** An hour's label sits on its line, half above it: room kept for it. */
-const LABEL_ROOM = 12;
 
 export function Agenda({ period, span, today, days, last, loading, problem, collecting, onCollect, onPick }: Props) {
   const [now, setNow] = useState(() => new Date());
-  const [openedTop, setOpenedTop] = useState<string | null>(null);
   const list = useRef<HTMLDivElement>(null);
   const periodId = period.kind === "day" ? dayKey(period.day) : period.kind;
 
@@ -46,30 +41,24 @@ export function Agenda({ period, span, today, days, last, loading, problem, coll
     return () => clearInterval(t);
   }, []);
 
-  /* A day or the week opens on the first hours that matter (under the
-     days' heads, which stay pinned on top of the week); the month at its
-     start. */
+  /* A day or the week opens on the first hours that matter, their first
+     tile right under the heads. */
   useEffect(() => {
     const box = list.current;
     if (!box) return;
     box.scrollTop = 0;
     const anchor = box.querySelector<HTMLElement>("[data-anchor]");
-    if (!anchor) return;
-    const pinned = box.querySelector<HTMLElement>("[data-pinned]")?.offsetHeight ?? 0;
-    box.scrollTop = anchor.getBoundingClientRect().top - box.getBoundingClientRect().top - pinned - LABEL_ROOM;
+    if (anchor) box.scrollTop = anchor.getBoundingClientRect().top - box.getBoundingClientRect().top;
   }, [periodId, loading]);
 
-  const dayEvents = period.kind === "day" ? (days.get(dayKey(period.day)) ?? []) : [];
-  const weekEvents = period.kind === "week" ? span.flatMap((d) => days.get(dayKey(d)) ?? []) : [];
-  const wholeDay = dayEvents.filter((e) => e.allDay);
-  const empty = period.kind === "day" && !loading && dayEvents.length === 0;
+  const shown = span.flatMap((d) => days.get(dayKey(d)) ?? []);
+  const empty = period.kind === "day" && !loading && shown.length === 0;
   const next = empty ? nextBusyDay(days, period.day) : null;
+  const anchor = anchorHour(shown, span.some((d) => sameDay(d, now)) ? now : null);
   const head =
     period.kind === "day"
       ? { title: dayLabel(period.day, today), sub: period.day.toLocaleDateString(LOCALE, { weekday: sameDay(period.day, today) ? "long" : undefined, day: "numeric", month: "long", year: "numeric" }) }
-      : period.kind === "week"
-        ? { title: "This week", sub: `${span[0].toLocaleDateString(LOCALE, { day: "numeric", month: span[0].getMonth() === span[6].getMonth() ? undefined : "short" })} – ${span[6].toLocaleDateString(LOCALE, { day: "numeric", month: "long", year: "numeric" })}` }
-        : { title: "This month", sub: today.toLocaleDateString(LOCALE, { month: "long", year: "numeric" }) };
+      : { title: "This week", sub: `${span[0].toLocaleDateString(LOCALE, { day: "numeric", month: span[0].getMonth() === span[6].getMonth() ? undefined : "short" })} – ${span[6].toLocaleDateString(LOCALE, { day: "numeric", month: "long", year: "numeric" })}` };
   const status = loading
     ? "Loading…"
     : collecting
@@ -84,13 +73,6 @@ export function Agenda({ period, span, today, days, last, loading, problem, coll
         <div>
           <h2 className="calv-agenda-title calv-ink">{head.title}</h2>
           <p className="calv-agenda-sub">{head.sub}</p>
-          {wholeDay.length > 0 && (
-            <div className="calv-agenda-top">
-              {wholeDay.map((e) => (
-                <EventBlock key={e.id} event={e} open={openedTop === e.id} onToggle={() => setOpenedTop(openedTop === e.id ? null : e.id)} />
-              ))}
-            </div>
-          )}
           {empty && (
             <p className="calv-agenda-empty">
               No events
@@ -112,14 +94,9 @@ export function Agenda({ period, span, today, days, last, loading, problem, coll
         </button>
       </header>
       {problem && <p className="calv-problem">{problem}</p>}
+      {period.kind === "week" && <WeekHead span={span} today={today} onPick={onPick} />}
       <div className="calv-list" ref={list}>
-        {period.kind === "day" ? (
-          <HourScale key={periodId} day={period.day} events={dayEvents} now={now} anchor={anchorHour(dayEvents, sameDay(period.day, now) ? now : null)} />
-        ) : period.kind === "week" ? (
-          <WeekGrid span={span} days={days} today={today} now={now} anchor={anchorHour(weekEvents, span.some((d) => sameDay(d, now)) ? now : null)} onPick={onPick} />
-        ) : (
-          <MonthScale span={span} days={days} today={today} />
-        )}
+        {period.kind === "day" ? <HourScale key={periodId} day={period.day} events={shown} now={now} anchor={anchor} /> : <WeekGrid span={span} days={days} today={today} now={now} anchor={anchor} />}
       </div>
     </main>
   );
