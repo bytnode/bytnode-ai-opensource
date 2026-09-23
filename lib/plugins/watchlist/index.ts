@@ -4,7 +4,7 @@ import { isInterval, readKlines } from "../shared/candle";
 import { CORE_FIELDS, PRESSURE_FIELDS, readInsight } from "./insight";
 import { INDICATORS, RESULTS, readTechnicals } from "./technicals";
 import { bytnodeSymbol, normalizeSymbol } from "../shared/quote";
-import { candles, isQuote, quote, quotes } from "../shared/prices";
+import { candles, isQuote, listedPairs, quote, quotes } from "../shared/prices";
 import { EMPTY, editWatchlist, watchlistPrompt, type Watchlist } from "./list";
 import { watchlistManifest } from "./manifest";
 import type { WatchlistService } from "./service";
@@ -93,6 +93,9 @@ export const watchlistPlugin = definePlugin({
         return { symbol, interval, error: `BytNode's signals for ${symbol} could not be read.` };
       }
     });
+    /* What the add field proposes: the pairs that can be priced, per
+       source (merged and ranked in the browser, `suggest.ts`). */
+    ctx.api("symbols", async (_params, { transport, signal }) => listedPairs({ bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal }));
     ctx.api("edit", async (params) => {
       const change = {
         add: Array.isArray(params.add) ? params.add.map(String) : undefined,

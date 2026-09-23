@@ -3,7 +3,8 @@
 import { useRef, useState, type CSSProperties } from "react";
 import { sortByMove, type Window } from "@/lib/plugins/watchlist/heat";
 import { withTick, type Candle, type Interval } from "@/lib/plugins/shared/candle";
-import type { CandleSeries, Priced } from "@/lib/plugins/shared/prices";
+import type { CandleSeries, Listed, Priced } from "@/lib/plugins/shared/prices";
+import { knownCandidates, mergeCandidates } from "@/lib/plugins/watchlist/suggest";
 import { baseOf, type Quote } from "@/lib/plugins/shared/quote";
 import type { Insight } from "@/lib/plugins/watchlist/insight";
 import type { Technicals } from "@/lib/plugins/watchlist/technicals";
@@ -13,7 +14,7 @@ import { WATCHLIST_DEFAULT, WATCHLIST_MAX, WATCHLIST_MIN, clampWatchlistWidth, u
 import type { ViewProps } from "../views";
 import { ColumnHandle } from "../column-handle";
 import { act, usePluginData } from "../use-plugin-data";
-import { useAwakeInterval } from "../view-activity";
+import { useAwakeInterval, useOnWake } from "../view-activity";
 import type { Row } from "./format";
 import { ListPane } from "./list-pane";
 import { Sheet } from "./sheet";
@@ -99,6 +100,14 @@ export function WatchlistView({ settings, params }: ViewProps) {
   const candles: Candle[] | null = current && "candles" in current ? (liveQuote ? withTick(current.candles, liveQuote.price, Date.parse(liveQuote.at), interval) : current.candles) : null;
   const chartMessage = !symbol ? null : current && "error" in current ? current.error : candles ? (candles.length ? null : "No candles for this pair.") : series.error ?? "Loading the chart…";
 
+  /* What the add field proposes: the priceable pairs, or well-known
+     assets when there is no source yet. Read once; a key or an account
+     added later is read at the next visit of the tab. */
+  const pairs = usePluginData<Listed[][]>("watchlist", "symbols", settings);
+  useOnWake(pairs.reload);
+  const sourced = (pairs.data ?? []).flat();
+  const catalog = mergeCandidates(sourced.length ? (pairs.data ?? []) : [knownCandidates()]);
+
   const choose = (s: string) => setPick({ focus, symbol: s });
   const edit = async (change: Record<string, unknown>) => {
     const p = await act("watchlist", "edit", change, settings);
@@ -106,12 +115,12 @@ export function WatchlistView({ settings, params }: ViewProps) {
     list.reload();
     return p === null;
   };
-  const add = (s: string, note: string) => edit({ add: [s], ...(note.trim() ? { note } : {}) });
+  const add = (s: string) => edit({ add: [s] });
 
   return (
     <div className="wlv">
       <div className="wlv-panel" ref={panel} style={{ "--wlv-list": `${ui.watchlistWidth}px` } as CSSProperties}>
-        <ListPane rows={rows} shown={shown} selected={symbol || null} win={win} byMove={byMove} onWindow={setWin} onByMove={setByMove} onPick={choose} onAdd={add} />
+        <ListPane rows={rows} shown={shown} selected={symbol || null} win={win} byMove={byMove} catalog={catalog} onWindow={setWin} onByMove={setByMove} onPick={choose} onAdd={add} />
         <ColumnHandle
           panel={panel}
           cssVar="--wlv-list"

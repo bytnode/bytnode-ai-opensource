@@ -1,14 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
 import { WINDOWS, changeOf, type Window } from "@/lib/plugins/watchlist/heat";
-import { Plus } from "@/components/ui/icons";
 import { Segmented } from "@/components/ui/segmented";
 import { Switch } from "@/components/ui/switch";
+import type { Candidate } from "@/lib/plugins/watchlist/suggest";
+import { AddField } from "./add-field";
 import { moveOf, pairOf, pct, priceText, type Row } from "./format";
 
 /* The left column: the list's name and size, the field that adds an
-   asset, the window the moves are read over, and the assets themselves —
+   asset (a search, `add-field.tsx`), the window the moves are read over, and the assets themselves —
    each with its price and its move in a pill of Apple's green or red,
    like Stocks. A switch puts the biggest moves first. */
 
@@ -21,10 +21,11 @@ type Props = {
   onWindow: (w: Window) => void;
   onByMove: (on: boolean) => void;
   onPick: (symbol: string) => void;
-  onAdd: (symbol: string, note: string) => Promise<boolean>;
+  catalog: Candidate[];
+  onAdd: (symbol: string) => Promise<boolean>;
 };
 
-export function ListPane({ rows, shown, selected, win, byMove, onWindow, onByMove, onPick, onAdd }: Props) {
+export function ListPane({ rows, shown, selected, win, byMove, catalog, onWindow, onByMove, onPick, onAdd }: Props) {
   return (
     <section className="wlv-pane wlv-side" aria-label="Your assets">
       <header className="wlv-side-bar">
@@ -33,7 +34,7 @@ export function ListPane({ rows, shown, selected, win, byMove, onWindow, onByMov
         </h2>
         {rows && rows.length > 0 && <span className="wlv-count">{rows.length}</span>}
       </header>
-      <AddField onAdd={onAdd} />
+      <AddField catalog={catalog} followed={new Set((rows ?? []).map((r) => r.symbol))} onAdd={onAdd} onPick={onPick} />
       <div className="wlv-windows">
         <Segmented label="Change over" value={win} options={WINDOWS} onChange={onWindow} wide />
       </div>
@@ -67,46 +68,5 @@ export function ListPane({ rows, shown, selected, win, byMove, onWindow, onByMov
         </div>
       )}
     </section>
-  );
-}
-
-/** The asset to add, and a note once there is an asset. The "+" is always
-    there to press: with an asset typed it adds it, with none it puts the
-    caret in the field — a greyed, dead "+" read as broken. */
-function AddField({ onAdd }: { onAdd: (symbol: string, note: string) => Promise<boolean> }) {
-  const [symbol, setSymbol] = useState("");
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-  const field = useRef<HTMLInputElement>(null);
-  const submit = async () => {
-    if (busy) return;
-    if (!symbol.trim()) {
-      field.current?.focus();
-      return;
-    }
-    setBusy(true);
-    const ok = await onAdd(symbol, note);
-    setBusy(false);
-    if (ok) {
-      setSymbol("");
-      setNote("");
-    }
-  };
-  return (
-    <form
-      className="wlv-add"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void submit();
-      }}
-    >
-      <div className="wlv-add-row">
-        <input ref={field} className="wlv-input" aria-label="Asset to add" placeholder="Add an asset — btc, ETH/USDT…" value={symbol} onChange={(e) => setSymbol(e.target.value)} autoComplete="off" spellCheck={false} />
-        <button type="submit" className={`wlv-add-btn${symbol.trim() ? "" : " is-idle"}`} disabled={busy} aria-label="Add to the watchlist" title="Add to the watchlist">
-          <Plus />
-        </button>
-      </div>
-      {symbol.trim() && <input className="wlv-input wlv-note-input" aria-label="Note" placeholder="Why you follow it (optional)" value={note} onChange={(e) => setNote(e.target.value)} />}
-    </form>
   );
 }

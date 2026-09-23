@@ -135,9 +135,11 @@
   color: var(--label-3);
 }
 
+/* The add field, a search: a magnifier in the field, and under it, from
+   the first letter, a bubble of suggestions like the calendar's. */
 .wlv-add {
-  display: grid;
-  gap: 6px;
+  position: relative;
+  z-index: 6;
   padding: 0 18px 18px;
 }
 
@@ -145,54 +147,95 @@
   position: relative;
 }
 
-.wlv-add-row .wlv-input {
-  padding-right: 46px;
-}
-
-/* The "+" inside the field, a circle like every round button here. */
-.wlv-add-btn {
+.wlv-add-row svg {
   position: absolute;
-  top: 6px;
-  right: 6px;
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: rgb(var(--ink));
-  color: rgb(var(--ink-inv));
-  cursor: pointer;
-  transition: opacity 120ms ease;
-}
-
-/* Nothing typed yet: a quieter circle, still pressable (it focuses the
-   field); busy adding: dimmed. */
-.wlv-add-btn.is-idle {
-  background: rgba(var(--ink), 0.14);
-  color: var(--label);
-}
-
-.wlv-add-btn.is-idle:hover {
-  background: rgba(var(--ink), 0.22);
-}
-
-.wlv-add-btn:disabled {
-  opacity: 0.5;
-  cursor: progress;
-}
-
-.wlv-add-btn svg {
+  top: 50%;
+  left: 13px;
   width: 15px;
   height: 15px;
-  stroke-width: 2.2;
+  margin-top: -7.5px;
+  stroke-width: 2;
   stroke-linecap: round;
+  color: var(--label-3);
+  pointer-events: none;
 }
 
-.wlv-note-input {
-  height: 36px;
+.wlv-add-row .wlv-input {
+  padding-left: 36px;
+}
+
+.wlv-suggest {
+  position: absolute;
+  top: calc(100% - 12px);
+  left: 18px;
+  right: 18px;
+  display: grid;
+  gap: 2px;
+  max-height: min(380px, 60vh);
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid rgba(var(--ink), 0.12);
+  border-radius: var(--r);
+  background: rgba(var(--voile), 0.985);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
+  animation: wlv-pop 120ms var(--ease) both;
+  scrollbar-width: thin;
+}
+
+html[data-theme="light"] .wlv-suggest {
+  background: rgba(255, 255, 255, 0.99);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.16);
+}
+
+@keyframes wlv-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.wlv-suggest-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.wlv-suggest-item.is-lit {
+  background: var(--fill);
+}
+
+.wlv-suggest-item b {
+  font-family: var(--font-display), sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.wlv-suggest-name {
+  overflow: hidden;
   font-size: 13.5px;
+  color: var(--label-2);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wlv-suggest-src {
+  font-size: 12px;
+  color: var(--label-3);
+  white-space: nowrap;
+}
+
+.wlv-suggest-pair {
+  min-width: 36px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--label-3);
+  text-align: right;
 }
 
 .wlv-windows {
@@ -1091,6 +1134,7 @@ html[data-theme="light"] .wlv-sheet {
 
 @media (prefers-reduced-motion: reduce) {
   .wlv-price-value,
+  .wlv-suggest,
   .wlv-status.is-live::before {
     animation: none;
   }
