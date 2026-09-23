@@ -7,30 +7,35 @@ import { useViewActive } from "../view-activity";
 import { css, parseColor, type Rgba } from "./colors";
 
 /* ---------------------------------------------------------------------------
-   The chosen asset's price, as a trader reads it: candles in Apple's green
-   and red, the volume faint underneath, the price scale on the right and
-   the time along the bottom, the last price as a dashed line with its tag
-   on the scale — and under the hand, a crosshair, the bar's open / high /
-   low / close and move in the top-left corner. The wheel zooms around the
+   The chosen asset's price, read like Stocks rather than a trading desk:
+   one line in the move's colour (green when the span on screen rises, red
+   when it falls) over a soft wash of the same colour, a dotted line where
+   the span opened, a dot on the last price — and nothing else but a few
+   faint levels on the right and the times along the bottom. Under the
+   hand, a thin vertical rule, a dot on the line and one small tag: the
+   price and the time. Candles, for who wants them, are drawn in the same
+   restraint (no volume, no grid of times). The wheel zooms around the
    pointer, a drag pans, a double-click comes back to now.
 
-   One canvas, drawn in 2D (crisp lines, text) — only when something
-   changed and only while the tab is in front. The colours are the
-   tokens', re-read when the theme changes.
+   One canvas, drawn in 2D — only when something changed and only while
+   the tab is in front. The colours are the tokens', re-read when the
+   theme changes.
 --------------------------------------------------------------------------- */
 
-type Props = { candles: Candle[] | null; interval: Interval; message: string | null };
+export type ChartMode = "line" | "candles";
 
-/** Room for the price scale, the time scale and the legend, in CSS px. */
-const AXIS_W = 76;
-const TIME_H = 28;
-const TOP = 34;
-/** The volume's share of the plot's height. */
-const VOLUME = 0.16;
-/** Empty bars on the right of the last one, like a trading chart. */
-const RIGHT_PAD = 4;
+type Props = { candles: Candle[] | null; interval: Interval; mode: ChartMode; message: string | null };
+
+/** Room for the time scale and the hover tag, in CSS px; the price
+    scale is as wide as its longest label (`draw` returns it). */
+const AXIS_MIN = 56;
+const TIME_H = 24;
+const TOP = 30;
+const BOTTOM_PAD = 6;
+/** Empty bars on the right of the last one: room for the last dot. */
+const RIGHT_PAD = 2;
 const MIN_BARS = 20;
-const DEFAULT_BARS = 110;
+const DEFAULT_BARS = 96;
 
 type View = { bars: number; offset: number };
 type Palette = { up: Rgba; down: Rgba; ink: Rgba; inv: Rgba; font: string };
@@ -62,48 +67,57 @@ function clampView(view: View, n: number): View {
   return { bars, offset };
 }
 
-function draw(canvas: HTMLCanvasElement, data: Candle[], interval: Interval, view: View, hover: { x: number; y: number } | null, pal: Palette) {
+/** Draws the chart; returns the price scale's width (the handlers need
+    the plot's). */
+function draw(canvas: HTMLCanvasElement, data: Candle[], interval: Interval, mode: ChartMode, view: View, hover: { x: number; y: number } | null, pal: Palette): number {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const W = canvas.clientWidth;
   const H = canvas.clientHeight;
-  if (W < 10 || H < 10) return;
+  if (W < 10 || H < 10) return AXIS_MIN;
   if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
   }
   const g = canvas.getContext("2d");
-  if (!g) return;
+  if (!g) return AXIS_MIN;
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, W, H);
   const n = data.length;
-  if (!n) return;
+  if (!n) return AXIS_MIN;
 
   /** A line on the pixel grid. */
   const px = (v: number) => (Math.round(v * dpr) + 0.5) / dpr;
-  const plotW = W - AXIS_W;
-  const plotH = H - TOP - TIME_H;
-  const priceH = plotH * (1 - VOLUME) - 8;
-  const { start, end, barW } = frame(n, view, plotW);
-  const x = (i: number) => (i - start + 0.5) * barW;
+  const bottom = H - TIME_H - BOTTOM_PAD;
+  const plotH = bottom - TOP;
+  /* Which bars are on screen does not depend on the width: the scale is
+     measured once the levels are known, then the plot takes the rest. */
+  const { start, end } = frame(n, view, 1);
   const first = Math.max(0, Math.floor(start));
   const last = Math.min(n - 1, Math.ceil(end));
   const shown = data.slice(first, last + 1);
-  if (!shown.length) return;
+  if (!shown.length) return AXIS_MIN;
 
-  let lo = Math.min(...shown.map((c) => c.l));
-  let hi = Math.max(...shown.map((c) => c.h));
-  const pad = (hi - lo || hi * 0.01 || 1) * 0.08;
+  let lo = Math.min(...shown.map((c) => (mode === "line" ? c.c : c.l)));
+  let hi = Math.max(...shown.map((c) => (mode === "line" ? c.c : c.h)));
+  const pad = (hi - lo || hi * 0.01 || 1) * 0.1;
   lo -= pad;
   hi += pad;
-  const y = (p: number) => TOP + ((hi - p) / (hi - lo)) * priceH;
-  const priceAt = (py: number) => hi - ((py - TOP) / priceH) * (hi - lo);
-  const { step, ticks } = niceTicks(lo, hi, Math.max(3, Math.round(priceH / 56)));
+  const y = (p: number) => TOP + ((hi - p) / (hi - lo)) * plotH;
+  const { step, ticks } = niceTicks(lo, hi, Math.max(2, Math.round(plotH / 70)));
   const dec = decimalsFor(data[n - 1].c, step);
-  const vMax = Math.max(1, ...shown.map((c) => c.v));
-  const volTop = TOP + plotH * (1 - VOLUME);
   const font = (size: number, weight = 400) => `${weight} ${size}px ${pal.font}`;
+  g.font = font(11.5, 650);
+  const axisW = Math.max(AXIS_MIN, Math.ceil(Math.max(...[...ticks, data[n - 1].c].map((t) => g.measureText(fmtPrice(t, dec)).width))) + 24);
+  const plotW = W - axisW;
+  const barW = plotW / view.bars;
+  const x = (i: number) => (i - start + 0.5) * barW;
 
-  /* The grid: faint levels and times. */
+  /* The span's colour: its first close against its last. */
+  const open = shown[0].c;
+  const close = shown[shown.length - 1].c;
+  const tone = close >= open ? pal.up : pal.down;
+
+  /* A few faint levels. */
   g.lineWidth = 1 / dpr;
   g.strokeStyle = css(pal.ink, 0.06);
   g.beginPath();
@@ -111,140 +125,146 @@ function draw(canvas: HTMLCanvasElement, data: Candle[], interval: Interval, vie
     g.moveTo(0, px(y(t)));
     g.lineTo(plotW, px(y(t)));
   }
-  const span = INTERVAL_MS[interval];
-  const t0 = data[0].t;
-  const iOf = (t: number) => (t - t0) / span;
-  const tStep = timeStep(span, barW, 96);
-  const times = timeTicks(t0 + start * span, t0 + end * span, tStep);
-  for (const t of times) {
-    g.moveTo(px(x(iOf(t))), TOP - 10);
-    g.lineTo(px(x(iOf(t))), TOP + plotH);
-  }
   g.stroke();
 
-  /* The volume, then the candles. */
-  const body = Math.max(1, Math.min(barW * 0.72, barW - 1));
   g.save();
   g.beginPath();
   g.rect(0, 0, plotW, H);
   g.clip();
-  for (let i = first; i <= last; i++) {
-    const c = data[i];
-    const tone = c.c >= c.o ? pal.up : pal.down;
-    const h = (c.v / vMax) * (plotH * VOLUME - 4);
-    g.fillStyle = css(tone, 0.22);
-    g.fillRect(x(i) - body / 2, TOP + plotH - h, body, h);
-  }
-  for (let i = first; i <= last; i++) {
-    const c = data[i];
-    const tone = c.c >= c.o ? pal.up : pal.down;
+
+  /* Where the span opened: a dotted line across. */
+  g.setLineDash([1.5, 4]);
+  g.strokeStyle = css(pal.ink, 0.3);
+  g.lineWidth = 1.2;
+  g.beginPath();
+  g.moveTo(0, px(y(open)));
+  g.lineTo(plotW, px(y(open)));
+  g.stroke();
+  g.setLineDash([]);
+
+  if (mode === "line") {
+    /* The line, over a wash that fades to nothing at the bottom. */
+    g.beginPath();
+    for (let i = first; i <= last; i++) (i === first ? g.moveTo : g.lineTo).call(g, x(i), y(data[i].c));
+    const wash = g.createLinearGradient(0, TOP, 0, bottom);
+    wash.addColorStop(0, css(tone, 0.26));
+    wash.addColorStop(1, css(tone, 0));
+    g.save();
+    g.lineTo(x(last), bottom);
+    g.lineTo(x(first), bottom);
+    g.closePath();
+    g.fillStyle = wash;
+    g.fill();
+    g.restore();
+    g.beginPath();
+    for (let i = first; i <= last; i++) (i === first ? g.moveTo : g.lineTo).call(g, x(i), y(data[i].c));
     g.strokeStyle = css(tone);
+    g.lineWidth = 2;
+    g.lineJoin = "round";
+    g.lineCap = "round";
+    g.stroke();
+  } else {
+    const body = Math.max(1, Math.min(barW * 0.64, barW - 1.5));
+    for (let i = first; i <= last; i++) {
+      const c = data[i];
+      const t = c.c >= c.o ? pal.up : pal.down;
+      g.strokeStyle = css(t);
+      g.fillStyle = css(t);
+      g.lineWidth = 1;
+      g.beginPath();
+      g.moveTo(px(x(i)), y(c.h));
+      g.lineTo(px(x(i)), y(c.l));
+      g.stroke();
+      const top = y(Math.max(c.o, c.c));
+      g.beginPath();
+      g.roundRect(x(i) - body / 2, top, body, Math.max(1, y(Math.min(c.o, c.c)) - top), Math.min(1.5, body / 3));
+      g.fill();
+    }
+  }
+
+  /* The last price: a dot, with a soft halo, when it is on screen. */
+  const lastC = data[n - 1];
+  const lx = x(n - 1);
+  const ly = y(lastC.c);
+  if (mode === "line" && lx >= 0 && lx <= plotW) {
+    g.fillStyle = css(tone, 0.22);
+    g.beginPath();
+    g.arc(lx, ly, 7, 0, Math.PI * 2);
+    g.fill();
     g.fillStyle = css(tone);
     g.beginPath();
-    g.moveTo(px(x(i)), y(c.h));
-    g.lineTo(px(x(i)), y(c.l));
-    g.lineWidth = Math.max(1, Math.min(1.5, barW * 0.12));
-    g.stroke();
-    const top = y(Math.max(c.o, c.c));
-    g.fillRect(x(i) - body / 2, top, body, Math.max(1, y(Math.min(c.o, c.c)) - top));
+    g.arc(lx, ly, 3.5, 0, Math.PI * 2);
+    g.fill();
   }
   g.restore();
 
-  /* The price scale and the time scale. */
+  /* The levels on the right, the times along the bottom; the last price
+     in its colour on the scale, the levels too close to it left out. */
   g.font = font(11.5);
-  g.fillStyle = css(pal.ink, 0.5);
+  g.fillStyle = css(pal.ink, 0.45);
   g.textBaseline = "middle";
   g.textAlign = "left";
-  for (const t of ticks) if (y(t) > TOP - 4 && y(t) < volTop) g.fillText(fmtPrice(t, dec), plotW + 10, y(t));
+  const lastOnScale = ly > TOP - 6 && ly < bottom + 6;
+  for (const t of ticks) if (y(t) > TOP - 6 && y(t) < bottom + 6 && (!lastOnScale || Math.abs(y(t) - ly) > 16)) g.fillText(fmtPrice(t, dec), plotW + 12, y(t));
+  if (lastOnScale) {
+    g.font = font(11.5, 650);
+    g.fillStyle = css(tone);
+    g.fillText(fmtPrice(lastC.c, dec), plotW + 12, ly);
+  }
+  const span = INTERVAL_MS[interval];
+  const t0 = data[0].t;
+  const iOf = (t: number) => (t - t0) / span;
+  const times = timeTicks(t0 + start * span, t0 + end * span, timeStep(span, barW, 110));
+  g.font = font(11.5);
+  g.fillStyle = css(pal.ink, 0.45);
   g.textAlign = "center";
   g.textBaseline = "alphabetic";
   for (const t of times) {
     const tx = x(iOf(t));
-    if (tx > 24 && tx < plotW - 24) g.fillText(timeLabel(t), tx, H - 9);
+    if (tx > 28 && tx < plotW - 28) g.fillText(timeLabel(t), tx, H - 7);
   }
 
-  const tag = (text: string, cx: number, cy: number, fill: string, color: string, align: "left" | "center") => {
-    g.font = font(11.5, 600);
-    const w = g.measureText(text).width + 14;
-    const left = align === "left" ? cx : cx - w / 2;
-    g.fillStyle = fill;
-    g.beginPath();
-    g.roundRect(left, cy - 10, w, 20, 6);
-    g.fill();
-    g.fillStyle = color;
-    g.textAlign = "left";
-    g.textBaseline = "middle";
-    g.fillText(text, left + 7, cy + 0.5);
-  };
-
-  /* The last price: a dashed line across, its tag on the scale. */
-  const lastC = data[n - 1];
-  const lastTone = lastC.c >= (data[n - 2]?.c ?? lastC.o) ? pal.up : pal.down;
-  const ly = y(lastC.c);
-  if (ly > TOP - 10 && ly < volTop) {
-    g.setLineDash([2, 3]);
-    g.strokeStyle = css(lastTone, 0.9);
+  /* Under the hand: a thin rule, a dot on the price, one tag above. */
+  if (hover && hover.x >= 0 && hover.x < plotW && hover.y > 0 && hover.y < H) {
+    const i = Math.max(first, Math.min(last, Math.round(start + hover.x / barW - 0.5)));
+    const c = data[i];
+    const hx = x(i);
+    g.strokeStyle = css(pal.ink, 0.28);
     g.lineWidth = 1;
     g.beginPath();
-    g.moveTo(0, px(ly));
-    g.lineTo(plotW, px(ly));
+    g.moveTo(px(hx), TOP - 4);
+    g.lineTo(px(hx), bottom);
     g.stroke();
-    g.setLineDash([]);
-    tag(fmtPrice(lastC.c, dec), plotW + 4, ly, css(lastTone), "#fff", "left");
-  }
-
-  /* Under the hand: the crosshair, snapped on the bar; its tags. */
-  let focus = lastC;
-  let focusPrev = data[n - 2];
-  if (hover && hover.x < plotW && hover.y > TOP - 10 && hover.y < TOP + plotH) {
-    const i = Math.round(start + hover.x / barW - 0.5);
-    const hx = x(i);
-    g.setLineDash([4, 4]);
-    g.strokeStyle = css(pal.ink, 0.35);
-    g.lineWidth = 1 / dpr;
+    const hy = y(c.c);
+    g.fillStyle = css(pal.inv);
     g.beginPath();
-    g.moveTo(px(hx), TOP - 10);
-    g.lineTo(px(hx), TOP + plotH);
-    g.moveTo(0, px(hover.y));
-    g.lineTo(plotW, px(hover.y));
-    g.stroke();
-    g.setLineDash([]);
-    if (hover.y < volTop) tag(fmtPrice(priceAt(hover.y), dec), plotW + 4, hover.y, css(pal.ink, 0.92), css(pal.inv), "left");
-    const t = t0 + i * span;
-    tag(new Date(t).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }), Math.min(plotW - 60, Math.max(60, hx)), H - 13, css(pal.ink, 0.92), css(pal.inv), "center");
-    if (data[i]) {
-      focus = data[i];
-      focusPrev = data[i - 1];
-    }
+    g.arc(hx, hy, 5, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = css(c.c >= open ? pal.up : pal.down);
+    g.beginPath();
+    g.arc(hx, hy, 3.5, 0, Math.PI * 2);
+    g.fill();
+    const when = new Date(c.t).toLocaleString("en-GB", interval === "1d" ? { day: "numeric", month: "short", year: "numeric" } : { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    const text = `${fmtPrice(c.c, dec)}   ${when}`;
+    g.font = font(12, 600);
+    const w = g.measureText(text).width + 20;
+    const left = Math.max(0, Math.min(plotW - w, hx - w / 2));
+    g.fillStyle = css(pal.ink, 0.1);
+    g.beginPath();
+    g.roundRect(left, 2, w, 22, 11);
+    g.fill();
+    g.fillStyle = css(pal.ink, 0.9);
+    g.textAlign = "left";
+    g.textBaseline = "middle";
+    g.fillText(text, left + 10, 13.5);
   }
-
-  /* The legend: the bar's open, high, low, close and move. */
-  const move = focusPrev ? ((focus.c - focusPrev.c) / focusPrev.c) * 100 : ((focus.c - focus.o) / focus.o) * 100;
-  const tone = css(focus.c >= focus.o ? pal.up : pal.down);
-  let lx = 2;
-  g.textAlign = "left";
-  g.textBaseline = "middle";
-  const part = (label: string, value: string, color: string) => {
-    g.font = font(12.5, 500);
-    g.fillStyle = css(pal.ink, 0.5);
-    g.fillText(label, lx, 13);
-    lx += g.measureText(label).width + 5;
-    g.font = font(12.5, 600);
-    g.fillStyle = color;
-    g.fillText(value, lx, 13);
-    lx += g.measureText(value).width + 14;
-  };
-  part("O", fmtPrice(focus.o, dec), tone);
-  part("H", fmtPrice(focus.h, dec), tone);
-  part("L", fmtPrice(focus.l, dec), tone);
-  part("C", fmtPrice(focus.c, dec), tone);
-  if (lx < plotW - 60) part("", `${move >= 0 ? "+" : "−"}${Math.abs(move).toFixed(2)} %`, tone);
+  return axisW;
 }
 
-export function PriceChart({ candles, interval, message }: Props) {
+export function PriceChart({ candles, interval, mode, message }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const state = useRef({ data: [] as Candle[], interval, view: { bars: DEFAULT_BARS, offset: 0 } as View, hover: null as { x: number; y: number } | null, palette: null as Palette | null, frame: 0, drag: null as { x: number; offset: number } | null });
+  const state = useRef({ data: [] as Candle[], interval, mode, view: { bars: DEFAULT_BARS, offset: 0 } as View, hover: null as { x: number; y: number } | null, palette: null as Palette | null, axisW: AXIS_MIN, frame: 0, drag: null as { x: number; offset: number } | null });
   const active = useViewActive();
 
   /* The data: redrawn when it changes. A series that arrives (a new asset,
@@ -255,11 +275,12 @@ export function PriceChart({ candles, interval, message }: Props) {
     const data = candles ?? [];
     if (data.length && (!s.data.length || s.interval !== interval)) s.view = { bars: DEFAULT_BARS, offset: 0 };
     s.interval = interval;
+    s.mode = mode;
     s.data = data;
     if (data.length) s.view = clampView(s.view, data.length);
     const el = canvas.current;
-    if (el && s.palette) draw(el, s.data, s.interval, s.view, s.hover, s.palette);
-  }, [candles, interval]);
+    if (el && s.palette) s.axisW = draw(el, s.data, s.interval, s.mode, s.view, s.hover, s.palette);
+  }, [candles, interval, mode]);
 
   /* The canvas's life while the tab is in front: size, theme, the hand. */
   useEffect(() => {
@@ -271,7 +292,7 @@ export function PriceChart({ candles, interval, message }: Props) {
       cancelAnimationFrame(s.frame);
       s.frame = requestAnimationFrame(() => {
         s.palette ??= readPalette(wrap);
-        draw(el, s.data, s.interval, s.view, s.hover, s.palette);
+        s.axisW = draw(el, s.data, s.interval, s.mode, s.view, s.hover, s.palette);
       });
     };
     const retheme = () => {
@@ -287,7 +308,7 @@ export function PriceChart({ candles, interval, message }: Props) {
 
     const at = (e: PointerEvent | WheelEvent) => {
       const r = el.getBoundingClientRect();
-      return { x: e.clientX - r.left, y: e.clientY - r.top, w: r.width - AXIS_W };
+      return { x: e.clientX - r.left, y: e.clientY - r.top, w: r.width - s.axisW };
     };
     /* The wheel zooms around the bar under the pointer. */
     const wheel = (e: WheelEvent) => {

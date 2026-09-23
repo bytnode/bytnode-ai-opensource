@@ -7,13 +7,14 @@ import { Pencil, Refresh, Trash } from "@/components/ui/icons";
 import { Segmented } from "@/components/ui/segmented";
 import { dateOf, moveOf, pairOf, pct, priceText, sourceName, timeOf, type Row } from "./format";
 import { HeatMap } from "./heat-map";
-import { PriceChart } from "./price-chart";
+import { PriceChart, type ChartMode } from "./price-chart";
 
 /* The right sheet, top to bottom: the chosen asset's name in BytNode's
    ink and its note (edited in place); one row of figures — the price,
    live, and its move, then the four windows as one row of small tiles;
-   the chart, which takes the room left; and, when the list has more than
-   one asset, the heat map, in tiles of a fixed size. The state of the
+   the chart, of a modest height — a line like Stocks, candles on demand;
+   and, when the list has more than one asset, the heat map, in tiles of a
+   fixed size. The state of the
    prices and the two actions sit discreetly in the corner, like the
    calendar's collection. */
 
@@ -35,7 +36,13 @@ type Props = {
   onNote: (symbol: string, note: string) => void;
 };
 
+const MODES: Array<{ value: ChartMode; label: string }> = [
+  { value: "line", label: "Line" },
+  { value: "candles", label: "Candles" },
+];
+
 export function Sheet({ rows, asset, live, win, interval, candles, chartMessage, loading, problem, onWindow, onInterval, onPick, onReload, onRemove, onNote }: Props) {
+  const [mode, setMode] = useState<ChartMode>("line");
   const at = asset?.quote?.at;
   const status = loading ? "Loading…" : at ? `${live ? "Live" : "Updated"} ${new Date(at).toLocaleTimeString("en-GB")}` : rows ? "No price yet" : "Loading…";
 
@@ -68,10 +75,10 @@ export function Sheet({ rows, asset, live, win, interval, candles, chartMessage,
         {asset && (
           <section className="wlv-chart-block" aria-label={`${asset.symbol} chart`}>
             <div className="wlv-chart-bar">
-              <Segmented label="Candle interval" value={interval} options={INTERVALS} onChange={onInterval} />
-              <span className="wlv-chart-hint">Scroll to zoom, drag to pan</span>
+              <Segmented label="Interval" value={interval} options={INTERVALS} onChange={onInterval} />
+              <Segmented label="Chart style" value={mode} options={MODES} onChange={setMode} />
             </div>
-            <PriceChart candles={candles} interval={interval} message={chartMessage} />
+            <PriceChart candles={candles} interval={interval} mode={mode} message={chartMessage} />
           </section>
         )}
         {rows && rows.length > 1 && (
