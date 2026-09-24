@@ -127,7 +127,7 @@ export function Sheet(props: Props) {
                 {` · ${plan.symbol} · ${frequencyWords(plan.frequency)} · ${plan.destination === "paper" ? "paper portfolio, automatic" : `${accounts.find((a) => a.id === plan.accountId)?.label ?? "a removed account"}, each purchase confirmed by you`}${plan.status !== "active" ? ` · ${plan.status}` : ""}`}
               </>
             ) : empty ? (
-              "No DCA in this group yet"
+              "No DCA yet"
             ) : (
               `${inside.length} DCA${inside.length === 1 ? "" : "s"} · purchases run while the app is open`
             )}
@@ -176,14 +176,14 @@ export function Sheet(props: Props) {
 
       <div className="wlv-body dcv-body">
         {empty ? (
-          /* An empty group: one thing to do. */
-          <button type="button" className="dcv-start" onClick={() => onConfigure({ groupId: group.id })}>
-            <span className="dcv-start-icon" aria-hidden>
+          /* An empty group: a quiet invitation. */
+          <div className="dcv-start">
+            <p>Choose an asset, an amount and a schedule.</p>
+            <button type="button" className="dcv-ghost" onClick={() => onConfigure({ groupId: group.id })}>
               <Plus />
-            </span>
-            <b>Add a DCA</b>
-            <span>Choose an asset, an amount and a schedule — in the paper portfolio, or on an exchange account with your confirmation each time.</span>
-          </button>
+              Add a DCA
+            </button>
+          </div>
         ) : (
           <>
             <div className="dcv-hero">

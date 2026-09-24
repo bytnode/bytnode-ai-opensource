@@ -103,15 +103,16 @@ export function DcaView({ settings }: ViewProps) {
       return (e as Error).message;
     }
   };
-  /* The configuration saved: a new DCA, or a DCA changed — then shown. */
+  /* The configuration saved: a new DCA, or a DCA changed. */
   const saveConfig = async (input: Record<string, unknown>) => {
     try {
-      const saved = await callPlugin<{ id: string }>("dca", typeof input.id === "string" ? "edit" : "create", input, viewTransport(settings));
+      const saved = await callPlugin<{ id: string; groupId?: string }>("dca", typeof input.id === "string" ? "edit" : "create", input, viewTransport(settings));
       state.reload();
       prices.reload();
       curve.reload();
       setProblem(null);
-      setScope({ kind: "plan", id: saved.id });
+      /* A new DCA: back to its group, where it is listed; a DCA changed: itself. */
+      setScope(typeof input.id === "string" ? { kind: "plan", id: saved.id } : saved.groupId ? { kind: "group", id: saved.groupId } : null);
       return null;
     } catch (e) {
       return (e as Error).message;

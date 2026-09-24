@@ -15,12 +15,13 @@ import { badgeClass, when, type Badge } from "./format";
 
 /* ---------------------------------------------------------------------------
    A DCA's configuration, opened at once in the sheet — to make one, or to
-   change one. Left, the settings in four short blocks: what (the asset and
-   the amount each time), when (how often, from when, until when), where,
-   and how it is filed (group, name). Right, what it will do, read live:
-   its schedule in words, a month's and a year's spending (or the total
-   when it ends), the first purchases — and, on a real account, that each
-   one waits for the user's click. A DCA's asset,
+   change one — in two steps. First the settings, four short blocks: what
+   (the asset and the amount each time), when (how often, from when, until
+   when), where, and how it is filed (group, name). "Continue" shows what
+   the DCA will do: its schedule in words, what one purchase buys, a
+   month's and a year's spending (or the total when it ends), where and in
+   which group, the first purchases — and, on a real account, that each one
+   waits for the user's click. "Create DCA" makes it. A DCA's asset,
    start and account are set when it is made; a new DCA for another one.
 --------------------------------------------------------------------------- */
 
@@ -48,6 +49,9 @@ const KINDS: Array<{ value: Cadence["kind"]; label: string }> = [
 ];
 const DAYS = WEEKDAYS.map((d) => ({ value: d, label: d.slice(0, 3).replace(/^./, (c) => c.toUpperCase()) }));
 const DAY = 86_400_000;
+
+/** The sheet scrolled back to its top: each step starts there. */
+const toTop = (from: HTMLElement) => from.closest(".wlv-body")?.scrollTo({ top: 0 });
 
 /** The moment the page opened (kept: the render stays pure). */
 const openedNow = () => Date.now();
@@ -79,6 +83,8 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
   const [name, setName] = useState(plan?.name ?? "");
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /* The settings first; "Continue" shows what the DCA will do, to create. */
+  const [step, setStep] = useState<"settings" | "review">("settings");
 
   const quote = usePluginData<Priced>("paper-trading", "quote", settings, { symbol });
   const price = quote.data && "price" in quote.data && quote.data.symbol === symbol ? quote.data.price : undefined;
@@ -116,9 +122,66 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
     setProblem(p);
   };
 
+  const title = name.trim() || `${base} · ${quoteAmount > 0 ? `${fmt(quoteAmount)} ${quoteCcy}` : quoteCcy}`;
+  const day = (t: number) => new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
+  if (step === "review") {
+    return (
+      <section className="dcv-review" aria-label="What this DCA will do">
+        <header className="dcv-review-head">
+          <span className={badgeClass(badge)}>{badge}</span>
+          <h3>{title}</h3>
+          <p>
+            {fmt(quoteAmount)} {quoteCcy} of {base}, {frequencyWords(frequency).replace(/^Every/, "every")}
+          </p>
+        </header>
+
+        <dl className="dcv-facts">
+          <Fact label="Each time">{price !== undefined ? `≈ ${fmt(quoteAmount / price)} ${base}` : `${fmt(quoteAmount)} ${quoteCcy}`}</Fact>
+          <Fact label="A month">{month ? `${fmt(month * quoteAmount, 0)} ${quoteCcy}` : "—"}</Fact>
+          <Fact label={total !== undefined ? `In all · ${total} purchases` : "A year"}>{total !== undefined ? `${fmt(total * quoteAmount, 0)} ${quoteCcy}` : month ? `${fmt(month * quoteAmount * 12.17, 0)} ${quoteCcy}` : "—"}</Fact>
+          <Fact label="Ends">{end === "never" ? "Never" : endMs !== undefined && Number.isFinite(endMs) ? day(endMs) : "—"}</Fact>
+          <Fact label="Buys on">{destination === "paper" ? "Paper portfolio" : (account?.label ?? "—")}</Fact>
+          <Fact label="Group">{groups.find((g) => g.id === group)?.name ?? "—"}</Fact>
+        </dl>
+
+        <div className="dcv-next">
+          <span className="dcv-caption">{editing ? "Next purchases" : "First purchases"}</span>
+          <ol>
+            {upcoming.map((t) => (
+              <li key={t}>{when(new Date(t).toISOString())}</li>
+            ))}
+          </ol>
+        </div>
+
+        <p className={`dcv-sentence${destination === "exchange" ? " is-real" : ""}`}>
+          {destination === "paper"
+            ? `Simulated: bought automatically in the paper portfolio.${quoteCcy !== paperCash ? ` The paper portfolio trades against ${paperCash}.` : ""}`
+            : `Real money on ${account?.label ?? "the account"}: each purchase waits for your click in the notifications.`}
+        </p>
+
+        {problem && <p className="dcv-problem">{problem}</p>}
+        <div className="dcv-form-actions">
+          <button
+            type="button"
+            className="dcv-button"
+            onClick={(e) => {
+              setStep("settings");
+              toTop(e.currentTarget);
+            }}
+          >
+            Back
+          </button>
+          <button type="button" className="dcv-button is-primary" disabled={busy} onClick={() => void save()}>
+            {busy ? "Saving…" : editing ? "Save changes" : "Create DCA"}
+          </button>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <div className="dcv-config">
-      <div className="dcv-config-main">
         <Block title="What">
           <Row label="Asset" hint={price !== undefined ? `${fmt(price)} ${quoteCcy} now` : quote.data && "error" in quote.data ? quote.data.error : undefined}>
             {editing ? (
@@ -244,50 +307,25 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
             <input className="wlv-input" placeholder={`Optional — ${base} ${frequencyWords(frequency).replace(/^Every/, "every")}`} value={name} maxLength={60} onChange={(e) => setName(e.target.value)} aria-label="Name" />
           </Row>
         </Block>
-      </div>
 
-      {/* What it will do, live. */}
-      <aside className="dcv-summary" aria-label="What this DCA will do">
-        <header className="dcv-summary-head">
-          <span className={badgeClass(badge)}>{badge}</span>
-          <b>{name.trim() || `${base} · ${quoteAmount > 0 ? `${quoteAmount} ${quoteCcy}` : quoteCcy}`}</b>
-        </header>
-        <p className="dcv-summary-lead">{cadenceOk ? frequencyWords(frequency) : "—"}</p>
-        <dl className="dcv-facts">
-          <Fact label="A month">{quoteAmount > 0 && month ? `${fmt(month * quoteAmount, 0)} ${quoteCcy}` : "—"}</Fact>
-          <Fact label={total !== undefined ? `In all · ${total} buys` : "A year"}>{quoteAmount > 0 ? (total !== undefined ? `${fmt(total * quoteAmount, 0)} ${quoteCcy}` : month ? `${fmt(month * quoteAmount * 12.17, 0)} ${quoteCcy}` : "—") : "—"}</Fact>
-          <Fact label="Ends">{end === "never" ? "Never" : endMs !== undefined && Number.isFinite(endMs) ? new Date(endMs).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—"}</Fact>
-        </dl>
-
-        <div className="dcv-next">
-          <span className="dcv-caption">{editing ? "Next purchases" : "First purchases"}</span>
-          {upcoming.length ? (
-            <ol>
-              {upcoming.map((t) => (
-                <li key={t}>{when(new Date(t).toISOString())}</li>
-              ))}
-            </ol>
-          ) : (
-            <p className="dcv-quiet">None with these settings.</p>
-          )}
-        </div>
-
-        <p className={`dcv-sentence${destination === "exchange" ? " is-real" : ""}`}>
-          {destination === "paper"
-            ? `Simulated, bought automatically.${quoteCcy !== paperCash ? ` The paper portfolio trades against ${paperCash}.` : ""}`
-            : "Real money: each purchase waits for your click."}
-        </p>
-
-        {(problem ?? (!ready ? why : null)) && <p className="dcv-problem">{problem ?? why}</p>}
-        <div className="dcv-form-actions">
-          <button type="button" className="dcv-button" onClick={onCancel}>
-            Cancel
-          </button>
-          <button type="button" className="dcv-button is-primary" disabled={!ready || busy} onClick={() => void save()}>
-            {busy ? "Saving…" : editing ? "Save changes" : "Create DCA"}
-          </button>
-        </div>
-      </aside>
+      <footer className="dcv-config-foot">
+        {!ready && why && <span className="dcv-config-why">{why}</span>}
+        <button type="button" className="dcv-button" onClick={onCancel}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="dcv-button is-primary"
+          disabled={!ready}
+          onClick={(e) => {
+            setProblem(null);
+            setStep("review");
+            toTop(e.currentTarget);
+          }}
+        >
+          Continue
+        </button>
+      </footer>
     </div>
   );
 }

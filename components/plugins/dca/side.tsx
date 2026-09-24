@@ -72,7 +72,7 @@ export function Side({ groups, plans, figures, unit, open, onOpen, onMenu, onCre
                 <span className="dcv-item-main">
                   <b>{g.name}</b>
                   <small>
-                    {inside.length ? `${inside.length} DCA${inside.length === 1 ? "" : "s"}` : "Empty — add a DCA"}
+                    {inside.length ? `${inside.length} DCA${inside.length === 1 ? "" : "s"}` : "No DCA yet"}
                     {f.invested > 0 ? ` · ${money(f.invested, unit(inside))}` : ""}
                     {next ? ` · next ${when(next)}` : ""}
                   </small>
