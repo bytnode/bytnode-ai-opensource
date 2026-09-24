@@ -98,13 +98,19 @@ html[data-theme="light"] .tb {
   /* The bar's line under the tabs: the front one covers it. */
   margin-bottom: -1px;
   border-radius: var(--tb-r) var(--tb-r) 0 0;
-  color: rgba(var(--ink), 0.62);
+  /* Asleep, like their pages: a dimmed title, a darkened ground. */
+  background: rgba(0, 0, 0, 0.14);
+  color: rgba(var(--ink), 0.42);
   transition: background-color 120ms ease, color 120ms ease;
+}
+
+html[data-theme="light"] .tb-tab {
+  background: rgba(0, 0, 0, 0.035);
 }
 
 .tb-tab:hover {
   background: rgba(var(--ink), 0.06);
-  color: rgba(var(--ink), 0.9);
+  color: rgba(var(--ink), 0.82);
 }
 
 .tb-tab.is-on {
