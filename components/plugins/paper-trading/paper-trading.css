@@ -23,9 +23,11 @@
 
 /* --- The three columns ----------------------------------------------------------- */
 
-/* The portfolios, a light veil on the left, of a fixed width. */
+/* The portfolios, a light veil on the left; its width is the user's (the
+   handle on its right edge, `--ptv-nav`). */
 .ptv-nav {
-  flex: 0 0 330px;
+  flex: 0 0 var(--ptv-nav, 330px);
+  min-width: 0;
 }
 
 .ptv-book {
@@ -45,6 +47,17 @@
 
 .is-trade-closed .ptv-sheet {
   border-radius: var(--r-sm) var(--r-panel) var(--r-panel) var(--r-panel);
+}
+
+/* Squeezed between two wide columns, the head's actions go under the
+   name rather than crushing it. */
+.ptv-sheet .wlv-head {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.ptv-sheet .wlv-title-block {
+  flex: 1 1 300px;
 }
 
 /* The card and the ticket, on the right: the same veil as the list; its

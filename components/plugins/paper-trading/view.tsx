@@ -3,7 +3,7 @@
 import { useRef, useState, type CSSProperties } from "react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Close } from "@/components/ui/icons";
-import { PAPER_TRADE_DEFAULT, PAPER_TRADE_MAX, PAPER_TRADE_MIN, clampPaperTradeWidth, updateUiPrefs, useUiPrefs } from "@/lib/state/ui";
+import { PAPER_NAV_DEFAULT, PAPER_NAV_MAX, PAPER_NAV_MIN, PAPER_TRADE_DEFAULT, PAPER_TRADE_MAX, PAPER_TRADE_MIN, clampPaperNavWidth, clampPaperTradeWidth, updateUiPrefs, useUiPrefs } from "@/lib/state/ui";
 import type { ViewProps } from "../views";
 import { ColumnHandle } from "../column-handle";
 import { callPlugin } from "@/lib/plugins/client";
@@ -22,7 +22,8 @@ import "./paper-trading.css";
 /* ---------------------------------------------------------------------------
    The Paper trading tab, in the bare views' language (the watchlist's
    sheet, the calendar's tokens), in three columns:
-   - on the left, the paper portfolios (`books.tsx`), and a new one;
+   - on the left, the paper portfolios (`books.tsx`), and a new one — its
+     width follows the handle on its right edge;
    - in the middle, one sheet: the chosen portfolio, the market of the pair
      in the ticket, all it holds and did;
    - on the right, what it is worth — a banknote card drawn on the GPU —
@@ -110,13 +111,24 @@ export function PaperTradingView({ settings, params }: ViewProps) {
 
   return (
     <div className="wlv ptv">
-      <div className={`wlv-panel${closed ? " is-trade-closed" : ""}`} ref={panel} style={{ "--ptv-trade": `${ui.paperTradeWidth}px` } as CSSProperties}>
+      <div className={`wlv-panel${closed ? " is-trade-closed" : ""}`} ref={panel} style={{ "--ptv-nav": `${ui.paperNavWidth}px`, "--ptv-trade": `${ui.paperTradeWidth}px` } as CSSProperties}>
         <Books
           books={list}
           selected={data?.id ?? (id || null)}
           defaultCapital={defaultCapital}
           onPick={choose}
           onCreate={create}
+        />
+        <ColumnHandle
+          panel={panel}
+          cssVar="--ptv-nav"
+          width={ui.paperNavWidth}
+          min={PAPER_NAV_MIN}
+          max={PAPER_NAV_MAX}
+          reset={PAPER_NAV_DEFAULT}
+          clamp={clampPaperNavWidth}
+          onCommit={(w) => updateUiPrefs({ paperNavWidth: w })}
+          label="Width of the portfolios"
         />
         <Sheet
           data={data}
