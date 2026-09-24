@@ -444,6 +444,97 @@ html[data-theme="light"] .tb-menu {
   color: var(--fg-muted);
 }
 
+/* A tab's preview: the page's picture, its title, a line of what it shows,
+   and for a tab behind, that it sleeps. Never catches the hand. */
+.tb-peek {
+  position: fixed;
+  z-index: 41;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(var(--voile), 0.985);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  animation: tb-pop 140ms var(--ease) both;
+}
+
+html[data-theme="light"] .tb-peek {
+  background: rgba(255, 255, 255, 0.99);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.14);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tb-peek {
+    animation: none;
+  }
+}
+
+.tb-peek-shot {
+  position: relative;
+  height: 180px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.tb-peek-text {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px 12px;
+}
+
+.tb-peek-text b {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.tb-peek-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--fg-muted);
+}
+
+.tb-peek-line span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tb-peek-icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tb-peek-sleep {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0;
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--fg-muted);
+}
+
+.tb-peek-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: #30d158;
+  box-shadow: 0 0 0 3px rgba(48, 209, 88, 0.18);
+}
+
 /* A spring that pushes what follows to the end of a row (the views'
    toolbars use it: paper trading). */
 .tb-space {

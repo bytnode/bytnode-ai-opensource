@@ -35,7 +35,8 @@ export function AppShell({ settings }: { settings: Settings }) {
     <div className="shell">
       <TabBar settings={settings} views={views} tabs={visible} active={active} />
       <div className="shell-body">
-        <div className="shell-pane" hidden={active !== HOME}>
+        {/* `data-view`: the tab bar's preview finds the page it shows. */}
+        <div className="shell-pane" data-view={HOME} hidden={active !== HOME}>
           <ChatShell settings={settings} />
         </div>
         {visible.map((tab) => {
@@ -43,7 +44,7 @@ export function AppShell({ settings }: { settings: Settings }) {
           if (!entry) return null;
           const front = tab.view === active;
           return (
-            <div key={tab.view} className="shell-pane" hidden={!front}>
+            <div key={tab.view} className="shell-pane" data-view={tab.view} hidden={!front}>
               <ViewActive value={front}>
                 <ViewFrame entry={entry} tab={tab} settings={settings} />
               </ViewActive>

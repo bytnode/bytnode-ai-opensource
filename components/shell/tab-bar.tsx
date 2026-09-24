@@ -9,6 +9,7 @@ import { useUiPrefs } from "@/lib/state/ui";
 import { Close } from "@/components/ui/icons";
 import { NotificationCenter } from "./notification-center";
 import { TabIcon } from "./tab-icons";
+import { TabPreview, useTabPreview } from "./tab-preview";
 import { ViewsMenu } from "./views-menu";
 
 /* ---------------------------------------------------------------------------
@@ -29,12 +30,20 @@ type Props = { settings: Settings; views: ViewEntry[]; tabs: ViewTab[]; active: 
 
 export function TabBar({ settings, views, tabs, active }: Props) {
   const { sidebarWidth } = useUiPrefs();
+  /* The preview under a tab the hand rests on (`tab-preview.tsx`). */
+  const preview = useTabPreview();
+  const hover = (view: string) => ({
+    onMouseEnter: (e: React.MouseEvent<HTMLElement>) => preview.enter(view, e.currentTarget),
+    onMouseLeave: preview.leave,
+    onMouseDown: preview.hide,
+  });
+  const peeked = preview.peek ? (preview.peek.view === HOME ? { title: "Conversations", description: "Your agents and their conversations" } : viewEntry(preview.peek.view)) : null;
   return (
     <div className="tb" style={{ "--tb-home": `${sidebarWidth}px` } as React.CSSProperties}>
-      <div className="tb-tabs" role="tablist" aria-label="Open pages">
+      <div className="tb-tabs" role="tablist" aria-label="Open pages" onScroll={preview.hide}>
         {/* Built like the others (a tab around its label); its width is
             the column's, not a share of the bar. */}
-        <div className={`tb-tab tb-tab-home${active === HOME ? " is-on" : ""}`}>
+        <div className={`tb-tab tb-tab-home${active === HOME ? " is-on" : ""}`} {...hover(HOME)}>
           <button type="button" role="tab" aria-selected={active === HOME} className="tb-home" onClick={() => activateTab(HOME)}>
             <TabIcon view="home" className="tb-favicon" />
             <span className="tb-title">Conversations</span>
@@ -45,7 +54,7 @@ export function TabBar({ settings, views, tabs, active }: Props) {
           if (!entry) return null;
           const on = active === t.view;
           return (
-            <div key={t.view} className={`tb-tab${on ? " is-on" : ""}`}>
+            <div key={t.view} className={`tb-tab${on ? " is-on" : ""}`} {...hover(t.view)}>
               <span className="tb-sep" aria-hidden />
               <button type="button" role="tab" aria-selected={on} className="tb-label" onClick={() => activateTab(t.view)} title={entry.description}>
                 <TabIcon view={t.view} className="tb-favicon" />
@@ -64,6 +73,7 @@ export function TabBar({ settings, views, tabs, active }: Props) {
       <span className={`tb-end${tabs.length ? (active === tabs[tabs.length - 1].view ? " is-hidden" : "") : active === HOME ? " is-hidden" : ""}`} aria-hidden />
       <ViewsMenu views={views} open={tabs.map((t) => t.view)} active={active} onPick={openView} />
       <span className="tb-space" />
+      {preview.peek && peeked && <TabPreview peek={preview.peek} title={peeked.title} description={peeked.description} asleep={preview.peek.view !== HOME && preview.peek.view !== active} />}
       <NotificationCenter settings={settings} onOpenConversation={(id) => void ensureConversation(id, settings).then(() => goToConversation(id))} />
     </div>
   );
