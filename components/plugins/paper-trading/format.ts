@@ -4,8 +4,13 @@ import { fmt } from "../bits";
 
 /* The Paper trading tab's words and figures, shared by its two columns. */
 
-/** What the plugin's `state` action answers. */
+/** A portfolio in the left column: the plugin's `books` action. */
+export type BookRow = { id: string; name: string; createdAt: string; capital: number; equity?: number; returnPct?: number; positions: number; orders: number };
+
+/** What the plugin's `state` action answers: one portfolio. */
 export type PaperState = {
+  id: string;
+  name: string;
   valuation: Valuation;
   capital: number;
   createdAt: string;

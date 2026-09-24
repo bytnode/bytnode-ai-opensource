@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Close, Refresh } from "@/components/ui/icons";
+import { Close, Pencil, Refresh } from "@/components/ui/icons";
 import { fmt } from "../bits";
 import { PriceChart } from "../watchlist/price-chart";
 import { CASH, baseOf, dayOf, fillTitle, orderTitle, pct, price, signed, toneOf, usdt, whenOf, type PaperState } from "./format";
 
 /* ---------------------------------------------------------------------------
-   The right sheet, top to bottom: the portfolio's name and when it began;
+   The middle sheet, the chosen portfolio top to bottom: its name (a click
+   renames it) and when it began;
    four figures as one block of tiles (cash, what is invested, realized,
    unrealized); the result over time — a curve like Stocks, from the fills;
    then what the portfolio holds, each thing a row with the one action it
@@ -20,17 +21,25 @@ type Props = {
   data: PaperState | null;
   loading: boolean;
   problem: string | null;
+  /** Whether there are other portfolios: only then can this one be deleted. */
+  many: boolean;
+  /** The ticket's column is closed: the head offers to open it again. */
+  tradeClosed: boolean;
   exportButton: ReactNode;
   exportResult: ReactNode;
   onReload: () => void;
   onReset: () => void;
-  /** Runs one of the plugin's actions, then the data reloads. */
+  onDelete: () => void;
+  onOpenTrade: () => void;
+  /** Renames the portfolio; answers why not, or null. */
+  onRename: (name: string) => Promise<string | null>;
+  /** Runs one of the plugin's actions on this portfolio, then the data reloads. */
   onAct: (action: string, params: Record<string, unknown>) => Promise<string | null>;
 };
 
 const SHOWN_FILLS = 12;
 
-export function Sheet({ data, loading, problem, exportButton, exportResult, onReload, onReset, onAct }: Props) {
+export function Sheet({ data, loading, problem, many, tradeClosed, exportButton, exportResult, onReload, onReset, onDelete, onOpenTrade, onRename, onAct }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [allFills, setAllFills] = useState(false);
   const v = data?.valuation;
@@ -51,9 +60,13 @@ export function Sheet({ data, loading, problem, exportButton, exportResult, onRe
     <main className="wlv-pane wlv-sheet ptv-sheet">
       <header className="wlv-head">
         <div className="wlv-title-block">
-          <h2 className="wlv-sheet-title">
-            <span className="pv-ink">Paper portfolio</span>
-          </h2>
+          {data ? (
+            <NameTitle key={`${data.id}:${data.name}`} name={data.name} onRename={onRename} />
+          ) : (
+            <h2 className="wlv-sheet-title">
+              <span className="pv-ink">Paper portfolio</span>
+            </h2>
+          )}
           <p className="wlv-sheet-sub">{data ? `Since ${dayOf(data.createdAt)}, with ${usdt(data.capital)} ${CASH} of paper money. Nothing here is real.` : "Reading the portfolio…"}</p>
         </div>
         <span className={`wlv-status${data && !loading && !problem ? " is-live" : ""}`}>{status}</span>
@@ -64,6 +77,16 @@ export function Sheet({ data, loading, problem, exportButton, exportResult, onRe
         <button type="button" className="ptv-pill" onClick={onReset} disabled={!data}>
           Reset
         </button>
+        {many && (
+          <button type="button" className="ptv-pill is-danger" onClick={onDelete} disabled={!data}>
+            Delete
+          </button>
+        )}
+        {tradeClosed && (
+          <button type="button" className="ptv-pill is-primary" onClick={onOpenTrade}>
+            Trade
+          </button>
+        )}
       </header>
       {problem && <p className="wlv-problem">{problem}</p>}
       {data?.priceErrors.map((m) => (
@@ -230,6 +253,55 @@ export function Sheet({ data, loading, problem, exportButton, exportResult, onRe
         {data && <p className="ptv-foot">Prices from BytNode, or from your exchange for a pair BytNode does not cover. A paper result is a simulation, never a real performance.</p>}
       </div>
     </main>
+  );
+}
+
+/** The portfolio's name — a click edits it, Enter or leaving the field
+    keeps it, Escape leaves it as it was; a refused name says why. */
+function NameTitle({ name, onRename }: { name: string; onRename: (name: string) => Promise<string | null> }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const keep = async () => {
+    if (draft === null) return;
+    if (draft.trim() === name || !draft.trim()) {
+      setDraft(null);
+      setProblem(null);
+      return;
+    }
+    const p = await onRename(draft);
+    setProblem(p);
+    if (!p) setDraft(null);
+  };
+  if (draft === null) {
+    return (
+      <h2 className="wlv-sheet-title">
+        <button type="button" className="ptv-name" onClick={() => setDraft(name)} title="Rename the portfolio">
+          <span className="pv-ink">{name}</span>
+          <Pencil />
+        </button>
+      </h2>
+    );
+  }
+  return (
+    <div className="ptv-name-edit">
+      <input
+        className="wlv-input"
+        aria-label="Name of the portfolio"
+        value={draft}
+        maxLength={40}
+        autoFocus
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => void keep()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") void keep();
+          if (e.key === "Escape") {
+            setDraft(null);
+            setProblem(null);
+          }
+        }}
+      />
+      {problem && <p className="wlv-problem">{problem}</p>}
+    </div>
   );
 }
 

@@ -12,8 +12,9 @@ import { CASH, baseOf, dayOf, pct, price, toneOf, usdt, type PaperState } from "
 import { useNoteField } from "./note-field";
 
 /* ---------------------------------------------------------------------------
-   The left column: the card — what the paper portfolio is worth, on a
-   banknote under glass (`note-field.ts`) — then the order ticket, read top
+   The right column (closable, its width the user's): the card — what the
+   chosen portfolio is worth, named, on a banknote under glass
+   (`note-field.ts`) — then the order ticket, into that portfolio, read top
    to bottom like a sentence: buy or sell, spot or futures, which pair (its
    price live under the field), at the market or at a price, how much. The
    ticket says what the order will do before it is placed — the quantity,
@@ -65,7 +66,7 @@ export function Card({ data }: { data: PaperState | null }) {
     <div className={`ptv-card ${toneOf(ret)}`}>
       <canvas ref={canvas} className="ptv-card-canvas" aria-hidden />
       <div className="ptv-card-top">
-        <span className="ptv-card-label">Paper money</span>
+        <span className="ptv-card-label">{data?.name ?? "Paper money"}</span>
         <span className="xch-badge is-paper">PAPER</span>
       </div>
       <p className="ptv-card-value">
@@ -89,7 +90,7 @@ export function Card({ data }: { data: PaperState | null }) {
   );
 }
 
-export function Ticket({ data, settings, onPlaced }: { data: PaperState | null; settings: Settings; onPlaced: () => void }) {
+export function Ticket({ data, portfolio, settings, onPlaced }: { data: PaperState | null; portfolio: string; settings: Settings; onPlaced: () => void }) {
   const [side, setSide] = useState<Side>("buy");
   const [market, setMarket] = useState<Market>("spot");
   const [kind, setKind] = useState<Kind>("market");
@@ -154,6 +155,7 @@ export function Ticket({ data, settings, onPlaced }: { data: PaperState | null; 
     setPlacing(true);
     setDone(null);
     const params = {
+      portfolio,
       symbol,
       side,
       type: kind,

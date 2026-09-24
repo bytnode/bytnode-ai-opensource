@@ -21,6 +21,178 @@
   font-size: 13px;
 }
 
+/* --- The three columns ----------------------------------------------------------- */
+
+/* The portfolios, a light veil on the left, of a fixed width. */
+.ptv-nav {
+  flex: 0 0 290px;
+}
+
+.ptv-book {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.ptv-book-value {
+  color: var(--label-2);
+  font-weight: 500;
+}
+
+/* The middle sheet: slightly round where it meets the tab bar on both
+   sides, fully round below — and on the right when the ticket is closed. */
+.ptv-sheet {
+  border-radius: var(--r-sm) var(--r-sm) var(--r-panel) var(--r-panel);
+}
+
+.is-trade-closed .ptv-sheet {
+  border-radius: var(--r-sm) var(--r-panel) var(--r-panel) var(--r-panel);
+}
+
+/* The card and the ticket, on the right: the same veil as the list; its
+   width is the user's (the handle on its left edge, `--ptv-trade`). */
+.ptv-trade {
+  flex: 0 0 var(--ptv-trade, 360px);
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--pane);
+  backdrop-filter: blur(22px) saturate(1.2);
+  scrollbar-width: thin;
+}
+
+.ptv-trade-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 20px 14px 14px 22px;
+}
+
+.ptv-books {
+  padding-bottom: 8px;
+}
+
+.ptv-books-loading {
+  padding: 10px 14px;
+  font-size: 13.5px;
+  color: var(--label-3);
+}
+
+.ptv-new {
+  margin-top: auto;
+  padding: 10px 12px 22px;
+}
+
+.ptv-new-open {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--label-2);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.ptv-new-open:hover {
+  background: var(--fill);
+  color: var(--label);
+}
+
+.ptv-new-open svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.ptv-new-form {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--r);
+  background: var(--tile);
+}
+
+.ptv-new-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.ptv-new-problem {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--down);
+}
+
+/* The portfolio's name, renamed in place. */
+.ptv-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  margin-left: -8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: text;
+}
+
+.ptv-name:hover {
+  background: var(--fill);
+}
+
+.ptv-name svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.9;
+  color: var(--label-3);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.ptv-name:hover svg,
+.ptv-name:focus-visible svg {
+  opacity: 1;
+}
+
+.ptv-name-edit {
+  max-width: 420px;
+}
+
+.ptv-name-edit .wlv-input {
+  height: 36px;
+  font-family: var(--font-display), sans-serif;
+  font-size: 20px;
+}
+
+.ptv-name-edit .wlv-problem {
+  margin: 6px 0 0;
+}
+
+@media (max-width: 900px) {
+  .ptv-nav,
+  .ptv-trade {
+    flex: none;
+    overflow: visible;
+  }
+
+  .ptv-sheet,
+  .is-trade-closed .ptv-sheet {
+    border-radius: var(--r-panel);
+  }
+}
+
 /* --- The card ------------------------------------------------------------------ */
 
 /* A card's proportions, a banknote's lines: the ground and the corners are
@@ -354,6 +526,25 @@ html[data-theme="light"] .ptv-max {
 .ptv-pill:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+/* The one thing a form or a head is for: Apple's blue. */
+.ptv-pill.is-primary,
+.ptv-pill.is-primary:hover:not(:disabled) {
+  background: #0a84ff;
+  color: #fff;
+}
+
+html[data-theme="light"] .ptv-pill.is-primary {
+  background: #007aff;
+}
+
+.ptv-pill.is-danger {
+  color: var(--down);
+}
+
+.ptv-pill.is-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--down) 14%, transparent);
 }
 
 .ptv-report {

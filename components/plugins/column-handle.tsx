@@ -5,7 +5,9 @@ import type { KeyboardEvent, MouseEvent as ReactMouseEvent, RefObject } from "re
 /* ---------------------------------------------------------------------------
    The rule between a bare view's two columns, as a handle: drag it (or
    focus it and use the arrows; double-click to reset) to widen or narrow
-   the left column. While dragging, the column follows the mouse through a
+   the left column — or, `side="right"`, the column on its right (the
+   paper trading's ticket). While dragging, the column follows the mouse
+   through a
    CSS variable set on the panel itself — no render — and the width is
    kept on release (`lib/state/ui.ts`).
 --------------------------------------------------------------------------- */
@@ -21,9 +23,11 @@ type Props = {
   clamp: (w: number) => number;
   onCommit: (w: number) => void;
   label: string;
+  /** Which column the handle sizes: the one on its left (default) or on its right. */
+  side?: "left" | "right";
 };
 
-export function ColumnHandle({ panel, cssVar, width, min, max, reset, clamp, onCommit, label }: Props) {
+export function ColumnHandle({ panel, cssVar, width, min, max, reset, clamp, onCommit, label, side = "left" }: Props) {
   const start = (e: ReactMouseEvent) => {
     e.preventDefault();
     const box = panel.current;
@@ -34,7 +38,7 @@ export function ColumnHandle({ panel, cssVar, width, min, max, reset, clamp, onC
     const zoom = rect.width / (box.offsetWidth || rect.width) || 1;
     let next = width;
     const move = (ev: MouseEvent) => {
-      next = clamp((ev.clientX - rect.left) / zoom);
+      next = clamp((side === "left" ? ev.clientX - rect.left : rect.right - ev.clientX) / zoom);
       box.style.setProperty(cssVar, `${next}px`);
     };
     const up = () => {
@@ -48,7 +52,7 @@ export function ColumnHandle({ panel, cssVar, width, min, max, reset, clamp, onC
     document.addEventListener("mouseup", up);
   };
   const nudge = (e: KeyboardEvent) => {
-    const step = e.key === "ArrowLeft" ? -16 : e.key === "ArrowRight" ? 16 : 0;
+    const step = (e.key === "ArrowLeft" ? -16 : e.key === "ArrowRight" ? 16 : 0) * (side === "left" ? 1 : -1);
     if (!step) return;
     e.preventDefault();
     onCommit(clamp(width + step));
