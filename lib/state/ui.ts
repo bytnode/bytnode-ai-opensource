@@ -8,10 +8,10 @@ import { createStore } from "./store";
    the width of the Calendar tab's month column, of the Watchlist tab's
    list and of the Portfolio tab's accounts; the Paper trading tab's
    portfolios column, and its ticket column — its width and whether it is
-   closed. Nothing more — this is
+   closed; the DCA tab's plans column. Nothing more — this is
    not a setting, it is a habit. */
 
-export type UiPrefs = { sidebarWidth: number; sidebarCollapsed: boolean; calendarWidth: number; watchlistWidth: number; portfolioWidth: number; paperNavWidth: number; paperTradeWidth: number; paperTradeClosed: boolean };
+export type UiPrefs = { sidebarWidth: number; sidebarCollapsed: boolean; calendarWidth: number; watchlistWidth: number; portfolioWidth: number; paperNavWidth: number; paperTradeWidth: number; paperTradeClosed: boolean; dcaWidth: number };
 
 const KEY = "agentchat:ui";
 export const SIDEBAR_MIN = 220;
@@ -32,9 +32,12 @@ export const PAPER_NAV_DEFAULT = 330;
 export const PAPER_TRADE_MIN = 300;
 export const PAPER_TRADE_MAX = 560;
 export const PAPER_TRADE_DEFAULT = 360;
+export const DCA_MIN = 290;
+export const DCA_MAX = 560;
+export const DCA_DEFAULT = 360;
 
 const storage = new BrowserStorage();
-const defaults: UiPrefs = { sidebarWidth: SIDEBAR_DEFAULT, sidebarCollapsed: false, calendarWidth: CALENDAR_DEFAULT, watchlistWidth: WATCHLIST_DEFAULT, portfolioWidth: PORTFOLIO_DEFAULT, paperNavWidth: PAPER_NAV_DEFAULT, paperTradeWidth: PAPER_TRADE_DEFAULT, paperTradeClosed: false };
+const defaults: UiPrefs = { sidebarWidth: SIDEBAR_DEFAULT, sidebarCollapsed: false, calendarWidth: CALENDAR_DEFAULT, watchlistWidth: WATCHLIST_DEFAULT, portfolioWidth: PORTFOLIO_DEFAULT, paperNavWidth: PAPER_NAV_DEFAULT, paperTradeWidth: PAPER_TRADE_DEFAULT, paperTradeClosed: false, dcaWidth: DCA_DEFAULT };
 
 const store = createStore<UiPrefs>(defaults, () => {
   try {
@@ -48,6 +51,7 @@ const store = createStore<UiPrefs>(defaults, () => {
       paperNavWidth: clampPaperNavWidth(typeof raw.paperNavWidth === "number" ? raw.paperNavWidth : PAPER_NAV_DEFAULT),
       paperTradeWidth: clampPaperTradeWidth(typeof raw.paperTradeWidth === "number" ? raw.paperTradeWidth : PAPER_TRADE_DEFAULT),
       paperTradeClosed: raw.paperTradeClosed === true,
+      dcaWidth: clampDcaWidth(typeof raw.dcaWidth === "number" ? raw.dcaWidth : DCA_DEFAULT),
     };
   } catch {
     return defaults;
@@ -60,6 +64,7 @@ export const clampWatchlistWidth = (w: number) => Math.min(WATCHLIST_MAX, Math.m
 export const clampPortfolioWidth = (w: number) => Math.min(PORTFOLIO_MAX, Math.max(PORTFOLIO_MIN, Math.round(w)));
 export const clampPaperNavWidth = (w: number) => Math.min(PAPER_NAV_MAX, Math.max(PAPER_NAV_MIN, Math.round(w)));
 export const clampPaperTradeWidth = (w: number) => Math.min(PAPER_TRADE_MAX, Math.max(PAPER_TRADE_MIN, Math.round(w)));
+export const clampDcaWidth = (w: number) => Math.min(DCA_MAX, Math.max(DCA_MIN, Math.round(w)));
 
 export function useUiPrefs(): UiPrefs {
   return useSyncExternalStore(store.subscribe, store.get, store.getServer);

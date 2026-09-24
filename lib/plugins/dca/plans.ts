@@ -26,6 +26,8 @@ export type DcaPlan = {
   startAt: string;
   endAt?: string;
   note?: string;
+  /** The group (`groups.ts`) it is listed under; none: listed on its own. */
+  groupId?: string;
   status: "active" | "paused" | "ended";
   createdAt: string;
   /** The next due date; absent when the plan has ended. */
@@ -55,7 +57,7 @@ const MIN_INTERVAL_MINUTES = 60;
 /** A due date older than this when checked was missed (app closed). */
 export const GRACE_MS = 10 * 60_000;
 
-export type PlanInput = { symbol?: unknown; quoteAmount?: unknown; frequency?: unknown; destination?: unknown; accountId?: string; startAt?: unknown; endAt?: unknown; note?: unknown };
+export type PlanInput = { symbol?: unknown; quoteAmount?: unknown; frequency?: unknown; destination?: unknown; accountId?: string; startAt?: unknown; endAt?: unknown; note?: unknown; groupId?: string };
 
 const firstDue = (f: Frequency, start: number) => (f.kind === "interval" ? start : nextRun(f, start - 1));
 
@@ -87,6 +89,7 @@ export function newPlan(input: PlanInput, id: string, now: Date): DcaPlan | { er
     startAt: new Date(start).toISOString(),
     ...(end !== undefined ? { endAt: new Date(end).toISOString() } : {}),
     ...(note ? { note } : {}),
+    ...(input.groupId ? { groupId: input.groupId } : {}),
     status: end !== undefined && due > end ? "ended" : "active",
     createdAt: now.toISOString(),
     ...(end === undefined || due <= end ? { nextDue: new Date(due).toISOString() } : {}),

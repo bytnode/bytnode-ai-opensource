@@ -10,6 +10,9 @@ import { dcaPauseTool } from "./dca-pause";
 import { dcaManifest } from "./manifest";
 import { advance, changePlan, dueNow, newPlan, readOrderOutcome, summarize, type DcaPlan, type PlanAction, type Purchase } from "./plans";
 import { precheck } from "./precheck";
+import { addGroup, curveDays, groupNamed, movePlan, planCurve, renameGroup, ungroup, type DcaGroup } from "./groups";
+import { candles, isQuote, quotes } from "../shared/prices";
+import type { Candle } from "../shared/candle";
 
 /* ---------------------------------------------------------------------------
    Recurring purchases.
@@ -24,6 +27,7 @@ import { precheck } from "./precheck";
 
 const PLANS = "plans.json";
 const PURCHASES = "purchases.json";
+const GROUPS = "groups.json";
 const MAX_PURCHASES = 2000;
 
 type Handled = { purchase: Purchase; notice?: { title: string; body: string; level: "success" | "error" | "warning" } };
@@ -35,6 +39,18 @@ export const dcaPlugin = definePlugin({
     const paper = ctx.inject<PaperService>("paper-trading");
     const plans = () => ctx.store.read<DcaPlan[]>(PLANS, []);
     const purchases = () => ctx.store.read<Purchase[]>(PURCHASES, []);
+    const groups = () => ctx.store.read<DcaGroup[]>(GROUPS, []);
+    /** A group by name, made when there is none (the agents' tool). */
+    const groupFor = async (name: string): Promise<DcaGroup | { error: string }> => {
+      const found = groupNamed(await groups(), name);
+      if (found) return found;
+      let result = { error: "" } as ReturnType<typeof addGroup>;
+      await ctx.store.update<DcaGroup[]>(GROUPS, [], (list) => {
+        result = addGroup(list, name, randomUUID().slice(0, 8), new Date());
+        return "error" in result ? list : result.groups;
+      });
+      return "error" in result ? result : result.group;
+    };
     const record = (list: Purchase[]) => ctx.store.update<Purchase[]>(PURCHASES, [], (all) => [...all, ...list].slice(-MAX_PURCHASES));
     const add = async (plan: DcaPlan) => void (await ctx.store.update<DcaPlan[]>(PLANS, [], (list) => [...list, plan]));
     const change = async (id: string, action: PlanAction) => {
@@ -109,23 +125,85 @@ export const dcaPlugin = definePlugin({
       await ctx.store.update<Purchase[]>(PURCHASES, [], (all) => all.map((p) => (p.confirmationId === c.id ? { ...p, status, ...fill, ...(c.outcome ? { detail: c.outcome } : {}) } : p)));
     });
 
-    ctx.tool(dcaCreateTool(add, paper.cash));
-    ctx.tool(dcaListTool(async () => ({ plans: await plans(), purchases: await purchases() })));
+    ctx.tool(dcaCreateTool(add, paper.cash, groupFor));
+    ctx.tool(dcaListTool(async () => ({ plans: await plans(), purchases: await purchases(), groups: await groups() })));
     ctx.tool(dcaPauseTool(change));
 
     /* --- The view ---------------------------------------------------------- */
 
     ctx.api("state", async () => {
-      const [list, all] = await Promise.all([plans(), purchases()]);
+      const [list, all, known] = await Promise.all([plans(), purchases(), groups()]);
       return {
         plans: list.map((plan) => ({ ...plan, summary: summarize(all.filter((p) => p.planId === plan.id)) })),
-        purchases: all.slice(-100).reverse(),
+        groups: known,
+        purchases: all.slice(-300).reverse(),
         paperCash: paper.cash,
       };
     });
+    /* The current price of every pair the plans buy: what they are worth.
+       Read apart from the state (BytNode's quota): once a minute. */
+    ctx.api("prices", async (_params, { transport, signal }) => {
+      const symbols = [...new Set((await plans()).map((p) => p.symbol))];
+      const got = await quotes(symbols, { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal });
+      const prices: Record<string, number> = {};
+      for (const s of symbols) {
+        const q = got.get(s);
+        if (q && isQuote(q)) prices[s] = q.price;
+      }
+      return { prices };
+    });
+    /* The value of a set of plans day by day, since its first purchase. */
+    ctx.api("curve", async (params, { transport, signal }) => {
+      const ids = new Set(Array.isArray(params.plans) ? params.plans.filter((x): x is string => typeof x === "string") : []);
+      const chosen = (await plans()).filter((p) => ids.has(p.id));
+      const bought = (await purchases()).filter((p) => ids.has(p.planId));
+      const days = curveDays(bought, new Date());
+      if (!days.length) return { series: [] };
+      const closes: Record<string, Candle[]> = {};
+      for (const symbol of [...new Set(chosen.map((p) => p.symbol))]) {
+        const r = await candles(symbol, "1d", days.length + 1, { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal });
+        if ("candles" in r) closes[symbol] = r.candles;
+      }
+      return { series: planCurve(chosen, bought, closes, days) };
+    });
+    ctx.api("group", async (params) => {
+      const action = params.action;
+      const id = typeof params.id === "string" ? params.id : "";
+      if (action === "delete") {
+        let known = true;
+        await ctx.store.update<DcaGroup[]>(GROUPS, [], (list) => {
+          known = list.some((g) => g.id === id);
+          return list.filter((g) => g.id !== id);
+        });
+        if (!known) throw new Error("No such group.");
+        /* Its plans stay, listed on their own. */
+        await ctx.store.update<DcaPlan[]>(PLANS, [], (list) => ungroup(list, id));
+        return { deleted: id };
+      }
+      let result = { error: "" } as ReturnType<typeof addGroup>;
+      await ctx.store.update<DcaGroup[]>(GROUPS, [], (list) => {
+        result = action === "rename" ? renameGroup(list, id, params.name) : action === "create" ? addGroup(list, params.name, randomUUID().slice(0, 8), new Date()) : { error: "Expected `action`: create, rename or delete." };
+        return "error" in result ? list : result.groups;
+      });
+      if ("error" in result) throw new Error(result.error);
+      return result.group;
+    });
+    ctx.api("move", async (params) => {
+      const planId = typeof params.id === "string" ? params.id : "";
+      const groupId = typeof params.groupId === "string" && params.groupId ? params.groupId : null;
+      const known = await groups();
+      let result = { error: "" } as ReturnType<typeof movePlan>;
+      await ctx.store.update<DcaPlan[]>(PLANS, [], (list) => {
+        result = movePlan(list, known, planId, groupId);
+        return "error" in result ? list : result.plans;
+      });
+      if ("error" in result) throw new Error(result.error);
+      return result.plan;
+    });
     ctx.api("create", async (params, { transport }) => {
       const accountId = typeof params.accountId === "string" && transport.exchangeAccounts.some((a) => a.id === params.accountId) ? params.accountId : undefined;
-      const plan = newPlan({ ...params, accountId }, randomUUID().slice(0, 8), new Date());
+      const groupId = typeof params.groupId === "string" && (await groups()).some((g) => g.id === params.groupId) ? params.groupId : undefined;
+      const plan = newPlan({ ...params, accountId, groupId }, randomUUID().slice(0, 8), new Date());
       if ("error" in plan) throw new Error(plan.error);
       if (plan.destination === "paper" && plan.symbol.split("/")[1] !== paper.cash) throw new Error(`The paper portfolio trades against ${paper.cash}: use ${plan.symbol.split("/")[0]}/${paper.cash}.`);
       await add(plan);

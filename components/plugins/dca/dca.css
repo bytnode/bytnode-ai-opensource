@@ -1,0 +1,648 @@
+/* ---------------------------------------------------------------------------
+   The DCA tab, in the bare views' language: the veil and the sheet of the
+   watchlist (`../watchlist/watchlist.css`), the portfolio's tiles — 2 px
+   apart, one block with round outer corners. Left, the plans and their
+   groups; right, what is open. Blue for what was bought, orange for what
+   waits for the user, green and red for results only.
+--------------------------------------------------------------------------- */
+
+.dcv {
+  --dca-accent: #0a84ff;
+}
+
+html[data-theme="light"] .dcv {
+  --dca-accent: #007aff;
+}
+
+.dcv-caption {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.dcv-quiet {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--label-3);
+}
+
+.dcv-problem {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--down);
+}
+
+/* A plain button, and the one that does the thing. */
+.dcv-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.dcv-button:hover {
+  background: rgba(var(--ink), 0.12);
+}
+
+.dcv-button.is-primary {
+  background: var(--dca-accent);
+  color: #fff;
+}
+
+.dcv-button.is-primary:hover {
+  filter: brightness(1.08);
+}
+
+.dcv-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+  filter: none;
+}
+
+.dcv-button:focus-visible {
+  outline: 2px solid var(--dca-accent);
+  outline-offset: 2px;
+}
+
+/* --- The column (left) --------------------------------------------------- */
+
+.dcv-side-note {
+  margin: 0 28px;
+  font-size: 13px;
+  color: var(--label-3);
+}
+
+.dcv-nav {
+  display: grid;
+  gap: var(--tile-gap);
+  margin: 0 14px;
+  overflow: hidden;
+  border-radius: var(--r-block);
+}
+
+.dcv-whole,
+.dcv-item {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: var(--tile);
+  color: var(--label);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dcv-whole:hover,
+.dcv-item:hover {
+  background: var(--tile-today);
+}
+
+.dcv-whole.is-on,
+.dcv-item.is-on {
+  background: color-mix(in srgb, var(--dca-accent) 14%, var(--tile));
+  box-shadow: inset 3px 0 0 var(--dca-accent);
+}
+
+.dcv-whole:focus-visible,
+.dcv-item:focus-visible {
+  outline: 2px solid var(--dca-accent);
+  outline-offset: -2px;
+}
+
+.dcv-whole {
+  display: grid;
+  gap: 3px;
+  padding: 14px 16px 14px 18px;
+}
+
+.dcv-whole-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.dcv-whole-value {
+  font-family: var(--font-display), sans-serif;
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+.dcv-whole-sub {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--label-3);
+}
+
+.dcv-whole-sub b {
+  font-weight: 650;
+  color: var(--tone, var(--label-2));
+}
+
+.dcv-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 10px 12px 10px 18px;
+}
+
+.dcv-item.is-idle .dcv-item-main {
+  opacity: 0.6;
+}
+
+.dcv-item-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--dca-accent) 18%, transparent);
+  color: var(--dca-accent);
+}
+
+.dcv-item-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.9;
+}
+
+.dcv-item-main {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+  min-width: 0;
+}
+
+.dcv-item-main b,
+.dcv-plan-name b {
+  overflow: hidden;
+  font-family: var(--font-display), sans-serif;
+  font-size: 15.5px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dcv-item-main small,
+.dcv-plan-name small {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--label-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dcv-item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dcv-state {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--label-3);
+}
+
+.dcv-pill {
+  flex: none;
+  min-width: 0;
+  padding: 4px 8px;
+  font-size: 12.5px;
+}
+
+/* Under the block: a new plan, a new group — its name typed in place. */
+.dcv-new {
+  display: grid;
+  gap: 4px;
+  margin-top: auto;
+  padding: 14px 14px 22px;
+}
+
+.dcv-new-open {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 42px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--label-2);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.dcv-new-open:hover,
+.dcv-new-open.is-on {
+  background: var(--fill);
+  color: var(--label);
+}
+
+.dcv-new-open svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.dcv-new-form {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--r);
+  background: var(--tile);
+}
+
+.dcv-new-actions,
+.dcv-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* --- The sheet (right) --------------------------------------------------- */
+
+.dcv-body {
+  padding-bottom: 64px;
+}
+
+.dcv-title-badge {
+  align-self: center;
+  margin-right: 4px;
+}
+
+.dcv-rename {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.dcv-rename .wlv-input {
+  width: min(320px, 100%);
+}
+
+.dcv-empty {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  margin: 28px var(--side) 0;
+  padding: 22px 24px;
+  border-radius: var(--r-block);
+  background: var(--tile);
+  font-size: 14px;
+  color: var(--label-3);
+}
+
+.dcv-empty b {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--label);
+}
+
+.dcv-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 26px var(--side) 0;
+}
+
+.dcv-hero-value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+}
+
+.dcv-hero-value span {
+  font-family: var(--font-display), sans-serif;
+  font-size: 32px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.dcv-hero-value small {
+  font-size: 13.5px;
+  color: var(--label-3);
+}
+
+.dcv-hero-move {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--label-3);
+}
+
+.dcv-hero-move .wlv-pill {
+  min-width: 0;
+  padding: 4px 9px;
+  font-size: 13px;
+}
+
+.dcv-part {
+  padding: 44px var(--side) 0;
+}
+
+.dcv-part-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.dcv-part-head h3 {
+  margin: 0;
+  font-size: 16.5px;
+  font-weight: 650;
+}
+
+.dcv-part-head span {
+  font-size: 13px;
+  color: var(--label-3);
+}
+
+.dcv-chart {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: clamp(340px, 46vh, 480px);
+  padding: 16px 6px 10px 26px;
+  border-radius: var(--r-block);
+  background: var(--tile);
+}
+
+.dcv-metrics {
+  margin-top: 16px;
+}
+
+.dcv-metric {
+  gap: 8px;
+  min-height: 104px;
+  padding: 18px 22px;
+}
+
+/* A plan's settings: one tile block, a cell each. */
+.dcv-settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--tile-gap);
+  overflow: hidden;
+  border-radius: var(--r-block);
+}
+
+.dcv-setting {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 16px 20px 18px;
+  background: var(--tile);
+  font-size: 14px;
+}
+
+.dcv-setting b {
+  font-weight: 500;
+}
+
+/* The plans of a group, or of all: rows of tiles. */
+.dcv-plans {
+  display: grid;
+  gap: var(--tile-gap);
+  overflow: hidden;
+  border-radius: var(--r-block);
+}
+
+.dcv-plan {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  min-height: 66px;
+  padding: 10px 18px 10px 22px;
+  border: 0;
+  background: var(--tile);
+  color: var(--label);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dcv-plan:hover {
+  background: var(--tile-today);
+}
+
+.dcv-plan:focus-visible {
+  outline: 2px solid var(--dca-accent);
+  outline-offset: -2px;
+}
+
+.dcv-plan.is-idle .dcv-plan-name {
+  opacity: 0.6;
+}
+
+.dcv-plan-name {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.dcv-plan-cell {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dcv-plan-cell small {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--label-3);
+}
+
+.dcv-plan-add {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--dca-accent);
+  font-weight: 500;
+}
+
+.dcv-plan-add svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* The purchases: the calendar's blocks, coloured by what happened. */
+.dcv-buys {
+  display: grid;
+  gap: var(--tile-gap);
+  overflow: hidden;
+  border-radius: var(--r-block);
+}
+
+.dcv-buy {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  min-height: 52px;
+  padding: 10px 20px 10px 24px;
+  background: color-mix(in srgb, var(--tone) 10%, var(--tile));
+  box-shadow: inset 4px 0 0 var(--tone);
+}
+
+.dcv-buy-when {
+  font-size: 13px;
+  color: var(--label-2);
+}
+
+.dcv-buy-what {
+  overflow: hidden;
+  font-size: 14px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dcv-buy-what b {
+  font-weight: 600;
+}
+
+.dcv-buy-what small {
+  color: var(--label-3);
+}
+
+.dcv-buys-more {
+  padding: 10px 24px;
+  background: var(--tile);
+}
+
+/* --- A new plan ----------------------------------------------------------- */
+
+.dcv-form {
+  display: grid;
+  gap: 22px;
+  max-width: 640px;
+  margin: 26px var(--side) 0;
+  padding: 24px 26px 22px;
+  border-radius: var(--r-block);
+  background: var(--tile);
+}
+
+.dcv-field {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dcv-amount {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dcv-amount .wlv-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.dcv-amount b {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.dcv-when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.dcv-days {
+  width: 150px;
+}
+
+.dcv-time {
+  width: 120px;
+}
+
+.dcv-form .seg {
+  justify-self: start;
+  max-width: 100%;
+  border-radius: var(--r-sm);
+}
+
+.dcv-form .seg button {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 9px;
+}
+
+.dcv-sentence {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: var(--r);
+  background: color-mix(in srgb, var(--dca-accent) 10%, transparent);
+  box-shadow: inset 3px 0 0 var(--dca-accent);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--label-2);
+}
+
+.dcv-sentence.is-real {
+  background: color-mix(in srgb, var(--cal-unlock) 12%, transparent);
+  box-shadow: inset 3px 0 0 var(--cal-unlock);
+}
+
+@media (max-width: 760px) {
+  .dcv-plan {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .dcv-plan-cell {
+    display: none;
+  }
+
+  .dcv-buy {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 12px;
+  }
+
+  .dcv-buy-when {
+    grid-column: 1 / -1;
+  }
+
+  .dcv-form {
+    padding: 20px 18px;
+  }
+}
