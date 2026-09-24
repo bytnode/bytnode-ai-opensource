@@ -412,13 +412,13 @@ html[data-theme="light"] .pfv-currency-list {
   padding: 18px var(--side) 0;
 }
 
-/* The curve: one tile; the figures flush under it, one block with it;
-   then the daily returns. */
+/* The curve and, in the same tile under it, the daily returns; the
+   figures flush under the tile, one block with it. */
 .pfv-chart {
   position: relative;
   display: flex;
   flex-direction: column;
-  height: clamp(250px, 34vh, 360px);
+  height: clamp(360px, 48vh, 500px);
   padding: 6px 0 4px 18px;
   border-radius: var(--r-block) var(--r-block) 0 0;
   background: var(--tile);
@@ -433,56 +433,22 @@ html[data-theme="light"] .pfv-currency-list {
   min-height: 86px;
 }
 
-.pfv-returns-block {
-  display: grid;
-  gap: 8px;
-  margin-top: 16px;
-}
-
-.pfv-returns {
-  display: block;
-  width: 100%;
-  height: 72px;
-}
-
-.pfv-returns-zero {
-  stroke: rgba(var(--ink), 0.18);
-  stroke-width: 1;
-}
-
-.pfv-returns rect.is-up {
-  fill: var(--up);
-}
-
-.pfv-returns rect.is-down {
-  fill: var(--down);
-}
-
-/* Allocation and composition, side by side. */
-.pfv-columns {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-}
-
-.pfv-columns .pfv-part:last-child {
-  padding-left: 0;
-}
-
+/* The allocation, full width: a larger donut, and a row per asset with
+   its share as a bar. */
 .pfv-allocation {
   display: grid;
-  grid-template-columns: 172px minmax(0, 1fr);
+  grid-template-columns: 230px minmax(0, 1fr);
   align-items: center;
-  gap: 22px;
-  min-height: 200px;
-  padding: 18px 20px;
+  gap: 34px;
+  padding: 24px 28px;
   border-radius: var(--r-block);
   background: var(--tile);
 }
 
 .pfv-donut {
   position: relative;
-  width: 172px;
-  height: 172px;
+  width: 230px;
+  height: 230px;
 }
 
 .pfv-donut svg {
@@ -500,19 +466,19 @@ html[data-theme="light"] .pfv-currency-list {
 
 .pfv-donut-center b {
   font-family: var(--font-display), sans-serif;
-  font-size: 30px;
+  font-size: 38px;
   font-weight: 400;
   line-height: 1;
 }
 
 .pfv-donut-center small {
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--label-3);
 }
 
 .pfv-legend {
   display: grid;
-  gap: 8px;
+  gap: 12px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -520,10 +486,10 @@ html[data-theme="light"] .pfv-currency-list {
 
 .pfv-legend li {
   display: grid;
-  grid-template-columns: 10px 58px minmax(0, 1fr) auto;
+  grid-template-columns: 10px 64px minmax(80px, 1fr) minmax(130px, auto) 64px;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: 14px;
+  font-size: 14px;
 }
 
 .pfv-legend i {
@@ -537,42 +503,84 @@ html[data-theme="light"] .pfv-currency-list {
   font-weight: 600;
 }
 
-.pfv-legend span {
-  overflow: hidden;
-  color: var(--label-3);
+.pfv-legend-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(var(--ink), 0.07);
+}
+
+.pfv-legend-bar u {
+  display: block;
+  width: var(--w);
+  height: 100%;
+  border-radius: 4px;
+  background: var(--tone);
+}
+
+.pfv-legend-value {
+  display: grid;
+  justify-items: end;
   white-space: nowrap;
-  text-overflow: ellipsis;
+}
+
+.pfv-legend-value small {
+  font-size: 12px;
+  color: var(--label-3);
 }
 
 .pfv-legend em {
   font-style: normal;
-  font-weight: 600;
+  font-weight: 650;
+  text-align: right;
 }
 
+/* The composition: three tiles side by side, one block. */
 .pfv-compo {
   display: grid;
-  gap: 10px;
-  min-height: 200px;
-  padding: 16px 18px 18px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--tile-gap);
+  overflow: hidden;
   border-radius: var(--r-block);
+}
+
+.pfv-compo-cell {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 170px;
+  padding: 18px 20px 20px;
   background: var(--tile);
 }
 
-.pfv-compo .pfv-caption:not(:first-child) {
-  margin-top: 6px;
+.pfv-compo-figure {
+  font-family: var(--font-display), sans-serif;
+  font-size: 26px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: var(--tone, var(--label));
+}
+
+.pfv-compo-sub {
+  margin-top: -4px;
+  font-size: 12.5px;
+  color: var(--label-3);
+}
+
+.pfv-compo .pfv-split {
+  margin-top: 8px;
 }
 
 .pfv-split {
   display: grid;
-  gap: 7px;
+  gap: 9px;
 }
 
 .pfv-split-bar {
   display: flex;
   gap: var(--tile-gap);
-  height: 10px;
+  height: 12px;
   overflow: hidden;
-  border-radius: 5px;
+  border-radius: 6px;
 }
 
 .pfv-split-bar i {
@@ -607,18 +615,6 @@ html[data-theme="light"] .pfv-currency-list {
 .pfv-split-legend b {
   font-weight: 600;
   color: var(--label);
-}
-
-.pfv-pnl {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: var(--label-3);
-}
-
-.pfv-pnl b {
-  margin-left: 6px;
-  font-weight: 650;
-  color: var(--tone, var(--label));
 }
 
 /* The accounts compared: a bar each, one block. */
@@ -826,12 +822,13 @@ html[data-theme="light"] .pfv-currency-list {
 
 /* A narrow sheet: one column; the figures two by two. */
 @container (max-width: 900px) {
-  .pfv-columns {
+  .pfv-compo {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .pfv-columns .pfv-part:last-child {
-    padding-left: var(--side);
+  .pfv-legend li {
+    grid-template-columns: 10px 56px minmax(40px, 1fr) auto 56px;
+    gap: 10px;
   }
 
   .pfv-metrics {
@@ -852,11 +849,18 @@ html[data-theme="light"] .pfv-currency-list {
   }
 }
 
-@container (max-width: 560px) {
+@container (max-width: 700px) {
   .pfv-allocation {
     grid-template-columns: minmax(0, 1fr);
     justify-items: center;
   }
+
+  .pfv-legend {
+    width: 100%;
+  }
+}
+
+@container (max-width: 560px) {
 
   .pfv-hero {
     flex-direction: column;

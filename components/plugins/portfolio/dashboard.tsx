@@ -2,13 +2,13 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import { STABLES, type Summary, type WalletSplit } from "@/lib/plugins/portfolio/aggregate";
-import { PERIODS, dailyReturns, performance, type Period } from "@/lib/plugins/portfolio/performance";
+import { PERIODS, performance, type Period } from "@/lib/plugins/portfolio/performance";
 import { allocation } from "@/lib/plugins/portfolio/view-model";
 import type { Candle } from "@/lib/plugins/shared/candle";
 import { Segmented } from "@/components/ui/segmented";
 import { fmt } from "../bits";
 import { PriceChart } from "../watchlist/price-chart";
-import { Donut, ReturnBars, SplitBar, type Part } from "./charts";
+import { Donut, SplitBar, type Part } from "./charts";
 import { accountKey } from "./side";
 
 /* ---------------------------------------------------------------------------
@@ -16,9 +16,11 @@ import { accountKey } from "./side";
    (or one account) — the value and its move over the period chosen
    (7D · 30D · 90D · 1Y); the performance: the value's curve, then the
    figures a report gives (return, high and low, max drawdown, best and
-   worst day, annualized volatility) and the daily returns as bars; the
-   allocation as a donut; the composition — cash (stablecoins) against
-   crypto, the wallets (spot, futures, funding), the positions' exposure;
+   worst day, annualized volatility), the daily returns drawn in the
+   curve's own tile, each under its day; the allocation, full width, a
+   donut and a bar per asset; the composition, three tiles side by side —
+   cash (stablecoins) against crypto, the wallets (spot, futures,
+   funding), the positions' exposure and PnL;
    for the whole, the accounts compared; and the open positions.
 
    The daily snapshots keep the whole portfolio, never an account (no
@@ -88,7 +90,7 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
       {whole ? (
         <Part title="Performance" sub="one snapshot of the total a day, while the app is open">
           <div className="pfv-chart">
-            <PriceChart candles={series} interval="1d" mode="line" fit message={series.length < 2 ? "The curve appears after two daily snapshots." : null} />
+            <PriceChart candles={series} interval="1d" mode="line" fit returns message={series.length < 2 ? "The curve appears after two daily snapshots." : null} />
           </div>
           <div className="wlv-insights pfv-metrics" style={{ "--cols": 5 } as CSSProperties}>
             <Metric label="Return" value={perf ? signed(perf.pct) : "—"} tone={toneOf(perf?.pct)} sub={perf ? `${perf.change >= 0 ? "+" : "−"}${inCur(Math.abs(perf.change))}` : "—"} />
@@ -97,47 +99,55 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
             <Metric label="Best · Worst day" value={perf?.best ? signed(perf.best.pct) : "—"} tone={perf?.best ? "is-up" : undefined} sub={perf?.worst ? `${signed(perf.worst.pct)} on ${dayOf(perf.worst.t)}` : "—"} />
             <Metric label="Volatility" value={perf?.volatility != null ? `${perf.volatility.toFixed(1)} %` : "—"} sub="annualized, daily moves" />
           </div>
-          <div className="pfv-returns-block">
-            <span className="pfv-caption">Daily returns</span>
-            <ReturnBars moves={dailyReturns(series)} label={(m) => `${dayOf(m.t)}: ${signed(m.pct)}`} />
-          </div>
         </Part>
       ) : (
         <p className="pfv-quiet pfv-account-note">The daily snapshots keep the whole portfolio, not each account: the curve and the returns are on “All portfolios”.</p>
       )}
 
-      <div className="pfv-columns">
-        <Part title="Allocation" sub={whole ? "live accounts" : account?.label}>
-          {assets.length === 0 ? (
-            <p className="pfv-quiet">No balance to split.</p>
-          ) : (
-            <div className="pfv-allocation">
-              <Donut parts={parts} center={`${assets.length}`} sub={assets.length === 1 ? "asset" : "assets"} />
-              <ul className="pfv-legend">
-                {slices.map((s, i) => (
-                  <li key={s.asset} style={{ "--tone": parts[i].tone } as CSSProperties}>
-                    <i />
-                    <b>{s.asset}</b>
-                    <span>{value(s.usd)}</span>
-                    <em>{(s.share * 100).toFixed(1)} %</em>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </Part>
+      <Part title="Allocation" sub={whole ? "live accounts" : account?.label}>
+        {assets.length === 0 ? (
+          <p className="pfv-quiet">No balance to split.</p>
+        ) : (
+          <div className="pfv-allocation">
+            <Donut parts={parts} center={`${assets.length}`} sub={assets.length === 1 ? "asset" : "assets"} />
+            <ul className="pfv-legend">
+              {slices.map((s, i) => (
+                <li key={s.asset} style={{ "--tone": parts[i].tone, "--w": `${Math.max(s.share * 100, 0.5)}%` } as CSSProperties}>
+                  <i />
+                  <b>{s.asset}</b>
+                  <span className="pfv-legend-bar" aria-hidden>
+                    <u />
+                  </span>
+                  <span className="pfv-legend-value">
+                    {value(s.usd)}
+                    {s.amount !== undefined ? <small>{fmt(s.amount)}</small> : s.count ? <small>{s.count} assets</small> : null}
+                  </span>
+                  <em>{(s.share * 100).toFixed(1)} %</em>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </Part>
 
-        <Part title="Composition">
-          <div className="pfv-compo">
+      <Part title="Composition">
+        <div className="pfv-compo">
+          <div className="pfv-compo-cell">
             <span className="pfv-caption">Cash and crypto</span>
+            <b className="pfv-compo-figure">{total > 0 ? `${(((total - cash) / total) * 100).toFixed(1)} %` : "—"}</b>
+            <small className="pfv-compo-sub">in crypto · {value(cash)} in stablecoins</small>
             <SplitBar
               parts={[
                 { key: "crypto", label: "Crypto", value: total - cash, tone: "var(--alloc-0)" },
                 { key: "cash", label: "Stablecoins", value: cash, tone: "var(--alloc-2)" },
               ]}
-              format={(p, share) => `${(share * 100).toFixed(1)} % · ${value(p.value)}`}
+              format={(p, share) => `${(share * 100).toFixed(1)} %`}
             />
+          </div>
+          <div className="pfv-compo-cell">
             <span className="pfv-caption">Wallets</span>
+            <b className="pfv-compo-figure">{value(wallets.spot)}</b>
+            <small className="pfv-compo-sub">in spot · {value(wallets.futures)} in futures</small>
             <SplitBar
               parts={[
                 { key: "spot", label: "Spot", value: wallets.spot, tone: "var(--alloc-1)" },
@@ -146,26 +156,33 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
               ]}
               format={(p, share) => `${(share * 100).toFixed(1)} %`}
             />
+          </div>
+          <div className="pfv-compo-cell">
             <span className="pfv-caption">Exposure of the open positions</span>
             {positions.length ? (
-              <SplitBar
-                parts={[
-                  { key: "long", label: "Long", value: long, tone: "var(--up)" },
-                  { key: "short", label: "Short", value: short, tone: "var(--down)" },
-                ]}
-                format={(p) => `${fmt(p.value, 0)} USDT`}
-              />
+              <>
+                <b className={`pfv-compo-figure ${toneOf(pnl)}`}>
+                  {pnl >= 0 ? "+" : "−"}
+                  {fmt(Math.abs(pnl), 2)} USDT
+                </b>
+                <small className="pfv-compo-sub">unrealized PnL · net {long - short >= 0 ? "long" : "short"} {fmt(Math.abs(long - short), 0)} USDT</small>
+                <SplitBar
+                  parts={[
+                    { key: "long", label: "Long", value: long, tone: "var(--up)" },
+                    { key: "short", label: "Short", value: short, tone: "var(--down)" },
+                  ]}
+                  format={(p) => `${fmt(p.value, 0)} USDT`}
+                />
+              </>
             ) : (
-              <p className="pfv-quiet">No open position.</p>
-            )}
-            {positions.length > 0 && (
-              <p className={`pfv-pnl ${toneOf(pnl)}`}>
-                Unrealized PnL <b>{pnl >= 0 ? "+" : "−"}{fmt(Math.abs(pnl), 2)} USDT</b>
-              </p>
+              <>
+                <b className="pfv-compo-figure">—</b>
+                <small className="pfv-compo-sub">no open position</small>
+              </>
             )}
           </div>
-        </Part>
-      </div>
+        </div>
+      </Part>
 
       {whole && summary.accounts.length > 1 && (
         <Part title="Accounts" sub="compared">
