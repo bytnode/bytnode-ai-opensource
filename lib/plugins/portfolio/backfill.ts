@@ -84,3 +84,26 @@ export function valueByDay(balances: Record<string, Record<string, number>>, clo
   }
   return { values, missing: [...missing] };
 }
+
+/* --- What the exchanges said: activity, coverage, money in and out ------- */
+
+export type Activity = { t: number; kind: "buy" | "sell" | "deposit" | "withdrawal"; asset: string; amount: number; price?: number; symbol?: string; account: string };
+
+/** How far an exchange's history reached, for one kind of record. */
+export type Coverage = { status: "ok" | "limited" | "unsupported" | "error"; from?: string; note?: string };
+
+/** The money put in (deposits, positive) and taken out (withdrawals,
+    negative) each day, in USD at that day's close; per account id. */
+export function flowsByDay(activity: Activity[], closes: Record<string, Candle[]>): Record<string, Record<string, number>> {
+  const out: Record<string, Record<string, number>> = {};
+  for (const a of activity) {
+    if (a.kind !== "deposit" && a.kind !== "withdrawal") continue;
+    const day = new Date(a.t).toISOString().slice(0, 10);
+    const price = STABLES.has(a.asset) ? 1 : closeOn(closes[a.asset], day);
+    if (price === undefined) continue;
+    const usd = (a.kind === "deposit" ? 1 : -1) * a.amount * price;
+    out[a.account] ??= {};
+    out[a.account][day] = Math.round(((out[a.account][day] ?? 0) + usd) * 100) / 100;
+  }
+  return out;
+}

@@ -17,6 +17,9 @@ const DAY = 86_400_000;
     snapshot are left out). */
 export function dailySeries(points: Snapshot[], perUsd: number, accountId?: string): Candle[] {
   const pick = (p: Snapshot) => (accountId ? p.accounts?.[accountId] : p.totalUsd);
+  /* A bar's `v` is the money put in (or, negative, taken out) that day —
+     what the performance takes off the move. */
+  const flowOf = new Map(points.map((p) => [Date.parse(`${p.date}T00:00:00Z`), ((accountId ? p.flows?.[accountId] : p.flowUsd) ?? 0) * perUsd]));
   const byDay = new Map(points.flatMap((p) => (typeof pick(p) === "number" ? [[Date.parse(`${p.date}T00:00:00Z`), (pick(p) as number) * perUsd] as [number, number]] : [])));
   const days = [...byDay.keys()].filter(Number.isFinite).sort((a, b) => a - b);
   if (!days.length) return [];
@@ -24,7 +27,7 @@ export function dailySeries(points: Snapshot[], perUsd: number, accountId?: stri
   let last = byDay.get(days[0]) ?? 0;
   for (let t = days[0]; t <= days[days.length - 1]; t += DAY) {
     last = byDay.get(t) ?? last;
-    out.push({ t, o: last, h: last, l: last, c: last, v: 0 });
+    out.push({ t, o: last, h: last, l: last, c: last, v: flowOf.get(t) ?? 0 });
   }
   return out;
 }

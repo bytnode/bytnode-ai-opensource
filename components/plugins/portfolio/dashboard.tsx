@@ -3,6 +3,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { STABLES, type Summary, type WalletSplit } from "@/lib/plugins/portfolio/aggregate";
 import { PERIODS, performance, type Period } from "@/lib/plugins/portfolio/performance";
+import type { Activity, Coverage } from "@/lib/plugins/portfolio/backfill";
 import { allocation } from "@/lib/plugins/portfolio/view-model";
 import type { Candle } from "@/lib/plugins/shared/candle";
 import { Segmented } from "@/components/ui/segmented";
@@ -43,14 +44,29 @@ type Props = {
   onScope: (key: string) => void;
   /** Where the curve's past comes from, before the daily snapshots. */
   origin?: "ledger" | "mixed" | "estimate" | null;
+  /** What the exchanges said: trades, deposits, withdrawals (null: not
+      asked — the sample), and how far back each kind reached. */
+  activity?: Activity[] | null;
+  coverage?: Record<string, Record<string, Coverage>> | null;
+  /** The history is being read from the exchanges. */
+  reading?: boolean;
 };
+
+const KINDS: Array<{ key: string; label: string }> = [
+  { key: "ledger", label: "Ledger" },
+  { key: "trades", label: "Trades" },
+  { key: "deposits", label: "Deposits" },
+  { key: "withdrawals", label: "Withdrawals" },
+];
+const ACT = { buy: "Bought", sell: "Sold", deposit: "Deposit", withdrawal: "Withdrawal" } as const;
+const ACT_TONE = { buy: "var(--alloc-0)", sell: "var(--alloc-3)", deposit: "var(--up)", withdrawal: "var(--down)" } as const;
 
 const TONES = ["var(--alloc-0)", "var(--alloc-1)", "var(--alloc-2)", "var(--alloc-3)", "var(--alloc-4)", "var(--alloc-5)", "var(--alloc-6)"];
 const signed = (v: number, digits = 2) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(digits)} %`;
 const toneOf = (v: number | undefined) => (v === undefined || v === 0 ? "is-flat" : v > 0 ? "is-up" : "is-down");
 const dayOf = (t: number) => new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 
-export function Dashboard({ summary, account, series, period, onPeriod, value, perUsd, currency, onScope, origin = null }: Props) {
+export function Dashboard({ summary, account, series, period, onPeriod, value, perUsd, currency, onScope, origin = null, activity = null, coverage = null, reading = false }: Props) {
   const whole = account === null;
   const perf = performance(series);
   const assets = account ? account.assets : summary.assets;
@@ -66,6 +82,12 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
   const short = positions.filter((p) => /short|sell/i.test(p.side)).reduce((s, p) => s + Math.abs(p.size * (p.mark ?? p.entry ?? 0)), 0);
   const pnl = positions.reduce((s, p) => s + (p.pnl ?? 0), 0);
   const unpriced = account ? summary.unpriced.filter((u) => u.label === account.label) : summary.unpriced;
+  /* The activity of what is shown, over the period on screen. */
+  const periodStart = series[0]?.t ?? 0;
+  const labelOf = new Map(summary.accounts.filter((a) => a.id).map((a) => [a.id as string, a]));
+  const acts = (activity ?? []).filter((a) => (account ? a.account === account.id : true) && a.t >= periodStart);
+  const count = (k: Activity["kind"]) => acts.filter((a) => a.kind === k).length;
+  const covered = coverage ? Object.entries(coverage).filter(([id]) => (account ? id === account.id : true)) : [];
   /* What is held, as positions too: every asset but the stablecoins (cash,
      in the composition), with the accounts that hold it. */
   const holdings = assets
@@ -269,6 +291,62 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
           </div>
         )}
       </Part>
+
+      {activity !== null && (
+        <Part title="Activity" sub={reading ? "reading the exchanges' history…" : `${PERIODS.find((p) => p.value === period)?.label} · ${count("buy") + count("sell")} trades · ${count("deposit")} deposits · ${count("withdrawal")} withdrawals`}>
+          {acts.length === 0 ? (
+            <p className="pfv-quiet">{reading ? "Reading the trades, deposits and withdrawals…" : "No trade, deposit or withdrawal in this period."}</p>
+          ) : (
+            <div className="wlv-events">
+              {acts.slice(0, 14).map((a, i) => (
+                <div key={`${a.t}:${a.kind}:${a.asset}:${i}`} className="wlv-event pfv-act" style={{ "--tone": ACT_TONE[a.kind] } as CSSProperties}>
+                  <span className="pfv-act-when">{new Date(a.t).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                  <span className="pfv-act-what">
+                    <b>{ACT[a.kind]}</b> {fmt(a.amount)} {a.asset}
+                    {a.price ? <small> at {fmt(a.price)}</small> : null}
+                  </span>
+                  <span className="pfv-position-account">{labelOf.get(a.account)?.label ?? ""}</span>
+                </div>
+              ))}
+              {acts.length > 14 && <p className="pfv-quiet pfv-act-more">and {acts.length - 14} more in this period</p>}
+            </div>
+          )}
+        </Part>
+      )}
+
+      {coverage !== null && covered.length > 0 && (
+        <Part title="History" sub="what each exchange keeps, and since when">
+          <div className="pfv-cover">
+            {covered.map(([id, kinds]) => {
+              const a = labelOf.get(id);
+              return (
+                <div key={id} className="pfv-cover-row">
+                  <span className="pfv-bar-name">
+                    <span className={`xch-badge${a?.testnet ? "" : " is-live"}`}>{a?.testnet ? "TESTNET" : "LIVE"}</span>
+                    {a?.label ?? id}
+                  </span>
+                  <span className="pfv-cover-chips">
+                    {KINDS.map((k) => {
+                      const c = kinds[k.key];
+                      if (!c) return null;
+                      const since = c.from ? new Date(c.from).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : null;
+                      const text = c.status === "ok" ? (since ? `since ${since}` : "read") : c.status === "limited" ? (since ? `only since ${since}` : "limited by the exchange") : c.status === "unsupported" ? "not offered" : "could not be read";
+                      return (
+                        <span key={k.key} className={`pfv-chip is-${c.status}`} title={c.note ?? ""}>
+                          <b>{k.label}</b> {text}
+                        </span>
+                      );
+                    })}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          {covered.some(([, kinds]) => Object.values(kinds).some((c) => c.status === "limited")) && (
+            <p className="pfv-quiet pfv-cover-note">An exchange that keeps a shorter history than the period asked is marked in orange: its figures start where its history does.</p>
+          )}
+        </Part>
+      )}
 
       {unpriced.length > 0 && (
         <Part title="Not counted" sub="no price available">

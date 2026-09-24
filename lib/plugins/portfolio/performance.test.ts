@@ -22,7 +22,8 @@ describe("performance", () => {
   const p = performance(series([100, 120, 90, 110, 130]))!;
 
   it("reads the return, the high and the low", () => {
-    expect(p).toMatchObject({ start: 100, end: 130, change: 30, pct: 30, high: 130, low: 90, days: 4 });
+    expect(p).toMatchObject({ start: 100, end: 130, change: 30, high: 130, low: 90, days: 4 });
+    expect(p.pct).toBeCloseTo(30, 10);
   });
 
   it("finds the deepest fall from a high", () => {
@@ -41,6 +42,16 @@ describe("performance", () => {
   it("annualizes the volatility of the daily moves", () => {
     expect(p.volatility).toBeGreaterThan(0);
     expect(performance(series([100, 101]))?.volatility).toBeNull();
+  });
+
+  it("takes the deposits and withdrawals off the performance", () => {
+    /* 100 → 150 with 50 deposited on day 1: no gain; then +10 %. */
+    const bars = [100, 150, 165].map((c, i) => ({ t: i * D, o: c, h: c, l: c, c, v: i === 1 ? 50 : 0 }));
+    const q = performance(bars)!;
+    expect(q.change).toBeCloseTo(15);
+    expect(q.pct).toBeCloseTo(10);
+    expect(dailyReturns(bars).map((m) => Number(m.pct.toFixed(2)))).toEqual([0, 10]);
+    expect(q.maxDrawdown).toBe(0);
   });
 
   it("needs two days", () => {

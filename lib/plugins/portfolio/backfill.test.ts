@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { balancesByDay, lastDays, mergeHistory, valueByDay } from "./backfill";
+import { balancesByDay, flowsByDay, lastDays, mergeHistory, valueByDay } from "./backfill";
 
 const D = 86_400_000;
 const t0 = Date.parse("2026-09-20T00:00:00Z");
@@ -45,5 +45,21 @@ describe("the real history, from a ledger", () => {
 
   it("names the last days", () => {
     expect(lastDays(new Date("2026-09-24T10:00:00Z"), 3)).toEqual(["2026-09-22", "2026-09-23", "2026-09-24"]);
+  });
+});
+
+describe("flowsByDay", () => {
+  it("counts deposits in and withdrawals out, in USD at the day's close, per account", () => {
+    const t = (day: string) => Date.parse(`${day}T12:00:00Z`);
+    const flows = flowsByDay(
+      [
+        { t: t("2026-09-20"), kind: "deposit", asset: "USDT", amount: 100, account: "a" },
+        { t: t("2026-09-21"), kind: "withdrawal", asset: "BTC", amount: 0.001, account: "a" },
+        { t: t("2026-09-21"), kind: "buy", asset: "BTC", amount: 1, account: "a" },
+        { t: t("2026-09-21"), kind: "deposit", asset: "XYZ", amount: 5, account: "b" },
+      ],
+      { BTC: bars([100_000, 110_000]) },
+    );
+    expect(flows).toEqual({ a: { "2026-09-20": 100, "2026-09-21": -110 } });
   });
 });

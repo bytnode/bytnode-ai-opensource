@@ -12,8 +12,8 @@ import { portfolioSummaryTool } from "./portfolio-summary";
 import { exportSections } from "./present";
 import { candles } from "../shared/prices";
 import type { Candle } from "../shared/candle";
-import { balancesByDay, lastDays, valueByDay, type Holdings } from "./backfill";
-import { ledgerMoves } from "./ledger";
+import { balancesByDay, flowsByDay, lastDays, valueByDay, type Activity, type Coverage, type Holdings } from "./backfill";
+import { readHistory } from "./ledger";
 import { STABLES } from "./aggregate";
 
 /* The consolidated portfolio: two read-only tools, a daily snapshot of the
@@ -74,15 +74,21 @@ export const portfolioPlugin = definePlugin({
       const accounts = transport.exchangeAccounts ?? [];
       const sources: Record<string, "ledger" | "estimate"> = {};
       const balances: Record<string, Record<string, Record<string, number>>> = {};
-      await Promise.all(
-        holdings.map(async (h) => {
-          const current = Object.fromEntries(h.assets.map((a) => [a.asset, a.amount]));
-          const account = accounts.find((a) => a.id === h.id);
-          const moves = account ? await ledgerMoves(account, since) : null;
-          sources[h.id] = moves ? "ledger" : "estimate";
-          balances[h.id] = balancesByDay(current, moves ?? [], dayList);
-        }),
-      );
+      const coverage: Record<string, Record<string, Coverage>> = {};
+      const activity: Activity[] = [];
+      /* One account after the other: an exchange asked many things at once
+         drops connections. */
+      for (const h of holdings) {
+        const current = Object.fromEntries(h.assets.map((a) => [a.asset, a.amount]));
+        const account = accounts.find((a) => a.id === h.id);
+        const history = account ? await readHistory(account, since, h.assets.map((a) => a.asset).filter((a) => !STABLES.has(a))) : null;
+        sources[h.id] = history?.moves ? "ledger" : "estimate";
+        balances[h.id] = balancesByDay(current, history?.moves ?? [], dayList);
+        if (history) {
+          coverage[h.id] = history.coverage;
+          activity.push(...history.activity);
+        }
+      }
       /* The closes of every asset held on any day. */
       const assets = [...new Set(Object.values(balances).flatMap((b) => Object.values(b).flatMap((held) => Object.entries(held).filter(([, v]) => v > 0).map(([a]) => a))))].filter((a) => !STABLES.has(a));
       const closes: Record<string, Candle[]> = {};
@@ -99,12 +105,16 @@ export const portfolioPlugin = definePlugin({
         values[id] = v.values;
         v.missing.forEach((a) => missing.add(a));
       }
+      /* The money in and out each day, to measure the performance net of it. */
+      const flows = flowsByDay(activity, closes);
       const points = dayList.map((date) => {
         const byAccount = Object.fromEntries(Object.keys(values).map((id) => [id, values[id][date] ?? 0]));
         const total = Object.values(byAccount).reduce((t, v) => t + v, 0);
-        return { date, at: `${date}T00:00:00.000Z`, totalUsd: Math.round(total * 100) / 100, assets: {}, accounts: byAccount, estimated: true as const };
+        const dayFlows = Object.fromEntries(Object.keys(flows).flatMap((id) => (flows[id][date] ? [[id, flows[id][date]]] : [])));
+        const flow = Object.values(dayFlows).reduce((t, v) => t + v, 0);
+        return { date, at: `${date}T00:00:00.000Z`, totalUsd: Math.round(total * 100) / 100, assets: {}, accounts: byAccount, ...(flow ? { flowUsd: flow, flows: dayFlows } : {}), estimated: true as const };
       });
-      return { points: holdings.length ? points : [], missing: [...missing], sources };
+      return { points: holdings.length ? points : [], missing: [...missing], sources, coverage, activity };
     });
     ctx.api("export", async (params, { transport, signal }) => {
       const report = ctx.optional<ReportService>("report-export");

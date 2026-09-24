@@ -796,6 +796,99 @@ html[data-theme="light"] .pfv-currency-list {
   color: var(--tone);
 }
 
+/* The activity: the calendar's blocks, coloured by kind. */
+.pfv-act {
+  grid-template-columns: 130px minmax(0, 1fr) auto;
+  gap: 20px;
+  min-height: 52px;
+  padding: 10px 22px 10px 24px;
+  background: color-mix(in srgb, var(--tone) 10%, var(--tile));
+  box-shadow: inset 4px 0 0 var(--tone);
+  cursor: default;
+}
+
+.pfv-act:hover {
+  background: color-mix(in srgb, var(--tone) 16%, var(--tile));
+}
+
+.pfv-act-when {
+  font-size: 13px;
+  color: var(--label-2);
+}
+
+.pfv-act-what {
+  overflow: hidden;
+  font-size: 14px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pfv-act-what small {
+  color: var(--label-3);
+}
+
+.pfv-act-more {
+  padding: 10px 24px;
+  background: var(--tile);
+}
+
+/* How far each exchange's history reached: a row per account, a chip per
+   kind — green read, orange limited by the exchange, grey not offered,
+   red failed (its reason on hover). */
+.pfv-cover {
+  display: grid;
+  gap: var(--tile-gap);
+  overflow: hidden;
+  border-radius: var(--r-block);
+}
+
+.pfv-cover-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.6fr) minmax(0, 2fr);
+  align-items: center;
+  gap: 20px;
+  min-height: 60px;
+  padding: 12px 22px;
+  background: var(--tile);
+}
+
+.pfv-cover-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pfv-chip {
+  display: inline-flex;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--fill);
+  font-size: 12.5px;
+  color: var(--label-2);
+}
+
+.pfv-chip b {
+  font-weight: 600;
+  color: var(--label);
+}
+
+.pfv-chip.is-ok {
+  background: color-mix(in srgb, var(--up) 16%, transparent);
+}
+
+.pfv-chip.is-limited {
+  background: color-mix(in srgb, var(--cal-unlock) 22%, transparent);
+}
+
+.pfv-chip.is-error {
+  background: color-mix(in srgb, var(--down) 18%, transparent);
+}
+
+.pfv-cover-note {
+  margin-top: 12px;
+}
+
 /* No account: one way on (and a look at a filled report). */
 .pfv-empty {
   display: flex;

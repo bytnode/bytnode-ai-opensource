@@ -2,7 +2,7 @@ import type { Position } from "ccxt";
 import type { ExchangeAccount } from "@/lib/domain/types";
 import { clientFor } from "@/lib/tools/exchange/client";
 import { exchangeInfo } from "@/lib/tools/exchange/catalog";
-import { describeExchangeError } from "@/lib/tools/exchange/errors";
+import { describeExchangeError, withRetry } from "@/lib/tools/exchange/errors";
 import { fundingRows, rowsOf, type Balances } from "@/lib/tools/exchange/balance";
 import { positionSize, type BalanceRow } from "@/lib/tools/exchange/format";
 import { isQuote, quotes, type PriceSources } from "../shared/prices";
@@ -37,8 +37,9 @@ export async function readAccount(account: ExchangeAccount): Promise<AccountRead
   const problems: string[] = [];
   const info = exchangeInfo(account.exchange);
   try {
-    const spot = await clientFor(account, "spot");
-    read.wallets.push({ wallet: "spot", rows: held(rowsOf((await spot.fetchBalance()) as Balances)) });
+    /* A network hiccup (an exchange dropping a connection) is retried once. */
+    const spot = await withRetry(() => clientFor(account, "spot"));
+    read.wallets.push({ wallet: "spot", rows: held(rowsOf((await withRetry(() => spot.fetchBalance())) as Balances)) });
     const funding = await fundingRows(spot, account.exchange);
     if (funding?.length) read.wallets.push({ wallet: "funding", rows: held(funding) });
   } catch (e) {
@@ -46,9 +47,9 @@ export async function readAccount(account: ExchangeAccount): Promise<AccountRead
   }
   if (info?.futures !== "none") {
     try {
-      const futures = await clientFor(account, "futures");
-      if (!info?.unified) read.wallets.push({ wallet: "futures", rows: held(rowsOf((await futures.fetchBalance()) as Balances)) });
-      if (futures.has["fetchPositions"]) read.positions = ((await futures.fetchPositions()) as Position[]).filter((p) => (p.contracts ?? 0) > 0).map(positionOf);
+      const futures = await withRetry(() => clientFor(account, "futures"));
+      if (!info?.unified) read.wallets.push({ wallet: "futures", rows: held(rowsOf((await withRetry(() => futures.fetchBalance())) as Balances)) });
+      if (futures.has["fetchPositions"]) read.positions = ((await withRetry(() => futures.fetchPositions())) as Position[]).filter((p) => (p.contracts ?? 0) > 0).map(positionOf);
     } catch (e) {
       problems.push(`futures: ${describeExchangeError(e)}`);
     }

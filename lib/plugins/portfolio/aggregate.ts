@@ -131,8 +131,10 @@ export const assetsToPrice = (reads: AccountRead[]): string[] => [...new Set(rea
 /* --- Snapshots ---------------------------------------------------------- */
 
 /** One a day: the total, the split by asset and each live account's
-    total under its settings id, in USD — no key, no account name. */
-export type Snapshot = { date: string; at: string; totalUsd: number; assets: Record<string, number>; accounts?: Record<string, number> };
+    total under its settings id, in USD — no key, no account name. A
+    rebuilt day (the history before the snapshots) also carries the money
+    put in or taken out that day (`flowUsd`, per account in `flows`). */
+export type Snapshot = { date: string; at: string; totalUsd: number; assets: Record<string, number>; accounts?: Record<string, number>; flowUsd?: number; flows?: Record<string, number> };
 
 export function snapshotOf(summary: Summary, now: Date): Snapshot {
   const accounts = Object.fromEntries(summary.accounts.filter((a) => a.id && !a.testnet && !a.error).map((a) => [a.id as string, a.usd]));

@@ -6,6 +6,9 @@ import type { Candle } from "../shared/candle";
    from a high (max drawdown), the best and the worst day, and the
    volatility — the standard deviation of the daily returns, annualized
    over 365 days (crypto trades every day). What a wealth report shows.
+   Net of the money put in or taken out: a bar's `v` is that day's flow
+   (`dailySeries`), so a deposit is not a gain nor a withdrawal a loss —
+   the returns are time-weighted, the drawdown read on their index.
    Pure, tested.
 --------------------------------------------------------------------------- */
 
@@ -27,12 +30,13 @@ export function slicePeriod(series: Candle[], period: Period): Candle[] {
 
 export type DayMove = { t: number; pct: number };
 
-/** Each day's move, in %, against the day before. */
+/** Each day's move, in %, against the day before — the day's deposits
+    and withdrawals taken off. */
 export function dailyReturns(series: Candle[]): DayMove[] {
   const out: DayMove[] = [];
   for (let i = 1; i < series.length; i++) {
     const before = series[i - 1].c;
-    if (before > 0) out.push({ t: series[i].t, pct: ((series[i].c - before) / before) * 100 });
+    if (before > 0) out.push({ t: series[i].t, pct: ((series[i].c - (series[i].v || 0) - before) / before) * 100 });
   }
   return out;
 }
@@ -59,13 +63,17 @@ export function performance(series: Candle[]): Performance | null {
   const values = series.map((b) => b.c);
   const start = values[0];
   const end = values[values.length - 1];
-  let peak = values[0];
-  let maxDrawdown = 0;
-  for (const v of values) {
-    peak = Math.max(peak, v);
-    if (peak > 0) maxDrawdown = Math.min(maxDrawdown, ((v - peak) / peak) * 100);
-  }
   const moves = dailyReturns(series);
+  /* The returns' index: what one unit kept in all along became. */
+  let index = 1;
+  let peak = 1;
+  let maxDrawdown = 0;
+  for (const m of moves) {
+    index *= 1 + m.pct / 100;
+    peak = Math.max(peak, index);
+    maxDrawdown = Math.min(maxDrawdown, ((index - peak) / peak) * 100);
+  }
+  const flows = series.slice(1).reduce((t, b) => t + (b.v || 0), 0);
   const best = moves.reduce<DayMove | null>((b, m) => (!b || m.pct > b.pct ? m : b), null);
   const worst = moves.reduce<DayMove | null>((w, m) => (!w || m.pct < w.pct ? m : w), null);
   let volatility: number | null = null;
@@ -77,8 +85,9 @@ export function performance(series: Candle[]): Performance | null {
   return {
     start,
     end,
-    change: end - start,
-    pct: start > 0 ? ((end - start) / start) * 100 : 0,
+    /* The gain: what the value did, less the money put in. */
+    change: end - start - flows,
+    pct: moves.length ? (index - 1) * 100 : 0,
     high: Math.max(...values),
     low: Math.min(...values),
     maxDrawdown,
