@@ -662,6 +662,11 @@ html[data-theme="light"] .dcv {
   gap: 12px;
 }
 
+.dcv-inline .picker {
+  flex: 1;
+  min-width: 200px;
+}
+
 .dcv-amount {
   display: flex;
   align-items: center;

@@ -77,8 +77,10 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
   const [end, setEnd] = useState<"never" | "date" | "count">(plan?.endAt ? "date" : "never");
   const [endDate, setEndDate] = useState(plan?.endAt ? localInput(Date.parse(plan.endAt)).slice(0, 10) : new Date(now + 365 * DAY).toISOString().slice(0, 10));
   const [count, setCount] = useState("12");
-  const [destination, setDestination] = useState<"paper" | "exchange">(plan?.destination ?? "paper");
-  const [accountId, setAccountId] = useState(plan?.accountId ?? accounts[0]?.id ?? "");
+  /* Where it buys: the paper portfolio, an exchange's test network, or
+     real money — the accounts offered are the mode's. */
+  const [mode, setMode] = useState<"paper" | "testnet" | "live">(!plan || plan.destination === "paper" ? "paper" : accounts.find((a) => a.id === plan.accountId)?.testnet ? "testnet" : "live");
+  const [accountId, setAccountId] = useState(plan?.accountId ?? "");
   const [group, setGroup] = useState(plan?.groupId ?? groupId ?? groups[0]?.id ?? "");
   const [name, setName] = useState(plan?.name ?? "");
   const [problem, setProblem] = useState<string | null>(null);
@@ -104,19 +106,22 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
   const upcoming = cadenceOk && Number.isFinite(startMs) ? schedule(frequency, startMs, endMs, 3) : [];
   const total = cadenceOk && endMs !== undefined && Number.isFinite(endMs) ? purchasesUntil(frequency, startMs, endMs) : undefined;
   const month = cadenceOk ? perMonth(frequency) : 0;
-  const account = accounts.find((a) => a.id === accountId);
-  const badge: Badge = destination === "paper" ? "PAPER" : account?.testnet ? "TESTNET" : "LIVE";
+  const destination = mode === "paper" ? "paper" : "exchange";
+  const choices = accounts.filter((a) => a.testnet === (mode === "testnet"));
+  const account = editing ? accounts.find((a) => a.id === plan.accountId) : mode === "paper" ? undefined : (choices.find((a) => a.id === accountId) ?? choices[0]);
+  const badge: Badge = mode === "paper" ? "PAPER" : mode === "testnet" ? "TESTNET" : "LIVE";
+  const noAccount = mode === "testnet" ? "No testnet account: add one with test-network keys in Settings → Auth." : "No live exchange account: add one in Settings → Auth.";
 
   const endOk = end === "never" || (end === "count" ? nCount >= 1 : Number.isFinite(endMs) && endMs! > startMs);
   const ready = !!symbol && quoteAmount > 0 && cadenceOk && endOk && (destination === "paper" || !!account) && !!group && (editing || start === "now" || Number.isFinite(startMs));
-  const why = !(quoteAmount > 0) ? "Give the amount spent each time." : !cadenceOk ? "The schedule is not complete." : !endOk ? "The end must come after the start." : destination === "exchange" && !account ? "Choose the exchange account." : !group ? "Choose a group." : null;
+  const why = !(quoteAmount > 0) ? "Give the amount spent each time." : !cadenceOk ? "The schedule is not complete." : !endOk ? "The end must come after the start." : destination === "exchange" && !account ? noAccount : !group ? "Choose a group." : null;
 
   const save = async () => {
     setBusy(true);
     const endAt = endMs !== undefined && Number.isFinite(endMs) ? new Date(endMs).toISOString() : "";
     const input: Record<string, unknown> = editing
       ? { id: plan.id, quoteAmount, frequency, endAt, name, groupId: group }
-      : { symbol, quoteAmount, frequency, destination, ...(destination === "exchange" ? { accountId } : {}), groupId: group, name, ...(start === "date" ? { startAt: new Date(startMs).toISOString() } : {}), ...(endAt ? { endAt } : {}) };
+      : { symbol, quoteAmount, frequency, destination, ...(account ? { accountId: account.id } : {}), groupId: group, name, ...(start === "date" ? { startAt: new Date(startMs).toISOString() } : {}), ...(endAt ? { endAt } : {}) };
     const p = await onSave(input);
     setBusy(false);
     setProblem(p);
@@ -141,7 +146,7 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
           <Fact label="A month">{month ? `${fmt(month * quoteAmount, 0)} ${quoteCcy}` : "—"}</Fact>
           <Fact label={total !== undefined ? `In all · ${total} purchases` : "A year"}>{total !== undefined ? `${fmt(total * quoteAmount, 0)} ${quoteCcy}` : month ? `${fmt(month * quoteAmount * 12.17, 0)} ${quoteCcy}` : "—"}</Fact>
           <Fact label="Ends">{end === "never" ? "Never" : endMs !== undefined && Number.isFinite(endMs) ? day(endMs) : "—"}</Fact>
-          <Fact label="Buys on">{destination === "paper" ? "Paper portfolio" : (account?.label ?? "—")}</Fact>
+          <Fact label="Buys on">{mode === "paper" ? "Paper portfolio" : `${account?.label ?? "—"} · ${mode === "testnet" ? "testnet" : "live"}`}</Fact>
           <Fact label="Group">{groups.find((g) => g.id === group)?.name ?? "—"}</Fact>
         </dl>
 
@@ -154,10 +159,12 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
           </ol>
         </div>
 
-        <p className={`dcv-sentence${destination === "exchange" ? " is-real" : ""}`}>
-          {destination === "paper"
+        <p className={`dcv-sentence${mode === "live" ? " is-real" : ""}`}>
+          {mode === "paper"
             ? `Simulated: bought automatically in the paper portfolio.${quoteCcy !== paperCash ? ` The paper portfolio trades against ${paperCash}.` : ""}`
-            : `Real money on ${account?.label ?? "the account"}: each purchase waits for your click in the notifications.`}
+            : mode === "testnet"
+              ? `Test network on ${account?.label ?? "the account"}: no real money — each purchase still waits for your click in the notifications.`
+              : `Real money on ${account?.label ?? "the account"}: each purchase waits for your click in the notifications.`}
         </p>
 
         {problem && <p className="dcv-problem">{problem}</p>}
@@ -279,20 +286,24 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
             </Row>
           ) : (
             <>
-              <Row label="Buys on">
+              <Row label="Mode" hint={mode === "paper" ? "Simulated in the paper portfolio, bought automatically." : mode === "testnet" ? "The exchange's test network: no real money." : "Real money — each purchase is confirmed by you."}>
                 <Segmented
-                  label="Where"
-                  value={destination}
+                  label="Mode"
+                  value={mode}
                   options={[
-                    { value: "paper", label: "Paper portfolio" },
-                    { value: "exchange", label: "Exchange account" },
+                    { value: "paper", label: "Paper" },
+                    { value: "testnet", label: "Testnet" },
+                    { value: "live", label: "Live" },
                   ]}
-                  onChange={setDestination}
+                  onChange={setMode}
                 />
               </Row>
-              {destination === "exchange" && (
-                <Row label="Account" hint={accounts.length ? undefined : "Add an exchange account in Settings → Auth."}>
-                  <Select id="dca-account" label="Account" value={accountId} placeholder="No exchange account" options={accounts.map((a) => ({ value: a.id, label: `${a.label} — ${a.testnet ? "TESTNET" : "LIVE"}` }))} onChange={setAccountId} />
+              {mode !== "paper" && (
+                <Row label="Account" hint={choices.length ? undefined : noAccount}>
+                  <span className="dcv-inline">
+                    <span className={badgeClass(badge)}>{badge}</span>
+                    <Select id="dca-account" label="Account" value={account?.id ?? ""} placeholder={mode === "testnet" ? "No testnet account" : "No live account"} options={choices.map((a) => ({ value: a.id, label: a.label }))} onChange={setAccountId} />
+                  </span>
                 </Row>
               )}
             </>
