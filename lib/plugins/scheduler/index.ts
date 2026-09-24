@@ -10,7 +10,10 @@ import { changeTask, findAgent, newTask, plannedRuns, taskKey, type AgentTask, t
 
 /* The scheduler: the clock of the background (`engine.ts`), the user's
    agent tasks and their three tools, the service the other plugins
-   register their jobs with, and the view's actions. The clock ticks in the
+   register their jobs with, and the view's actions. The view and the tools
+   are about the AGENT TASKS only: the plugins' jobs are their own
+   machinery (the alerts' check, the paper orders' watch…) — the clock runs
+   them, nothing here lists them. The clock ticks in the
    Next server only (`ctx.background`); the MCP server of a subscription
    session serves the same tools over the same files. */
 
@@ -47,7 +50,7 @@ export const schedulerPlugin = definePlugin({
     };
 
     ctx.tool(taskScheduleTool(add, () => ctx.session()));
-    ctx.tool(taskListTool(async () => ({ tasks: await tasks(), jobs: clock.list(), states: await states() })));
+    ctx.tool(taskListTool(async () => ({ tasks: await tasks(), states: await states() })));
     ctx.tool(taskCancelTool(change));
 
     /* What a dependent plugin registers belongs to it: its jobs go when it
@@ -74,8 +77,8 @@ export const schedulerPlugin = definePlugin({
         /* The view's "now": every relative time on it is read against it. */
         at: new Date().toISOString(),
         tasks: list.map((t) => ({ ...t, state: s[taskKey(t.id)] ?? {}, running: clock.isRunning(taskKey(t.id)) })),
-        jobs: clock.list().map((j) => ({ ...j, state: s[j.id] ?? {} })),
         runs: runs
+          .filter((r) => r.kind === "task")
           .slice(-RECENT)
           .reverse()
           .map(({ text, ...r }) => ({ ...r, excerpt: text ? text.slice(0, 280) : undefined })),
@@ -99,8 +102,7 @@ export const schedulerPlugin = definePlugin({
     });
     ctx.api("run-now", async (params) => {
       const id = typeof params.id === "string" ? params.id : "";
-      const known = (await tasks()).some((t) => taskKey(t.id) === id) || clock.list().some((j) => j.id === id);
-      if (!known) throw new Error(`Nothing scheduled under "${id}".`);
+      if (!(await tasks()).some((t) => taskKey(t.id) === id)) throw new Error(`No scheduled task under "${id}".`);
       await clock.trigger(id);
       return { queued: id };
     });

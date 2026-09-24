@@ -77,7 +77,7 @@ describe("scheduler clock — jobs", () => {
     await clock.tick(at(10, 5));
     await clock.idle();
     expect(spec.run).toHaveBeenCalledTimes(2);
-    expect(notes).toEqual([{ title: "Snapshot failed", body: "exchange down", level: "error", action: { kind: "open-view", view: "scheduler" } }]);
+    expect(notes).toEqual([{ title: "Snapshot failed", body: "exchange down", level: "error" }]);
     const runs = await store.lines<RunRecord>(RUNS);
     expect(runs.map((r) => [r.kind, r.ref, r.ok, r.error])).toEqual([
       ["job", "alerts:check", false, "exchange down"],

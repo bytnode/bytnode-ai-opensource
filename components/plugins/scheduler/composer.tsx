@@ -7,13 +7,16 @@ import { relative } from "@/lib/plugins/scheduler/timeline";
 import { Segmented } from "@/components/ui/segmented";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Plus } from "@/components/ui/icons";
 
 /* ---------------------------------------------------------------------------
-   "Schedule a task", at the top of the tab: what the task is called, which
-   agent runs it, what it must do, and when — chosen, not typed: every few
-   hours, every day at a time, every week on a day at a time, or a custom
-   frequency for who knows the grammar. The next run is said before the
-   task exists. One blue button schedules it.
+   "New scheduled task", at the top of the tab — folded into one line until
+   it is wanted (open from the start when there is no task yet). Open: what
+   the task is called, which agent runs it, what it must do, and when —
+   chosen, not typed: every few hours, every day at a time, every week on a
+   day at a time, or a custom frequency for who knows the grammar. The
+   first run is said before the task exists; an agent task runs at most
+   every 15 minutes. One blue button schedules it.
 --------------------------------------------------------------------------- */
 
 type Mode = "hours" | "daily" | "weekly" | "custom";
@@ -29,6 +32,8 @@ const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"
 const HINT = "every 30 minutes · every 4 hours · daily at 08:00 · every monday at 09:30";
 
 type Props = {
+  open: boolean;
+  onOpen: (open: boolean) => void;
   agents: AgentConfig[];
   /** The server's now, for the next run's preview. */
   now: number | null;
@@ -36,7 +41,7 @@ type Props = {
   onCreate: (task: { title: string; agent: string; frequency: string; prompt: string; catchUp: "run-once-on-start" | "skip" }) => Promise<string | null>;
 };
 
-export function Composer({ agents, now, onCreate }: Props) {
+export function Composer({ open, onOpen, agents, now, onCreate }: Props) {
   const [title, setTitle] = useState("");
   const [agent, setAgent] = useState(agents[0]?.id ?? "");
   const [prompt, setPrompt] = useState("");
@@ -52,9 +57,10 @@ export function Composer({ agents, now, onCreate }: Props) {
 
   const frequency = mode === "hours" ? (hours === "1" ? "every hour" : `every ${hours} hours`) : mode === "daily" ? `daily at ${time}` : mode === "weekly" ? `every ${day} at ${time}` : custom.trim();
   const parsed = parseFrequency(frequency);
+  const tooOften = !("error" in parsed) && parsed.kind === "interval" && parsed.minutes < 15;
   const next = now !== null && !("error" in parsed) ? relative(parsed.kind === "interval" ? now : nextRun(parsed, now), now) : null;
   const chosen = agents.find((a) => a.id === agent) ?? agents[0];
-  const ready = title.trim() !== "" && prompt.trim() !== "" && Boolean(chosen) && isFrequency(frequency);
+  const ready = title.trim() !== "" && prompt.trim() !== "" && Boolean(chosen) && isFrequency(frequency) && !tooOften;
 
   const submit = async () => {
     if (!ready || busy || !chosen) return;
@@ -67,7 +73,18 @@ export function Composer({ agents, now, onCreate }: Props) {
     setDone(`“${title.trim()}” is scheduled — ${next === "now" ? "its first run starts now" : `first run ${next}`}.`);
     setTitle("");
     setPrompt("");
+    onOpen(false);
   };
+
+  if (!open) {
+    return (
+      <button type="button" className="sdv-composer-open" onClick={() => onOpen(true)}>
+        <Plus />
+        New scheduled task
+        {done && <small>{done}</small>}
+      </button>
+    );
+  }
 
   return (
     <form
@@ -104,7 +121,7 @@ export function Composer({ agents, now, onCreate }: Props) {
           {(mode === "daily" || mode === "weekly") && <input className="wlv-input sdv-time" type="time" aria-label="At" value={time} onChange={(e) => setTime(e.target.value || "08:00")} />}
           {mode === "custom" && <input className="wlv-input sdv-custom" aria-label="Custom frequency" value={custom} placeholder={HINT} title={HINT} spellCheck={false} aria-invalid={!isFrequency(custom)} onChange={(e) => setCustom(e.target.value)} />}
         </div>
-        <span className={`sdv-next${"error" in parsed ? " is-error" : ""}`}>{"error" in parsed ? "Not a frequency the scheduler reads" : next ? `First run ${next}` : ""}</span>
+        <span className={`sdv-next${"error" in parsed || tooOften ? " is-error" : ""}`}>{"error" in parsed ? "Not a frequency the scheduler reads" : tooOften ? "An agent task runs at most every 15 minutes" : next ? `First run ${next}` : ""}</span>
       </div>
 
       <div className="sdv-composer-foot">
@@ -112,12 +129,23 @@ export function Composer({ agents, now, onCreate }: Props) {
           <Switch on={catchUp} onChange={setCatchUp} label="Catch up a missed run" />
           <span>Catch up a run missed while the app was closed</span>
         </label>
-        <button type="submit" className="sdv-schedule" disabled={!ready || busy}>
-          {busy ? "Scheduling…" : "Schedule"}
-        </button>
+        <span className="sdv-composer-actions">
+          <button
+            type="button"
+            className="sdv-pill"
+            onClick={() => {
+              onOpen(false);
+              setProblem(null);
+            }}
+          >
+            Cancel
+          </button>
+          <button type="submit" className="sdv-schedule" disabled={!ready || busy}>
+            {busy ? "Scheduling…" : "Schedule"}
+          </button>
+        </span>
       </div>
       {problem && <p className="sdv-problem">{problem}</p>}
-      {done && !problem && <p className="sdv-done">{done}</p>}
     </form>
   );
 }

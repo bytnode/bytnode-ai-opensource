@@ -56,11 +56,11 @@ describe("scheduler plugin", () => {
     expect(state.tasks.map((t) => t.agent)).toEqual(["a9"]);
   });
 
-  it("the jobs of a plugin appear with it and go with it", async () => {
+  it("the plugins' jobs are not scheduled tasks: neither listed nor run from here", async () => {
     h = await harness([schedulerPlugin, user]);
-    expect((await h.tool("TaskList").execute({}, h.ctx())).output).toContain("- User refresh — every 10 minutes; never run; next —");
-    await h.runtime.apply({ user: { enabled: false, config: {}, agentIds: null } });
     expect((await h.tool("TaskList").execute({}, h.ctx())).output).not.toContain("User refresh");
+    await expect(api(h, "run-now", { id: "user:refresh" })).rejects.toThrow(/No scheduled task/);
+    expect(await api(h, "state")).not.toHaveProperty("jobs");
   });
 
   it("the view: creates, updates, queues a run, hands over the finished reports", async () => {
@@ -72,8 +72,7 @@ describe("scheduler plugin", () => {
     expect(await api(h, "update", { id: task.id, action: "pause" })).toMatchObject({ status: "paused" });
     await expect(api(h, "update", { id: task.id, action: "explode" })).rejects.toThrow(/Expected `id` and `action`/);
     expect(await api(h, "run-now", { id: `task:${task.id}` })).toEqual({ queued: `task:${task.id}` });
-    expect(await api(h, "run-now", { id: "user:refresh" })).toEqual({ queued: "user:refresh" });
-    await expect(api(h, "run-now", { id: "nothing" })).rejects.toThrow(/Nothing scheduled/);
+    await expect(api(h, "run-now", { id: "nothing" })).rejects.toThrow(/No scheduled task/);
 
     const store = pluginStore("scheduler", h.root);
     const run = (id: string, over: Partial<RunRecord>): RunRecord => ({ id, kind: "task", ref: task.id, title: "Funding watch", agentId: "a1", startedAt: "", finishedAt: `2026-09-23T10:0${id}:00.000Z`, ok: true, text: "Report", ...over });
@@ -83,9 +82,9 @@ describe("scheduler plugin", () => {
     await store.append(RUNS, run("4", {}));
     expect(((await api(h, "runs", {})) as RunRecord[]).map((r) => r.id)).toEqual(["1", "4"]);
     expect(((await api(h, "runs", { since: "2026-09-23T10:01:00.000Z" })) as RunRecord[]).map((r) => r.id)).toEqual(["4"]);
-    const state = (await api(h, "state")) as { jobs: Array<{ id: string }>; runs: Array<{ id: string; excerpt?: string; text?: string }> };
-    expect(state.jobs.map((j) => j.id)).toEqual(["user:refresh"]);
-    expect(state.runs.map((r) => r.id)).toEqual(["4", "3", "2", "1"]);
+    const state = (await api(h, "state")) as { runs: Array<{ id: string; excerpt?: string; text?: string }> };
+    /* A job's failure stays in the log, out of the view. */
+    expect(state.runs.map((r) => r.id)).toEqual(["4", "2", "1"]);
     expect(state.runs[0]).toMatchObject({ excerpt: "Report" });
     expect(state.runs[0].text).toBeUndefined();
   });

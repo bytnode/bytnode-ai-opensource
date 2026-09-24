@@ -148,8 +148,9 @@ export class Clock {
         const error = e instanceof Error ? e.message : String(e);
         await this.settle(id, spec.every, started, false, error);
         await this.deps.store.append(RUNS, { id: randomUUID().slice(0, 12), kind: "job", ref: id, title: spec.title, startedAt: new Date(started).toISOString(), finishedAt: new Date().toISOString(), ok: false, error } satisfies RunRecord, MAX_RUNS);
-        /* Said once when it starts failing, not at every run. */
-        if (previous.lastStatus !== "failed") await this.deps.notify({ title: `${spec.title} failed`, body: error, level: "error", action: { kind: "open-view", view: "scheduler" } });
+        /* Said once when it starts failing, not at every run. A job is its
+           plugin's machinery: the Scheduled tasks tab does not show it. */
+        if (previous.lastStatus !== "failed") await this.deps.notify({ title: `${spec.title} failed`, body: error, level: "error" });
         return;
       }
       await this.settle(id, spec.every, started, true, message ?? undefined);

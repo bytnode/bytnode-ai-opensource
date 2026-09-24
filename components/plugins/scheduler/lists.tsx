@@ -2,127 +2,74 @@
 
 import { useState } from "react";
 import type { AgentConfig } from "@/lib/domain/types";
+import { findAgent, taskKey } from "@/lib/plugins/scheduler/tasks";
 import { frequencyText, relative } from "@/lib/plugins/scheduler/timeline";
-import { taskKey } from "@/lib/plugins/scheduler/tasks";
-import { ChevronRight, Refresh, Trash } from "@/components/ui/icons";
-import { hueOf, outcomeOf, pluginName, type JobRow, type RunRow, type TaskRow } from "./format";
+import { Switch } from "@/components/ui/switch";
+import { ChevronRight } from "@/components/ui/icons";
+import { hueOf, type RunRow, type TaskRow } from "./format";
 
 /* ---------------------------------------------------------------------------
-   What is scheduled, and what ran.
+   The agent tasks, and what they produced.
 
-   The agent tasks are tiles of one block: how often, who runs it (its
-   initial in the agent's colour), the task's name, what it asks, then when
-   it runs next and how its last run went — and its three actions: run it
-   now, pause or resume it, delete it. A paused one fades; a running one
-   says so. The plugins' jobs are rows: the plugin, the job, its pace, how
-   its last run went and when the next comes; each can be run now. The
-   recent runs are rows too, newest first: a finished task opens as its
-   conversation, a failure says why.
+   A task is one quiet row, like a reminder: its name; under it its pace,
+   the agent that runs it (its initial in the agent's colour) and how the
+   last run went; on the right when it runs next, and a switch — on, it
+   runs; off, it is paused. A click on the row unfolds what it asks and its
+   two other actions: run it now, delete it. The recent runs are rows too,
+   newest first: a finished task opens as its conversation, a failure says
+   why.
 --------------------------------------------------------------------------- */
 
 type Act = (action: string, params: Record<string, unknown>) => Promise<string | null>;
 
-function Outcome({ state, now }: { state: TaskRow["state"]; now: number }) {
-  const cls = outcomeOf(state);
-  return (
-    <span className={`sdv-outcome ${cls}`} title={state.lastMessage}>
-      <i />
-      {state.lastRun ? `${state.lastStatus === "failed" ? "Failed" : "Ran"} ${relative(state.lastRun, now)}` : "Never ran"}
-    </span>
-  );
-}
-
 export function Tasks({ tasks, agents, now, onAct }: { tasks: TaskRow[]; agents: AgentConfig[]; now: number; onAct: Act }) {
+  const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const run = async (key: string, action: string, params: Record<string, unknown>) => {
     setBusy(key);
     await onAct(action, params);
     setBusy(null);
   };
-  if (tasks.length === 0) {
-    return <p className="sdv-empty">No agent task yet. Schedule one above, or ask an agent: “give me a market brief every morning at 8”.</p>;
-  }
-  return (
-    <ul className="sdv-tasks">
-      {tasks.map((t) => {
-        const agent = agents.find((a) => a.id === t.agent || a.name.toLowerCase() === t.agent.toLowerCase());
-        const name = agent?.name ?? t.agent;
-        const paused = t.status === "paused";
-        return (
-          <li key={t.id} className={`sdv-task${paused ? " is-paused" : ""}${t.running ? " is-running" : ""}`}>
-            <div className="sdv-task-top">
-              <span className="sdv-freq">{frequencyText(t.frequency)}</span>
-              {t.running && <span className="sdv-badge is-running">Running</span>}
-              {paused && <span className="sdv-badge">Paused</span>}
-              <span className="sdv-agent-chip" title={agent ? `Run by ${name}` : `Agent "${name}" not found`}>
-                <i style={{ background: hueOf(name) }}>{name.charAt(0).toUpperCase()}</i>
-                {name}
-              </span>
-            </div>
-            <p className="sdv-task-title">{t.title}</p>
-            <p className="sdv-task-prompt" title={t.prompt}>
-              {t.prompt}
-            </p>
-            <div className="sdv-task-foot">
-              <span className="sdv-task-when">
-                <b>{paused ? "Paused" : t.running ? "Running now" : `Next ${relative(t.state.nextRun, now)}`}</b>
-                <Outcome state={t.state} now={now} />
-              </span>
-              <span className="sdv-task-actions">
-                <button type="button" className="sdv-pill" disabled={t.running || busy !== null} onClick={() => void run(`now:${t.id}`, "run-now", { id: taskKey(t.id) })}>
-                  {busy === `now:${t.id}` ? "Starting…" : "Run now"}
-                </button>
-                <button type="button" className="sdv-pill" disabled={busy !== null} onClick={() => void run(`pause:${t.id}`, "update", { id: t.id, action: paused ? "resume" : "pause" })}>
-                  {paused ? "Resume" : "Pause"}
-                </button>
-                <button type="button" className="wlv-icon sdv-delete" disabled={busy !== null} onClick={() => void run(`del:${t.id}`, "update", { id: t.id, action: "delete" })} aria-label={`Delete ${t.title}`} title="Delete the task">
-                  <Trash />
-                </button>
-              </span>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-export function Jobs({ jobs, now, onAct }: { jobs: JobRow[]; now: number; onAct: Act }) {
-  const [busy, setBusy] = useState<string | null>(null);
-  if (jobs.length === 0) return <p className="sdv-empty">No plugin has background work right now.</p>;
   return (
     <ul className="sdv-rows">
-      {jobs.map((j) => {
-        const plugin = pluginName(j.owner);
+      {tasks.map((t) => {
+        const name = findAgent(agents, t.agent)?.name ?? t.agent;
+        const paused = t.status === "paused";
+        const unfolded = open === t.id;
+        const s = t.state;
         return (
-          <li key={j.id} className="sdv-row sdv-job">
-            <i className="sdv-plugin" style={{ background: hueOf(j.owner) }} aria-hidden>
-              {plugin.charAt(0)}
-            </i>
-            <span className="sdv-row-name">
-              <b>{j.title}</b>
-              <small>
-                {plugin} · {frequencyText(j.every)}
-              </small>
-            </span>
-            <span className="sdv-row-meta">
-              {j.running ? <span className="sdv-badge is-running">Running</span> : <Outcome state={j.state} now={now} />}
-              {j.state.nextRun && <small>Next {relative(j.state.nextRun, now)}</small>}
-            </span>
-            <button
-              type="button"
-              className="wlv-icon"
-              disabled={j.running || busy !== null}
-              onClick={async () => {
-                setBusy(j.id);
-                await onAct("run-now", { id: j.id });
-                setBusy(null);
-              }}
-              aria-label={`Run ${j.title} now`}
-              title="Run now"
-            >
-              <Refresh />
-            </button>
+          <li key={t.id} className={`sdv-task${paused ? " is-paused" : ""}${unfolded ? " is-open" : ""}`}>
+            <div className="sdv-task-row">
+              <button type="button" className="sdv-task-main" aria-expanded={unfolded} onClick={() => setOpen(unfolded ? null : t.id)}>
+                <span className="sdv-task-name">
+                  <b>{t.title}</b>
+                  <small>
+                    {frequencyText(t.frequency)}
+                    <span className="sdv-agent">
+                      <i style={{ background: hueOf(name) }}>{name.charAt(0).toUpperCase()}</i>
+                      {name}
+                    </span>
+                    {s.lastRun && <span className={s.lastStatus === "failed" ? "is-failed" : "is-ok"}>{s.lastStatus === "failed" ? `failed ${relative(s.lastRun, now)}` : `ran ${relative(s.lastRun, now)}`}</span>}
+                  </small>
+                </span>
+                <span className="sdv-task-next">{t.running ? <b className="is-running">Running</b> : paused ? "Paused" : relative(s.nextRun, now)}</span>
+              </button>
+              <Switch on={!paused} onChange={(on) => void run(`switch:${t.id}`, "update", { id: t.id, action: on ? "resume" : "pause" })} label={paused ? `Resume ${t.title}` : `Pause ${t.title}`} disabled={busy !== null} />
+            </div>
+            {unfolded && (
+              <div className="sdv-task-more">
+                <p className="sdv-task-prompt">{t.prompt}</p>
+                {s.lastStatus === "failed" && s.lastMessage && <p className="sdv-task-error">Last run failed: {s.lastMessage}</p>}
+                <div className="sdv-task-actions">
+                  <button type="button" className="sdv-link" disabled={t.running || busy !== null} onClick={() => void run(`now:${t.id}`, "run-now", { id: taskKey(t.id) })}>
+                    {busy === `now:${t.id}` ? "Starting…" : "Run now"}
+                  </button>
+                  <button type="button" className="sdv-link is-danger" disabled={busy !== null} onClick={() => void run(`del:${t.id}`, "update", { id: t.id, action: "delete" })}>
+                    Delete
+                  </button>
+                </div>
+              </div>
+            )}
           </li>
         );
       })}
@@ -130,50 +77,45 @@ export function Jobs({ jobs, now, onAct }: { jobs: JobRow[]; now: number; onAct:
   );
 }
 
-const SHOWN_RUNS = 8;
+const SHOWN_RUNS = 5;
 
-/** A report's first lines without their Markdown: headings, emphasis, code. */
+/** A report's first lines as one line, without their Markdown — a
+    heading reads as the start of its sentence. */
 const plain = (text: string) =>
   text
-    .replace(/^#{1,6}\s*/gm, "")
+    .replace(/^#{1,6}\s*(.*)$/gm, "$1:")
     .replace(/[*_`]+/g, "")
-    .replace(/\n{2,}/g, "\n")
+    .replace(/\s*\n+\s*/g, " ")
     .trim();
 
 export function Runs({ runs, now, onOpen }: { runs: RunRow[]; now: number; onOpen: (id: string) => void }) {
   const [all, setAll] = useState(false);
-  if (runs.length === 0) return <p className="sdv-empty">Nothing has run yet. Finished tasks, and jobs that failed, are listed here.</p>;
   return (
     <>
       <ul className="sdv-rows">
         {(all ? runs : runs.slice(0, SHOWN_RUNS)).map((r) => {
-          const opens = r.ok && r.kind === "task" && Boolean(r.agentId);
+          const opens = r.ok && Boolean(r.agentId);
           const body = (
             <>
               <span className={`sdv-dot ${r.ok ? "is-ok" : "is-failed"}`} aria-hidden />
-              <span className="sdv-row-name">
+              <span className="sdv-run-name">
                 <b>
                   {r.title}
                   <small>{relative(r.finishedAt, now)}</small>
                 </b>
                 <span className={`sdv-run-text${r.ok ? "" : " is-failed"}`}>{r.ok ? (r.excerpt ? plain(r.excerpt) : "Done.") : (r.error ?? "Failed.")}</span>
               </span>
-              {opens && (
-                <span className="sdv-open">
-                  Open
-                  <ChevronRight />
-                </span>
-              )}
+              {opens && <ChevronRight />}
             </>
           );
           return (
             <li key={r.id}>
               {opens ? (
-                <button type="button" className="sdv-row sdv-run is-link" onClick={() => onOpen(r.id)} title="Open the conversation of this run">
+                <button type="button" className="sdv-run is-link" onClick={() => onOpen(r.id)} title="Open the report as a conversation">
                   {body}
                 </button>
               ) : (
-                <div className="sdv-row sdv-run">{body}</div>
+                <div className="sdv-run">{body}</div>
               )}
             </li>
           );

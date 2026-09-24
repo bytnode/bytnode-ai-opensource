@@ -2,8 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { runConversationId } from "@/lib/plugins/scheduler/tasks";
-import type { Scheduled } from "@/lib/plugins/scheduler/timeline";
-import { relative } from "@/lib/plugins/scheduler/timeline";
+import { relative, type Scheduled } from "@/lib/plugins/scheduler/timeline";
 import { goToConversation } from "@/lib/state/navigation";
 import { ensureConversation } from "@/lib/state/scheduled-runs";
 import { Refresh } from "@/components/ui/icons";
@@ -12,18 +11,19 @@ import { act, usePluginData } from "../use-plugin-data";
 import { useAwakeInterval } from "../view-activity";
 import { Composer } from "./composer";
 import type { SchedulerState } from "./format";
-import { Jobs, Runs, Tasks } from "./lists";
+import { Runs, Tasks } from "./lists";
 import { Timeline } from "./timeline";
 import "../watchlist/watchlist.css";
 import "./scheduler.css";
 
 /* ---------------------------------------------------------------------------
-   The Scheduled tasks tab, in the bare views' language (the watchlist's
-   sheet, the calendar's tokens) — one sheet, no side column. Top to
-   bottom: what is scheduled, said in one line; the next 24 hours as a
-   timeline (`timeline.tsx`); "Schedule a task" (`composer.tsx`); the agent
-   tasks, as tiles; the plugins' background jobs; the recent runs (a
-   finished task opens as its conversation).
+   The Scheduled tasks tab: the agent tasks — an agent that works on its
+   own at a pace — and nothing else (the plugins' background jobs are their
+   own machinery, not shown here). In the bare views' language, one sheet,
+   no side column. Top to bottom: what is scheduled in one line; the next
+   24 hours (`timeline.tsx`, when there is a task); "New scheduled task"
+   (`composer.tsx`, folded until wanted); the tasks; the recent runs (a
+   finished one opens as its conversation).
 
    The runs happen on the server: the tab reads again every 10 s while it is
    in front, and at once after an action. Every relative time is read
@@ -33,11 +33,15 @@ import "./scheduler.css";
 const REFRESH = 10_000;
 
 export function SchedulerView({ settings }: ViewProps) {
-  const { data, error, loading, reload } = usePluginData<SchedulerState>("scheduler", "state", settings, {}, { keep: "latest" });
+  const { data, error, reload } = usePluginData<SchedulerState>("scheduler", "state", settings, {}, { keep: "latest" });
   useAwakeInterval(reload, REFRESH);
   const [problem, setProblem] = useState<string | null>(null);
+  const [composing, setComposing] = useState<boolean | null>(null);
   const agents = settings.agents;
   const now = data?.at ? Date.parse(data.at) : null;
+  const tasks = data?.tasks ?? [];
+  /* The composer is open from the start while there is nothing yet. */
+  const open = composing ?? (data !== undefined && tasks.length === 0);
 
   const run = async (action: string, params: Record<string, unknown>) => {
     const p = await act("scheduler", action, params, settings);
@@ -51,18 +55,15 @@ export function SchedulerView({ settings }: ViewProps) {
     goToConversation(conversation);
   };
 
-  const items: Scheduled[] = data
-    ? [
-        ...data.tasks.map((t) => ({ id: `task:${t.id}`, title: t.title, every: t.frequency, kind: "task" as const, paused: t.status === "paused", nextRun: t.state.nextRun })),
-        ...data.jobs.map((j) => ({ id: j.id, title: j.title, every: j.every, kind: "job" as const, nextRun: j.state.nextRun })),
-      ]
-    : [];
-  const active = data?.tasks.filter((t) => t.status === "active") ?? [];
-  const soonest = data && now !== null ? active.map((t) => t.state.nextRun).filter((x): x is string => Boolean(x)).sort()[0] : undefined;
-  const running = (data?.tasks.filter((t) => t.running).length ?? 0) + (data?.jobs.filter((j) => j.running).length ?? 0);
+  const items: Scheduled[] = tasks.map((t) => ({ id: t.id, title: t.title, every: t.frequency, kind: "task" as const, paused: t.status === "paused", nextRun: t.state.nextRun }));
+  const active = tasks.filter((t) => t.status === "active");
+  const soonest = active.map((t) => t.state.nextRun).filter((x): x is string => Boolean(x)).sort()[0];
+  const running = tasks.filter((t) => t.running).length;
   const summary = !data
     ? "Reading the schedule…"
-    : `${data.tasks.length ? `${data.tasks.length} agent task${data.tasks.length === 1 ? "" : "s"}` : "No agent task yet"}${data.tasks.length - active.length ? ` (${data.tasks.length - active.length} paused)` : ""}, ${data.jobs.length} plugin job${data.jobs.length === 1 ? "" : "s"}${soonest && now !== null ? ` — the next task ${relative(soonest, now)}` : ""}. Everything runs only while BytNode-AI is open in a tab.`;
+    : tasks.length === 0
+      ? "An agent that works on its own, at the pace you choose — while BytNode-AI is open in a tab."
+      : `${active.length} active${tasks.length > active.length ? `, ${tasks.length - active.length} paused` : ""}${soonest && now !== null ? ` — the next one ${relative(soonest, now)}` : ""}.`;
 
   return (
     <div className="wlv sdv">
@@ -75,7 +76,7 @@ export function SchedulerView({ settings }: ViewProps) {
               </h2>
               <p className="wlv-sheet-sub">{summary}</p>
             </div>
-            <span className={`wlv-status${data && !loading && !error ? " is-live" : ""}`}>{running ? `${running} running` : data ? `Updated ${new Date(data.at).toLocaleTimeString("en-GB")}` : "Loading…"}</span>
+            <span className={`wlv-status${running ? " is-live" : ""}`}>{running ? `${running} running` : data ? `Updated ${new Date(data.at).toLocaleTimeString("en-GB")}` : "Loading…"}</span>
             <button type="button" className="wlv-icon" onClick={reload} aria-label="Read the schedule again" title="Read the schedule again">
               <Refresh />
             </button>
@@ -84,24 +85,20 @@ export function SchedulerView({ settings }: ViewProps) {
 
           <div className="wlv-body">
             <div className="sdv-inner">
-              {data && now !== null && <Timeline items={items} now={now} />}
+              {now !== null && tasks.length > 0 && <Timeline items={items} now={now} />}
+              <Composer open={open} onOpen={setComposing} agents={agents} now={now} onCreate={(task) => run("create", task)} />
 
-              <Composer agents={agents} now={now} onCreate={(task) => run("create", task)} />
-              <p className="sdv-note">Times are this computer&apos;s. A scheduled agent works with a sub-agent&apos;s tools: it never places an order or moves funds. Each run uses the agent&apos;s model, or its subscription.</p>
-
-              {data && now !== null && (
-                <>
-                  <Section title="Agent tasks" sub="what your agents do on their own">
-                    <Tasks tasks={data.tasks} agents={agents} now={now} onAct={run} />
-                  </Section>
-                  <Section title="Background jobs" sub="the plugins' own work">
-                    <Jobs jobs={data.jobs} now={now} onAct={run} />
-                  </Section>
-                  <Section title="Recent runs" sub="newest first">
-                    <Runs runs={data.runs} now={now} onOpen={(id) => void openRun(id)} />
-                  </Section>
-                </>
+              {data && now !== null && tasks.length > 0 && (
+                <Section title="Tasks">
+                  <Tasks tasks={tasks} agents={agents} now={now} onAct={run} />
+                </Section>
               )}
+              {data && now !== null && data.runs.length > 0 && (
+                <Section title="Recent runs">
+                  <Runs runs={data.runs} now={now} onOpen={(id) => void openRun(id)} />
+                </Section>
+              )}
+              <p className="sdv-foot">Times are this computer&apos;s. A scheduled agent has a sub-agent&apos;s tools — it never places an order or moves funds — and each run uses its model, or its subscription.</p>
             </div>
           </div>
         </main>
@@ -110,12 +107,11 @@ export function SchedulerView({ settings }: ViewProps) {
   );
 }
 
-function Section({ title, sub, children }: { title: string; sub: string; children: ReactNode }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="sdv-section" aria-label={title}>
       <p className="wlv-section-title">
         <span className="pv-ink">{title}</span>
-        <small>{sub}</small>
       </p>
       {children}
     </section>

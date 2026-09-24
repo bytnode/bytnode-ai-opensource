@@ -3,11 +3,11 @@
 import { relative, timeline, type Scheduled } from "@/lib/plugins/scheduler/timeline";
 
 /* ---------------------------------------------------------------------------
-   The next 24 hours, as one line: now on the left, a tick every three hours,
-   and a dot where something will run — an agent task in blue, named above
-   the line at its first run only (every other name a step higher, so two
-   close ones do not collide), a plugin's job in grey. What runs every hour
-   or more often would cover the line: it is listed under it, "always on".
+   The next 24 hours of the agent tasks, as one line: now on the left, a
+   tick every three hours, a dot where a task will run, named above the
+   line at its first run only (every other name a step higher, so two close
+   ones do not collide). A task that runs every hour or more often would
+   cover the line: it is said under it instead.
 --------------------------------------------------------------------------- */
 
 const HOURS = 24;
@@ -24,15 +24,9 @@ export function Timeline({ items, now }: { items: Scheduled[]; now: number }) {
 
   return (
     <section className="sdv-timeline" aria-label="The next 24 hours">
-      <div className="sdv-timeline-head">
-        <p className="sdv-block-title">
-          <span className="pv-ink">Next 24 hours</span>
-        </p>
-        <span className="sdv-legend">
-          <i className="is-task" /> Agent tasks
-          <i className="is-job" /> Plugin jobs
-        </span>
-      </div>
+      <p className="sdv-block-title">
+        <span className="pv-ink">Next 24 hours</span>
+      </p>
       <div className="sdv-track">
         <span className="sdv-now">Now</span>
         {ticks.map((t) => (
@@ -41,26 +35,19 @@ export function Timeline({ items, now }: { items: Scheduled[]; now: number }) {
           </span>
         ))}
         {marks.map((m) => {
-          const label = m.kind === "task" && !seen.has(m.id);
+          const label = !seen.has(m.id);
           if (label) seen.add(m.id);
           const high = label && named++ % 2 === 1;
           return (
-            <span key={`${m.id}:${m.at}`} className={`sdv-mark is-${m.kind}${high ? " is-high" : ""}`} style={{ left: pos(m.at) }} title={`${m.title} — ${relative(m.at, now)}`}>
+            <span key={`${m.id}:${m.at}`} className={`sdv-mark${high ? " is-high" : ""}`} style={{ left: pos(m.at) }} title={`${m.title} — ${relative(m.at, now)}`}>
               {label && <b>{m.title}</b>}
             </span>
           );
         })}
       </div>
-      {marks.length === 0 && <p className="sdv-timeline-empty">Nothing planned in the next 24 hours{bands.length ? " but what is always on." : "."}</p>}
-      {bands.length > 0 && (
-        <p className="sdv-bands">
-          <span>Always on</span>
-          {bands.map((b) => (
-            <span key={b.id} className="sdv-band">
-              {b.title}
-              <small>{b.every}</small>
-            </span>
-          ))}
+      {(marks.length === 0 || bands.length > 0) && (
+        <p className="sdv-timeline-note">
+          {marks.length === 0 && bands.length === 0 ? "Nothing runs in the next 24 hours." : bands.map((b) => `${b.title} runs ${b.every}.`).join(" ")}
         </p>
       )}
     </section>
