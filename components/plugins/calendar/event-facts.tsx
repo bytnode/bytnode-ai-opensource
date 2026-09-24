@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { CATEGORY_LABELS, type CalendarEvent } from "@/lib/plugins/calendar/events";
+import { CATEGORY_LABELS, USER, type CalendarEvent } from "@/lib/plugins/calendar/events";
 import { openView } from "@/lib/state/tabs";
 import { useCalendarActions } from "./actions";
 
@@ -14,6 +14,7 @@ import { useCalendarActions } from "./actions";
 function sourceOf(e: CalendarEvent, agent: string | null): ReactNode {
   if (e.category === "scheduled") return e.source;
   if (e.computed) return "Computed from the venue's schedule";
+  if (e.by === USER && !e.url) return "Added by you";
   if (e.category === "task" && !e.url) return `Added by ${agent ?? e.source}`;
   if (!e.url) return e.source;
   return (

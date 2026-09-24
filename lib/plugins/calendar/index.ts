@@ -89,6 +89,14 @@ export const calendarPlugin = definePlugin({
         watchlist: (await watchlist()) !== null,
       };
     });
+    /* The user adds an entry from an hour of the agenda: a title, a
+       calendar, a description — no source asked, it is theirs. */
+    ctx.api("add", async (params) => {
+      const entry = { startsAt: params.startsAt, allDay: params.allDay === true, category: params.category, title: params.title, notes: params.notes };
+      const r = await edit({ add: [entry] }, { name: "You", user: true });
+      if (r.rejected.length) throw new Error(r.rejected[0]);
+      return { added: r.added[0]?.id ?? r.updated[0]?.id };
+    });
     /* The user deletes an entry from its details. */
     ctx.api("remove", async (params) => {
       if (typeof params.id !== "string") throw new Error("Expected `id`.");

@@ -10,7 +10,7 @@ import { recall, remember } from "./memory";
    name, the count of the month on screen — and two switches: only the
    market-moving events, only the watchlist's assets. */
 
-const SHORT: Record<Category, string> = {
+export const SHORT: Record<Category, string> = {
   macro: "Macro",
   unlock: "Unlocks",
   listing: "Listings",

@@ -24,8 +24,8 @@ import "./calendar.css";
    or narrows the month — a screen habit, kept with the others. Where the
    tab was left — period, month, filters — survives a visit to another
    tab (`./memory.ts`). Nothing here fetches events: the user's agents
-   write the calendar (`CalendarEdit`), the view reads it and lets the
-   user delete an entry.
+   write the calendar (`CalendarEdit`); the user adds an entry from an
+   hour of the agenda, and deletes one from its details.
 --------------------------------------------------------------------------- */
 
 type Week = { events: CalendarEvent[]; watchlist: boolean };
@@ -86,6 +86,11 @@ export function CalendarView({ settings, params }: ViewProps) {
     if (!sameMonth(d, month)) setMonth(firstOfMonth(d));
   };
   const actions: CalendarActions = {
+    add: async (entry) => {
+      const p = await act("calendar", "add", entry, settings);
+      if (!p) reload();
+      return p;
+    },
     remove: async (id) => {
       setProblem(await act("calendar", "remove", { id }, settings));
       reload();

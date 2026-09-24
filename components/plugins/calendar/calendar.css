@@ -657,6 +657,35 @@ html[data-theme="light"] .calv-agenda {
   min-height: 52px;
   padding: 4px;
   background: var(--tile);
+  cursor: pointer;
+}
+
+/* An hour opens the form of a new entry: its label is a button. */
+button.calv-hour-label {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  align-self: start;
+}
+
+button.calv-hour-label:hover,
+.calv-hour:has(.calv-hour-slot.is-drafting) .calv-hour-label {
+  color: var(--label);
+}
+
+.calv-hour-slot:hover,
+.calv-week-cell:hover {
+  background: var(--tile-today);
+}
+
+.calv-hour-slot.is-drafting,
+.calv-week-cell.is-drafting {
+  background: var(--tile-today);
+  box-shadow: inset 0 0 0 1.5px rgba(var(--ink), 0.18);
 }
 
 .calv-hour:first-child .calv-hour-slot {
@@ -858,6 +887,10 @@ html[data-theme="light"] .calv-agenda {
 }
 
 /* Today's column, washed a little lighter from top to bottom. */
+.calv-week-cell {
+  cursor: pointer;
+}
+
 .calv-week-cell.is-today {
   background: var(--tile-today);
 }
@@ -933,6 +966,131 @@ html[data-theme="light"] .calv-agenda {
   margin: 3px 0 12px;
   font-size: 13px;
   color: var(--label-2);
+}
+
+/* --- A new entry of the user's ---------------------------------------------- */
+
+.calv-new {
+  top: calc(100% + 6px);
+  left: 4px;
+  display: grid;
+  gap: 10px;
+  width: 340px;
+  padding: 14px 16px;
+  cursor: default;
+}
+
+.calv-new.is-flipped {
+  left: auto;
+  right: 4px;
+}
+
+.calv-new.is-up {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+.calv-new-when {
+  margin: 0;
+  font-size: 13px;
+  color: var(--label-2);
+}
+
+.calv-new-title,
+.calv-new-notes,
+.calv-new-time {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--fill);
+  color: var(--label);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.calv-new-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.calv-new-notes {
+  resize: vertical;
+  min-height: 64px;
+  line-height: 1.4;
+}
+
+.calv-new-title:focus,
+.calv-new-notes:focus,
+.calv-new-time:focus {
+  border-color: rgba(var(--ink), 0.22);
+}
+
+.calv-new-time {
+  width: auto;
+  padding: 5px 8px;
+  font-variant-numeric: tabular-nums;
+  color-scheme: dark;
+}
+
+html[data-theme="light"] .calv-new-time {
+  color-scheme: light;
+}
+
+.calv-new-themes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.calv-new-theme {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.calv-new-theme .calv-filter-dot {
+  width: 8px;
+  height: 8px;
+}
+
+.calv-new-theme.is-on {
+  background: color-mix(in srgb, var(--tone) 24%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--tone);
+  color: var(--label);
+}
+
+.calv-new-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.calv-fact-btn.is-primary {
+  background: var(--cal-macro);
+  color: #fff;
+  font-weight: 600;
+}
+
+.calv-fact-btn.is-primary:hover {
+  background: color-mix(in srgb, var(--cal-macro) 85%, #fff);
+}
+
+.calv-new-problem {
+  margin: 0;
+  font-size: 13px;
+  color: var(--down);
 }
 
 /* --- Small screens and reduced motion ------------------------------------------ */

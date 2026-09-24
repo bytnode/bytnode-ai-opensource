@@ -6,6 +6,7 @@ import { byHour, dayKey, sameDay } from "@/lib/plugins/calendar/days";
 import { useDismiss } from "@/components/ui/use-dismiss";
 import { EventFacts } from "./event-facts";
 import { LOCALE, timeOf, toneOf } from "./format";
+import { NewEntry } from "./new-entry";
 
 /* This week as Calendar draws it: a column per day, the hours down the
    side, each event a tinted block in its day and its hour. The grid is
@@ -14,7 +15,8 @@ import { LOCALE, timeOf, toneOf } from "./format";
    its scroll, so they need no ground of their own: nothing is laid over
    the pane. Today's column is washed a little lighter and carries the red
    line of now. A day's head opens that day; a block opens its details in
-   a bubble (towards the inside of the week, so it never leaves the pane). */
+   a bubble (towards the inside of the week, so it never leaves the pane).
+   Pressing the free part of a cell opens the form of a new entry there. */
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
 const hourLabel = (h: number) => `${String(h).padStart(2, "0")}:00`;
@@ -53,6 +55,8 @@ type Props = {
 export function WeekGrid({ span, days, today, now, anchor }: Props) {
   const [opened, setOpened] = useState<string | null>(null);
   const close = useCallback(() => setOpened(null), []);
+  const [drafting, setDrafting] = useState<string | null>(null);
+  const closeDraft = useCallback(() => setDrafting(null), []);
   const cols = span.map((day) => ({ day, hours: byHour(days.get(dayKey(day)) ?? []) }));
 
   return (
@@ -61,10 +65,16 @@ export function WeekGrid({ span, days, today, now, anchor }: Props) {
         <div key={h} className="calv-week-row" data-anchor={h === anchor || undefined}>
           <span className="calv-week-gutter">{hourLabel(h)}</span>
           {cols.map((c, i) => (
-            <div key={c.day.getTime()} className={`calv-week-cell${sameDay(c.day, today) ? " is-today" : ""}`}>
+            <div
+              key={c.day.getTime()}
+              className={`calv-week-cell${sameDay(c.day, today) ? " is-today" : ""}${drafting === `${i}|${h}` ? " is-drafting" : ""}`}
+              onClick={(e) => e.target === e.currentTarget && setDrafting(`${i}|${h}`)}
+              title={`New event — ${c.day.toLocaleDateString(LOCALE, { weekday: "short", day: "numeric" })}, ${hourLabel(h)}`}
+            >
               {c.hours[h].map((e) => (
                 <WeekBlock key={e.id} event={e} open={opened === e.id} onToggle={() => setOpened(opened === e.id ? null : e.id)} onClose={close} flip={i >= 4} />
               ))}
+              {drafting === `${i}|${h}` && <NewEntry day={c.day} hour={h} flip={i >= 4} up={h >= 17} onClose={closeDraft} />}
               {sameDay(c.day, now) && now.getHours() === h && (
                 <i className="calv-now" role="img" style={{ top: `${(now.getMinutes() / 60) * 100}%` }} aria-label={`Now, ${now.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" })}`} />
               )}

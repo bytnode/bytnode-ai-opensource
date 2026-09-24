@@ -1,4 +1,4 @@
-import { RETENTION_DAYS, mergeEvents, validateEvent, type CalendarEvent } from "./events";
+import { RETENTION_DAYS, USER, mergeEvents, validateEvent, type CalendarEvent } from "./events";
 
 /* ---------------------------------------------------------------------------
    An edit of the calendar: entries added, changed, removed — what
@@ -21,8 +21,9 @@ export type EditResult = { events: CalendarEvent[]; added: CalendarEvent[]; upda
 const CHANGEABLE = ["startsAt", "allDay", "category", "title", "assets", "importance", "source", "url", "notes", "done"] as const;
 const DAY = 24 * 3600_000;
 
-/** Who writes: the agent's name (a task's source) and its id, when known. */
-export type Author = { name: string; agentId?: string };
+/** Who writes: an agent — its name (a task's source) and its id, when
+    known — or the user in the view (`user`), whose entries need no source. */
+export type Author = { name: string; agentId?: string; user?: true };
 
 export function editCalendar(stored: CalendarEvent[], edit: Edit, now: Date, author: Author): EditResult {
   const rejected: string[] = [];
@@ -49,7 +50,7 @@ export function editCalendar(stored: CalendarEvent[], edit: Edit, now: Date, aut
     }
     const merged: EntryInput = { ...current };
     for (const k of CHANGEABLE) if (change[k] !== undefined) merged[k] = change[k];
-    const checked = validateEvent(merged, now, current.source);
+    const checked = validateEvent(merged, now, current.source, current.by === USER);
     if ("error" in checked) rejected.push(checked.error);
     else if (tooOld(checked)) rejected.push(`more than ${RETENTION_DAYS} days in the past: "${checked.title}"`);
     else {
@@ -61,10 +62,11 @@ export function editCalendar(stored: CalendarEvent[], edit: Edit, now: Date, aut
 
   const valid: CalendarEvent[] = [];
   for (const raw of edit.add ?? []) {
-    const e = validateEvent(raw, now, author.name);
+    const e = validateEvent(raw, now, author.name, author.user);
+    const by = author.user ? USER : author.agentId;
     if ("error" in e) rejected.push(e.error);
     else if (tooOld(e)) rejected.push(`more than ${RETENTION_DAYS} days in the past: "${e.title}"`);
-    else valid.push(author.agentId ? { ...e, by: author.agentId } : e);
+    else valid.push(by ? { ...e, by } : e);
   }
   const merged = mergeEvents(events, valid, now);
   for (const e of merged.updated) changed.set(e.id, e);

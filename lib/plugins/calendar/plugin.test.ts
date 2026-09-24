@@ -66,6 +66,17 @@ describe("calendar plugin", () => {
     expect((await h.tool("EventSearch").execute({ categories: ["task"] }, h.ctx())).output).toMatch(/^No entry /);
   });
 
+  it("the user adds an entry from the view: any calendar, no source asked", async () => {
+    h = await harness([calendarPlugin]);
+    const { added } = (await api("add", { startsAt: soon(3), category: "macro", title: "Fed speech I heard about", notes: "Powell, 14:00" })) as { added: string };
+    const [entry] = await pluginStore("calendar", h.root).read<CalendarEvent[]>("events.json", []);
+    expect(entry).toMatchObject({ id: added, category: "macro", title: "Fed speech I heard about", notes: "Powell, 14:00", url: "", source: "You", by: "user" });
+    /* An agent may still change it without inventing a source. */
+    expect((await h.tool("CalendarEdit").execute({ update: [{ id: added, importance: 3 }] }, h.ctx())).ok).toBe(true);
+    await expect(api("add", { startsAt: soon(3), category: "task", title: "  " })).rejects.toThrow("no title");
+    await expect(api("add", { startsAt: soon(3), category: "expiry", title: "x" })).rejects.toThrow(/computed/);
+  });
+
   it("shows the scheduled tasks' runs, tells the agents what is coming, serves the alerts", async () => {
     let service: CalendarService | undefined;
     const alerts = definePlugin({

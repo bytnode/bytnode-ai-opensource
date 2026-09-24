@@ -47,7 +47,8 @@ export type CalendarEvent = {
   /** A few lines of context, written by the agent. */
   notes?: string;
   /** The id of the agent that wrote it, when known (its name is in `source`
-      for a task, and the view names it from the settings). */
+      for a task, and the view names it from the settings) — or `USER`: the
+      user added it in the view. */
   by?: string;
   /** A task the agent marked done. */
   done?: true;
@@ -59,6 +60,9 @@ const DAY = 24 * 3600_000;
 export const RETENTION_DAYS = 30;
 const MAX_TITLE = 200;
 const MAX_NOTES = 1000;
+
+/** `by` of an entry the user added in the view: it needs no source. */
+export const USER = "user";
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
@@ -80,8 +84,9 @@ export function eventKey(day: string, title: string): string {
 }
 
 /** An entry as an agent writes it, checked: the entry, or why it is
-    rejected. `by`: the agent's name, the source of a task. */
-export function validateEvent(raw: unknown, now: Date, by = "an agent"): CalendarEvent | { error: string } {
+    rejected. `by`: the agent's name, the source of a task. `sourceless`:
+    the user's own entry — they vouch for it, no URL is asked. */
+export function validateEvent(raw: unknown, now: Date, by = "an agent", sourceless = false): CalendarEvent | { error: string } {
   if (!isRecord(raw)) return { error: "not an object" };
   const title = typeof raw.title === "string" ? raw.title.trim().slice(0, MAX_TITLE) : "";
   if (!title) return { error: "no title" };
@@ -96,7 +101,7 @@ export function validateEvent(raw: unknown, now: Date, by = "an agent"): Calenda
     /* rejected below */
   }
   if (parsed && !/^https?:$/.test(parsed.protocol)) parsed = null;
-  if (!parsed && (url || category !== "task")) return { error: `no source URL: "${title}"` };
+  if (!parsed && (url || (category !== "task" && !sourceless))) return { error: `no source URL: "${title}"` };
   const starts = typeof raw.startsAt === "string" ? Date.parse(raw.startsAt) : NaN;
   if (!Number.isFinite(starts)) return { error: `no valid date: "${title}"` };
   const importance = raw.importance === 1 || raw.importance === 2 || raw.importance === 3 ? raw.importance : 1;
