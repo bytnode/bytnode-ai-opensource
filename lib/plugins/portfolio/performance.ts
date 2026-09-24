@@ -53,13 +53,26 @@ export function dailyReturns(series: Candle[]): DayMove[] {
 export type Performance = {
   start: number;
   end: number;
+  /** The gain: the value's change less the money moved in or out. */
   change: number;
-  /** In %. */
+  /** In %, time-weighted: the performance, net of the money moved. */
   pct: number;
+  /** What the value did, money moved included. */
+  valueChange: number;
+  /** The money put in (positive) and taken out (negative, as a negative
+      number) over the period. */
+  moneyIn: number;
+  moneyOut: number;
   high: number;
+  highAt: number;
   low: number;
-  /** The deepest fall from a previous high, in % (0 or negative). */
+  lowAt: number;
+  /** The deepest fall from a previous high of the performance, in % (0
+      or negative): the money taken out is not a fall. */
   maxDrawdown: number;
+  /** The deepest fall of the value itself from a previous high, in % —
+      withdrawals and spending included. */
+  valueDrawdown: number;
   best: DayMove | null;
   worst: DayMove | null;
   /** Annualized, in %; null under two daily moves. */
@@ -82,7 +95,17 @@ export function performance(series: Candle[]): Performance | null {
     peak = Math.max(peak, index);
     maxDrawdown = Math.min(maxDrawdown, ((index - peak) / peak) * 100);
   }
-  const flows = series.slice(1).reduce((t, b) => t + (b.v || 0), 0);
+  const flows = series.slice(1).map((b) => b.v || 0);
+  const moneyIn = flows.filter((f) => f > 0).reduce((t, f) => t + f, 0);
+  const moneyOut = flows.filter((f) => f < 0).reduce((t, f) => t + f, 0);
+  let top = values[0];
+  let valueDrawdown = 0;
+  for (const v of values) {
+    top = Math.max(top, v);
+    if (top > 0) valueDrawdown = Math.min(valueDrawdown, ((v - top) / top) * 100);
+  }
+  const hi = values.indexOf(Math.max(...values));
+  const lo = values.indexOf(Math.min(...values));
   const best = moves.reduce<DayMove | null>((b, m) => (!b || m.pct > b.pct ? m : b), null);
   const worst = moves.reduce<DayMove | null>((w, m) => (!w || m.pct < w.pct ? m : w), null);
   let volatility: number | null = null;
@@ -95,11 +118,17 @@ export function performance(series: Candle[]): Performance | null {
     start,
     end,
     /* The gain: what the value did, less the money put in. */
-    change: end - start - flows,
+    change: end - start - moneyIn - moneyOut,
     pct: moves.length ? (index - 1) * 100 : 0,
-    high: Math.max(...values),
-    low: Math.min(...values),
+    valueChange: end - start,
+    moneyIn,
+    moneyOut,
+    high: values[hi],
+    highAt: series[hi].t,
+    low: values[lo],
+    lowAt: series[lo].t,
     maxDrawdown,
+    valueDrawdown,
     best,
     worst,
     volatility,

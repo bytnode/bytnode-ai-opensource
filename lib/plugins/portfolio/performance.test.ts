@@ -62,6 +62,19 @@ describe("performance", () => {
     expect(dayReturn(0, 50)).toBeUndefined();
   });
 
+  it("measures the value's own fall apart from the performance's", () => {
+    /* 600 → 40: 550 spent on day 2 (a flow), then −2.5 % on day 3. */
+    const bars = [600, 50, 48.75].map((c, i) => ({ t: i * D, o: c, h: c, l: c, c, v: i === 1 ? -550 : 0 }));
+    const q = performance(bars)!;
+    expect(q.maxDrawdown).toBeCloseTo(-2.5);
+    expect(q.valueDrawdown).toBeCloseTo(-91.875);
+    expect(q.valueChange).toBeCloseTo(-551.25);
+    expect(q.moneyOut).toBe(-550);
+    expect(q.moneyIn).toBe(0);
+    expect(q.change).toBeCloseTo(-1.25);
+    expect([q.highAt, q.lowAt]).toEqual([0, 2 * D]);
+  });
+
   it("needs two days", () => {
     expect(performance(series([100]))).toBeNull();
     expect(performance(series([100, 100]))?.maxDrawdown).toBe(0);

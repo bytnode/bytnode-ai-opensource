@@ -5,7 +5,7 @@ import type { Summary } from "@/lib/plugins/portfolio/aggregate";
 import { CurrencyMenu } from "./currency-menu";
 
 /* The left column, a navigator: the tab's name with the currency beside
-   it; "All portfolios" — the whole, its total and its move over the
+   it, then one block of tiles (the report's language): "All portfolios" — the whole, its total and its move over the
    period — then each account, to see it on its own: its LIVE / TESTNET
    badge (never dropped: which money is real is a guarantee of the app),
    its exchange, its value and its share of the whole as a thin bar, or
@@ -44,65 +44,63 @@ export function Side({ summary, known, problem, scope, onScope, currency, onCurr
         <CurrencyMenu value={currency} onChange={onCurrency} />
       </header>
 
-      {summary && (
-        <button type="button" className={`pfv-whole${scope === ALL ? " is-on" : ""}`} aria-pressed={scope === ALL} onClick={() => onScope(ALL)}>
-          <span className="pfv-whole-label">All portfolios</span>
-          <span className="pfv-whole-value">{value(total)}</span>
-          <span className="pfv-whole-sub">
-            {accounts.filter((a) => !a.testnet).length} live account{accounts.filter((a) => !a.testnet).length === 1 ? "" : "s"}
-            {move && <b className={move.tone}>{move.text}</b>}
-          </span>
-        </button>
-      )}
+      {(summary || known.length > 0) && (
+        <nav className="pfv-nav" aria-label="Portfolios">
+          {summary && (
+            <button type="button" className={`pfv-whole${scope === ALL ? " is-on" : ""}`} aria-pressed={scope === ALL} onClick={() => onScope(ALL)}>
+              <span className="pfv-whole-label">All portfolios</span>
+              <span className="pfv-whole-value">{value(total)}</span>
+              <span className="pfv-whole-sub">
+                {accounts.filter((a) => !a.testnet).length} live account{accounts.filter((a) => !a.testnet).length === 1 ? "" : "s"}
+                {move && <b className={move.tone}>{move.text}</b>}
+              </span>
+            </button>
+          )}
 
-      {!summary && known.length > 0 && (
-        <>
-          <p className="pfv-side-title">Accounts</p>
-          <ul className="pfv-accounts">
-            {known.map((a) => (
-              <li key={a.id}>
-                <div className="pfv-account is-pending">
-                  <span className="pfv-account-top">
-                    <span className={`xch-badge${a.testnet ? "" : " is-live"}`}>{a.testnet ? "TESTNET" : "LIVE"}</span>
-                    <b>{a.label}</b>
-                  </span>
-                  <span className="pfv-account-sub">{problem ? `Not read: ${problem}` : `${a.exchange} · reading the balances…`}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      {accounts.length > 0 && (
-        <>
-          <p className="pfv-side-title">Accounts</p>
-          <ul className="pfv-accounts">
-            {accounts.map((a) => {
-              const key = accountKey(a);
-              const share = !a.testnet && total > 0 ? a.usd / total : 0;
-              return (
-                <li key={key}>
-                  <button type="button" className={`pfv-account${scope === key ? " is-on" : ""}${a.error ? " is-error" : ""}`} aria-pressed={scope === key} onClick={() => onScope(key)}>
+          {!summary && (
+            <ul className="pfv-accounts">
+              {known.map((a) => (
+                <li key={a.id}>
+                  <div className="pfv-account is-pending">
                     <span className="pfv-account-top">
                       <span className={`xch-badge${a.testnet ? "" : " is-live"}`}>{a.testnet ? "TESTNET" : "LIVE"}</span>
                       <b>{a.label}</b>
-                      <span className="pfv-account-value">{value(a.usd)}</span>
                     </span>
-                    <span className="pfv-account-sub">
-                      {a.error ? `Could not be read: ${a.error}` : `${a.exchange}${a.testnet ? " · not counted" : ` · ${(share * 100).toFixed(1)} %`}${a.unpriced ? ` · ${a.unpriced} unpriced` : ""}`}
-                    </span>
-                    {!a.testnet && !a.error && (
-                      <span className="pfv-account-bar" aria-hidden>
-                        <i style={{ "--w": `${share * 100}%` } as CSSProperties} />
-                      </span>
-                    )}
-                  </button>
+                    <span className="pfv-account-sub">{problem ? `Not read: ${problem}` : `${a.exchange} · reading the balances…`}</span>
+                  </div>
                 </li>
-              );
-            })}
-          </ul>
-        </>
+              ))}
+            </ul>
+          )}
+
+          {accounts.length > 0 && (
+            <ul className="pfv-accounts">
+              {accounts.map((a) => {
+                const key = accountKey(a);
+                const share = !a.testnet && total > 0 ? a.usd / total : 0;
+                return (
+                  <li key={key}>
+                    <button type="button" className={`pfv-account${scope === key ? " is-on" : ""}${a.error ? " is-error" : ""}`} aria-pressed={scope === key} onClick={() => onScope(key)}>
+                      <span className="pfv-account-top">
+                        <span className={`xch-badge${a.testnet ? "" : " is-live"}`}>{a.testnet ? "TESTNET" : "LIVE"}</span>
+                        <b>{a.label}</b>
+                        <span className="pfv-account-value">{value(a.usd)}</span>
+                      </span>
+                      <span className="pfv-account-sub">
+                        {a.error ? `Could not be read: ${a.error}` : `${a.exchange}${a.testnet ? " · not counted" : ` · ${(share * 100).toFixed(1)} %`}${a.unpriced ? ` · ${a.unpriced} unpriced` : ""}`}
+                      </span>
+                      {!a.testnet && !a.error && (
+                        <span className="pfv-account-bar" aria-hidden>
+                          <i style={{ "--w": `${share * 100}%` } as CSSProperties} />
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </nav>
       )}
     </section>
   );

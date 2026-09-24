@@ -81,6 +81,9 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
   const positions = account ? summary.positions.filter((p) => p.label === account.label && p.testnet === account.testnet) : summary.positions.filter((p) => !p.testnet);
   const total = account ? account.usd : summary.totalUsd;
   const inCur = (native: number) => `${native.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+  const money = (native: number) => `${native >= 0 ? "+" : "−"}${inCur(Math.abs(native))}`;
+  /* A figure without its currency, where the cell's value already says it. */
+  const bare = (native: number) => native.toLocaleString("en-US", { maximumFractionDigits: native >= 1000 ? 0 : 2 });
 
   const slices = allocation(assets);
   const parts: Part[] = slices.map((s, i) => ({ key: s.asset, label: s.asset, value: s.usd, tone: s.asset === "Other" ? "var(--alloc-other)" : TONES[i] }));
@@ -108,29 +111,29 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
 
   return (
     <>
-      {/* The value, and its move over the period. */}
+      {/* The value, and its performance over the period — one line, the
+          move as the watchlist writes it. */}
       <div className="pfv-hero">
-        <div>
-          <p className="pfv-hero-value">
-            <span>{(total * perUsd).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            <small>{currency}</small>
-          </p>
-          {perf ? (
-            <p className={`pfv-hero-move ${toneOf(perf.pct)}`}>
+        <p className="pfv-hero-value">
+          <span>{(total * perUsd).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <small>{currency}</small>
+        </p>
+        {perf ? (
+          <p className="pfv-hero-move">
+            <b className="wlv-pill" style={{ "--tone": perf.pct > 0 ? "var(--up)" : perf.pct < 0 ? "var(--down)" : "var(--label-3)" } as CSSProperties}>
               {signed(perf.pct)}
-              <span>
-                {perf.change >= 0 ? "+" : "−"}
-                {inCur(Math.abs(perf.change))} over {PERIODS.find((p) => p.value === period)?.label}
-              </span>
-            </p>
-          ) : (
-            <p className="pfv-hero-note">The move appears after two daily snapshots.</p>
-          )}
-        </div>
+            </b>
+            <span>
+              {money(perf.change)} gained over {PERIODS.find((p) => p.value === period)?.label}
+            </span>
+          </p>
+        ) : (
+          <p className="pfv-hero-note">The move appears after two daily snapshots.</p>
+        )}
         <Segmented label="Period" value={period} options={PERIODS} onChange={onPeriod} />
       </div>
 
-      <Part title="Performance" sub={origin === "ledger" ? "rebuilt from the exchange's ledger — trades, fees, deposits, withdrawals — at each day's price" : origin === "mixed" ? "rebuilt from the exchanges' ledgers; estimated from today's holdings where an exchange has none" : origin === "estimate" ? "estimated from today's holdings at past prices: this exchange gives no ledger" : whole ? "one snapshot of the total a day, while the app is open" : "one snapshot of this account a day, while the app is open"}>
+      <Part title="Performance" sub={origin === "ledger" ? "from the exchanges' records, at each day's close" : origin === "mixed" ? "from the exchanges' records, estimated where one has none" : origin === "estimate" ? "estimated from today's holdings at past prices" : "a daily snapshot, while the app is open"}>
           {lacking.map(([id, a]) => {
             const name = exchangeInfo(a.exchange)?.label ?? a.exchange;
             const label = labelOf.get(id)?.label;
@@ -165,10 +168,15 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
             <PriceChart candles={series} interval="1d" mode="line" fit returns message={series.length < 2 ? (whole ? "The curve appears after two daily snapshots." : account?.testnet ? "A testnet account is never recorded: no curve." : "This account's curve starts with its first daily snapshots.") : null} />
           </div>
           <div className="wlv-insights pfv-metrics" style={{ "--cols": 5 } as CSSProperties}>
-            <Metric label="Return" value={perf ? signed(perf.pct) : "—"} tone={toneOf(perf?.pct)} sub={perf ? `${perf.change >= 0 ? "+" : "−"}${inCur(Math.abs(perf.change))}` : "—"} />
-            <Metric label="High · Low" value={perf ? inCur(perf.high) : "—"} sub={perf ? `low ${inCur(perf.low)}` : "—"} />
-            <Metric label="Max drawdown" value={perf ? signed(perf.maxDrawdown) : "—"} tone={perf && perf.maxDrawdown < 0 ? "is-down" : undefined} sub="deepest fall from a high" />
-            <Metric label="Best · Worst day" value={perf?.best ? signed(perf.best.pct) : "—"} tone={perf?.best ? "is-up" : undefined} sub={perf?.worst ? `${signed(perf.worst.pct)} on ${dayOf(perf.worst.t)}` : "—"} />
+            <Metric label="Return" value={perf ? signed(perf.pct) : "—"} tone={toneOf(perf?.pct)} sub={perf ? `${money(perf.change)} gained` : "—"} />
+            <Metric label="Value change" value={perf ? money(perf.valueChange) : "—"} tone={toneOf(perf?.valueChange)} sub={perf ? `from ${bare(perf.start)} to ${bare(perf.end)}` : "—"} />
+            <Metric label="Money moved" value={perf ? money(perf.moneyIn + perf.moneyOut) : "—"} sub={!perf ? "—" : perf.moneyIn || perf.moneyOut ? `${bare(perf.moneyIn)} in · ${bare(Math.abs(perf.moneyOut))} out` : "no deposit nor withdrawal"} />
+            <Metric label="High" value={perf ? inCur(perf.high) : "—"} sub={perf ? `on ${dayOf(perf.highAt)}` : "—"} />
+            <Metric label="Low" value={perf ? inCur(perf.low) : "—"} sub={perf ? `on ${dayOf(perf.lowAt)}` : "—"} />
+            <Metric label="Max drawdown" value={perf ? signed(perf.maxDrawdown) : "—"} tone={perf && perf.maxDrawdown < 0 ? "is-down" : undefined} sub="of the performance" />
+            <Metric label="Deepest value fall" value={perf ? signed(perf.valueDrawdown) : "—"} tone={perf && perf.valueDrawdown < 0 ? "is-down" : undefined} sub="money taken out included" />
+            <Metric label="Best day" value={perf?.best ? signed(perf.best.pct) : "—"} tone={perf?.best && perf.best.pct > 0 ? "is-up" : undefined} sub={perf?.best ? `on ${dayOf(perf.best.t)}` : "—"} />
+            <Metric label="Worst day" value={perf?.worst ? signed(perf.worst.pct) : "—"} tone={perf?.worst && perf.worst.pct < 0 ? "is-down" : undefined} sub={perf?.worst ? `on ${dayOf(perf.worst.t)}` : "—"} />
             <Metric label="Volatility" value={perf?.volatility != null ? `${perf.volatility.toFixed(1)} %` : "—"} sub="annualized, daily moves" />
           </div>
       </Part>
