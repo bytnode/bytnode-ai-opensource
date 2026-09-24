@@ -91,7 +91,6 @@ html[data-theme="light"] .dcv {
   border-radius: var(--r-block);
 }
 
-.dcv-whole,
 .dcv-item {
   width: 100%;
   border: 0;
@@ -103,53 +102,18 @@ html[data-theme="light"] .dcv {
   cursor: pointer;
 }
 
-.dcv-whole:hover,
 .dcv-item:hover {
   background: var(--tile-today);
 }
 
-.dcv-whole.is-on,
 .dcv-item.is-on {
   background: color-mix(in srgb, var(--dca-accent) 14%, var(--tile));
   box-shadow: inset 3px 0 0 var(--dca-accent);
 }
 
-.dcv-whole:focus-visible,
 .dcv-item:focus-visible {
   outline: 2px solid var(--dca-accent);
   outline-offset: -2px;
-}
-
-.dcv-whole {
-  display: grid;
-  gap: 3px;
-  padding: 14px 16px 14px 18px;
-}
-
-.dcv-whole-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--label-2);
-}
-
-.dcv-whole-value {
-  font-family: var(--font-display), sans-serif;
-  font-size: 22px;
-  font-weight: 400;
-  letter-spacing: -0.02em;
-}
-
-.dcv-whole-sub {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--label-3);
-}
-
-.dcv-whole-sub b {
-  font-weight: 650;
-  color: var(--tone, var(--label-2));
 }
 
 .dcv-item {
@@ -405,30 +369,7 @@ html[data-theme="light"] .dcv {
   padding: 18px 22px;
 }
 
-/* A plan's settings: one tile block, a cell each. */
-.dcv-settings {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: var(--tile-gap);
-  overflow: hidden;
-  border-radius: var(--r-block);
-}
-
-.dcv-setting {
-  display: grid;
-  align-content: start;
-  gap: 8px;
-  min-width: 0;
-  padding: 16px 20px 18px;
-  background: var(--tile);
-  font-size: 14px;
-}
-
-.dcv-setting b {
-  font-weight: 500;
-}
-
-/* The plans of a group, or of all: rows of tiles. */
+/* A group's DCAs: rows of tiles. */
 .dcv-plans {
   display: grid;
   gap: var(--tile-gap);
@@ -546,22 +487,202 @@ html[data-theme="light"] .dcv {
   background: var(--tile);
 }
 
-/* --- A new plan ----------------------------------------------------------- */
+.dcv-sentence {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: var(--r);
+  background: color-mix(in srgb, var(--dca-accent) 10%, transparent);
+  box-shadow: inset 3px 0 0 var(--dca-accent);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--label-2);
+}
 
-.dcv-form {
+.dcv-sentence.is-real {
+  background: color-mix(in srgb, var(--cal-unlock) 12%, transparent);
+  box-shadow: inset 3px 0 0 var(--cal-unlock);
+}
+
+/* A DCA's group, in its sheet's subtitle: back to the group. */
+.dcv-crumb {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dca-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.dcv-crumb:hover {
+  text-decoration: underline;
+}
+
+/* An empty group: one thing to do. */
+.dcv-start {
   display: grid;
-  gap: 22px;
-  max-width: 640px;
-  margin: 26px var(--side) 0;
-  padding: 24px 26px 22px;
+  justify-items: center;
+  gap: 10px;
+  width: calc(100% - 2 * var(--side));
+  margin: 34px var(--side) 0;
+  padding: 56px 32px 52px;
+  border: 1.5px dashed color-mix(in srgb, var(--dca-accent) 45%, transparent);
   border-radius: var(--r-block);
+  background: color-mix(in srgb, var(--dca-accent) 6%, var(--tile));
+  color: var(--label-3);
+  font: inherit;
+  font-size: 13.5px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.dcv-start:hover {
+  background: color-mix(in srgb, var(--dca-accent) 11%, var(--tile));
+}
+
+.dcv-start:focus-visible {
+  outline: 2px solid var(--dca-accent);
+  outline-offset: 2px;
+}
+
+.dcv-start b {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--label);
+}
+
+.dcv-start span:last-child {
+  max-width: 420px;
+  line-height: 1.5;
+}
+
+.dcv-start-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: var(--dca-accent);
+  color: #fff;
+}
+
+.dcv-start-icon svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.dcv-button svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* --- A DCA's configuration --------------------------------------------------
+   Left, the settings, a block per section and a row per setting (its name,
+   its control, a hint); right, what it will do — kept in view. */
+
+.dcv-config {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  align-items: start;
+  gap: 22px;
+  padding: 24px var(--side) 0;
+}
+
+.dcv-config-main {
+  display: grid;
+  gap: 26px;
+  min-width: 0;
+}
+
+.dcv-block-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
+.dcv-block-head h3 {
+  margin: 0;
+  font-size: 15.5px;
+  font-weight: 650;
+}
+
+.dcv-block-head span {
+  font-size: 12.5px;
+  color: var(--label-3);
+}
+
+.dcv-rows {
+  display: grid;
+  gap: var(--tile-gap);
+  overflow: visible;
+  border-radius: var(--r-block);
+}
+
+.dcv-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+  min-height: 60px;
+  padding: 12px 20px;
   background: var(--tile);
 }
 
-.dcv-field {
+.dcv-row:first-child {
+  border-radius: var(--r-block) var(--r-block) 0 0;
+}
+
+.dcv-row:last-child {
+  border-radius: 0 0 var(--r-block) var(--r-block);
+}
+
+.dcv-row:only-child {
+  border-radius: var(--r-block);
+}
+
+.dcv-row-label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.dcv-row-control {
   display: grid;
-  gap: 10px;
+  gap: 6px;
   min-width: 0;
+}
+
+.dcv-row-control .seg {
+  justify-self: start;
+  max-width: 100%;
+  border-radius: var(--r-sm);
+}
+
+.dcv-row-control .seg button {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 9px;
+}
+
+.dcv-row-hint {
+  font-size: 12px;
+  color: var(--label-3);
+}
+
+.dcv-fixed {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.dcv-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
 }
 
 .dcv-amount {
@@ -581,47 +702,109 @@ html[data-theme="light"] .dcv {
   color: var(--label-2);
 }
 
-.dcv-when {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-
-.dcv-days {
-  width: 150px;
+.dcv-short {
+  width: 190px;
 }
 
 .dcv-time {
-  width: 120px;
+  width: 130px;
 }
 
-.dcv-form .seg {
-  justify-self: start;
-  max-width: 100%;
-  border-radius: var(--r-sm);
+.dcv-date {
+  width: 210px;
 }
 
-.dcv-form .seg button {
-  height: 30px;
-  padding: 0 12px;
-  border-radius: 9px;
+/* What it will do. */
+.dcv-summary {
+  position: sticky;
+  top: 12px;
+  display: grid;
+  gap: 18px;
+  padding: 20px 20px 18px;
+  border-radius: var(--r-block);
+  background: var(--tile);
 }
 
-.dcv-sentence {
+.dcv-summary-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dcv-summary-head b {
+  overflow: hidden;
+  font-family: var(--font-display), sans-serif;
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dcv-facts {
+  display: grid;
+  gap: 10px;
   margin: 0;
-  padding: 12px 16px;
-  border-radius: var(--r);
-  background: color-mix(in srgb, var(--dca-accent) 10%, transparent);
-  box-shadow: inset 3px 0 0 var(--dca-accent);
-  font-size: 13.5px;
-  line-height: 1.5;
-  color: var(--label-2);
 }
 
-.dcv-sentence.is-real {
-  background: color-mix(in srgb, var(--cal-unlock) 12%, transparent);
-  box-shadow: inset 3px 0 0 var(--cal-unlock);
+.dcv-fact {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  font-size: 13.5px;
+}
+
+.dcv-fact dt {
+  flex: none;
+  color: var(--label-3);
+}
+
+.dcv-fact dd {
+  margin: 0;
+  font-weight: 500;
+  text-align: right;
+}
+
+.dcv-next ol {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: next;
+}
+
+.dcv-next li {
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--label-2);
+  counter-increment: next;
+}
+
+.dcv-next li::before {
+  content: counter(next);
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--dca-accent) 18%, transparent);
+  color: var(--dca-accent);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+@media (max-width: 980px) {
+  .dcv-config {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dcv-summary {
+    position: static;
+  }
 }
 
 @media (max-width: 760px) {
@@ -642,7 +825,8 @@ html[data-theme="light"] .dcv {
     grid-column: 1 / -1;
   }
 
-  .dcv-form {
-    padding: 20px 18px;
+  .dcv-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
   }
 }

@@ -8,9 +8,9 @@ import { dcaCreateTool } from "./dca-create";
 import { dcaListTool } from "./dca-list";
 import { dcaPauseTool } from "./dca-pause";
 import { dcaManifest } from "./manifest";
-import { advance, changePlan, dueNow, newPlan, readOrderOutcome, summarize, type DcaPlan, type PlanAction, type Purchase } from "./plans";
+import { advance, changePlan, dueNow, editPlan, newPlan, readOrderOutcome, summarize, type DcaPlan, type PlanAction, type Purchase } from "./plans";
 import { precheck } from "./precheck";
-import { addGroup, curveDays, groupNamed, movePlan, planCurve, renameGroup, seedGroups, ungroup, type DcaGroup } from "./groups";
+import { DEFAULT_GROUP, adoptLoose, addGroup, curveDays, groupNamed, movePlan, planCurve, renameGroup, seedGroups, type DcaGroup } from "./groups";
 import { candles, isQuote, quotes } from "../shared/prices";
 import type { Candle } from "../shared/candle";
 
@@ -40,8 +40,25 @@ export const dcaPlugin = definePlugin({
     const plans = () => ctx.store.read<DcaPlan[]>(PLANS, []);
     const purchases = () => ctx.store.read<Purchase[]>(PURCHASES, []);
     const groups = () => ctx.store.read<DcaGroup[]>(GROUPS, []);
-    /** A group by name, made when there is none (the agents' tool). */
+    /** A group ready the first time (the default one), and every DCA in a
+       group: done before the state is read and before a DCA is made. */
+    const settle = async () => {
+      if ((await ctx.store.read<DcaGroup[] | null>(GROUPS, null)) === null) await ctx.store.update<DcaGroup[] | null>(GROUPS, null, (stored) => seedGroups(stored, randomUUID().slice(0, 8), new Date()));
+      const [list, known] = await Promise.all([plans(), groups()]);
+      const r = adoptLoose(list, known, randomUUID().slice(0, 8), new Date());
+      if (!r.changed) return;
+      await ctx.store.write(GROUPS, r.groups);
+      await ctx.store.update<DcaPlan[]>(PLANS, [], (current) => adoptLoose(current, r.groups, "", new Date()).plans);
+    };
+    /** A group by name, made when there is none; no name: the first (the
+       agents' tool, a DCA made without one). */
     const groupFor = async (name: string): Promise<DcaGroup | { error: string }> => {
+      await settle();
+      if (!name.trim()) {
+        const first = (await groups())[0];
+        if (first) return first;
+        name = DEFAULT_GROUP;
+      }
       const found = groupNamed(await groups(), name);
       if (found) return found;
       let result = { error: "" } as ReturnType<typeof addGroup>;
@@ -132,8 +149,9 @@ export const dcaPlugin = definePlugin({
     /* --- The view ---------------------------------------------------------- */
 
     ctx.api("state", async () => {
-      /* The tab opens with a group ready ("My DCA"), made the first time. */
-      if ((await ctx.store.read<DcaGroup[] | null>(GROUPS, null)) === null) await ctx.store.update<DcaGroup[] | null>(GROUPS, null, (stored) => seedGroups(stored, randomUUID().slice(0, 8), new Date()));
+      /* The tab opens with a group ready ("My DCA"), made the first time;
+         a DCA from before the groups is taken into the first. */
+      await settle();
       const [list, all, known] = await Promise.all([plans(), purchases(), groups()]);
       return {
         plans: list.map((plan) => ({ ...plan, summary: summarize(all.filter((p) => p.planId === plan.id)) })),
@@ -178,8 +196,8 @@ export const dcaPlugin = definePlugin({
           return list.filter((g) => g.id !== id);
         });
         if (!known) throw new Error("No such group.");
-        /* Its plans stay, listed on their own. */
-        await ctx.store.update<DcaPlan[]>(PLANS, [], (list) => ungroup(list, id));
+        /* Its DCAs go with it: they stop (what they bought stays). */
+        await ctx.store.update<DcaPlan[]>(PLANS, [], (list) => list.filter((p) => p.groupId !== id));
         return { deleted: id };
       }
       let result = { error: "" } as ReturnType<typeof addGroup>;
@@ -192,7 +210,7 @@ export const dcaPlugin = definePlugin({
     });
     ctx.api("move", async (params) => {
       const planId = typeof params.id === "string" ? params.id : "";
-      const groupId = typeof params.groupId === "string" && params.groupId ? params.groupId : null;
+      const groupId = typeof params.groupId === "string" ? params.groupId : "";
       const known = await groups();
       let result = { error: "" } as ReturnType<typeof movePlan>;
       await ctx.store.update<DcaPlan[]>(PLANS, [], (list) => {
@@ -204,12 +222,37 @@ export const dcaPlugin = definePlugin({
     });
     ctx.api("create", async (params, { transport }) => {
       const accountId = typeof params.accountId === "string" && transport.exchangeAccounts.some((a) => a.id === params.accountId) ? params.accountId : undefined;
-      const groupId = typeof params.groupId === "string" && (await groups()).some((g) => g.id === params.groupId) ? params.groupId : undefined;
-      const plan = newPlan({ ...params, accountId, groupId }, randomUUID().slice(0, 8), new Date());
+      /* Every DCA in a group: the one asked, else the first. */
+      const asked = typeof params.groupId === "string" ? (await groups()).find((g) => g.id === params.groupId) : undefined;
+      const home = asked ?? (await groupFor(""));
+      if ("error" in home) throw new Error(home.error);
+      const plan = newPlan({ ...params, accountId, groupId: home.id }, randomUUID().slice(0, 8), new Date());
       if ("error" in plan) throw new Error(plan.error);
       if (plan.destination === "paper" && plan.symbol.split("/")[1] !== paper.cash) throw new Error(`The paper portfolio trades against ${paper.cash}: use ${plan.symbol.split("/")[0]}/${paper.cash}.`);
       await add(plan);
       return plan;
+    });
+    ctx.api("edit", async (params) => {
+      const id = typeof params.id === "string" ? params.id : "";
+      const patch = { quoteAmount: params.quoteAmount, frequency: params.frequency, endAt: params.endAt, name: params.name, note: params.note };
+      let result = { error: "" } as ReturnType<typeof editPlan>;
+      await ctx.store.update<DcaPlan[]>(PLANS, [], (list) => {
+        result = editPlan(list, id, patch, new Date());
+        return "error" in result ? list : result.plans;
+      });
+      if ("error" in result) throw new Error(result.error);
+      /* A group asked too: moved there. */
+      if (typeof params.groupId === "string" && params.groupId !== result.plan.groupId) {
+        const known = await groups();
+        let moved = { error: "" } as ReturnType<typeof movePlan>;
+        await ctx.store.update<DcaPlan[]>(PLANS, [], (list) => {
+          moved = movePlan(list, known, id, params.groupId as string);
+          return "error" in moved ? list : moved.plans;
+        });
+        if ("error" in moved) throw new Error(moved.error);
+        return moved.plan;
+      }
+      return result.plan;
     });
     ctx.api("update", async (params) => {
       const action = (["pause", "resume", "delete"] as const).find((a) => a === params.action);

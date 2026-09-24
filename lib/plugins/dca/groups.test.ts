@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_GROUP, addGroup, curveDays, groupNamed, movePlan, planCurve, removeGroup, renameGroup, seedGroups } from "./groups";
+import { DEFAULT_GROUP, adoptLoose, addGroup, curveDays, groupNamed, movePlan, planCurve, removeGroup, renameGroup, seedGroups } from "./groups";
 import type { DcaPlan, Purchase } from "./plans";
 
 const now = new Date("2026-09-24T10:00:00Z");
@@ -28,22 +28,28 @@ describe("groups", () => {
     expect(renameGroup(groups, "g1", "Core")).toEqual({ error: 'A group is already named "Core".' });
   });
 
-  it("deletes a group and keeps its plans, ungrouped", () => {
-    const r = removeGroup([{ id: "g1", name: "Alts", createdAt: "" }], [plan("a", "SOL/USDT", "g1"), plan("b", "BTC/USDT")], "g1");
-    expect("error" in r ? r.error : r.plans.map((p) => [p.id, p.groupId])).toEqual([
-      ["a", undefined],
-      ["b", undefined],
-    ]);
-    expect("error" in r ? r.error : r.groups).toEqual([]);
+  it("deletes a group with its DCAs", () => {
+    const r = removeGroup([{ id: "g1", name: "Alts", createdAt: "" }, { id: "g2", name: "Core", createdAt: "" }], [plan("a", "SOL/USDT", "g1"), plan("b", "BTC/USDT", "g2")], "g1");
+    expect("error" in r ? r.error : r.plans.map((p) => p.id)).toEqual(["b"]);
+    expect("error" in r ? r.error : r.groups.map((g) => g.id)).toEqual(["g2"]);
   });
 
-  it("moves a plan into a group, and out", () => {
+  it("moves a DCA into another group", () => {
     const groups = [{ id: "g1", name: "Alts", createdAt: "" }];
     const into = movePlan([plan("a", "SOL/USDT")], groups, "a", "g1");
     expect("error" in into ? into.error : into.plan.groupId).toBe("g1");
-    const out = movePlan([plan("a", "SOL/USDT", "g1")], groups, "a", null);
-    expect("error" in out ? out.error : "groupId" in out.plan).toBe(false);
     expect(movePlan([plan("a", "SOL/USDT")], groups, "a", "nope")).toEqual({ error: "No such group." });
+  });
+
+  it("takes every DCA in no group into the first one, made when there is none", () => {
+    const groups = [{ id: "g1", name: "Alts", createdAt: "" }];
+    const r = adoptLoose([plan("a", "SOL/USDT"), plan("b", "BTC/USDT", "gone"), plan("c", "ETH/USDT", "g1")], groups, "g0", now);
+    expect(r.changed).toBe(true);
+    expect(r.plans.map((p) => p.groupId)).toEqual(["g1", "g1", "g1"]);
+    const none = adoptLoose([plan("a", "SOL/USDT")], [], "g0", now);
+    expect(none.groups.map((g) => [g.id, g.name])).toEqual([["g0", DEFAULT_GROUP]]);
+    expect(none.plans[0].groupId).toBe("g0");
+    expect(adoptLoose([plan("c", "ETH/USDT", "g1")], groups, "g0", now).changed).toBe(false);
   });
 });
 

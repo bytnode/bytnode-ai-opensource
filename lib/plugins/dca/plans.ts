@@ -26,7 +26,9 @@ export type DcaPlan = {
   startAt: string;
   endAt?: string;
   note?: string;
-  /** The group (`groups.ts`) it is listed under; none: listed on its own. */
+  /** What the user calls it ("BTC every Monday"); absent: its pair. */
+  name?: string;
+  /** Its group (`groups.ts`): every DCA belongs to one. */
   groupId?: string;
   status: "active" | "paused" | "ended";
   createdAt: string;
@@ -57,9 +59,14 @@ const MIN_INTERVAL_MINUTES = 60;
 /** A due date older than this when checked was missed (app closed). */
 export const GRACE_MS = 10 * 60_000;
 
-export type PlanInput = { symbol?: unknown; quoteAmount?: unknown; frequency?: unknown; destination?: unknown; accountId?: string; startAt?: unknown; endAt?: unknown; note?: unknown; groupId?: string };
+export type PlanInput = { symbol?: unknown; quoteAmount?: unknown; frequency?: unknown; destination?: unknown; accountId?: string; startAt?: unknown; endAt?: unknown; note?: unknown; name?: unknown; groupId?: string };
 
-const firstDue = (f: Frequency, start: number) => (f.kind === "interval" ? start : nextRun(f, start - 1));
+/** The first due date from `start` on: an interval starts at once, a time
+    of day at its first occurrence. */
+export const firstDue = (f: Frequency, start: number) => (f.kind === "interval" ? start : nextRun(f, start - 1));
+
+const MAX_NAME = 60;
+const cleanName = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim().replace(/\s+/g, " ").slice(0, MAX_NAME) : undefined);
 
 export function newPlan(input: PlanInput, id: string, now: Date): DcaPlan | { error: string } {
   const symbol = typeof input.symbol === "string" ? normalizeSymbol(input.symbol) : null;
@@ -79,6 +86,7 @@ export function newPlan(input: PlanInput, id: string, now: Date): DcaPlan | { er
   if (end !== undefined && !(end > start)) return { error: "The end must come after the start." };
   const due = firstDue(f, Math.max(start, now.getTime()));
   const note = typeof input.note === "string" && input.note.trim() ? input.note.trim().slice(0, 200) : undefined;
+  const name = cleanName(input.name);
   return {
     id,
     symbol,
@@ -89,6 +97,7 @@ export function newPlan(input: PlanInput, id: string, now: Date): DcaPlan | { er
     startAt: new Date(start).toISOString(),
     ...(end !== undefined ? { endAt: new Date(end).toISOString() } : {}),
     ...(note ? { note } : {}),
+    ...(name ? { name } : {}),
     ...(input.groupId ? { groupId: input.groupId } : {}),
     status: end !== undefined && due > end ? "ended" : "active",
     createdAt: now.toISOString(),
@@ -130,6 +139,64 @@ export function changePlan(plans: DcaPlan[], id: string, action: PlanAction, now
   if (plan.status === "ended") return { error: `The plan ${plan.id} has ended.` };
   const changed: DcaPlan = action === "pause" ? { ...plan, status: "paused" } : plan.status === "paused" ? advance({ ...plan, status: "active" }, now) : plan;
   return { plans: plans.map((p) => (p === plan ? changed : p)), plan: changed };
+}
+
+export type PlanEdit = { quoteAmount?: unknown; frequency?: unknown; endAt?: unknown; name?: unknown; note?: unknown };
+
+/** A DCA's settings changed: its amount, its frequency (the next due date
+    counted again from now), its end (`null` or "" removes it; an end
+    already passed ends it, a later one brings an ended DCA back), its name
+    and its note. Where it buys never changes: that is a new DCA. */
+export function editPlan(plans: DcaPlan[], id: string, patch: PlanEdit, now: Date): { plans: DcaPlan[]; plan: DcaPlan } | { error: string } {
+  const found = plans.find((p) => p.id === id);
+  if (!found) return { error: `No DCA plan "${id}".` };
+  const plan: DcaPlan = { ...found };
+  if (patch.quoteAmount !== undefined) {
+    if (!(typeof patch.quoteAmount === "number" && patch.quoteAmount > 0)) return { error: "The amount each time must be above zero." };
+    plan.quoteAmount = patch.quoteAmount;
+  }
+  let f = parseFrequency(plan.frequency);
+  let rescheduled = false;
+  if (patch.frequency !== undefined && patch.frequency !== plan.frequency) {
+    const text = typeof patch.frequency === "string" ? patch.frequency.trim() : "";
+    const g = parseFrequency(text);
+    if ("error" in g) return { error: g.error };
+    if (g.kind === "interval" && g.minutes < MIN_INTERVAL_MINUTES) return { error: "A recurring purchase happens at most every hour." };
+    plan.frequency = text;
+    f = g;
+    rescheduled = true;
+  }
+  if (patch.endAt !== undefined) {
+    if (patch.endAt === null || patch.endAt === "") delete plan.endAt;
+    else {
+      const end = typeof patch.endAt === "string" ? Date.parse(patch.endAt) : NaN;
+      if (!Number.isFinite(end)) return { error: `Not a date: ${String(patch.endAt)}.` };
+      plan.endAt = new Date(end).toISOString();
+    }
+  }
+  if (patch.name !== undefined) {
+    const name = cleanName(patch.name);
+    if (name) plan.name = name;
+    else delete plan.name;
+  }
+  if (patch.note !== undefined) {
+    const note = typeof patch.note === "string" && patch.note.trim() ? patch.note.trim().slice(0, 200) : undefined;
+    if (note) plan.note = note;
+    else delete plan.note;
+  }
+  if ("error" in f) return { error: f.error };
+  /* The next due date, when the schedule or the end moved. */
+  if (plan.status !== "paused" && (rescheduled || patch.endAt !== undefined)) {
+    const next = rescheduled || plan.status === "ended" || !plan.nextDue ? firstDue(f, Math.max(Date.parse(plan.startAt) || 0, now.getTime())) : Date.parse(plan.nextDue);
+    if (plan.endAt && next > Date.parse(plan.endAt)) {
+      plan.status = "ended";
+      delete plan.nextDue;
+    } else {
+      plan.status = "active";
+      plan.nextDue = new Date(next).toISOString();
+    }
+  } else if (rescheduled && plan.status === "paused") plan.nextDue = new Date(firstDue(f, now.getTime())).toISOString();
+  return { plans: plans.map((p) => (p.id === id ? plan : p)), plan };
 }
 
 export type PlanSummary = { purchases: number; invested: number; amount: number; average?: number; pending: number };

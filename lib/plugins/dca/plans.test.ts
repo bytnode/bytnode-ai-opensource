@@ -1,10 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { advance, changePlan, dueNow, newPlan, readOrderOutcome, summarize, type DcaPlan, type Purchase } from "./plans";
+import { advance, changePlan, dueNow, editPlan, newPlan, readOrderOutcome, summarize, type DcaPlan, type Purchase } from "./plans";
 import { planLine, purchaseLine } from "./present";
 
 const now = new Date(2026, 8, 23, 10, 0);
 const plan = (over: Record<string, unknown> = {}) => newPlan({ symbol: "btc", quoteAmount: 100, frequency: "every monday at 09:00", destination: "paper", ...over }, "p1", now) as DcaPlan;
 const at = (d: number, h: number, m = 0) => new Date(2026, 8, d, h, m);
+
+describe("editing a DCA", () => {
+  it("changes its amount, its schedule counted again from now, its name", () => {
+    const r = editPlan([plan()], "p1", { quoteAmount: 250, frequency: "daily at 08:00", name: "  BTC   daily " }, at(24, 10));
+    expect("error" in r ? r.error : r.plan).toMatchObject({ quoteAmount: 250, frequency: "daily at 08:00", name: "BTC daily", nextDue: at(25, 8).toISOString(), status: "active" });
+    expect(editPlan([plan()], "p1", { quoteAmount: 0 }, now)).toMatchObject({ error: expect.stringMatching(/above zero/) });
+    expect(editPlan([plan()], "p1", { frequency: "every 5 minutes" }, now)).toMatchObject({ error: expect.stringMatching(/every hour/) });
+  });
+
+  it("ends it when its end has passed, brings it back when moved later", () => {
+    const ended = editPlan([plan()], "p1", { endAt: at(25, 0).toISOString() }, now);
+    expect("error" in ended ? ended.error : ended.plan.status).toBe("ended");
+    const back = editPlan("error" in ended ? [] : ended.plans, "p1", { endAt: "" }, now);
+    expect("error" in back ? back.error : back.plan).toMatchObject({ status: "active", nextDue: at(28, 9).toISOString() });
+  });
+});
 
 describe("DCA plans", () => {
   it("checks a plan and computes its first due date", () => {

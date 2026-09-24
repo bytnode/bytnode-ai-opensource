@@ -2,11 +2,11 @@ import type { Candle } from "../shared/candle";
 import type { DcaPlan, Purchase } from "./plans";
 
 /* ---------------------------------------------------------------------------
-   Groups of plans — a project ("Long term", "Altcoins") holding several
-   recurring purchases, so the view's column lists a group rather than
-   each of its plans. A plan belongs to one group or to none; deleting a
-   group keeps its plans, ungrouped. And the value of a set of plans day
-   by day, for the view's curve.
+   Groups of DCAs — a project ("Long term", "Altcoins") holding recurring
+   purchases: the view's column lists the groups only, a group opens its
+   DCAs. Every DCA belongs to one group (one left without, from before the
+   groups, is taken into the first); deleting a group deletes its DCAs.
+   And the value of a set of DCAs day by day, for the view's curve.
    Pure, tested.
 --------------------------------------------------------------------------- */
 
@@ -53,31 +53,31 @@ export function renameGroup(groups: DcaGroup[], id: string, name: unknown): { gr
   return { groups: groups.map((g) => (g.id === id ? group : g)), group };
 }
 
-/** The plans of a group, taken out of it. */
-export function ungroup(plans: DcaPlan[], id: string): DcaPlan[] {
-  return plans.map((p) => {
-    if (p.groupId !== id) return p;
-    const out = { ...p };
-    delete out.groupId;
-    return out;
-  });
-}
-
-/** The group goes; its plans stay, ungrouped. */
+/** The group goes, and its DCAs with it (they stop; what they bought
+    stays where it is). */
 export function removeGroup(groups: DcaGroup[], plans: DcaPlan[], id: string): { groups: DcaGroup[]; plans: DcaPlan[] } | Failed {
   if (!groups.some((g) => g.id === id)) return { error: "No such group." };
-  return { groups: groups.filter((g) => g.id !== id), plans: ungroup(plans, id) };
+  return { groups: groups.filter((g) => g.id !== id), plans: plans.filter((p) => p.groupId !== id) };
 }
 
-/** A plan into a group, or out of any (`null`). */
-export function movePlan(plans: DcaPlan[], groups: DcaGroup[], planId: string, groupId: string | null): { plans: DcaPlan[]; plan: DcaPlan } | Failed {
+/** A DCA into another group. */
+export function movePlan(plans: DcaPlan[], groups: DcaGroup[], planId: string, groupId: string): { plans: DcaPlan[]; plan: DcaPlan } | Failed {
   const found = plans.find((p) => p.id === planId);
   if (!found) return { error: `No DCA plan "${planId}".` };
-  if (groupId !== null && !groups.some((g) => g.id === groupId)) return { error: "No such group." };
-  const plan: DcaPlan = { ...found };
-  if (groupId === null) delete plan.groupId;
-  else plan.groupId = groupId;
+  if (!groups.some((g) => g.id === groupId)) return { error: "No such group." };
+  const plan: DcaPlan = { ...found, groupId };
   return { plans: plans.map((p) => (p.id === planId ? plan : p)), plan };
+}
+
+/** Every DCA in a group: those in none (or in a group gone) go into the
+    first — made, the default one, when there is no group. */
+export function adoptLoose(plans: DcaPlan[], groups: DcaGroup[], id: string, now: Date): { plans: DcaPlan[]; groups: DcaGroup[]; changed: boolean } {
+  const known = new Set(groups.map((g) => g.id));
+  if (plans.every((p) => p.groupId && known.has(p.groupId))) return { plans, groups, changed: false };
+  const all = groups.length ? groups : seedGroups(null, id, now);
+  const home = all[0].id;
+  const kept = new Set(all.map((g) => g.id));
+  return { plans: plans.map((p) => (p.groupId && kept.has(p.groupId) ? p : { ...p, groupId: home })), groups: all, changed: true };
 }
 
 /* --- The value of a set of plans, day by day ----------------------------- */

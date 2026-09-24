@@ -19,7 +19,7 @@ export function dcaCreateTool(add: (plan: DcaPlan) => Promise<void>, paperCash: 
     policy: { gated: true, subagent: false },
     description:
       "Creates a recurring purchase (DCA): `quoteAmount` of the pair's quote currency spent on `symbol` at each due date (`every monday at 09:00`, `daily at 08:00`, `every 7 days`; at most every hour). " +
-      `\`destination: paper\` buys in the simulated paper portfolio (pairs in ${paperCash}), automatically. \`destination: exchange\` buys on the \`account\` for real — each purchase is PROPOSED to the user, who confirms it; nothing is bought without their click. Optional \`start\` and \`end\` dates; optional \`group\`, a group's name (made if new) to list the plan under.`,
+      `\`destination: paper\` buys in the simulated paper portfolio (pairs in ${paperCash}), automatically. \`destination: exchange\` buys on the \`account\` for real — each purchase is PROPOSED to the user, who confirms it; nothing is bought without their click. Optional \`start\` and \`end\` dates; optional \`group\`, a group's name (made if new; default: the first group) — every DCA belongs to one.`,
     parameters: {
       type: "object",
       properties: {
@@ -44,12 +44,10 @@ export function dcaCreateTool(add: (plan: DcaPlan) => Promise<void>, paperCash: 
         if ("error" in picked) return fail(picked.error);
         accountId = picked.account.id;
       }
-      let groupId: string | undefined;
-      if (args.group?.trim()) {
-        const g = await groupFor(args.group);
-        if ("error" in g) return fail(g.error);
-        groupId = g.id;
-      }
+      /* Every DCA in a group: the one named (made if new), else the first. */
+      const g = await groupFor(args.group ?? "");
+      if ("error" in g) return fail(g.error);
+      const groupId = g.id;
       const plan = newPlan({ ...args, accountId, groupId, startAt: args.start, endAt: args.end }, randomUUID().slice(0, 8), new Date());
       if ("error" in plan) return fail(plan.error);
       if (plan.destination === "paper" && plan.symbol.split("/")[1] !== paperCash) return fail(`The paper portfolio trades against ${paperCash}: use ${plan.symbol.split("/")[0]}/${paperCash}.`);

@@ -1,4 +1,5 @@
-import type { DcaPlan, PlanSummary } from "./plans";
+import { nextRun, parseFrequency } from "../core/frequency";
+import { firstDue, type DcaPlan, type PlanSummary } from "./plans";
 
 /* ---------------------------------------------------------------------------
    What the DCA tab shows of a plan, a group or all of them: what was
@@ -74,14 +75,61 @@ export function nextDue(plans: DcaPlan[]): string | undefined {
 export const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
 export type Weekday = (typeof WEEKDAYS)[number];
 
-export type Cadence = { kind: "daily"; time: string } | { kind: "weekly"; weekday: Weekday; time: string } | { kind: "days"; days: number; time?: string };
+export type Cadence = { kind: "daily"; time: string } | { kind: "weekly"; weekday: Weekday; time: string } | { kind: "days"; days: number } | { kind: "hours"; hours: number };
 
 /** The form's choice as a plan's frequency. */
 export function frequencyOf(c: Cadence): string {
   if (c.kind === "daily") return `daily at ${c.time}`;
   if (c.kind === "weekly") return `every ${c.weekday} at ${c.time}`;
-  return `every ${Math.max(1, Math.round(c.days))} day${Math.round(c.days) === 1 ? "" : "s"}`;
+  const n = Math.max(1, Math.round(c.kind === "days" ? c.days : c.hours));
+  const unit = c.kind === "days" ? "day" : "hour";
+  return `every ${n} ${unit}${n === 1 ? "" : "s"}`;
 }
+
+const pad = (n: number) => String(n).padStart(2, "0");
+const JS_DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
+
+/** A stored frequency back as the form's choice (to configure a DCA). */
+export function cadenceOf(frequency: string): Cadence {
+  const f = parseFrequency(frequency);
+  if ("error" in f) return { kind: "weekly", weekday: "monday", time: "09:00" };
+  if (f.kind === "daily") return { kind: "daily", time: `${pad(f.hour)}:${pad(f.minute)}` };
+  if (f.kind === "weekly") return { kind: "weekly", weekday: JS_DAYS[f.weekday] as Weekday, time: `${pad(f.hour)}:${pad(f.minute)}` };
+  return f.minutes % 1440 === 0 ? { kind: "days", days: f.minutes / 1440 } : { kind: "hours", hours: Math.max(1, Math.round(f.minutes / 60)) };
+}
+
+/* --- What a configuration will do ---------------------------------------- */
+
+/** The purchase dates from `start` (ms), at most `n`, none after `end`. */
+export function schedule(frequency: string, start: number, end: number | undefined, n: number): number[] {
+  const f = parseFrequency(frequency);
+  if ("error" in f) return [];
+  const out: number[] = [];
+  let t = firstDue(f, start);
+  while (out.length < n && (end === undefined || t <= end)) {
+    out.push(t);
+    t = nextRun(f, t);
+  }
+  return out;
+}
+
+/** How many purchases in 30 days. */
+export function perMonth(frequency: string): number {
+  const f = parseFrequency(frequency);
+  if ("error" in f) return 0;
+  if (f.kind === "daily") return 30;
+  if (f.kind === "weekly") return 30 / 7;
+  return (30 * 1440) / f.minutes;
+}
+
+/** The date of the `n`th purchase from `start`: an end "after n purchases". */
+export function nthPurchase(frequency: string, start: number, n: number): number | undefined {
+  const dates = schedule(frequency, start, undefined, Math.max(1, Math.round(n)));
+  return dates.length ? dates[dates.length - 1] : undefined;
+}
+
+/** How many purchases between `start` and `end` (counted up to 10 000). */
+export const purchasesUntil = (frequency: string, start: number, end: number): number => schedule(frequency, start, end, 10_000).length;
 
 /** A frequency read back in a sentence's words ("every Monday at 09:00"). */
 export function frequencyWords(frequency: string): string {
