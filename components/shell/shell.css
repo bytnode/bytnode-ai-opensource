@@ -175,7 +175,7 @@ html[data-theme="light"] .tb {
   display: flex;
   flex: 1;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   min-width: 0;
   height: 100%;
   padding: 0 6px 0 12px;
@@ -200,13 +200,19 @@ html[data-theme="light"] .tb {
   font-weight: 600;
 }
 
+/* The icon: a quiet mark before the title, never louder than it. */
 .tb-favicon {
   flex: none;
-  width: 16px;
-  height: 16px;
-  stroke-width: 1.8;
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
+  opacity: 0.5;
+}
+
+.tb-tab.is-on .tb-favicon {
+  opacity: 0.7;
 }
 
 .tb-title {
