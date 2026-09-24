@@ -1,16 +1,15 @@
 "use client";
 
-import { useState } from "react";
 import type { Settings } from "@/lib/domain/types";
 import { viewEntry, type ViewEntry } from "@/lib/plugins/catalog";
 import { goToConversation } from "@/lib/state/navigation";
 import { ensureConversation } from "@/lib/state/scheduled-runs";
 import { HOME, activateTab, closeViews, openView, type ViewTab } from "@/lib/state/tabs";
 import { useUiPrefs } from "@/lib/state/ui";
-import { Close, Plus } from "@/components/ui/icons";
-import { SearchPanel } from "@/components/ui/search-panel";
+import { Close } from "@/components/ui/icons";
 import { NotificationCenter } from "./notification-center";
 import { TabIcon } from "./tab-icons";
+import { ViewsMenu } from "./views-menu";
 
 /* ---------------------------------------------------------------------------
    The tab bar, like Edge's: "Conversations" first, always there and never
@@ -29,7 +28,6 @@ import { TabIcon } from "./tab-icons";
 type Props = { settings: Settings; views: ViewEntry[]; tabs: ViewTab[]; active: string };
 
 export function TabBar({ settings, views, tabs, active }: Props) {
-  const [adding, setAdding] = useState(false);
   const { sidebarWidth } = useUiPrefs();
   return (
     <div className="tb" style={{ "--tb-home": `${sidebarWidth}px` } as React.CSSProperties}>
@@ -64,29 +62,7 @@ export function TabBar({ settings, views, tabs, active }: Props) {
           front: its foot flares there), then "+" right after it — outside
           the strip, whose scrolling would cut its list off. */}
       <span className={`tb-end${tabs.length ? (active === tabs[tabs.length - 1].view ? " is-hidden" : "") : active === HOME ? " is-hidden" : ""}`} aria-hidden />
-      <div className="picker tb-add">
-        <button type="button" className={`tb-icon${adding ? " is-on" : ""}`} onClick={() => setAdding(!adding)} aria-haspopup="dialog" aria-expanded={adding} aria-label="Open a view" title="Open a view">
-          <Plus />
-        </button>
-        <SearchPanel open={adding} onClose={() => setAdding(false)} label="Views" width={300} dense>
-          {views.length === 0 ? (
-            <SearchPanel.Empty>No view yet: switch on a plugin that has one, in Settings → Plugins.</SearchPanel.Empty>
-          ) : (
-            views.map((v) => (
-              <SearchPanel.Item
-                key={v.id}
-                title={v.title}
-                meta={v.plugin.name}
-                selected={active === v.id}
-                onSelect={() => {
-                  openView(v.id);
-                  setAdding(false);
-                }}
-              />
-            ))
-          )}
-        </SearchPanel>
-      </div>
+      <ViewsMenu views={views} open={tabs.map((t) => t.view)} active={active} onPick={openView} />
       <span className="tb-space" />
       <NotificationCenter settings={settings} onOpenConversation={(id) => void ensureConversation(id, settings).then(() => goToConversation(id))} />
     </div>

@@ -317,6 +317,133 @@ html[data-theme="light"] .tb {
   margin: 0 0 1px 2px;
 }
 
+/* "+"'s bubble: the views, each its icon, its title, a line of what it
+   shows. The app's popover: the veil, a hairline, a soft shadow. */
+.tb-menu {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  gap: 2px;
+  max-height: min(560px, calc(100svh - 70px));
+  padding: 8px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  /* Nearly opaque: inside the bar's own backdrop filter, the bubble's blur
+     cannot reach the page under it. */
+  background: rgba(var(--voile), 0.985);
+  -webkit-backdrop-filter: blur(28px);
+  backdrop-filter: blur(28px);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.45);
+  animation: tb-pop 140ms var(--ease) both;
+}
+
+html[data-theme="light"] .tb-menu {
+  background: rgba(255, 255, 255, 0.99);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.14);
+}
+
+@keyframes tb-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tb-menu {
+    animation: none;
+  }
+}
+
+.tb-menu-title {
+  margin: 4px 10px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.tb-menu-empty {
+  margin: 4px 10px 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg-muted);
+}
+
+.tb-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tb-menu-item:hover,
+.tb-menu-item:focus-visible {
+  outline: none;
+  background: var(--matter-hover);
+}
+
+.tb-menu-item.is-on {
+  background: var(--matter);
+}
+
+.tb-menu-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--matter);
+  color: var(--fg-muted);
+}
+
+.tb-menu-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tb-menu-text {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tb-menu-text b {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.tb-menu-text small {
+  overflow: hidden;
+  font-size: 12.5px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tb-menu-tag {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--matter);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--fg-muted);
+}
+
 /* A spring that pushes what follows to the end of a row (the views'
    toolbars use it: paper trading). */
 .tb-space {
