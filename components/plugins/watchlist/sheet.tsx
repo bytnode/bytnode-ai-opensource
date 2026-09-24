@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, type MouseEvent, type ReactNode } from "react";
 import { INTERVALS, type Candle, type Interval } from "@/lib/plugins/shared/candle";
 import { WINDOWS, changeOf, heatOf, type Window } from "@/lib/plugins/watchlist/heat";
 import { Pencil, Refresh, Trash } from "@/components/ui/icons";
@@ -45,6 +45,7 @@ type Props = {
   onWindow: (w: Window) => void;
   onInterval: (i: Interval) => void;
   onPick: (symbol: string) => void;
+  onMenu: (e: MouseEvent<HTMLElement>, symbol: string) => void;
   onReload: () => void;
   onRemove: (symbol: string) => void;
   onNote: (symbol: string, note: string) => void;
@@ -55,7 +56,7 @@ const MODES: Array<{ value: ChartMode; label: string }> = [
   { value: "candles", label: "Candles" },
 ];
 
-export function Sheet({ rows, asset, live, win, interval, candles, chartMessage, insight, insightMessage, technicals, technicalsMessage, coming, loading, problem, onWindow, onInterval, onPick, onReload, onRemove, onNote }: Props) {
+export function Sheet({ rows, asset, live, win, interval, candles, chartMessage, insight, insightMessage, technicals, technicalsMessage, coming, loading, problem, onWindow, onInterval, onPick, onMenu, onReload, onRemove, onNote }: Props) {
   const [mode, setMode] = useState<ChartMode>("line");
   const at = asset?.quote?.at;
   const status = loading ? "Loading…" : at ? `${live ? "Live" : "Updated"} ${new Date(at).toLocaleTimeString("en-GB")}` : rows ? "No price yet" : "Loading…";
@@ -117,7 +118,7 @@ export function Sheet({ rows, asset, live, win, interval, candles, chartMessage,
         )}
         {rows && rows.length > 1 && (
           <Section title="All assets" sub={`${WINDOWS.find((w) => w.value === win)?.label} move`}>
-            <HeatMap rows={rows} win={win} selected={asset?.symbol ?? null} onPick={onPick} />
+            <HeatMap rows={rows} win={win} selected={asset?.symbol ?? null} onPick={onPick} onMenu={onMenu} />
           </Section>
         )}
       </div>

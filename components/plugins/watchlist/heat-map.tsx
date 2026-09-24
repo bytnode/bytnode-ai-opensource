@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type CSSProperties } from "react";
+import { useRef, type CSSProperties, type MouseEvent } from "react";
 import { changeOf, heatOf, type Window } from "@/lib/plugins/watchlist/heat";
 import { useViewActive } from "../view-activity";
 import { moveOf, pairOf, pct, priceText, type Row } from "./format";
@@ -12,7 +12,7 @@ import { useHeatField, type HeatTile } from "./heat-field";
    corners. The wash is the GPU's (`heat-field.ts`); the text is the
    page's. A tile picks its asset. */
 
-export function HeatMap({ rows, win, selected, onPick }: { rows: Row[]; win: Window; selected: string | null; onPick: (symbol: string) => void }) {
+export function HeatMap({ rows, win, selected, onPick, onMenu }: { rows: Row[]; win: Window; selected: string | null; onPick: (symbol: string) => void; onMenu: (e: MouseEvent<HTMLElement>, symbol: string) => void }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const grid = useRef<HTMLDivElement>(null);
   const active = useViewActive();
@@ -37,6 +37,7 @@ export function HeatMap({ rows, win, selected, onPick }: { rows: Row[]; win: Win
             onPointerEnter={() => hover(i)}
             onFocus={() => hover(i)}
             onClick={() => onPick(r.symbol)}
+            onContextMenu={(e) => onMenu(e, r.symbol)}
           >
             <span className="wlv-tile-name">{base}</span>
             <span className="wlv-tile-move">{pct(change)}</span>

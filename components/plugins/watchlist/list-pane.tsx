@@ -3,6 +3,7 @@
 import { WINDOWS, changeOf, type Window } from "@/lib/plugins/watchlist/heat";
 import { Segmented } from "@/components/ui/segmented";
 import { Switch } from "@/components/ui/switch";
+import type { MouseEvent } from "react";
 import type { Candidate } from "@/lib/plugins/watchlist/suggest";
 import { AddField } from "./add-field";
 import { moveOf, pairOf, pct, priceText, type Row } from "./format";
@@ -10,7 +11,8 @@ import { moveOf, pairOf, pct, priceText, type Row } from "./format";
 /* The left column: the list's name and size, the field that adds an
    asset (a search, `add-field.tsx`), the window the moves are read over, and the assets themselves —
    each with its price and its move in a pill of Apple's green or red,
-   like Stocks. A switch puts the biggest moves first. */
+   like Stocks; a right click opens its menu (show, remove). A switch puts
+   the biggest moves first. */
 
 type Props = {
   rows: Row[] | null;
@@ -21,12 +23,14 @@ type Props = {
   onWindow: (w: Window) => void;
   onByMove: (on: boolean) => void;
   onPick: (symbol: string) => void;
+  /** A right click on a row: the asset's menu. */
+  onMenu: (e: MouseEvent<HTMLElement>, symbol: string) => void;
   catalog: Candidate[];
   addUnavailable: string | null;
   onAdd: (symbol: string) => Promise<boolean>;
 };
 
-export function ListPane({ rows, shown, selected, win, byMove, catalog, addUnavailable, onWindow, onByMove, onPick, onAdd }: Props) {
+export function ListPane({ rows, shown, selected, win, byMove, catalog, addUnavailable, onWindow, onByMove, onPick, onMenu, onAdd }: Props) {
   return (
     <section className="wlv-pane wlv-side" aria-label="Your assets">
       <header className="wlv-side-bar">
@@ -47,7 +51,7 @@ export function ListPane({ rows, shown, selected, win, byMove, catalog, addUnava
             const on = r.symbol === selected;
             return (
               <li key={r.symbol}>
-                <button type="button" className={`wlv-row${on ? " is-selected" : ""}`} aria-current={on || undefined} onClick={() => onPick(r.symbol)}>
+                <button type="button" className={`wlv-row${on ? " is-selected" : ""}`} aria-current={on || undefined} onClick={() => onPick(r.symbol)} onContextMenu={(e) => onMenu(e, r.symbol)}>
                   <span className="wlv-row-name">
                     <b>{base}</b>
                     <small>{r.note || quote}</small>

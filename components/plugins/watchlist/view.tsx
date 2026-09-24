@@ -18,6 +18,7 @@ import { useAwakeInterval, useOnWake } from "../view-activity";
 import type { Row } from "./format";
 import { ListPane } from "./list-pane";
 import { Sheet } from "./sheet";
+import { AssetMenu, useAssetMenu } from "./asset-menu";
 import "./watchlist.css";
 
 /* ---------------------------------------------------------------------------
@@ -115,6 +116,7 @@ export function WatchlistView({ settings, params }: ViewProps) {
   const addUnavailable = !settings.keys.bytnode.trim() ? "Assets come from BytNode: add your key in Settings → Auth." : listedPairs && !listedPairs.length ? "BytNode's list of assets could not be read — try again in a moment." : null;
 
   const choose = (s: string) => setPick({ focus, symbol: s });
+  const menu = useAssetMenu();
   const edit = async (change: Record<string, unknown>) => {
     const p = await act("watchlist", "edit", change, settings);
     setProblem(p);
@@ -126,7 +128,7 @@ export function WatchlistView({ settings, params }: ViewProps) {
   return (
     <div className="wlv">
       <div className="wlv-panel" ref={panel} style={{ "--wlv-list": `${ui.watchlistWidth}px` } as CSSProperties}>
-        <ListPane rows={rows} shown={shown} selected={symbol || null} win={win} byMove={byMove} catalog={catalog} addUnavailable={addUnavailable} onWindow={setWin} onByMove={setByMove} onPick={choose} onAdd={add} />
+        <ListPane rows={rows} shown={shown} selected={symbol || null} win={win} byMove={byMove} catalog={catalog} addUnavailable={addUnavailable} onWindow={setWin} onByMove={setByMove} onPick={choose} onMenu={menu.open} onAdd={add} />
         <ColumnHandle
           panel={panel}
           cssVar="--wlv-list"
@@ -156,6 +158,7 @@ export function WatchlistView({ settings, params }: ViewProps) {
           onWindow={setWin}
           onInterval={setChartInterval}
           onPick={choose}
+          onMenu={menu.open}
           onReload={() => {
             list.reload();
             live.reload();
@@ -168,6 +171,7 @@ export function WatchlistView({ settings, params }: ViewProps) {
           onNote={(s, note) => void edit({ add: [s], note })}
         />
       </div>
+      {menu.at && <AssetMenu at={menu.at} onClose={menu.close} onShow={choose} onRemove={(s) => void edit({ remove: [s] })} />}
     </div>
   );
 }
