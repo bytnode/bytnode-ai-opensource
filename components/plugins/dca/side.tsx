@@ -1,17 +1,21 @@
 "use client";
 
 import { useState, type MouseEvent as ReactMouseEvent } from "react";
+import type { ExchangeAccount } from "@/lib/domain/types";
 import type { DcaGroup } from "@/lib/plugins/dca/groups";
-import { nextDue, type Figures, type PlanRow } from "@/lib/plugins/dca/view-model";
-import { Folder, Plus } from "@/components/ui/icons";
-import { money, pct, toneOf, when } from "./format";
+import { frequencyWords, nextDue, type Figures, type PlanRow } from "@/lib/plugins/dca/view-model";
+import { ChevronDown, Folder, Plus } from "@/components/ui/icons";
+import { badgeClass, badgeOf, money, pct, toneOf, when } from "./format";
+import { planTitle } from "./sheet";
 
 /* ---------------------------------------------------------------------------
    The left column: the groups, and nothing else — one block of tiles, as
    the portfolio's. A group says how many DCAs it holds, what went in, when
    the next purchase is and its result; the one open is lit. A right click
-   renames or deletes it. Above the block, "New group" — its name typed in
-   place. The DCAs themselves open in the sheet, inside their group.
+   renames or deletes it. Its chevron unfolds it in place: its DCAs, one
+   row each (badge, next purchase, result), a click opens that DCA straight
+   away. The group open — or the one of the DCA shown — is unfolded unless
+   folded by hand. Above the block, "New group" — its name typed in place.
 --------------------------------------------------------------------------- */
 
 type Props = {
@@ -19,16 +23,22 @@ type Props = {
   plans: PlanRow[];
   figures: (plans: PlanRow[]) => Figures;
   unit: (plans: PlanRow[]) => string;
-  /** The group open. */
+  accounts: ExchangeAccount[];
+  /** The group open (or the DCA shown's), and the DCA shown. */
   open: string | null;
+  openPlan: string | null;
   onOpen: (id: string) => void;
+  onPlan: (id: string) => void;
   onMenu: (e: ReactMouseEvent<HTMLElement>, id: string) => void;
   /** Makes a group; answers why not, or null. */
   onCreateGroup: (name: string) => Promise<string | null>;
 };
 
-export function Side({ groups, plans, figures, unit, open, onOpen, onMenu, onCreateGroup }: Props) {
+export function Side({ groups, plans, figures, unit, accounts, open, openPlan, onOpen, onPlan, onMenu, onCreateGroup }: Props) {
   const [naming, setNaming] = useState(false);
+  /* Unfolded by hand, or folded: else the open group is unfolded. */
+  const [unfolded, setUnfolded] = useState<Record<string, boolean>>({});
+  const isUnfolded = (id: string) => unfolded[id] ?? id === open;
   const [name, setName] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -97,23 +107,63 @@ export function Side({ groups, plans, figures, unit, open, onOpen, onMenu, onCre
           {groups.map((g) => {
             const inside = plans.filter((p) => p.groupId === g.id);
             const f = figures(inside);
-            const on = open === g.id;
+            const on = open === g.id && !openPlan;
             const next = nextDue(inside);
+            const unfold = isUnfolded(g.id) && inside.length > 0;
             return (
-              <button key={g.id} type="button" className={`dcv-item dcv-group${on ? " is-on" : ""}`} aria-pressed={on} onClick={() => onOpen(g.id)} onContextMenu={(e) => onMenu(e, g.id)}>
-                <span className="dcv-item-icon" aria-hidden>
-                  <Folder />
-                </span>
-                <span className="dcv-item-main">
-                  <b>{g.name}</b>
-                  <small>
-                    {inside.length ? `${inside.length} DCA${inside.length === 1 ? "" : "s"}` : "No DCA yet"}
-                    {f.invested > 0 ? ` · ${money(f.invested, unit(inside))}` : ""}
-                    {next ? ` · next ${when(next)}` : ""}
-                  </small>
-                </span>
-                {f.pct !== undefined && <span className={`wlv-pill dcv-pill ${toneOf(f.pct)}`}>{pct(f.pct)}</span>}
-              </button>
+              <div key={g.id} className={`dcv-group-block${unfold ? " is-open" : ""}`}>
+                <button
+                  type="button"
+                  className={`dcv-item dcv-group${on ? " is-on" : ""}${open === g.id && openPlan ? " is-parent" : ""}`}
+                  aria-pressed={on}
+                  onClick={() => {
+                    onOpen(g.id);
+                    setUnfolded((u) => ({ ...u, [g.id]: true }));
+                  }}
+                  onContextMenu={(e) => onMenu(e, g.id)}
+                >
+                  <span className="dcv-item-icon" aria-hidden>
+                    <Folder />
+                  </span>
+                  <span className="dcv-item-main">
+                    <b>{g.name}</b>
+                    <small>
+                      {inside.length ? `${inside.length} DCA${inside.length === 1 ? "" : "s"}` : "No DCA yet"}
+                      {f.invested > 0 ? ` · ${money(f.invested, unit(inside))}` : ""}
+                      {next ? ` · next ${when(next)}` : ""}
+                    </small>
+                  </span>
+                  {f.pct !== undefined && <span className={`wlv-pill dcv-pill ${toneOf(f.pct)}`}>{pct(f.pct)}</span>}
+                </button>
+                {inside.length > 0 && (
+                  <button type="button" className="dcv-toggle" onClick={() => setUnfolded((u) => ({ ...u, [g.id]: !unfold }))} aria-expanded={unfold} aria-label={`${unfold ? "Fold" : "Unfold"} ${g.name}`} title={unfold ? "Hide its DCAs" : "Show its DCAs"}>
+                    <ChevronDown />
+                  </button>
+                )}
+                {unfold && (
+                  <ul className="dcv-subs" aria-label={`The DCAs of ${g.name}`}>
+                    {inside.map((p) => {
+                      const pf = figures([p]);
+                      const b = badgeOf(p, accounts);
+                      const lit = openPlan === p.id;
+                      return (
+                        <li key={p.id}>
+                          <button type="button" className={`dcv-sub${lit ? " is-on" : ""}${p.status !== "active" ? " is-idle" : ""}`} aria-current={lit || undefined} onClick={() => onPlan(p.id)}>
+                            <span className="dcv-sub-main">
+                              <span className="dcv-item-top">
+                                <b>{planTitle(p)}</b>
+                                <span className={badgeClass(b)}>{b}</span>
+                              </span>
+                              <small>{p.status === "active" ? `next ${when(p.nextDue)}` : p.status === "paused" ? "paused" : `ended · ${frequencyWords(p.frequency)}`}</small>
+                            </span>
+                            {pf.pct !== undefined && <span className={`dcv-sub-pct ${toneOf(pf.pct)}`}>{pct(pf.pct)}</span>}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
             );
           })}
         </nav>

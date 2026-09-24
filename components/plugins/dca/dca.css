@@ -192,6 +192,132 @@ html[data-theme="light"] .dcv {
   font-size: 12.5px;
 }
 
+/* A group unfolded: its DCAs under it, a row each, one click to open. */
+.dcv-group-block {
+  position: relative;
+  display: grid;
+  gap: var(--tile-gap);
+}
+
+.dcv-group-block .dcv-group {
+  padding-right: 48px;
+}
+
+.dcv-group.is-parent {
+  background: color-mix(in srgb, var(--dca-accent) 7%, var(--tile));
+}
+
+.dcv-toggle {
+  position: absolute;
+  top: 16px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--label-3);
+  cursor: pointer;
+}
+
+.dcv-toggle:hover {
+  background: var(--fill);
+  color: var(--label);
+}
+
+.dcv-toggle:focus-visible {
+  outline: 2px solid var(--dca-accent);
+  outline-offset: 1px;
+}
+
+.dcv-toggle svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transform: rotate(-90deg);
+  transition: transform 160ms var(--ease);
+}
+
+.dcv-group-block.is-open .dcv-toggle svg {
+  transform: none;
+}
+
+.dcv-subs {
+  display: grid;
+  gap: var(--tile-gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dcv-sub {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 16px 8px 60px;
+  border: 0;
+  background: color-mix(in srgb, var(--tile) 70%, transparent);
+  color: var(--label);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dcv-sub:hover {
+  background: var(--tile-today);
+}
+
+.dcv-sub.is-on {
+  background: color-mix(in srgb, var(--dca-accent) 14%, var(--tile));
+  box-shadow: inset 3px 0 0 var(--dca-accent);
+}
+
+.dcv-sub:focus-visible {
+  outline: 2px solid var(--dca-accent);
+  outline-offset: -2px;
+}
+
+.dcv-sub.is-idle .dcv-sub-main {
+  opacity: 0.6;
+}
+
+.dcv-sub-main {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dcv-sub-main b {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dcv-sub-main small {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--label-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dcv-sub-pct {
+  flex: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tone, var(--label-3));
+}
+
 /* Above the block: a new group — its name typed in place. */
 .dcv-new {
   display: grid;

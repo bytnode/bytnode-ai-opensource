@@ -139,7 +139,7 @@ export function DcaView({ settings }: ViewProps) {
   return (
     <div className="wlv dcv">
       <div className="wlv-panel" ref={panel} style={{ "--wlv-list": `${ui.dcaWidth}px` } as CSSProperties}>
-        <Side groups={groups} plans={plans} figures={figures} unit={unit} open={openGroup ?? null} onOpen={(id) => setScope({ kind: "group", id })} onMenu={(e, id) => menu.open(e, { kind: "group", id })} onCreateGroup={createGroup} />
+        <Side groups={groups} plans={plans} figures={figures} unit={unit} accounts={accounts} open={openGroup ?? null} openPlan={scope?.kind === "plan" ? scope.id : null} onOpen={(id) => setScope({ kind: "group", id })} onPlan={(id) => setScope({ kind: "plan", id })} onMenu={(e, id) => menu.open(e, { kind: "group", id })} onCreateGroup={createGroup} />
         <ColumnHandle panel={panel} cssVar="--wlv-list" width={ui.dcaWidth} min={DCA_MIN} max={DCA_MAX} reset={DCA_DEFAULT} clamp={clampDcaWidth} onCommit={(w) => updateUiPrefs({ dcaWidth: w })} label="Width of the groups column" />
         {scope?.kind === "config" && groups ? (
           <main className="wlv-pane wlv-sheet dcv-sheet">
