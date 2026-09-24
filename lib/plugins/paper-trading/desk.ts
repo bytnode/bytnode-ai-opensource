@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { PluginStore } from "../core/store";
+import type { PaperBook } from "./books";
 import { isQuote, quote, quotes, type PriceSources } from "../shared/prices";
 import { cancelOrders, checkBook, emptyBook, neededSymbols, placeOrder, valuation, type Book, type CheckEvent, type EngineConfig, type OrderInput, type PaperOrder, type Fill, type Valuation } from "./engine";
 
 /* ---------------------------------------------------------------------------
-   The paper trading desk: the engine on the stored portfolio
-   (`plugins/paper-trading/default.json`), with live prices.
+   The paper trading desk: the engine on ONE stored portfolio (its file:
+   `books.ts`), with live prices. The shelf holds the portfolios and hands
+   out the desk of the one asked for.
 
    Every change goes through the store's lock — the tools of a subscription
    session run in another process. Each look at the market (a tool, the
@@ -29,9 +31,19 @@ export type Desk = {
 
 const newId = () => randomUUID().slice(0, 8);
 
-export function paperDesk(store: PluginStore, settings: () => DeskSettings, onEvents: (events: CheckEvent[]) => Promise<void>): Desk {
+/** A portfolio picked by name: its desk, and whether it has siblings (the
+    answers then name it). */
+export type Picked = { desk: Desk; book: PaperBook; many: boolean };
+
+export type Shelf = {
+  list(): Promise<PaperBook[]>;
+  /** By id or name; none: the default (first) one. */
+  pick(ref?: string | null): Promise<Picked | { error: string }>;
+};
+
+export function paperDesk(store: PluginStore, settings: () => DeskSettings, onEvents: (events: CheckEvent[]) => Promise<void>, file = BOOK): Desk {
   const fresh = () => emptyBook(settings().capital, new Date());
-  const read = () => store.read<Book>(BOOK, fresh());
+  const read = () => store.read<Book>(file, fresh());
 
   return {
     read,
@@ -40,7 +52,7 @@ export function paperDesk(store: PluginStore, settings: () => DeskSettings, onEv
       const q = await quote(input.symbol, sources);
       if (!isQuote(q)) return { error: q.error };
       let result = { error: "" } as { order: PaperOrder; fill?: Fill } | { error: string };
-      await store.update<Book>(BOOK, fresh(), (book) => {
+      await store.update<Book>(file, fresh(), (book) => {
         const r = placeOrder(book, input, q.price, settings().engine, newId, new Date());
         result = r;
         return "error" in r ? book : r.book;
@@ -50,7 +62,7 @@ export function paperDesk(store: PluginStore, settings: () => DeskSettings, onEv
 
     async cancel(id) {
       let result = { error: "" } as { cancelled: PaperOrder[] } | { error: string };
-      await store.update<Book>(BOOK, fresh(), (book) => {
+      await store.update<Book>(file, fresh(), (book) => {
         const r = cancelOrders(book, id, new Date());
         result = r;
         return "error" in r ? book : r.book;
@@ -60,7 +72,7 @@ export function paperDesk(store: PluginStore, settings: () => DeskSettings, onEv
 
     async reset(capital) {
       const book = emptyBook(capital ?? settings().capital, new Date());
-      await store.write(BOOK, book);
+      await store.write(file, book);
       return book;
     },
 
@@ -77,7 +89,7 @@ export function paperDesk(store: PluginStore, settings: () => DeskSettings, onEv
       let events: CheckEvent[] = [];
       /* Written only when the market changed something. */
       const book = checkBook(seen, prices, settings().engine, newId, at).events.length
-        ? await store.update<Book>(BOOK, fresh(), (current) => {
+        ? await store.update<Book>(file, fresh(), (current) => {
             const r = checkBook(current, prices, settings().engine, newId, at);
             events = r.events;
             return r.book;

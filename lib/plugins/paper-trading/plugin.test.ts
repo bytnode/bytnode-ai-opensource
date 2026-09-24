@@ -101,4 +101,35 @@ describe("paper trading plugin", () => {
     expect(await q({ symbol: "btc" }, req)).toMatchObject({ symbol: "BTC/USDT", price: 50_000 });
     expect(await q({ symbol: "ETH/BTC" }, req)).toEqual({ symbol: "ETH/BTC", error: "The paper portfolio trades against USDT: use ETH/USDT." });
   });
+
+  it("keeps several portfolios, each traded by name, the first the default", async () => {
+    h = await harness([paperTradingPlugin], ZERO);
+    const req = { transport: { openrouterKey: "", bytnodeKey: "k", exchangeAccounts: [], plugins: null }, signal: new AbortController().signal };
+    const api = (action: string, params: Record<string, unknown> = {}) => h.runtime.handler("paper-trading", action)!(params, req);
+    await h.tool("PaperOrder").execute({ symbol: "BTC/USDT", side: "buy", type: "market", quoteAmount: 100 }, h.ctx());
+
+    const swing = (await api("create", { name: "Swing", capital: 2000 })) as { id: string; name: string };
+    expect(swing.name).toBe("Swing");
+    await expect(api("create", { name: "swing" })).rejects.toThrow('There is already a paper portfolio named "swing".');
+
+    const bought = await h.tool("PaperOrder").execute({ symbol: "BTC/USDT", side: "buy", type: "market", quoteAmount: 500, portfolio: "swing" }, h.ctx());
+    expect(bought.output).toMatch(/^PAPER order in "Swing" buy 0\.01 BTC\/USDT at market/);
+    expect(await h.tool("PaperOrder").execute({ symbol: "BTC/USDT", side: "buy", type: "market", amount: 1, portfolio: "Scalp" }, h.ctx())).toMatchObject({ ok: false, output: 'No paper portfolio "Scalp". There are: Main, Swing.' });
+
+    const books = (await api("books")) as Array<{ name: string; equity: number; capital: number }>;
+    expect(books.map((b) => [b.name, b.capital, b.equity])).toEqual([
+      ["Main", 1000, 1000],
+      ["Swing", 2000, 2000],
+    ]);
+    expect((await api("state", { portfolio: swing.id })) as { name: string; valuation: { cash: number } }).toMatchObject({ name: "Swing", valuation: { cash: 1500 } });
+    expect((await h.tool("PaperPortfolio").execute({}, h.ctx())).output).toMatch(/^Paper portfolio "Main"\. The other paper portfolios: Swing\.\n/);
+    expect(await h.runtime.prompts(null, { agentId: "a", engine: "native", subagent: false }, {})).toEqual([expect.stringContaining("- Main (default): capital 1 000.00 USDT, cash 900.00 USDT")]);
+
+    await api("rename", { portfolio: swing.id, name: "Swing BTC" });
+    await api("delete", { portfolio: "default" });
+    expect(((await api("books")) as Array<{ name: string }>).map((b) => b.name)).toEqual(["Swing BTC"]);
+    /* The default is now Swing BTC: an order naming none goes there. */
+    expect((await h.tool("PaperPortfolio").execute({}, h.ctx())).output).toContain("Cash 1 500.00 USDT.");
+    await expect(api("delete", { portfolio: swing.id })).rejects.toThrow("The last paper portfolio cannot be deleted");
+  });
 });

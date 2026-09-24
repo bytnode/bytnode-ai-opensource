@@ -1,12 +1,16 @@
+import fs from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { resolveWorkspace } from "@/lib/server/workspace";
 import { definePlugin } from "../core/contract";
 import type { ReportService } from "../report-export/service";
 import type { SchedulerService } from "../scheduler/service";
+import type { PriceSources } from "../shared/prices";
 import { quote } from "../shared/prices";
 import { normalizeSymbol } from "../shared/quote";
+import { INDEX, addBook, bookFile, findBook, listOrDefault, removeBook, renameBook, type PaperBook } from "./books";
 import { resultCurve } from "./curve";
-import { paperDesk, type DeskSettings } from "./desk";
-import { CASH, available, type CheckEvent, type OrderType, type PaperMarket, type Side } from "./engine";
+import { paperDesk, type Desk, type DeskSettings, type Picked, type Shelf } from "./desk";
+import { CASH, available, emptyBook, type CheckEvent, type OrderType, type PaperMarket, type Side } from "./engine";
 import { paperTradingManifest } from "./manifest";
 import { paperCancelTool } from "./paper-cancel";
 import { paperOrderTool } from "./paper-order";
@@ -15,10 +19,12 @@ import { paperResetTool } from "./paper-reset";
 import { SIMULATED, exportSections, fillLine, orderLine, paperPrompt } from "./present";
 import type { PaperService } from "./service";
 
-/* Paper trading: the simulated portfolio, its four tools, its prompt
-   section, the service the DCA buys through, a job that watches the open
-   limits and the positions every minute (when the scheduler runs), and
-   the view's actions. */
+/* Paper trading: the simulated portfolios (`books.ts` — several, each with
+   its name, the first the default), their four tools, the prompt section,
+   the service the DCA buys through (into the default portfolio), a job
+   that watches every portfolio's open limits and positions every minute
+   (when the scheduler runs), and the view's actions, each on the
+   portfolio it names. */
 
 /** Maintenance margin of the simulated futures: a typical first tier. */
 const MMR = 0.005;
@@ -36,22 +42,70 @@ export const paperTradingPlugin = definePlugin({
       const c = ctx.config();
       return { capital: Number(c.capital), engine: { feeRate: Number(c.feePercent) / 100, slippage: Number(c.slippagePercent) / 100, mmr: MMR } };
     };
-    const desk = paperDesk(ctx.store, settings, async (events) => {
-      for (const e of events) {
-        const body = e.kind === "cancelled" ? `${orderLine(e.order)}: ${e.reason}` : fillLine(e.fill);
-        await ctx.notify({ ...NOTICE[e.kind], body, action: { kind: "open-view", view: "paper-trading" } });
-        ctx.emit(e.kind, e);
-      }
-    });
 
-    ctx.tool(paperOrderTool(desk));
-    ctx.tool(paperCancelTool(desk));
-    ctx.tool(paperPortfolioTool(desk));
-    ctx.tool(paperResetTool(desk));
-    ctx.prompt(async () => paperPrompt(await desk.read()));
+    const list = async (): Promise<PaperBook[]> => listOrDefault(await ctx.store.read<PaperBook[] | null>(INDEX, null), new Date());
+    /** The list changes: the historic book is written into it first. */
+    const change = (fn: (books: PaperBook[]) => PaperBook[] | { error: string }) => {
+      let error: string | null = null;
+      return ctx.store
+        .update<PaperBook[] | null>(INDEX, null, (stored) => {
+          const r = fn(listOrDefault(stored, new Date()));
+          if ("error" in r) {
+            error = r.error;
+            return stored;
+          }
+          return r;
+        })
+        .then((books) => {
+          if (error) throw new Error(error);
+          return books ?? [];
+        });
+    };
+    const deskOf = (book: PaperBook, many: boolean): Desk =>
+      paperDesk(
+        ctx.store,
+        settings,
+        async (events) => {
+          for (const e of events) {
+            const body = e.kind === "cancelled" ? `${orderLine(e.order)}: ${e.reason}` : fillLine(e.fill);
+            await ctx.notify({ ...NOTICE[e.kind], body: many ? `${book.name} — ${body}` : body, action: { kind: "open-view", view: "paper-trading", params: { portfolio: book.id } } });
+            ctx.emit(e.kind, { ...e, portfolio: book.id });
+          }
+        },
+        bookFile(book.id),
+      );
+    const shelf: Shelf = {
+      list,
+      async pick(ref) {
+        const books = await list();
+        const book = findBook(books, ref);
+        if ("error" in book) return book;
+        return { book, desk: deskOf(book, books.length > 1), many: books.length > 1 };
+      },
+    };
+    /** The view's portfolio: the one it names, else the default. */
+    const picked = async (params: Record<string, unknown>): Promise<Picked> => {
+      const p = await shelf.pick(typeof params.portfolio === "string" ? params.portfolio : null);
+      if ("error" in p) throw new Error(p.error);
+      return p;
+    };
+    const sourcesOf = (transport: { bytnodeKey: string; exchangeAccounts: PriceSources["accounts"] }, signal: AbortSignal): PriceSources => ({ bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal });
+
+    ctx.tool(paperOrderTool(shelf));
+    ctx.tool(paperCancelTool(shelf));
+    ctx.tool(paperPortfolioTool(shelf));
+    ctx.tool(paperResetTool(shelf));
+    ctx.prompt(async () => {
+      const books = await list();
+      return paperPrompt(await Promise.all(books.map(async (b) => ({ name: b.name, book: await deskOf(b, books.length > 1).read() }))));
+    });
     ctx.provide<PaperService>(() => ({
       cash: CASH,
-      buy: ({ symbol, quoteAmount, note }, sources) => desk.place({ symbol, market: "spot", side: "buy", type: "market", quoteAmount, note }, sources),
+      buy: async ({ symbol, quoteAmount, note }, sources) => {
+        const p = await shelf.pick(null);
+        if ("error" in p) return p;
+        return p.desk.place({ symbol, market: "spot", side: "buy", type: "market", quoteAmount, note }, sources);
+      },
     }));
 
     ctx.optional<SchedulerService>("scheduler")?.job({
@@ -59,21 +113,62 @@ export const paperTradingPlugin = definePlugin({
       title: "Paper orders",
       every: "every 1 minute",
       async run({ session, signal }) {
-        const book = await desk.read();
-        if (!book.orders.some((o) => o.status === "open") && book.positions.length === 0) return "Nothing to watch.";
-        const look = await desk.look({ bytnodeKey: session.bytnodeKey, accounts: session.exchangeAccounts, signal });
-        if (look.priceErrors.length) throw new Error(look.priceErrors.join(" "));
-        return look.events.length ? look.events.map((e) => e.kind).join(", ") : "No limit reached, no liquidation.";
+        const books = await list();
+        const said: string[] = [];
+        const errors: string[] = [];
+        for (const b of books) {
+          const desk = deskOf(b, books.length > 1);
+          const book = await desk.read();
+          if (!book.orders.some((o) => o.status === "open") && book.positions.length === 0) continue;
+          const look = await desk.look({ bytnodeKey: session.bytnodeKey, accounts: session.exchangeAccounts, signal });
+          errors.push(...look.priceErrors);
+          if (look.events.length) said.push(`${b.name}: ${look.events.map((e) => e.kind).join(", ")}`);
+        }
+        if (errors.length) throw new Error([...new Set(errors)].join(" "));
+        return said.length ? said.join("; ") : "No limit reached, no liquidation.";
       },
     });
 
     /* --- The view ---------------------------------------------------------- */
 
-    ctx.api("state", async (_params, { transport, signal }) => {
-      const look = await desk.look({ bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal });
+    /* Every portfolio, valued: the view's left column. */
+    ctx.api("books", async (_params, { transport, signal }) => {
+      const books = await list();
+      return Promise.all(
+        books.map(async (b) => {
+          const look = await deskOf(b, books.length > 1).look(sourcesOf(transport, signal));
+          const v = look.valuation;
+          return { id: b.id, name: b.name, createdAt: look.book.createdAt, capital: look.book.capital, equity: v.equity, returnPct: v.returnPct, positions: v.positions.length, orders: look.book.orders.filter((o) => o.status === "open").length };
+        }),
+      );
+    });
+    ctx.api("create", async (params) => {
+      const capital = typeof params.capital === "number" && Number.isFinite(params.capital) ? params.capital : settings().capital;
+      if (capital < 100 || capital > 10_000_000) throw new Error("A starting capital between 100 and 10 000 000 USDT.");
+      const id = randomUUID().replace(/-/g, "").slice(0, 8);
+      const books = await change((current) => addBook(current, String(params.name ?? ""), id, new Date()));
+      const made = books.find((b) => b.id === id)!;
+      await ctx.store.write(bookFile(id), emptyBook(capital, new Date()));
+      return made;
+    });
+    ctx.api("rename", async (params) => {
+      const { book } = await picked(params);
+      return (await change((current) => renameBook(current, book.id, String(params.name ?? "")))).find((b) => b.id === book.id);
+    });
+    ctx.api("delete", async (params) => {
+      const { book } = await picked(params);
+      await change((current) => removeBook(current, book.id));
+      await fs.rm(ctx.store.file(bookFile(book.id)), { force: true });
+      return { deleted: book.id };
+    });
+    ctx.api("state", async (params, { transport, signal }) => {
+      const { book: meta, desk } = await picked(params);
+      const look = await desk.look(sourcesOf(transport, signal));
       const s = settings();
       const assets = [CASH, ...Object.keys(look.book.balances).filter((a) => a !== CASH)];
       return {
+        id: meta.id,
+        name: meta.name,
         valuation: look.valuation,
         capital: look.book.capital,
         createdAt: look.book.createdAt,
@@ -95,11 +190,12 @@ export const paperTradingPlugin = definePlugin({
       const symbol = normalizeSymbol(String(params.symbol ?? ""));
       if (!symbol) return { symbol: "", error: "Give a pair, e.g. BTC/USDT." };
       if (symbol.split("/")[1] !== CASH) return { symbol, error: `The paper portfolio trades against ${CASH}: use ${symbol.split("/")[0]}/${CASH}.` };
-      return quote(symbol, { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal });
+      return quote(symbol, sourcesOf(transport, signal));
     });
     ctx.api("order", async (params, { transport, signal }) => {
       const symbol = normalizeSymbol(String(params.symbol ?? ""));
       if (!symbol) throw new Error("Give a pair, e.g. BTC/USDT.");
+      const { desk } = await picked(params);
       const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
       const r = await desk.place(
         {
@@ -113,29 +209,31 @@ export const paperTradingPlugin = definePlugin({
           leverage: num(params.leverage),
           reduceOnly: params.reduceOnly === true || undefined,
         },
-        { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal },
+        sourcesOf(transport, signal),
       );
       if ("error" in r) throw new Error(r.error);
       return r;
     });
     ctx.api("cancel", async (params) => {
+      const { desk } = await picked(params);
       const r = await desk.cancel(String(params.orderId ?? ""));
       if ("error" in r) throw new Error(r.error);
       return r;
     });
-    ctx.api("reset", async (params) => desk.reset(typeof params.capital === "number" ? params.capital : undefined));
+    ctx.api("reset", async (params) => (await picked(params)).desk.reset(typeof params.capital === "number" ? params.capital : undefined));
     ctx.api("export", async (params, { transport, signal }) => {
       const report = ctx.optional<ReportService>("report-export");
       if (!report) throw new Error("Report export is off: switch it on in Settings → Plugins.");
+      const { book: meta, desk, many } = await picked(params);
       const agentId = typeof params.agentId === "string" ? params.agentId : "";
       const workspace = await resolveWorkspace(agentId, typeof params.workspace === "string" ? params.workspace : "");
-      const look = await desk.look({ bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal });
+      const look = await desk.look(sourcesOf(transport, signal));
       const date = `${look.at.toISOString().slice(0, 16).replace("T", " ")} UTC`;
       const s = settings();
       const written = await report.write({
         workspace,
         scope: "workspace",
-        title: `Paper portfolio — ${look.at.toISOString().slice(0, 10)}`,
+        title: `${many ? `Paper portfolio "${meta.name}"` : "Paper portfolio"} — ${look.at.toISOString().slice(0, 10)}`,
         summary: SIMULATED,
         sections: exportSections(look.book, look.valuation),
         sources: [

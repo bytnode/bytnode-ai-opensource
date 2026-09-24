@@ -47,12 +47,25 @@ export function portfolioLines(book: Book, v: Valuation, at: Date): string[] {
   return lines;
 }
 
-/** The prompt section: what the agent must know without a call. */
-export function paperPrompt(book: Book): string {
-  const open = book.orders.filter((o) => o.status === "open").length;
+const bookLine = (book: Book) => `capital ${usdt(book.capital)}, cash ${usdt(book.balances[CASH] ?? 0)}, ${book.positions.length} futures position(s), ${book.orders.filter((o) => o.status === "open").length} open order(s)`;
+
+/** The prompt section: what the agent must know without a call. One
+    portfolio reads as before; several are listed, the first the default. */
+export function paperPrompt(books: Array<{ name: string; book: Book }>): string {
+  const [first, ...rest] = books;
+  const shown = rest.slice(0, 5);
+  const listing =
+    rest.length === 0
+      ? `A simulated portfolio (${bookLine(first.book)}). PaperOrder / PaperCancel trade it, PaperPortfolio shows it.`
+      : [
+          `${books.length} simulated portfolios; PaperOrder / PaperCancel / PaperPortfolio take \`portfolio\` (by name), the first is the default:`,
+          `- ${first.name} (default): ${bookLine(first.book)}`,
+          ...shown.map((b) => `- ${b.name}: ${bookLine(b.book)}`),
+          ...(rest.length > shown.length ? [`- and ${rest.length - shown.length} more (PaperPortfolio lists them)`] : []),
+        ].join("\n");
   return [
     "## Paper trading",
-    `A simulated portfolio (capital ${usdt(book.capital)}, cash ${usdt(book.balances[CASH] ?? 0)}, ${book.positions.length} futures position(s), ${open} open order(s)). PaperOrder / PaperCancel trade it, PaperPortfolio shows it.`,
+    listing,
     "Whenever you report a paper result, say it is simulated — never present it as a real performance. A paper order is never a real one: to trade for real, the user asks for it and PlaceOrder asks for their consent.",
   ].join("\n");
 }
