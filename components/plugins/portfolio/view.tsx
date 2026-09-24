@@ -56,9 +56,9 @@ export function PortfolioView({ settings }: ViewProps) {
   /* Sample data, on demand: the report filled with made-up accounts —
      said loudly, never exported, never mixed with the user's own. */
   const [sample, setSample] = useState<Sample | null>(null);
-  const { data, error, loading, reload } = usePluginData<Current>("portfolio", "summary", settings, { currency });
+  const { data, error, loading, reload } = usePluginData<Current>("portfolio", "summary", settings, { currency }, { keep: "latest" });
   useAwakeInterval(reload, REFRESH);
-  const history = usePluginData<{ points: Snapshot[] }>("portfolio", "history", settings, { days: HISTORY_DAYS });
+  const history = usePluginData<{ points: Snapshot[] }>("portfolio", "history", settings, { days: HISTORY_DAYS }, { keep: "latest" });
   useAwakeInterval(history.reload, REFRESH * 5);
   /* Before the snapshots, the history is estimated: today's holdings at
      each past day's close (the server's `backfill`); a real snapshot wins
@@ -66,7 +66,7 @@ export function PortfolioView({ settings }: ViewProps) {
   const holdings = (data?.summary.accounts ?? [])
     .filter((a) => a.id && !a.testnet)
     .map((a) => ({ id: a.id as string, assets: a.assets.map((x) => ({ asset: x.asset, amount: Number(x.amount.toPrecision(6)) })) }));
-  const backfill = usePluginData<{ points: Estimated[]; missing: string[]; sources: Record<string, "ledger" | "estimate">; coverage?: Record<string, Record<string, Coverage>>; activity?: Activity[]; access?: Record<string, Access> }>("portfolio", "backfill", settings, { holdings, days: HISTORY_DAYS - 1 });
+  const backfill = usePluginData<{ points: Estimated[]; missing: string[]; sources: Record<string, "ledger" | "estimate">; coverage?: Record<string, Record<string, Coverage>>; activity?: Activity[]; access?: Record<string, Access> }>("portfolio", "backfill", settings, { holdings, days: HISTORY_DAYS - 1 }, { keep: "latest" });
   const report = useReportExport("portfolio", settings, { currency });
   const ui = useUiPrefs();
   const panel = useRef<HTMLDivElement>(null);

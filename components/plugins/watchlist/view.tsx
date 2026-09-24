@@ -57,7 +57,7 @@ type TechnicalsReading = { symbol: string; interval: Interval; technicals: Techn
 const EVENTS_MS = 5 * 60_000;
 
 export function WatchlistView({ settings, params }: ViewProps) {
-  const list = usePluginData<Row[]>("watchlist", "list", settings);
+  const list = usePluginData<Row[]>("watchlist", "list", settings, {}, { keep: "latest" });
   useAwakeInterval(list.reload, LIST_MS);
   const ui = useUiPrefs();
   const panel = useRef<HTMLDivElement>(null);
@@ -77,12 +77,12 @@ export function WatchlistView({ settings, params }: ViewProps) {
      one, still on screen while the new one loads) is not used. */
   const live = usePluginData<Priced | null>("watchlist", "price", settings, { symbol });
   useAwakeInterval(live.reload, LIVE_MS);
-  const series = usePluginData<CandleSeries | null>("watchlist", "candles", settings, { symbol, interval, limit: CANDLES });
+  const series = usePluginData<CandleSeries | null>("watchlist", "candles", settings, { symbol, interval, limit: CANDLES }, { keep: "exact" });
   useAwakeInterval(series.reload, CANDLES_MS);
-  const facts = usePluginData<InsightReading>("watchlist", "insight", settings, { symbol });
+  const facts = usePluginData<InsightReading>("watchlist", "insight", settings, { symbol }, { keep: "exact" });
   useAwakeInterval(facts.reload, INSIGHT_MS);
   const factsNow = facts.data && facts.data.symbol === symbol ? facts.data : null;
-  const signals = usePluginData<TechnicalsReading>("watchlist", "technicals", settings, { symbol, interval });
+  const signals = usePluginData<TechnicalsReading>("watchlist", "technicals", settings, { symbol, interval }, { keep: "exact" });
   useAwakeInterval(signals.reload, INSIGHT_MS);
   const signalsNow = signals.data && signals.data.symbol === symbol && signals.data.interval === interval ? signals.data : null;
   /* The Calendar plugin's events of the next weeks, for "coming up" —
@@ -92,7 +92,7 @@ export function WatchlistView({ settings, params }: ViewProps) {
     d.setHours(0, 0, 0, 0);
     return d.toISOString();
   });
-  const calendar = usePluginData<{ events: CalendarEvent[] }>("calendar", "week", settings, { from, days: COMING_DAYS });
+  const calendar = usePluginData<{ events: CalendarEvent[] }>("calendar", "week", settings, { from, days: COMING_DAYS }, { keep: "exact" });
   useAwakeInterval(calendar.reload, EVENTS_MS);
   const coming = calendar.data && symbol ? comingFor(calendar.data.events, baseOf(symbol), Date.parse(from)) : null;
   const liveQuote: Quote | null = live.data && live.data.symbol === symbol && !("error" in live.data) ? live.data : null;
@@ -109,7 +109,7 @@ export function WatchlistView({ settings, params }: ViewProps) {
 
   /* What the add field proposes: BytNode's assets only. Read once, and
      again when the tab wakes (a key added meanwhile). */
-  const pairs = usePluginData<Listed[]>("watchlist", "symbols", settings);
+  const pairs = usePluginData<Listed[]>("watchlist", "symbols", settings, {}, { keep: "latest" });
   useOnWake(pairs.reload);
   const listedPairs = Array.isArray(pairs.data) ? pairs.data : null;
   const catalog = named(listedPairs ?? []);

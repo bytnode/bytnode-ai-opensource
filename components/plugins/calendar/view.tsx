@@ -68,7 +68,7 @@ export function CalendarView({ settings, params }: ViewProps) {
     from: from.toISOString(),
     days: Math.round((last.getTime() - from.getTime()) / DAY_MS) + 1,
     watchlist: filter.watchlistOnly,
-  });
+  }, { keep: "exact" });
 
   useAwakeInterval(reload, REFRESH);
 
