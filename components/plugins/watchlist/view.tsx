@@ -35,6 +35,9 @@ import "./watchlist.css";
    BytNode quota for prices nobody is looking at. What is told about the
    asset under its chart (`insight`, one BytNode call) every minute.
 
+   Coming back to an asset shows what was read for it at once (every
+   answer is kept, `../use-plugin-data.ts`) and refreshes it silently.
+
    The asset shown is the one clicked, else the one an agent opened the
    tab on (`params.symbol`), else the first. A new `params.symbol` wins
    over an earlier click: the pick is kept with the focus it was made
@@ -93,7 +96,10 @@ export function WatchlistView({ settings, params }: ViewProps) {
   const coming = calendar.data && symbol ? comingFor(calendar.data.events, baseOf(symbol), Date.parse(from)) : null;
   const liveQuote: Quote | null = live.data && live.data.symbol === symbol && !("error" in live.data) ? live.data : null;
 
-  const rows = listed?.map((r) => (liveQuote && r.symbol === liveQuote.symbol ? { ...r, quote: liveQuote, error: null } : r)) ?? null;
+  /* The live quote replaces its row's — unless the row's is fresher (a
+     live quote kept from an earlier visit, while the new one loads). */
+  const fresher = (r: Row) => liveQuote && r.symbol === liveQuote.symbol && (!r.quote || Date.parse(liveQuote.at) >= Date.parse(r.quote.at));
+  const rows = listed?.map((r) => (fresher(r) ? { ...r, quote: liveQuote, error: null } : r)) ?? null;
   const asset = rows?.find((r) => r.symbol === symbol) ?? null;
   const shown = sortByMove(rows ?? [], win, byMove);
   const current = series.data && series.data.symbol === symbol && series.data.interval === interval ? series.data : null;
