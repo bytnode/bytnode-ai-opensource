@@ -29,7 +29,35 @@ export function mergeHistory(real: Snapshot[], estimated: Snapshot[]): Snapshot[
    today's balances, it gives the real balance of each asset at the end of
    each past day; valued at that day's close, the account's real value. */
 
-export type Move = { t: number; asset: string; delta: number };
+/** A change of one balance; `flow`: money moved in or out of the account
+    (a deposit, a withdrawal, a transfer), not a gain or a loss. */
+export type Move = { t: number; asset: string; delta: number; flow?: boolean };
+
+/** The ledger entry's fields a move is read from (ccxt's `LedgerEntry`). */
+export type LedgerLike = { timestamp?: number; currency?: string; amount?: number; direction?: string; before?: number; after?: number; type?: string; info?: unknown };
+
+/** The exchanges' own names for money moved in or out (Bybit's
+    TRANSFER_IN / TRANSFER_OUT, a deposit, a withdrawal). */
+const FLOW_TYPE = /transfer|deposit|withdraw/i;
+
+/** An entry as a signed move. The sign comes from the exchange's own
+    signed change when it gives one, else from ccxt's direction and amount —
+    never from `after − before`: ccxt's Bybit parser computes `before`
+    wrongly for every outgoing entry (after − |amount| instead of
+    after + |amount|), which turned every move into money coming in. */
+export function ledgerMove(e: LedgerLike): Move | null {
+  const t = e.timestamp;
+  const asset = e.currency;
+  if (typeof t !== "number" || !asset) return null;
+  const info = (e.info ?? {}) as Record<string, unknown>;
+  let delta: number | undefined;
+  if ((typeof info.change === "string" && info.change !== "") || typeof info.change === "number") delta = Number(info.change);
+  else if (typeof e.amount === "number") delta = (e.direction === "out" ? -1 : 1) * Math.abs(e.amount);
+  else if (typeof e.before === "number" && typeof e.after === "number") delta = e.after - e.before;
+  if (delta === undefined || !Number.isFinite(delta) || delta === 0) return null;
+  const kind = String(info.type ?? e.type ?? "");
+  return { t, asset: asset.toUpperCase(), delta, ...(FLOW_TYPE.test(kind) ? { flow: true } : {}) };
+}
 
 const END_OF_DAY = (day: string) => Date.parse(`${day}T23:59:59.999Z`);
 
@@ -91,6 +119,23 @@ export type Activity = { t: number; kind: "buy" | "sell" | "deposit" | "withdraw
 
 /** How far an exchange's history reached, for one kind of record. */
 export type Coverage = { status: "ok" | "limited" | "unsupported" | "error"; from?: string; note?: string };
+
+/** The money moved in and out of an account each day, from its ledger's
+    flows, in USD at that day's close. For an account whose balances come
+    from its ledger this is what must be taken off the performance: the
+    same records that moved the curve (a deposit that landed in Bybit's
+    funding wallet moves the trading account only when transferred in). */
+export function flowsOfMoves(moves: Move[], closes: Record<string, Candle[]>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const m of moves) {
+    if (!m.flow) continue;
+    const day = new Date(m.t).toISOString().slice(0, 10);
+    const price = STABLES.has(m.asset) ? 1 : closeOn(closes[m.asset], day);
+    if (price === undefined) continue;
+    out[day] = Math.round(((out[day] ?? 0) + m.delta * price) * 100) / 100;
+  }
+  return out;
+}
 
 /** The money put in (deposits, positive) and taken out (withdrawals,
     negative) each day, in USD at that day's close; per account id. */

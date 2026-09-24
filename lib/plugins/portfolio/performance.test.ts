@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dailyReturns, performance, slicePeriod } from "./performance";
+import { dailyReturns, dayReturn, performance, slicePeriod } from "./performance";
 
 const D = 86_400_000;
 const series = (values: number[]) => values.map((c, i) => ({ t: i * D, o: c, h: c, l: c, c, v: 0 }));
@@ -52,6 +52,14 @@ describe("performance", () => {
     expect(q.pct).toBeCloseTo(10);
     expect(dailyReturns(bars).map((m) => Number(m.pct.toFixed(2)))).toEqual([0, 10]);
     expect(q.maxDrawdown).toBe(0);
+  });
+
+  it("counts a day's deposit half in the base", () => {
+    /* 40 held, 2000 deposited, 2060 at the close: +20 on about 1040. */
+    expect(dayReturn(40, 2060, 2000)).toBeCloseTo((20 / 1040) * 100);
+    /* The first deposit on an empty account. */
+    expect(dayReturn(0, 2000, 2000)).toBe(0);
+    expect(dayReturn(0, 50)).toBeUndefined();
   });
 
   it("needs two days", () => {

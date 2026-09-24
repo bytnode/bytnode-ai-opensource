@@ -2,7 +2,7 @@ import type { LedgerEntry, Trade, Transaction } from "ccxt";
 import type { ExchangeAccount } from "@/lib/domain/types";
 import { clientFor } from "@/lib/tools/exchange/client";
 import { describeExchangeError, withRetry } from "@/lib/tools/exchange/errors";
-import type { Activity, Coverage, Move } from "./backfill";
+import { ledgerMove, type Activity, type Coverage, type LedgerLike, type Move } from "./backfill";
 
 /* ---------------------------------------------------------------------------
    An account's history, read from its exchange through ccxt — read-only
@@ -81,14 +81,6 @@ async function windows<T>(kind: Kind, exchange: string, since: number, now: numb
   return { rows, coverage: from > since ? { status: "limited", from: new Date(from).toISOString(), note: `The exchange answers only since ${new Date(from).toISOString().slice(0, 10)}.` } : { status: "ok", from: new Date(from).toISOString() } };
 }
 
-function toMove(e: LedgerEntry): Move | null {
-  const t = e.timestamp;
-  const asset = e.currency;
-  if (typeof t !== "number" || !asset) return null;
-  const delta = typeof e.before === "number" && typeof e.after === "number" ? e.after - e.before : typeof e.amount === "number" ? (e.direction === "out" ? -1 : 1) * Math.abs(e.amount) : undefined;
-  return delta === undefined || !Number.isFinite(delta) || delta === 0 ? null : { t, asset: asset.toUpperCase(), delta };
-}
-
 const unique = <T,>(rows: T[], key: (r: T) => string) => {
   const seen = new Set<string>();
   return rows.filter((r) => {
@@ -124,7 +116,7 @@ export async function readHistory(account: ExchangeAccount, since: number, heldA
   else if (ex.has["fetchLedger"]) {
     const r = await windows<LedgerEntry>("ledger", id, since, now, (start, end) => ex.fetchLedger(undefined, start, id === "bybit" ? 50 : undefined, { ...(end ? (id === "bybit" ? { endTime: end } : { until: end }) : {}), paginate: true, paginationCalls: 40 }) as Promise<LedgerEntry[]>);
     coverage.ledger = r.coverage;
-    if (r.coverage.status !== "error") moves = unique(r.rows, (e) => String(e.id ?? `${e.timestamp}|${e.currency}|${e.amount}|${e.after}`)).flatMap((e) => toMove(e) ?? []).filter((m) => m.t >= since);
+    if (r.coverage.status !== "error") moves = unique(r.rows, (e) => String(e.id ?? `${e.timestamp}|${e.currency}|${e.amount}|${e.after}`)).flatMap((e) => ledgerMove(e as LedgerLike) ?? []).filter((m) => m.t >= since);
   }
 
   /* The trades: Bybit by category, the others by the pairs held. */

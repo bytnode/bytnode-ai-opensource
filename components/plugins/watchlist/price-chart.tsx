@@ -212,8 +212,15 @@ function draw(canvas: HTMLCanvasElement, data: Candle[], interval: Interval, mod
   /* The returns: a bar a day from the zero line, scaled on the largest
      move on screen. */
   /* In the returns' panel a bar's `v` is the money put in or taken out
-     that day (the portfolio's series), taken off the move. */
-  const moveAt = (i: number) => (i > 0 && data[i - 1].c > 0 ? ((data[i].c - (data[i].v || 0) - data[i - 1].c) / data[i - 1].c) * 100 : undefined);
+     that day (the portfolio's series), taken off the move — counted half
+     in the base, as the portfolio's figures do (Modified Dietz). */
+  const moveAt = (i: number) => {
+    if (i < 1) return undefined;
+    const before = data[i - 1].c;
+    const flow = data[i].v || 0;
+    const base = before + flow / 2;
+    return (before > 0 || flow > 0) && base > 0 ? ((data[i].c - before - flow) / base) * 100 : undefined;
+  };
   let maxMove = 0;
   if (returns) {
     for (let i = first; i <= last; i++) maxMove = Math.max(maxMove, Math.abs(moveAt(i) ?? 0));

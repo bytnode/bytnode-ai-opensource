@@ -30,13 +30,22 @@ export function slicePeriod(series: Candle[], period: Period): Candle[] {
 
 export type DayMove = { t: number; pct: number };
 
-/** Each day's move, in %, against the day before — the day's deposits
-    and withdrawals taken off. */
+/** A day's move, in %, the day's deposits and withdrawals taken off
+    (Modified Dietz: the money moved counts half in the base, as if it came
+    mid-day — a deposit ten times the balance no longer turns the day's
+    small gain on it into a huge percentage). Undefined without a base. */
+export function dayReturn(before: number, after: number, flow = 0): number | undefined {
+  const base = before + flow / 2;
+  if (!(before > 0 || flow > 0) || !(base > 0)) return undefined;
+  return ((after - before - flow) / base) * 100;
+}
+
+/** Each day's move, in %, against the day before. */
 export function dailyReturns(series: Candle[]): DayMove[] {
   const out: DayMove[] = [];
   for (let i = 1; i < series.length; i++) {
-    const before = series[i - 1].c;
-    if (before > 0) out.push({ t: series[i].t, pct: ((series[i].c - (series[i].v || 0) - before) / before) * 100 });
+    const pct = dayReturn(series[i - 1].c, series[i].c, series[i].v || 0);
+    if (pct !== undefined) out.push({ t: series[i].t, pct });
   }
   return out;
 }

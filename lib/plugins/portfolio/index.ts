@@ -12,7 +12,7 @@ import { portfolioSummaryTool } from "./portfolio-summary";
 import { exportSections } from "./present";
 import { candles } from "../shared/prices";
 import type { Candle } from "../shared/candle";
-import { balancesByDay, flowsByDay, lastDays, valueByDay, type Activity, type Coverage, type Holdings } from "./backfill";
+import { balancesByDay, flowsByDay, flowsOfMoves, lastDays, valueByDay, type Activity, type Coverage, type Holdings, type Move } from "./backfill";
 import { readHistory } from "./ledger";
 import { STABLES } from "./aggregate";
 
@@ -76,6 +76,7 @@ export const portfolioPlugin = definePlugin({
       const balances: Record<string, Record<string, Record<string, number>>> = {};
       const coverage: Record<string, Record<string, Coverage>> = {};
       const activity: Activity[] = [];
+      const ledgers: Record<string, Move[]> = {};
       /* One account after the other: an exchange asked many things at once
          drops connections. */
       for (const h of holdings) {
@@ -83,6 +84,7 @@ export const portfolioPlugin = definePlugin({
         const account = accounts.find((a) => a.id === h.id);
         const history = account ? await readHistory(account, since, h.assets.map((a) => a.asset).filter((a) => !STABLES.has(a))) : null;
         sources[h.id] = history?.moves ? "ledger" : "estimate";
+        if (history?.moves) ledgers[h.id] = history.moves;
         balances[h.id] = balancesByDay(current, history?.moves ?? [], dayList);
         if (history) {
           coverage[h.id] = history.coverage;
@@ -105,8 +107,12 @@ export const portfolioPlugin = definePlugin({
         values[id] = v.values;
         v.missing.forEach((a) => missing.add(a));
       }
-      /* The money in and out each day, to measure the performance net of it. */
-      const flows = flowsByDay(activity, closes);
+      /* The money in and out each day, to measure the performance net of it:
+         an account read from its ledger takes its flows from the same ledger
+         (the transfers that moved its curve), the others from their deposits
+         and withdrawals. */
+      const flows = flowsByDay(activity.filter((a) => !ledgers[a.account]), closes);
+      for (const [id, moves] of Object.entries(ledgers)) flows[id] = flowsOfMoves(moves, closes);
       const points = dayList.map((date) => {
         const byAccount = Object.fromEntries(Object.keys(values).map((id) => [id, values[id][date] ?? 0]));
         const total = Object.values(byAccount).reduce((t, v) => t + v, 0);

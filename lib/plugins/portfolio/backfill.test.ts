@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { balancesByDay, flowsByDay, lastDays, mergeHistory, valueByDay } from "./backfill";
+import { balancesByDay, flowsByDay, flowsOfMoves, lastDays, ledgerMove, mergeHistory, valueByDay } from "./backfill";
 
 const D = 86_400_000;
 const t0 = Date.parse("2026-09-20T00:00:00Z");
@@ -45,6 +45,37 @@ describe("the real history, from a ledger", () => {
 
   it("names the last days", () => {
     expect(lastDays(new Date("2026-09-24T10:00:00Z"), 3)).toEqual(["2026-09-22", "2026-09-23", "2026-09-24"]);
+  });
+});
+
+describe("ledgerMove", () => {
+  const t = Date.parse("2026-09-21T10:00:00Z");
+
+  it("signs an outgoing Bybit entry from its own change, not ccxt's wrong before", () => {
+    /* ccxt's Bybit parser: 100 USDT out, balance 900 after, reads before = 800. */
+    const e = { timestamp: t, currency: "USDT", amount: 100, direction: "out", before: 800, after: 900, type: "trade", info: { change: "-100", type: "TRADE" } };
+    expect(ledgerMove(e)).toEqual({ t, asset: "USDT", delta: -100 });
+  });
+
+  it("falls back on the direction and the amount, then on after minus before", () => {
+    expect(ledgerMove({ timestamp: t, currency: "btc", amount: 0.5, direction: "out" })?.delta).toBe(-0.5);
+    expect(ledgerMove({ timestamp: t, currency: "BTC", before: 1, after: 1.25 })?.delta).toBe(0.25);
+    expect(ledgerMove({ timestamp: t, currency: "BTC", amount: 0 })).toBeNull();
+  });
+
+  it("marks the money moved in or out as a flow", () => {
+    expect(ledgerMove({ timestamp: t, currency: "USDT", info: { change: "2000", type: "TRANSFER_IN" } })).toEqual({ t, asset: "USDT", delta: 2000, flow: true });
+    expect(ledgerMove({ timestamp: t, currency: "USDT", info: { change: "-5", type: "SETTLEMENT" } })?.flow).toBeUndefined();
+  });
+
+  it("rebuilds a balance that went out, then in", () => {
+    const moves = [
+      ledgerMove({ timestamp: Date.parse("2026-09-21T10:00:00Z"), currency: "USDT", info: { change: "2000", type: "TRANSFER_IN" } })!,
+      ledgerMove({ timestamp: Date.parse("2026-09-22T10:00:00Z"), currency: "USDT", info: { change: "-1960", type: "TRADE" } })!,
+    ];
+    const b = balancesByDay({ USDT: 40 }, moves, ["2026-09-20", "2026-09-21", "2026-09-22"]);
+    expect([b["2026-09-20"].USDT, b["2026-09-21"].USDT, b["2026-09-22"].USDT]).toEqual([0, 2000, 40]);
+    expect(flowsOfMoves(moves, {})).toEqual({ "2026-09-21": 2000 });
   });
 });
 
