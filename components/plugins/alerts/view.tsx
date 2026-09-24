@@ -85,15 +85,7 @@ export function AlertsView({ settings }: ViewProps) {
 
           {(problem ?? error) && <p className="alv-problem">{problem ?? error}</p>}
 
-          {data && alerts.length === 0 && (
-            <div className="alv-empty">
-              <p>No alert yet. Create one, or ask an agent: “tell me when the RSI of ETH on the hour drops under 30”.</p>
-              <button type="button" className="alv-btn is-primary" onClick={() => setComposing(true)}>
-                <Plus />
-                New alert
-              </button>
-            </div>
-          )}
+          {data && alerts.length === 0 && <p className="alv-empty">No alert yet. Create one, or ask an agent: “tell me when the RSI of ETH on the hour drops under 30”.</p>}
 
           {shown.length > 0 && (
             <section className="alv-list" aria-label="Your alerts">

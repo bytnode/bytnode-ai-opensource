@@ -36,14 +36,11 @@ const TF_OPTIONS = TIMEFRAMES.map((t) => ({ value: t, label: t.replace("h", "H")
 export function Chips<T extends string>({ label, options, value, onChange }: { label: string; options: Array<{ kind: T; label: string }>; value: T | null; onChange: (kind: T) => void }) {
   return (
     <div className="alv-chips" role="radiogroup" aria-label={label}>
-      <span className="alv-chips-label">{label}</span>
-      <span className="alv-chips-list">
-        {options.map((o) => (
-          <button key={o.kind} type="button" role="radio" aria-checked={value === o.kind} className={`alv-chip${value === o.kind ? " is-on" : ""}`} onClick={() => onChange(o.kind)}>
-            {o.label}
-          </button>
-        ))}
-      </span>
+      {options.map((o) => (
+        <button key={o.kind} type="button" role="radio" aria-checked={value === o.kind} className={`alv-chip${value === o.kind ? " is-on" : ""}`} onClick={() => onChange(o.kind)}>
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -115,13 +112,15 @@ export function MetricParams({ metric, onChange }: { metric: Metric; onChange: (
   );
 }
 
-/** A metric picked among all of them (what an alert is compared with). */
+/** A metric picked among all of them (what an alert is compared with):
+    the market or an indicator, then which one. */
 export function MetricPicker({ metric, onChange }: { metric: Metric; onChange: (m: Metric) => void }) {
   const pick = (kind: MetricKind) => onChange(defaultMetric(kind, timeframeOf(metric) ?? "1h"));
+  const market = MARKET.some((m) => m.kind === metric.kind);
   return (
     <div className="alv-picker">
-      <Chips label="Market" options={MARKET} value={metric.kind} onChange={pick} />
-      <Chips label="Indicators" options={INDICATORS} value={metric.kind} onChange={pick} />
+      <Segmented label="Compared with" value={market ? "market" : "indicator"} options={[{ value: "market", label: "Market" }, { value: "indicator", label: "Indicator" }]} onChange={(g) => g !== (market ? "market" : "indicator") && pick(g === "market" ? "price" : "ema")} />
+      {market ? <Chips label="Market" options={MARKET} value={metric.kind} onChange={pick} /> : <Chips label="Indicators" options={INDICATORS} value={metric.kind} onChange={pick} />}
       <MetricParams metric={metric} onChange={onChange} />
     </div>
   );

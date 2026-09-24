@@ -17,8 +17,10 @@ import { PairField } from "./pair-field";
 
 /* ---------------------------------------------------------------------------
    A new alert, in a window laid over the Alerts tab (the page dimmed and
-   blurred behind it): four plain steps — one tile each: the ASSET, what to
-   WATCH on it, the CONDITION, how to NOTIFY. Anything can be watched: the price, its change,
+   blurred behind it): four plain steps, one under the other with room to
+   breathe — the ASSET, what to WATCH on it (one family at a time: the
+   market, an indicator, a position, an event), the CONDITION, how to
+   NOTIFY. Anything can be watched: the price, its change,
    the funding, any indicator with the user's own length and timeframe, a
    position's PnL or liquidation distance, a calendar event; against a
    level or another indicator. The last line says the alert in words, with
@@ -41,8 +43,9 @@ const POSITION: Array<{ kind: PositionField; label: string }> = [
   { kind: "closed", label: "Closed" },
 ];
 
-/** Levels a user often picks, per metric. */
-const QUICK: Partial<Record<MetricKind, string[]>> = { rsi: ["20", "30", "50", "70", "80"], stoch: ["20", "50", "80"], change: ["-10", "-5", "5", "10"], funding: ["-0.01", "0.05", "0.1"], macd: ["0"] };
+type Group = "market" | "indicator" | "position" | "event";
+
+const groupOf = (s: Subject): Group => (s.kind === "metric" ? (MARKET.some((m) => m.kind === s.metric.kind) ? "market" : "indicator") : s.kind);
 
 const PREVIEW_DELAY = 500;
 
@@ -81,10 +84,14 @@ export function Composer({ settings, pairs, calendar, onDone, onClose }: Props) 
   const onPosition = s.kind === "position";
   const text = typeof condition === "string" ? condition : "";
 
-  /* What the condition reads now, a moment after the last change. */
-  const query = JSON.stringify({ target, condition: text });
+  /* What the condition reads now, a moment after the last change — with
+     no level typed yet, read against 0: the current value is what the
+     level field then shows. */
+  const reading = text || (draft.against.kind === "value" && draft.against.value.trim() === "" ? buildCondition({ ...draft, against: { kind: "value", value: "0" } }) : "");
+  const readText = typeof reading === "string" ? reading : "";
+  const query = JSON.stringify({ target, condition: readText });
   const [preview, setPreview] = useState<{ query: string; result: Preview } | null>(null);
-  const previewable = text !== "" && !onPosition && s.kind !== "event" && !("error" in parsed);
+  const previewable = readText !== "" && !onPosition && s.kind !== "event";
   const keys = settings.keys;
   useEffect(() => {
     if (!previewable) return;
@@ -101,6 +108,7 @@ export function Composer({ settings, pairs, calendar, onDone, onClose }: Props) 
     };
   }, [query, previewable, keys]);
   const now = previewable && preview?.query === query ? preview.result : null;
+  const current = now && "value" in now && now.value !== undefined ? Number(now.value.toPrecision(6)) : undefined;
 
   const change = (next: Partial<Draft>) => setDraft({ ...draft, ...next });
   useEffect(() => {
@@ -113,6 +121,20 @@ export function Composer({ settings, pairs, calendar, onDone, onClose }: Props) 
     const op = crosses(subject) ? draft.op : draft.op === "crosses_above" ? ">" : draft.op === "crosses_below" ? "<" : draft.op;
     const against = subject.kind === "metric" ? defaultAgainst(subject.metric) : { kind: "value" as const, value: subject.kind === "position" && subject.field === "liq" ? "5" : "" };
     change({ subject, op, against });
+  };
+  const groups: Array<{ value: Group; label: string }> = [
+    { value: "market", label: "Market" },
+    { value: "indicator", label: "Indicator" },
+    ...(accounts.length ? [{ value: "position" as const, label: "Position" }] : []),
+    ...(calendar ? [{ value: "event" as const, label: "Event" }] : []),
+  ];
+  const group = groupOf(s);
+  const pickGroup = (g: Group) => {
+    if (g === group) return;
+    if (g === "market") pickKind("price");
+    else if (g === "indicator") pickKind("rsi");
+    else if (g === "position") watch({ kind: "position", field: "pnl" });
+    else watch({ kind: "event", hours: 24 });
   };
   const pickKind = (kind: MetricKind) => watch({ kind: "metric", metric: defaultMetric(kind, (s.kind === "metric" && timeframeOf(s.metric)) || "1h") });
 
@@ -146,112 +168,83 @@ export function Composer({ settings, pairs, calendar, onDone, onClose }: Props) 
         </header>
 
         <div className="alv-steps">
-          <div className="alv-step">
-            <span className="alv-step-label">
-              <i>1</i>Asset
-            </span>
-            <div className="alv-step-body">
-              <PairField value={target} pairs={pairs} onChange={setTarget} />
-            </div>
-          </div>
+          <section className="alv-step">
+            <h3 className="alv-step-label">Asset</h3>
+            <PairField value={target} pairs={pairs} onChange={setTarget} />
+          </section>
 
-          <div className="alv-step">
-            <span className="alv-step-label">
-              <i>2</i>Watch
-            </span>
-            <div className="alv-step-body">
-              <Chips label="Market" options={MARKET} value={s.kind === "metric" ? s.metric.kind : null} onChange={pickKind} />
-              <Chips label="Indicators" options={INDICATORS} value={s.kind === "metric" ? s.metric.kind : null} onChange={pickKind} />
-              {accounts.length > 0 && <Chips label="Position" options={POSITION} value={s.kind === "position" ? s.field : null} onChange={(field) => watch({ kind: "position", field })} />}
-              {calendar && <Chips label="Calendar" options={[{ kind: "event", label: "Coming event" }]} value={s.kind === "event" ? "event" : null} onChange={() => watch({ kind: "event", hours: 24 })} />}
-              {s.kind === "metric" && <MetricParams metric={s.metric} onChange={(metric: Metric) => change({ subject: { kind: "metric", metric } })} />}
-              {s.kind === "position" && (
-                <div className="alv-params">
-                  <label className="alv-num">
-                    <span>Account</span>
-                    <Select id="alv-account" label="Exchange account" value={accountId} options={accounts.map((a) => ({ value: a.id, label: a.label, meta: a.testnet ? "testnet" : undefined }))} onChange={setAccountId} />
-                  </label>
-                </div>
-              )}
-              {s.kind === "event" && (
-                <div className="alv-params">
-                  <label className="alv-num">
-                    <span>Within</span>
-                    <Segmented label="Within" value={String(s.hours)} options={["6", "12", "24", "48", "72"].map((h) => ({ value: h, label: `${h} h` }))} onChange={(h) => change({ subject: { kind: "event", hours: Number(h) } })} />
-                  </label>
-                </div>
-              )}
-            </div>
-          </div>
+          <section className="alv-step">
+            <h3 className="alv-step-label">Watch</h3>
+            {groups.length > 1 && <Segmented label="What to watch" value={group} options={groups} onChange={pickGroup} />}
+            {group === "market" && <Chips label="Market" options={MARKET} value={s.kind === "metric" ? s.metric.kind : null} onChange={pickKind} />}
+            {group === "indicator" && <Chips label="Indicators" options={INDICATORS} value={s.kind === "metric" ? s.metric.kind : null} onChange={pickKind} />}
+            {group === "position" && <Chips label="Position" options={POSITION} value={s.kind === "position" ? s.field : null} onChange={(field) => watch({ kind: "position", field })} />}
+            {s.kind === "metric" && <MetricParams metric={s.metric} onChange={(metric: Metric) => change({ subject: { kind: "metric", metric } })} />}
+            {s.kind === "position" && (
+              <div className="alv-params">
+                <label className="alv-num">
+                  <span>Account</span>
+                  <Select id="alv-account" label="Exchange account" value={accountId} options={accounts.map((a) => ({ value: a.id, label: a.label, meta: a.testnet ? "testnet" : undefined }))} onChange={setAccountId} />
+                </label>
+              </div>
+            )}
+            {s.kind === "event" && (
+              <div className="alv-params">
+                <label className="alv-num">
+                  <span>A notable event within</span>
+                  <Segmented label="Within" value={String(s.hours)} options={["6", "12", "24", "48", "72"].map((h) => ({ value: h, label: `${h} h` }))} onChange={(h) => change({ subject: { kind: "event", hours: Number(h) } })} />
+                </label>
+              </div>
+            )}
+          </section>
 
           {compares(s) && (
-            <div className="alv-step">
-              <span className="alv-step-label">
-                <i>3</i>Condition
-              </span>
-              <div className="alv-step-body">
-                <Segmented label="Condition" value={draft.op} options={crosses(s) ? OPS : OPS.slice(0, 2)} onChange={(op) => change({ op })} />
-                <p className="alv-hint">{hint(draft)}</p>
-                {s.kind === "metric" && (
-                  <Segmented
-                    label="Compared with"
-                    value={draft.against.kind}
-                    options={[
-                      { value: "value", label: "A value" },
-                      { value: "metric", label: "Another indicator" },
-                    ]}
-                    onChange={(k) => change({ against: k === "value" ? defaultAgainst(s.metric) : { kind: "metric", metric: s.metric.kind === "price" ? defaultMetric("ema", "4h") : { kind: "price" } } })}
+            <section className="alv-step">
+              <h3 className="alv-step-label">Condition</h3>
+              <Segmented label="Condition" value={draft.op} options={crosses(s) ? OPS : OPS.slice(0, 2)} onChange={(op) => change({ op })} />
+              {s.kind === "metric" && (
+                <Segmented
+                  label="Compared with"
+                  value={draft.against.kind}
+                  options={[
+                    { value: "value", label: "A value" },
+                    { value: "metric", label: "Another indicator" },
+                  ]}
+                  onChange={(k) => change({ against: k === "value" ? defaultAgainst(s.metric) : { kind: "metric", metric: s.metric.kind === "price" ? defaultMetric("ema", "4h") : { kind: "price" } } })}
+                />
+              )}
+              {draft.against.kind === "value" ? (
+                <span className="alv-level">
+                  <input
+                    className="alv-input"
+                    inputMode="decimal"
+                    aria-label="Level"
+                    placeholder={current !== undefined ? `Now ${current}` : "Level"}
+                    value={draft.against.value}
+                    onChange={(e) => change({ against: { kind: "value", value: e.target.value } })}
                   />
-                )}
-                {draft.against.kind === "value" ? (
-                  <div className="alv-value">
-                    <span className="alv-level">
-                      <input
-                        className="alv-input"
-                        inputMode="decimal"
-                        aria-label="Level"
-                        placeholder={now && "observed" in now ? "Level" : "Level — e.g. 70000"}
-                        value={draft.against.value}
-                        onChange={(e) => change({ against: { kind: "value", value: e.target.value } })}
-                      />
-                      {unitOf(draft) && <small>{unitOf(draft)}</small>}
-                    </span>
-                    {now && "value" in now && now.value !== undefined && s.kind === "metric" && !QUICK[s.metric.kind] && (
-                      <button type="button" className="alv-chip" onClick={() => change({ against: { kind: "value", value: String(Number(now.value!.toPrecision(6))) } })} title="Start from the current value">
-                        Now {Number(now.value.toPrecision(6))}
-                      </button>
-                    )}
-                    {s.kind === "metric" &&
-                      (QUICK[s.metric.kind] ?? []).map((v) => (
-                        <button key={v} type="button" className={`alv-chip${draft.against.kind === "value" && draft.against.value === v ? " is-on" : ""}`} onClick={() => change({ against: { kind: "value", value: v } })}>
-                          {v}
-                        </button>
-                      ))}
-                  </div>
-                ) : (
-                  <MetricPicker metric={draft.against.metric} onChange={(metric) => change({ against: { kind: "metric", metric } })} />
-                )}
-              </div>
-            </div>
+                  {unitOf(draft) && <small>{unitOf(draft)}</small>}
+                </span>
+              ) : (
+                <MetricPicker metric={draft.against.metric} onChange={(metric) => change({ against: { kind: "metric", metric } })} />
+              )}
+              <p className="alv-hint">{hint(draft)}</p>
+            </section>
           )}
 
-          <div className="alv-step">
-            <span className="alv-step-label">
-              <i>{compares(s) ? 4 : 3}</i>Notify
-            </span>
-            <div className="alv-step-body is-row">
-              <Segmented
-                label="How often"
-                value={once ? "once" : "every"}
-                options={[
-                  { value: "once", label: "Once" },
-                  { value: "every", label: "Every time" },
-                ]}
-                onChange={(v) => setOnce(v === "once")}
-              />
-              <input className="alv-input alv-note" aria-label="Note" placeholder="A note, shown with the notification — optional" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} />
-            </div>
-          </div>
+          <section className="alv-step">
+            <h3 className="alv-step-label">Notify</h3>
+            <Segmented
+              label="How often"
+              value={once ? "once" : "every"}
+              options={[
+                { value: "once", label: "Once" },
+                { value: "every", label: "Every time" },
+              ]}
+              onChange={(v) => setOnce(v === "once")}
+            />
+            <input className="alv-input" aria-label="Note" placeholder="A note, shown with the notification — optional" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} />
+          </section>
         </div>
 
         <footer className="alv-composer-foot">
@@ -261,10 +254,10 @@ export function Composer({ settings, pairs, calendar, onDone, onClose }: Props) 
                 {where} · <b>{sentence}</b>
               </p>
             ) : (
-              <p className="alv-sentence is-muted">{typeof condition === "string" ? "" : condition.error}</p>
+              <p className="alv-sentence is-muted">{typeof condition === "string" ? "" : condition.error === "Enter a number." ? "Type the level to finish the alert." : condition.error}</p>
             )}
             <p className="alv-now">
-              {!previewable ? (onPosition ? "Read on the position at the first check." : " ") : !now ? "Reading…" : "error" in now ? <span className="is-bad">{now.error}</span> : <>Now: {now.observed}{now.holds && (draft.op === ">" || draft.op === "<") ? " — true already: it fires at the first check" : ""}</>}
+              {!previewable ? (onPosition ? "Read on the position at the first check." : " ") : !now ? "Reading…" : "error" in now ? <span className="is-bad">{now.error}</span> : <>Now: {now.observed}{text && now.holds && (draft.op === ">" || draft.op === "<") ? " — true already: it fires at the first check" : ""}</>}
             </p>
             {problem && <p className="alv-problem">{problem}</p>}
           </div>
