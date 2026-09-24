@@ -21,9 +21,10 @@ const Calendar = (p: P) => (
   </svg>
 );
 
-const Pulse = (p: P) => (
+const Eye = (p: P) => (
   <svg {...base(p)}>
-    <path d="M3 13h4l2.5-6 4 11 2.5-5H21" />
+    <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+    <circle cx="12" cy="12" r="3" />
   </svg>
 );
 
@@ -70,7 +71,7 @@ const Square = (p: P) => (
 const ICONS: Record<string, (p: P) => React.JSX.Element> = {
   home: Chat,
   calendar: Calendar,
-  watchlist: Pulse,
+  watchlist: Eye,
   portfolio: Pie,
   "paper-trading": Flask,
   dca: Repeat,
