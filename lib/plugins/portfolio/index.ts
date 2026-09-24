@@ -12,8 +12,10 @@ import { portfolioSummaryTool } from "./portfolio-summary";
 import { exportSections } from "./present";
 import { candles } from "../shared/prices";
 import type { Candle } from "../shared/candle";
-import { balancesByDay, flowsByDay, flowsOfMoves, lastDays, valueByDay, type Activity, type Coverage, type Holdings, type Move } from "./backfill";
+import { balancesByDay, closeOn, flowsByDay, flowsOfMoves, lastDays, valueByDay, type Activity, type Coverage, type Holdings, type Move } from "./backfill";
 import { readHistory } from "./ledger";
+import type { Access } from "./permissions";
+import { addBalances, savingsByDay, tradingPart } from "./savings";
 import { STABLES } from "./aggregate";
 
 /* The consolidated portfolio: two read-only tools, a daily snapshot of the
@@ -62,8 +64,12 @@ export const portfolioPlugin = definePlugin({
        balances day by day, rebuilt from the exchange's ledger (today's
        holdings, sent by the view, walked back through every move); an
        exchange without a usable ledger keeps today's holdings — an
-       estimate, said as such (`sources`). Each day valued at its close:
-       BytNode's daily klines, else an account's exchange. */
+       estimate, said as such (`sources`). A Bybit account whose key reads
+       Earn is rebuilt whole: the trading account from its ledger, Funding
+       and Earn beside it (`savings.ts`) — the money that left them without
+       a record the API gives shows as an outflow. Each day valued at its
+       close: BytNode's daily klines, else an account's exchange. What each
+       key cannot read is said back (`access`). */
     ctx.api("backfill", async (params, { transport, signal }) => {
       const days = Math.max(7, Math.min(365, typeof params.days === "number" ? Math.round(params.days) : 365));
       const holdings: Holdings = (Array.isArray(params.holdings) ? params.holdings : [])
@@ -77,6 +83,13 @@ export const portfolioPlugin = definePlugin({
       const coverage: Record<string, Record<string, Coverage>> = {};
       const activity: Activity[] = [];
       const ledgers: Record<string, Move[]> = {};
+      const access: Record<string, Access> = {};
+      /* The accounts rebuilt whole: their flows are the money in and out of
+         the account, not the transfers between its wallets. */
+      const whole = new Set<string>();
+      /* The money found gone (or come) without a record, placed below once
+         priced: a few cents of interest rounding are not shown. */
+      const found: Activity[] = [];
       /* One account after the other: an exchange asked many things at once
          drops connections. */
       for (const h of holdings) {
@@ -85,10 +98,16 @@ export const portfolioPlugin = definePlugin({
         const history = account ? await readHistory(account, since, h.assets.map((a) => a.asset).filter((a) => !STABLES.has(a))) : null;
         sources[h.id] = history?.moves ? "ledger" : "estimate";
         if (history?.moves) ledgers[h.id] = history.moves;
-        balances[h.id] = balancesByDay(current, history?.moves ?? [], dayList);
+        if (history?.savings) {
+          const s = savingsByDay(history.savings, dayList);
+          balances[h.id] = addBalances(balancesByDay(tradingPart(current, history.savings.fundNow, history.savings.earnNow), history.moves ?? [], dayList), s.balances);
+          whole.add(h.id);
+          for (const u of s.unexplained) found.push({ t: Date.parse(`${u.day}T12:00:00Z`), kind: u.amount < 0 ? "outflow" : "inflow", asset: u.coin, amount: Math.abs(u.amount), account: h.id });
+        } else balances[h.id] = balancesByDay(current, history?.moves ?? [], dayList);
         if (history) {
           coverage[h.id] = history.coverage;
           activity.push(...history.activity);
+          if (history.access.missing.length) access[h.id] = history.access;
         }
       }
       /* The closes of every asset held on any day. */
@@ -108,11 +127,16 @@ export const portfolioPlugin = definePlugin({
         v.missing.forEach((a) => missing.add(a));
       }
       /* The money in and out each day, to measure the performance net of it:
-         an account read from its ledger takes its flows from the same ledger
-         (the transfers that moved its curve), the others from their deposits
-         and withdrawals. */
-      const flows = flowsByDay(activity.filter((a) => !ledgers[a.account]), closes);
-      for (const [id, moves] of Object.entries(ledgers)) flows[id] = flowsOfMoves(moves, closes);
+         an account read from its ledger alone takes its flows from the same
+         ledger (the transfers that moved its curve); one rebuilt whole, or
+         without a ledger, from its deposits, withdrawals and the outflows
+         found. */
+      for (const f of found) {
+        const price = STABLES.has(f.asset) ? 1 : closeOn(closes[f.asset], new Date(f.t).toISOString().slice(0, 10));
+        if (price !== undefined && f.amount * price >= 1) activity.push(f);
+      }
+      const flows = flowsByDay(activity.filter((a) => !ledgers[a.account] || whole.has(a.account)), closes);
+      for (const [id, moves] of Object.entries(ledgers)) if (!whole.has(id)) flows[id] = flowsOfMoves(moves, closes);
       const points = dayList.map((date) => {
         const byAccount = Object.fromEntries(Object.keys(values).map((id) => [id, values[id][date] ?? 0]));
         const total = Object.values(byAccount).reduce((t, v) => t + v, 0);
@@ -120,7 +144,7 @@ export const portfolioPlugin = definePlugin({
         const flow = Object.values(dayFlows).reduce((t, v) => t + v, 0);
         return { date, at: `${date}T00:00:00.000Z`, totalUsd: Math.round(total * 100) / 100, assets: {}, accounts: byAccount, ...(flow ? { flowUsd: flow, flows: dayFlows } : {}), estimated: true as const };
       });
-      return { points: holdings.length ? points : [], missing: [...missing], sources, coverage, activity };
+      return { points: holdings.length ? points : [], missing: [...missing], sources, coverage, activity: activity.sort((a, b) => b.t - a.t), access };
     });
     ctx.api("export", async (params, { transport, signal }) => {
       const report = ctx.optional<ReportService>("report-export");

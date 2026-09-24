@@ -4,6 +4,7 @@ import { clientFor } from "@/lib/tools/exchange/client";
 import { exchangeInfo } from "@/lib/tools/exchange/catalog";
 import { describeExchangeError, withRetry } from "@/lib/tools/exchange/errors";
 import { fundingRows, rowsOf, type Balances } from "@/lib/tools/exchange/balance";
+import { bybitEarn } from "./bybit";
 import { positionSize, type BalanceRow } from "@/lib/tools/exchange/format";
 import { isQuote, quotes, type PriceSources } from "../shared/prices";
 import { assetsToPrice, type AccountRead, type PriceBook } from "./aggregate";
@@ -12,7 +13,7 @@ import { assetsToPrice, type AccountRead, type PriceBook } from "./aggregate";
    Reading the accounts, for the consolidated portfolio — read-only calls
    only (balances, positions, tickers), the same the Exchange tools make.
 
-   Spot and its funding wallet; futures unless the exchange has none, or a
+   Spot and its funding wallet (and Bybit's Earn); futures unless the exchange has none, or a
    unified account whose futures balance IS the spot one (Bybit, OKX); the
    open positions. A failing call is recorded and the rest still reads.
    SERVER-ONLY.
@@ -42,6 +43,11 @@ export async function readAccount(account: ExchangeAccount): Promise<AccountRead
     read.wallets.push({ wallet: "spot", rows: held(rowsOf((await withRetry(() => spot.fetchBalance())) as Balances)) });
     const funding = await fundingRows(spot, account.exchange);
     if (funding?.length) read.wallets.push({ wallet: "funding", rows: held(funding) });
+    /* Bybit's Earn savings: outside every balance ccxt reads. */
+    if (account.exchange === "bybit") {
+      const earn = await bybitEarn(spot);
+      if (earn.length) read.wallets.push({ wallet: "earn", rows: earn });
+    }
   } catch (e) {
     problems.push(`spot: ${describeExchangeError(e)}`);
   }

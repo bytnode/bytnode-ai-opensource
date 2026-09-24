@@ -796,6 +796,67 @@ html[data-theme="light"] .pfv-currency-list {
   color: var(--tone);
 }
 
+/* What an API key cannot read: above the curve, the boxes to tick and a
+   link to the exchange's key page. */
+.pfv-access {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 18px;
+  padding: 16px 20px 16px 22px;
+  border-radius: var(--r-block);
+  background: color-mix(in srgb, var(--cal-unlock) 13%, var(--tile));
+  box-shadow: inset 4px 0 0 var(--cal-unlock);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--label-2);
+}
+
+.pfv-access p {
+  margin: 0;
+}
+
+.pfv-access b {
+  font-weight: 600;
+  color: var(--label);
+}
+
+.pfv-access-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--label);
+}
+
+.pfv-access .pfv-access-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 4px;
+}
+
+.pfv-access-foot a {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--cal-unlock);
+  font-weight: 600;
+  color: #fff;
+  text-decoration: none;
+}
+
+.pfv-access-foot a:hover {
+  filter: brightness(1.08);
+}
+
+.pfv-access-foot a:focus-visible {
+  outline: 2px solid var(--label);
+  outline-offset: 2px;
+}
+
+.pfv-access-foot span {
+  font-size: 12.5px;
+  color: var(--label-3);
+}
+
 /* The activity: the calendar's blocks, coloured by kind. */
 .pfv-act {
   grid-template-columns: 130px minmax(0, 1fr) auto;

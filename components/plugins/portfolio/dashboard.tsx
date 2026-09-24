@@ -4,6 +4,8 @@ import type { CSSProperties, ReactNode } from "react";
 import { STABLES, type Summary, type WalletSplit } from "@/lib/plugins/portfolio/aggregate";
 import { PERIODS, performance, type Period } from "@/lib/plugins/portfolio/performance";
 import type { Activity, Coverage } from "@/lib/plugins/portfolio/backfill";
+import type { Access } from "@/lib/plugins/portfolio/permissions";
+import { exchangeInfo } from "@/lib/tools/exchange/catalog";
 import { allocation } from "@/lib/plugins/portfolio/view-model";
 import type { Candle } from "@/lib/plugins/shared/candle";
 import { Segmented } from "@/components/ui/segmented";
@@ -50,6 +52,9 @@ type Props = {
   coverage?: Record<string, Record<string, Coverage>> | null;
   /** The history is being read from the exchanges. */
   reading?: boolean;
+  /** Per account id, what its API key cannot read (only the accounts
+      that lack something). */
+  access?: Record<string, Access> | null;
 };
 
 const KINDS: Array<{ key: string; label: string }> = [
@@ -57,16 +62,18 @@ const KINDS: Array<{ key: string; label: string }> = [
   { key: "trades", label: "Trades" },
   { key: "deposits", label: "Deposits" },
   { key: "withdrawals", label: "Withdrawals" },
+  { key: "earn", label: "Earn" },
+  { key: "converts", label: "Converts" },
 ];
-const ACT = { buy: "Bought", sell: "Sold", deposit: "Deposit", withdrawal: "Withdrawal" } as const;
-const ACT_TONE = { buy: "var(--alloc-0)", sell: "var(--alloc-3)", deposit: "var(--up)", withdrawal: "var(--down)" } as const;
+const ACT = { buy: "Bought", sell: "Sold", deposit: "Deposit", withdrawal: "Withdrawal", outflow: "Left the account", inflow: "Came in" } as const;
+const ACT_TONE = { buy: "var(--alloc-0)", sell: "var(--alloc-3)", deposit: "var(--up)", withdrawal: "var(--down)", outflow: "var(--cal-unlock)", inflow: "var(--up)" } as const;
 
 const TONES = ["var(--alloc-0)", "var(--alloc-1)", "var(--alloc-2)", "var(--alloc-3)", "var(--alloc-4)", "var(--alloc-5)", "var(--alloc-6)"];
 const signed = (v: number, digits = 2) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(digits)} %`;
 const toneOf = (v: number | undefined) => (v === undefined || v === 0 ? "is-flat" : v > 0 ? "is-up" : "is-down");
 const dayOf = (t: number) => new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 
-export function Dashboard({ summary, account, series, period, onPeriod, value, perUsd, currency, onScope, origin = null, activity = null, coverage = null, reading = false }: Props) {
+export function Dashboard({ summary, account, series, period, onPeriod, value, perUsd, currency, onScope, origin = null, activity = null, coverage = null, reading = false, access = null }: Props) {
   const whole = account === null;
   const perf = performance(series);
   const assets = account ? account.assets : summary.assets;
@@ -88,6 +95,7 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
   const acts = (activity ?? []).filter((a) => (account ? a.account === account.id : true) && a.t >= periodStart);
   const count = (k: Activity["kind"]) => acts.filter((a) => a.kind === k).length;
   const covered = coverage ? Object.entries(coverage).filter(([id]) => (account ? id === account.id : true)) : [];
+  const lacking = access ? Object.entries(access).filter(([id, a]) => a.missing.length > 0 && (account ? id === account.id : true)) : [];
   /* What is held, as positions too: every asset but the stablecoins (cash,
      in the composition), with the accounts that hold it. */
   const holdings = assets
@@ -123,6 +131,36 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
       </div>
 
       <Part title="Performance" sub={origin === "ledger" ? "rebuilt from the exchange's ledger — trades, fees, deposits, withdrawals — at each day's price" : origin === "mixed" ? "rebuilt from the exchanges' ledgers; estimated from today's holdings where an exchange has none" : origin === "estimate" ? "estimated from today's holdings at past prices: this exchange gives no ledger" : whole ? "one snapshot of the total a day, while the app is open" : "one snapshot of this account a day, while the app is open"}>
+          {lacking.map(([id, a]) => {
+            const name = exchangeInfo(a.exchange)?.label ?? a.exchange;
+            const label = labelOf.get(id)?.label;
+            return (
+              <div key={id} className="pfv-access" role="alert">
+                <p className="pfv-access-title">
+                  {name}
+                  {label ? ` · ${label}` : ""}: the API key cannot read the whole account
+                </p>
+                <p>
+                  Not ticked on the key:{" "}
+                  {a.missing.map((m, i) => (
+                    <span key={m.key}>
+                      <b>{m.label}</b>
+                      {i < a.missing.length - 1 ? ", " : ""}
+                    </span>
+                  ))}
+                  . The history below leaves out {a.missing.map((m) => m.what).join("; ")} — it shows {a.shown}.
+                </p>
+                <p className="pfv-access-foot">
+                  {a.url && (
+                    <a href={a.url} target="_blank" rel="noreferrer">
+                      Open {name}&apos;s API keys
+                    </a>
+                  )}
+                  <span>Read access is enough; never tick Withdrawal. Then reload the portfolio.</span>
+                </p>
+              </div>
+            );
+          })}
           <div className="pfv-chart">
             <PriceChart candles={series} interval="1d" mode="line" fit returns message={series.length < 2 ? (whole ? "The curve appears after two daily snapshots." : account?.testnet ? "A testnet account is never recorded: no curve." : "This account's curve starts with its first daily snapshots.") : null} />
           </div>
@@ -184,6 +222,7 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
                 { key: "spot", label: "Spot", value: wallets.spot, tone: "var(--alloc-1)" },
                 { key: "futures", label: "Futures", value: wallets.futures, tone: "var(--alloc-3)" },
                 { key: "funding", label: "Funding", value: wallets.funding, tone: "var(--alloc-4)" },
+                { key: "earn", label: "Earn", value: wallets.earn, tone: "var(--alloc-2)" },
               ]}
               format={(p, share) => `${(share * 100).toFixed(1)} %`}
             />
@@ -304,6 +343,7 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
                   <span className="pfv-act-what">
                     <b>{ACT[a.kind]}</b> {fmt(a.amount)} {a.asset}
                     {a.price ? <small> at {fmt(a.price)}</small> : null}
+                    {a.kind === "outflow" ? <small> · a card payment, a P2P sale or Bybit Pay: the API does not show which</small> : null}
                   </span>
                   <span className="pfv-position-account">{labelOf.get(a.account)?.label ?? ""}</span>
                 </div>

@@ -30,8 +30,9 @@ export function mergeHistory(real: Snapshot[], estimated: Snapshot[]): Snapshot[
    each past day; valued at that day's close, the account's real value. */
 
 /** A change of one balance; `flow`: money moved in or out of the account
-    (a deposit, a withdrawal, a transfer), not a gain or a loss. */
-export type Move = { t: number; asset: string; delta: number; flow?: boolean };
+    (a deposit, a withdrawal, a transfer), not a gain or a loss; `type`:
+    the exchange's own name for it (Bybit's TRADE, TRANSFER_IN…). */
+export type Move = { t: number; asset: string; delta: number; flow?: boolean; type?: string };
 
 /** The ledger entry's fields a move is read from (ccxt's `LedgerEntry`). */
 export type LedgerLike = { timestamp?: number; currency?: string; amount?: number; direction?: string; before?: number; after?: number; type?: string; info?: unknown };
@@ -56,7 +57,7 @@ export function ledgerMove(e: LedgerLike): Move | null {
   else if (typeof e.before === "number" && typeof e.after === "number") delta = e.after - e.before;
   if (delta === undefined || !Number.isFinite(delta) || delta === 0) return null;
   const kind = String(info.type ?? e.type ?? "");
-  return { t, asset: asset.toUpperCase(), delta, ...(FLOW_TYPE.test(kind) ? { flow: true } : {}) };
+  return { t, asset: asset.toUpperCase(), delta, ...(FLOW_TYPE.test(kind) ? { flow: true } : {}), ...(typeof info.type === "string" ? { type: info.type } : {}) };
 }
 
 const END_OF_DAY = (day: string) => Date.parse(`${day}T23:59:59.999Z`);
@@ -115,7 +116,10 @@ export function valueByDay(balances: Record<string, Record<string, number>>, clo
 
 /* --- What the exchanges said: activity, coverage, money in and out ------- */
 
-export type Activity = { t: number; kind: "buy" | "sell" | "deposit" | "withdrawal"; asset: string; amount: number; price?: number; symbol?: string; account: string };
+/** `outflow` / `inflow`: money that left or reached the account without a
+    record the exchange's API gives (a card payment, a P2P sale…), found
+    by rebuilding its balances. */
+export type Activity = { t: number; kind: "buy" | "sell" | "deposit" | "withdrawal" | "outflow" | "inflow"; asset: string; amount: number; price?: number; symbol?: string; fee?: number; account: string };
 
 /** How far an exchange's history reached, for one kind of record. */
 export type Coverage = { status: "ok" | "limited" | "unsupported" | "error"; from?: string; note?: string };
@@ -138,15 +142,16 @@ export function flowsOfMoves(moves: Move[], closes: Record<string, Candle[]>): R
 }
 
 /** The money put in (deposits, positive) and taken out (withdrawals,
-    negative) each day, in USD at that day's close; per account id. */
+    negative) each day, in USD at that day's close; per account id — the
+    in- and outflows found by a rebuild count the same way. */
 export function flowsByDay(activity: Activity[], closes: Record<string, Candle[]>): Record<string, Record<string, number>> {
   const out: Record<string, Record<string, number>> = {};
   for (const a of activity) {
-    if (a.kind !== "deposit" && a.kind !== "withdrawal") continue;
+    if (a.kind === "buy" || a.kind === "sell") continue;
     const day = new Date(a.t).toISOString().slice(0, 10);
     const price = STABLES.has(a.asset) ? 1 : closeOn(closes[a.asset], day);
     if (price === undefined) continue;
-    const usd = (a.kind === "deposit" ? 1 : -1) * a.amount * price;
+    const usd = (a.kind === "deposit" || a.kind === "inflow" ? 1 : -1) * a.amount * price;
     out[a.account] ??= {};
     out[a.account][day] = Math.round(((out[a.account][day] ?? 0) + usd) * 100) / 100;
   }

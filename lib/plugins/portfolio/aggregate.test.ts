@@ -43,9 +43,9 @@ describe("summarize", () => {
   });
 
   it("splits the live value by wallet, and each account on its own", () => {
-    expect(s.wallets).toEqual({ spot: 6400 + 1000 + 3000, funding: 40, futures: 500 });
+    expect(s.wallets).toEqual({ spot: 6400 + 1000 + 3000, funding: 40, futures: 500, earn: 0 });
     const m = s.accounts[0];
-    expect(m.wallets).toEqual({ spot: 7400, funding: 40, futures: 500 });
+    expect(m.wallets).toEqual({ spot: 7400, funding: 40, futures: 500, earn: 0 });
     expect(m.assets.map((a) => a.asset)).toEqual(["BTC", "USDT", "USDC"]);
     expect(m.assets[1]).toMatchObject({ amount: 1500, usd: 1500 });
     expect(m.assets[0].share).toBeCloseTo(6400 / 7940, 10);

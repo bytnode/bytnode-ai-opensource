@@ -54,7 +54,7 @@ describe("ledgerMove", () => {
   it("signs an outgoing Bybit entry from its own change, not ccxt's wrong before", () => {
     /* ccxt's Bybit parser: 100 USDT out, balance 900 after, reads before = 800. */
     const e = { timestamp: t, currency: "USDT", amount: 100, direction: "out", before: 800, after: 900, type: "trade", info: { change: "-100", type: "TRADE" } };
-    expect(ledgerMove(e)).toEqual({ t, asset: "USDT", delta: -100 });
+    expect(ledgerMove(e)).toEqual({ t, asset: "USDT", delta: -100, type: "TRADE" });
   });
 
   it("falls back on the direction and the amount, then on after minus before", () => {
@@ -64,7 +64,7 @@ describe("ledgerMove", () => {
   });
 
   it("marks the money moved in or out as a flow", () => {
-    expect(ledgerMove({ timestamp: t, currency: "USDT", info: { change: "2000", type: "TRANSFER_IN" } })).toEqual({ t, asset: "USDT", delta: 2000, flow: true });
+    expect(ledgerMove({ timestamp: t, currency: "USDT", info: { change: "2000", type: "TRANSFER_IN" } })).toEqual({ t, asset: "USDT", delta: 2000, flow: true, type: "TRANSFER_IN" });
     expect(ledgerMove({ timestamp: t, currency: "USDT", info: { change: "-5", type: "SETTLEMENT" } })?.flow).toBeUndefined();
   });
 

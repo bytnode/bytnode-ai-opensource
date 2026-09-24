@@ -7,6 +7,7 @@ import type { Money } from "@/lib/plugins/portfolio/present";
 import { dailySeries } from "@/lib/plugins/portfolio/view-model";
 import { samplePoints, sampleSummary } from "@/lib/plugins/portfolio/sample";
 import { mergeHistory, type Activity, type Coverage, type Estimated } from "@/lib/plugins/portfolio/backfill";
+import type { Access } from "@/lib/plugins/portfolio/permissions";
 import { pluginManifest } from "@/lib/plugins/catalog";
 import { pluginSettings, resolveConfig } from "@/lib/plugins/core/state";
 import { goToSettings } from "@/lib/state/navigation";
@@ -65,7 +66,7 @@ export function PortfolioView({ settings }: ViewProps) {
   const holdings = (data?.summary.accounts ?? [])
     .filter((a) => a.id && !a.testnet)
     .map((a) => ({ id: a.id as string, assets: a.assets.map((x) => ({ asset: x.asset, amount: Number(x.amount.toPrecision(6)) })) }));
-  const backfill = usePluginData<{ points: Estimated[]; missing: string[]; sources: Record<string, "ledger" | "estimate">; coverage?: Record<string, Record<string, Coverage>>; activity?: Activity[] }>("portfolio", "backfill", settings, { holdings, days: HISTORY_DAYS - 1 });
+  const backfill = usePluginData<{ points: Estimated[]; missing: string[]; sources: Record<string, "ledger" | "estimate">; coverage?: Record<string, Record<string, Coverage>>; activity?: Activity[]; access?: Record<string, Access> }>("portfolio", "backfill", settings, { holdings, days: HISTORY_DAYS - 1 });
   const report = useReportExport("portfolio", settings, { currency });
   const ui = useUiPrefs();
   const panel = useRef<HTMLDivElement>(null);
@@ -176,7 +177,7 @@ export function PortfolioView({ settings }: ViewProps) {
                   )}
                 </div>
               ) : (
-                <Dashboard summary={s} account={account} series={series} period={period} onPeriod={setPeriod} value={value} perUsd={m.perUsd} currency={m.currency} onScope={setScope} origin={origin} activity={sample ? null : (backfill.data?.activity ?? null)} coverage={sample ? null : (backfill.data?.coverage ?? null)} reading={!sample && backfill.loading && !backfill.data} />
+                <Dashboard summary={s} account={account} series={series} period={period} onPeriod={setPeriod} value={value} perUsd={m.perUsd} currency={m.currency} onScope={setScope} origin={origin} activity={sample ? null : (backfill.data?.activity ?? null)} coverage={sample ? null : (backfill.data?.coverage ?? null)} reading={!sample && backfill.loading && !backfill.data} access={sample ? null : (backfill.data?.access ?? null)} />
               )
             )}
           </div>

@@ -3,6 +3,9 @@ import type { ExchangeAccount } from "@/lib/domain/types";
 import { clientFor } from "@/lib/tools/exchange/client";
 import { describeExchangeError, withRetry } from "@/lib/tools/exchange/errors";
 import { ledgerMove, type Activity, type Coverage, type LedgerLike, type Move } from "./backfill";
+import { bybitPermissions, bybitSavings } from "./bybit";
+import { apiKeysUrl, bybitMissing, bybitShown, missingFromCoverage, type Access, type Missing } from "./permissions";
+import type { SavingsInputs } from "./savings";
 
 /* ---------------------------------------------------------------------------
    An account's history, read from its exchange through ccxt — read-only
@@ -17,6 +20,9 @@ import { ledgerMove, type Activity, type Coverage, type LedgerLike, type Move } 
    tells the user, it never pretends. A network error is retried once.
    Binance's "ledger" in ccxt is the futures income only, not the wallets:
    it is not used for the balances (the trades and transfers still are).
+   Bybit's ledger is the Unified trading account's alone: its savings side
+   (Funding, Earn) comes from `bybit.ts`, when the key allows it — what the
+   key may read is said back (`access`), for the view to tell the user.
    Kept an hour per account: the past does not move. SERVER-ONLY.
 --------------------------------------------------------------------------- */
 
@@ -37,13 +43,19 @@ type Kind = "ledger" | "trades" | "deposits" | "withdrawals";
 export type AccountHistory = {
   moves: Move[] | null;
   activity: Activity[];
-  coverage: Record<Kind, Coverage>;
+  coverage: Record<string, Coverage>;
+  /** Bybit's Funding and Earn, to rebuild beside the trading account. */
+  savings: SavingsInputs | null;
+  access: Access;
 };
 
 const cache = new Map<string, { at: number; value: AccountHistory }>();
 
-/** A refusal that means "too far back" rather than a failure. */
-const TOO_OLD = /range|too (old|early|far)|time|exceed|before|days|history|startTime|start_time|interval/i;
+/** A refusal that means "too far back" rather than a failure — never a
+    network error ("did not answer in time") nor a missing permission. */
+const OLD_WORDS = /range|too (old|early|far)|exceed|before|days|startTime|start_time|interval/i;
+const NOT_OLD = /unreachable|did not answer|permission|rate limit|too many/i;
+const TOO_OLD = { test: (m: string) => OLD_WORDS.test(m) && !NOT_OLD.test(m) };
 
 /** Reads one kind over [since, now], window by window (or in one paged
     call when the exchange takes any range). */
@@ -93,12 +105,9 @@ const unique = <T,>(rows: T[], key: (r: T) => string) => {
 
 /** Everything the exchange can say about the account since `since`. */
 export async function readHistory(account: ExchangeAccount, since: number, heldAssets: string[], now = Date.now()): Promise<AccountHistory> {
-  const key = `${account.id}|${Math.floor(since / DAY)}`;
-  const hit = cache.get(key);
-  if (hit && now - hit.at < TTL) return hit.value;
-
+  const url = apiKeysUrl(account.exchange, account.testnet);
   const none = (note: string): Coverage => ({ status: "unsupported", note });
-  const coverage: Record<Kind, Coverage> = { ledger: none("Not offered by this exchange."), trades: none("Not offered by this exchange."), deposits: none("Not offered by this exchange."), withdrawals: none("Not offered by this exchange.") };
+  const coverage: Record<string, Coverage> = { ledger: none("Not offered by this exchange."), trades: none("Not offered by this exchange."), deposits: none("Not offered by this exchange."), withdrawals: none("Not offered by this exchange.") };
   let moves: Move[] | null = null;
   const activity: Activity[] = [];
   let ex;
@@ -107,9 +116,15 @@ export async function readHistory(account: ExchangeAccount, since: number, heldA
   } catch (e) {
     const note = describeExchangeError(e);
     const failed: Coverage = { status: "error", note };
-    return { moves: null, activity: [], coverage: { ledger: failed, trades: failed, deposits: failed, withdrawals: failed } };
+    return { moves: null, activity: [], coverage: { ledger: failed, trades: failed, deposits: failed, withdrawals: failed }, savings: null, access: { exchange: account.exchange, missing: [], shown: "", url } };
   }
   const id = ex.id;
+  /* What the key may read (Bybit says it); a change of its boxes is a new
+     reading, not the cached one. */
+  const missing: Missing[] | null = id === "bybit" ? bybitMissing(await bybitPermissions(ex)) : null;
+  const key = `${account.id}|${Math.floor(since / DAY)}|${(missing ?? []).map((m) => m.key).join(",")}`;
+  const hit = cache.get(key);
+  if (hit && now - hit.at < TTL) return hit.value;
 
   /* The ledger: the balances' own history. */
   if (NOT_WALLETS.has(id)) coverage.ledger = none("This exchange's ledger covers the futures income only, not the wallets.");
@@ -155,14 +170,31 @@ export async function readHistory(account: ExchangeAccount, since: number, heldA
     for (const x of unique(r.rows, (y) => String(y.id ?? y.txid ?? `${y.timestamp}|${y.currency}|${y.amount}`))) {
       if (typeof x.timestamp !== "number" || typeof x.amount !== "number" || !x.currency) continue;
       if (x.status && !/ok|complete|success|done/i.test(String(x.status))) continue;
-      activity.push({ t: x.timestamp, kind: kind === "deposits" ? "deposit" : "withdrawal", asset: x.currency.toUpperCase(), amount: Math.abs(x.amount), account: account.id });
+      const fee = typeof x.fee?.cost === "number" && x.fee.cost > 0 ? x.fee.cost : undefined;
+      activity.push({ t: x.timestamp, kind: kind === "deposits" ? "deposit" : "withdrawal", asset: x.currency.toUpperCase(), amount: Math.abs(x.amount), ...(fee ? { fee } : {}), account: account.id });
+    }
+  }
+
+  /* Bybit's savings side, when the key reads Earn (without it, a
+     subscription would look like money gone). */
+  let savings: SavingsInputs | null = null;
+  if (id === "bybit" && moves && missing) {
+    if (missing.some((m) => m.key === "earn")) {
+      coverage.earn = { status: "error", note: "The API key does not have this permission: Earn." };
+    } else {
+      const s = await bybitSavings(ex, since, now, moves, activity, !missing.some((m) => m.key === "exchange"));
+      coverage.earn = s.coverage.earn;
+      coverage.converts = s.coverage.converts;
+      if (s.coverage.earn.status === "ok") savings = s.inputs;
     }
   }
 
   /* Every deposit and withdrawal (the performance needs them all), the
      newest trades. */
   const sorted = activity.sort((a, b) => b.t - a.t);
-  const value: AccountHistory = { moves, activity: [...sorted.filter((a) => a.kind === "deposit" || a.kind === "withdrawal"), ...sorted.filter((a) => a.kind === "buy" || a.kind === "sell").slice(0, KEEP)].sort((a, b) => b.t - a.t), coverage };
+  const lacks = missing ?? missingFromCoverage(coverage);
+  const access: Access = { exchange: id, missing: lacks, shown: missing ? bybitShown(lacks) : lacks.length ? "what the key can read" : "", url };
+  const value: AccountHistory = { moves, activity: [...sorted.filter((a) => a.kind === "deposit" || a.kind === "withdrawal"), ...sorted.filter((a) => a.kind === "buy" || a.kind === "sell").slice(0, KEEP)].sort((a, b) => b.t - a.t), coverage, savings, access };
   cache.set(key, { at: now, value });
   return value;
 }

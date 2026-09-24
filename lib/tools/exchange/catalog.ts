@@ -41,6 +41,10 @@ export type ExchangeInfo = {
   maintenanceMargin?: number;
   /** What the user and the agent need to know, in one sentence. */
   note?: string;
+  /** The exchange's API key page (and its test network's), where a
+      permission is ticked — linked when a key cannot read everything. */
+  apiKeys?: string;
+  apiKeysTestnet?: string;
 };
 
 export const EXCHANGES: ExchangeInfo[] = [
@@ -54,6 +58,8 @@ export const EXCHANGES: ExchangeInfo[] = [
     funding: "funding",
     maintenanceMargin: 0.004,
     note: "Testnet: spot keys (testnet.binance.vision) and futures keys (testnet.binancefuture.com) are distinct — a testnet account serves only one of the two markets.",
+    apiKeys: "https://www.binance.com/en/my/settings/api-management",
+    apiKeysTestnet: "https://testnet.binance.vision/",
   },
   {
     id: "bybit",
@@ -67,6 +73,8 @@ export const EXCHANGES: ExchangeInfo[] = [
     tradingWallet: "unified",
     maintenanceMargin: 0.005,
     note: "Unified account: spot and futures share the same balance. Deposits land in the Funding wallet, to be transferred to the unified account before trading. Testnet: keys created on testnet.bybit.com.",
+    apiKeys: "https://www.bybit.com/app/user/api-management",
+    apiKeysTestnet: "https://testnet.bybit.com/app/user/api-management",
   },
   {
     id: "okx",
@@ -79,6 +87,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     funding: "funding",
     maintenanceMargin: 0.004,
     note: "Unified trading account: spot and futures share the same balance; deposits land in the Funding account, to be transferred to trading. Testnet = OKX demo, with API keys created in demo mode.",
+    apiKeys: "https://www.okx.com/account/my-api",
   },
   {
     id: "coinbase",
@@ -88,6 +97,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     futures: "none",
     transfer: false,
     note: "Advanced Trade, spot markets. CDP key: the secret is the EC private key (the \"-----BEGIN … -----\" block), to paste as is.",
+    apiKeys: "https://portal.cdp.coinbase.com/projects/api-keys",
   },
   {
     id: "kraken",
@@ -97,6 +107,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     futures: "none",
     transfer: false,
     note: "Kraken Futures has its own keys (futures.kraken.com), outside this integration.",
+    apiKeys: "https://pro.kraken.com/app/settings/api",
   },
   {
     id: "bitget",
@@ -107,6 +118,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     transfer: true,
     maintenanceMargin: 0.004,
     note: "Futures: the account must be in one-way mode (Bitget starts in hedge mode) — checked before every order.",
+    apiKeys: "https://www.bitget.com/account/newapi",
   },
   {
     id: "kucoin",
@@ -119,6 +131,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     funding: "main",
     maintenanceMargin: 0.004,
     note: "A single key, with the Spot and Futures permissions, serves both markets. Deposits land on the main account, to be transferred to the trading account.",
+    apiKeys: "https://www.kucoin.com/account/api",
   },
   {
     id: "gate",
@@ -129,6 +142,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     transfer: true,
     maintenanceMargin: 0.005,
     note: "Testnet: keys created on testnet.gate.com. The margin mode cannot be set through the API (leverage only).",
+    apiKeys: "https://www.gate.com/myaccount/api_key_manage",
   },
   {
     id: "htx",
@@ -139,6 +153,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     transfer: false,
     maintenanceMargin: 0.005,
     note: "No spot ↔ USDT futures transfer nor margin mode through this integration: do it on the exchange.",
+    apiKeys: "https://www.htx.com/en-us/apikey/",
   },
   {
     id: "mexc",
@@ -149,6 +164,7 @@ export const EXCHANGES: ExchangeInfo[] = [
     transfer: true,
     maintenanceMargin: 0.004,
     note: "Futures read-only: MEXC closed futures order placement and cancellation by API (since 2022-07-25). Spot is complete.",
+    apiKeys: "https://www.mexc.com/user/openapi",
   },
 ];
 

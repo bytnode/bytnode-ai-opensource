@@ -57,12 +57,12 @@ const ACCOUNTS: Array<{ id: string; label: string; exchange: string; testnet: bo
 
 export function sampleSummary(): Summary {
   const whole = new Map<string, { amount: number; usd: number }>();
-  const wallets = { spot: 0, futures: 0, funding: 0 };
+  const wallets = { spot: 0, futures: 0, funding: 0, earn: 0 };
   let totalUsd = 0;
   let testnetUsd = 0;
   const accounts: Summary["accounts"] = ACCOUNTS.map((a) => {
     const own = new Map<string, { amount: number; usd: number }>();
-    const ownWallets = { spot: 0, futures: 0, funding: 0 };
+    const ownWallets = { spot: 0, futures: 0, funding: 0, earn: 0 };
     let usd = 0;
     for (const kind of ["spot", "futures", "funding"] as const) {
       for (const [asset, amount] of a.wallets[kind]) {

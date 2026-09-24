@@ -9,7 +9,7 @@
 
 export const STABLES = new Set(["USDT", "USDC", "USD", "FDUSD", "BUSD", "DAI", "TUSD", "USDE", "PYUSD"]);
 
-export type Wallet = "spot" | "funding" | "futures";
+export type Wallet = "spot" | "funding" | "futures" | "earn";
 
 export type PositionRead = {
   symbol: string;
@@ -66,12 +66,12 @@ export function summarize(reads: AccountRead[], prices: PriceBook): Summary {
   let totalUsd = 0;
   let testnetUsd = 0;
   let unrealizedPnl = 0;
-  const wallets: WalletSplit = { spot: 0, funding: 0, futures: 0 };
+  const wallets: WalletSplit = { spot: 0, funding: 0, futures: 0, earn: 0 };
   for (const read of reads) {
     let usd = 0;
     let missing = 0;
     const own = new Map<string, { amount: number; usd: number }>();
-    const ownWallets: WalletSplit = { spot: 0, funding: 0, futures: 0 };
+    const ownWallets: WalletSplit = { spot: 0, funding: 0, futures: 0, earn: 0 };
     for (const { wallet, rows } of read.wallets) {
       for (const { asset, amount } of rows) {
         if (!(amount > 0)) continue;
