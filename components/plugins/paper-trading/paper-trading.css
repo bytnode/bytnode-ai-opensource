@@ -25,7 +25,7 @@
 
 /* The portfolios, a light veil on the left, of a fixed width. */
 .ptv-nav {
-  flex: 0 0 290px;
+  flex: 0 0 330px;
 }
 
 .ptv-book {
@@ -583,7 +583,7 @@ html[data-theme="light"] .ptv-pill.is-primary {
 
 .ptv-empty {
   flex: none;
-  margin: 0 var(--side);
+  margin: 22px var(--side) 0;
   padding: 26px 26px 28px;
   border-radius: var(--r-block);
   background: var(--tile);
@@ -785,10 +785,252 @@ html[data-theme="light"] .ptv-pill.is-primary {
   color: var(--label-3);
 }
 
+/* --- The pair's field -------------------------------------------------------------- */
+
+.ptv-pair {
+  position: relative;
+  z-index: 6;
+}
+
+.ptv-pair .wlv-add-row .wlv-input {
+  padding-left: 36px;
+}
+
+/* The chosen pair's name, quiet, at the end of the field. */
+.ptv-pair-name {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  max-width: 45%;
+  overflow: hidden;
+  transform: translateY(-50%);
+  font-size: 13px;
+  color: var(--label-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.ptv-suggest {
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: min(420px, 55vh);
+}
+
+/* --- The market of the ticket's pair ---------------------------------------------- */
+
+.ptv-market {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  height: clamp(320px, 42vh, 440px);
+  margin: 0 var(--side);
+  padding: 16px 0 4px 20px;
+  border-radius: var(--r-block);
+  background: var(--tile);
+}
+
+.ptv-market-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-right: 16px;
+}
+
+.ptv-market-head .seg {
+  flex: none;
+  border-radius: var(--r-sm);
+}
+
+.ptv-market-head .seg button {
+  height: 24px;
+  padding: 0 11px;
+  font-size: 12px;
+}
+
+.ptv-market-title {
+  min-width: 0;
+}
+
+.ptv-market-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+}
+
+.ptv-market-name b {
+  font-family: var(--font-display), sans-serif;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.ptv-market-name span {
+  overflow: hidden;
+  font-size: 14px;
+  color: var(--label-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ptv-market-price {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 4px 0 0;
+}
+
+.ptv-market-price > span {
+  font-family: var(--font-display), sans-serif;
+  font-size: 30px;
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  animation: ptv-tick 700ms var(--ease) both;
+}
+
+@keyframes ptv-tick {
+  from {
+    opacity: 0.45;
+  }
+}
+
+.ptv-market-price b {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--tone);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.ptv-market-price small {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--label-3);
+}
+
+.ptv-market-here {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--label-3);
+}
+
+.ptv-market-chart {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  margin-top: 8px;
+}
+
+/* --- Performance and allocation --------------------------------------------------- */
+
+.ptv-perf-chart {
+  display: flex;
+  flex-direction: column;
+  height: 240px;
+  padding: 10px 0 4px 18px;
+  border-radius: var(--r-block) var(--r-block) 0 0;
+  background: var(--tile);
+}
+
+/* The record's tiles, right under the curve: one block with it. */
+.ptv-stats {
+  --cols: 3;
+
+  margin-top: var(--tile-gap);
+  border-radius: 0 0 var(--r-block) var(--r-block);
+}
+
+.ptv-alloc {
+  padding: 16px 18px 12px;
+  border-radius: var(--r-block);
+  background: var(--tile);
+}
+
+/* The shares, one bar 2 px apart like the tiles, round at its ends. */
+.ptv-alloc-bar {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 5px;
+}
+
+.ptv-alloc-bar i {
+  min-width: 3px;
+  flex-basis: 0;
+}
+
+.ptv-alloc-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 4px 24px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ptv-alloc-legend li {
+  display: grid;
+  grid-template-columns: 10px auto minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 13.5px;
+}
+
+.ptv-alloc-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  align-self: center;
+}
+
+.ptv-alloc-legend b {
+  font-weight: 600;
+}
+
+.ptv-alloc-legend small {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--label-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ptv-alloc-share {
+  min-width: 52px;
+  color: var(--label-3);
+  text-align: right;
+}
+
+/* A row's name is a button: it shows the pair's market. */
+.ptv-row-pick {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ptv-row-pick:hover b {
+  text-decoration: underline;
+  text-decoration-color: var(--label-3);
+  text-underline-offset: 3px;
+}
+
 /* --- Narrow sheets ----------------------------------------------------------------- */
 
 @container (max-width: 720px) {
-  .ptv-figures {
+  .ptv-figures,
+  .ptv-stats {
     --cols: 2;
   }
 
@@ -812,5 +1054,9 @@ html[data-theme="light"] .ptv-pill.is-primary {
 @media (prefers-reduced-motion: reduce) {
   .ptv-place {
     transition: none;
+  }
+
+  .ptv-market-price > span {
+    animation: none;
   }
 }

@@ -8,9 +8,11 @@ import type { ViewProps } from "../views";
 import { ColumnHandle } from "../column-handle";
 import { callPlugin } from "@/lib/plugins/client";
 import { act, usePluginData, viewTransport } from "../use-plugin-data";
-import { useAwakeInterval } from "../view-activity";
+import { useAwakeInterval, useOnWake } from "../view-activity";
 import { useReportExport } from "../use-report-export";
+import type { Listed, Priced } from "@/lib/plugins/shared/prices";
 import { Books } from "./books";
+import { Market } from "./market";
 import type { BookRow, PaperState } from "./format";
 import { Sheet } from "./sheet";
 import { Card, Ticket } from "./ticket";
@@ -21,7 +23,8 @@ import "./paper-trading.css";
    The Paper trading tab, in the bare views' language (the watchlist's
    sheet, the calendar's tokens), in three columns:
    - on the left, the paper portfolios (`books.tsx`), and a new one;
-   - in the middle, one sheet: the chosen portfolio, all it holds and did;
+   - in the middle, one sheet: the chosen portfolio, the market of the pair
+     in the ticket, all it holds and did;
    - on the right, what it is worth — a banknote card drawn on the GPU —
      and the order ticket into it. That column is the user's: its width
      follows the handle on its left edge, and it closes (the sheet's head
@@ -37,6 +40,7 @@ import "./paper-trading.css";
 
 const REFRESH = 15_000;
 const BOOKS_MS = 30_000;
+const QUOTE_MS = 5_000;
 
 export function PaperTradingView({ settings, params }: ViewProps) {
   const ui = useUiPrefs();
@@ -57,6 +61,21 @@ export function PaperTradingView({ settings, params }: ViewProps) {
   const data = state.data && (!id || state.data.id === id) ? state.data : null;
 
   const report = useReportExport("paper-trading", settings, { portfolio: id });
+
+  /* The pair in the ticket, which the market block shows too; its price
+     every 5 s; BytNode's pairs, read once and again when the tab wakes. */
+  const [symbol, setSymbol] = useState("BTC/USDT");
+  const quote = usePluginData<Priced>("paper-trading", "quote", settings, { symbol });
+  useAwakeInterval(quote.reload, QUOTE_MS);
+  const live = quote.data && quote.data.symbol === symbol ? quote.data : null;
+  const pairsData = usePluginData<Listed[]>("paper-trading", "pairs", settings, {}, { keep: "latest" });
+  useOnWake(pairsData.reload);
+  const pairs = Array.isArray(pairsData.data) && pairsData.data.length ? pairsData.data : null;
+  const pairsUnavailable = !settings.keys.bytnode.trim() ? "The list of pairs comes from BytNode: add your key in Settings → Auth." : pairsData.data && !pairs ? "BytNode's list of pairs could not be read — type a pair." : null;
+  const showPair = (s: string) => {
+    setSymbol(s);
+    if (ui.paperTradeClosed) updateUiPrefs({ paperTradeClosed: false });
+  };
   const [problem, setProblem] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<"reset" | "delete" | null>(null);
 
@@ -113,6 +132,8 @@ export function PaperTradingView({ settings, params }: ViewProps) {
           onOpenTrade={() => updateUiPrefs({ paperTradeClosed: false })}
           onRename={(name) => run("rename", { name })}
           onAct={run}
+          onSymbol={showPair}
+          market={<Market symbol={symbol} quote={live} pairs={pairs} data={data} settings={settings} />}
         />
         {!closed && (
           <>
@@ -138,7 +159,7 @@ export function PaperTradingView({ settings, params }: ViewProps) {
                 </button>
               </header>
               <Card data={data} />
-              <Ticket data={data} portfolio={id} settings={settings} onPlaced={reload} />
+              <Ticket data={data} portfolio={id} settings={settings} symbol={symbol} onSymbol={setSymbol} quote={live} pairs={pairs} pairsUnavailable={pairsUnavailable} onPlaced={reload} />
             </section>
           </>
         )}

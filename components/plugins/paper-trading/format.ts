@@ -1,5 +1,6 @@
 import type { Fill, PaperOrder, Valuation } from "@/lib/plugins/paper-trading/engine";
 import type { Curve } from "@/lib/plugins/paper-trading/curve";
+import type { Stats } from "@/lib/plugins/paper-trading/stats";
 import { fmt } from "../bits";
 
 /* The Paper trading tab's words and figures, shared by its two columns. */
@@ -19,6 +20,7 @@ export type PaperState = {
   available: Record<string, number>;
   prices: Record<string, number>;
   curve: Curve;
+  stats: Stats;
   at: string;
   priceErrors: string[];
   feePercent: number;

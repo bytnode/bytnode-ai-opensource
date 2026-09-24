@@ -4,17 +4,20 @@ import { useState, type ReactNode } from "react";
 import { Close, Pencil, Refresh } from "@/components/ui/icons";
 import { fmt } from "../bits";
 import { PriceChart } from "../watchlist/price-chart";
+import type { Valuation } from "@/lib/plugins/paper-trading/engine";
+import type { Stats as StatsData } from "@/lib/plugins/paper-trading/stats";
 import { CASH, baseOf, dayOf, fillTitle, orderTitle, pct, price, signed, toneOf, usdt, whenOf, type PaperState } from "./format";
 
 /* ---------------------------------------------------------------------------
    The middle sheet, the chosen portfolio top to bottom: its name (a click
-   renames it) and when it began;
-   four figures as one block of tiles (cash, what is invested, realized,
-   unrealized); the result over time — a curve like Stocks, from the fills;
-   then what the portfolio holds, each thing a row with the one action it
-   calls for: a holding can be sold, a position closed, an order cancelled.
-   Last, the activity: every fill, newest first. A fresh portfolio shows
-   its cash and one line on how to begin.
+   renames it) and when it began; four figures as one block of tiles
+   (cash, what is invested, realized, unrealized); the market of the pair
+   in the ticket (`market.tsx`); its performance — the result curve, from
+   the fills, and six figures of its record; where its capital is, as one
+   bar of shares; then what it holds, each thing a row with the one action
+   it calls for (a holding sold, a position closed, an order cancelled) and
+   whose name shows its market. Last, the activity: every fill, newest
+   first. A fresh portfolio says how to begin.
 --------------------------------------------------------------------------- */
 
 type Props = {
@@ -35,11 +38,15 @@ type Props = {
   onRename: (name: string) => Promise<string | null>;
   /** Runs one of the plugin's actions on this portfolio, then the data reloads. */
   onAct: (action: string, params: Record<string, unknown>) => Promise<string | null>;
+  /** The market block (`market.tsx`), under the figures. */
+  market: ReactNode;
+  /** A row's pair becomes the ticket's (and the market block's). */
+  onSymbol: (symbol: string) => void;
 };
 
 const SHOWN_FILLS = 12;
 
-export function Sheet({ data, loading, problem, many, tradeClosed, exportButton, exportResult, onReload, onReset, onDelete, onOpenTrade, onRename, onAct }: Props) {
+export function Sheet({ data, loading, problem, many, tradeClosed, exportButton, exportResult, onReload, onReset, onDelete, onOpenTrade, onRename, onAct, market, onSymbol }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [allFills, setAllFills] = useState(false);
   const v = data?.valuation;
@@ -106,23 +113,30 @@ export function Sheet({ data, loading, problem, many, tradeClosed, exportButton,
           </div>
         )}
 
-        {empty ? (
+        {market}
+
+        {data && data.fills.length > 0 && (
+          <Section title="Performance" sub="closed trades, net of fees — today at market prices">
+            <div className="ptv-perf-chart">
+              <PriceChart candles={curve?.candles ?? null} interval={curve?.interval ?? "1d"} mode="line" fit message={chartMessage} />
+            </div>
+            <Stats stats={data.stats} />
+          </Section>
+        )}
+
+        {v && (
+          <Section title="Allocation" sub="where the capital is">
+            <Allocation v={v} />
+          </Section>
+        )}
+
+        {empty && (
           <section className="ptv-empty">
             <p className="ptv-empty-title">
               <span className="pv-ink">Ready when you are</span>
             </p>
-            <p>Place a first order on the left, or ask an agent: “paper-buy 200 USDT of ETH”, “open a paper long on SOL at ×3”. Every order fills at the live price, with fees and slippage, as it would on an exchange.</p>
+            <p>Choose a pair and place a first order in the ticket, or ask an agent: “paper-buy 200 USDT of ETH”, “open a paper long on SOL at ×3”. Every order fills at the live price, with fees and slippage, as it would on an exchange.</p>
           </section>
-        ) : (
-          data && (
-            <section className="wlv-chart-block ptv-chart" aria-label="Result over time">
-              <div className="ptv-chart-bar">
-                <span>Result</span>
-                <small>closed trades, net of fees — today at market prices</small>
-              </div>
-              <PriceChart candles={curve?.candles ?? null} interval={curve?.interval ?? "1d"} mode="line" fit message={chartMessage} />
-            </section>
-          )
         )}
 
         {v && v.holdings.length > 0 && data && (
@@ -134,12 +148,12 @@ export function Sheet({ data, loading, problem, many, tradeClosed, exportButton,
                 const free = data.available[h.asset] ?? 0;
                 return (
                   <li key={h.asset} className="ptv-row">
-                    <span className="ptv-row-name">
+                    <button type="button" className="ptv-row-name ptv-row-pick" onClick={() => onSymbol(`${h.asset}/${CASH}`)} title={`Show the ${h.asset} market`}>
                       <b>{h.asset}</b>
                       <small>
                         {fmt(h.amount)} · bought at {price(h.avgPrice)}
                       </small>
-                    </span>
+                    </button>
                     <span className="ptv-row-figure">
                       <b>{usdt(h.value)}</b>
                       <small className={toneOf(h.unrealized)}>{signed(h.unrealized)}</small>
@@ -166,14 +180,14 @@ export function Sheet({ data, loading, problem, many, tradeClosed, exportButton,
                 const away = p.mark !== undefined ? (Math.abs(p.mark - p.liquidation) / p.mark) * 100 : undefined;
                 return (
                   <li key={p.symbol} className="ptv-row ptv-row-position">
-                    <span className="ptv-row-name">
+                    <button type="button" className="ptv-row-name ptv-row-pick" onClick={() => onSymbol(p.symbol)} title={`Show the ${baseOf(p.symbol)} market`}>
                       <b>
                         {baseOf(p.symbol)} <em className={p.side === "long" ? "is-up" : "is-down"}>{p.side === "long" ? "Long" : "Short"}</em> ×{p.leverage}
                       </b>
                       <small>
                         {fmt(p.amount)} at {price(p.entryPrice)} · now {price(p.mark)}
                       </small>
-                    </span>
+                    </button>
                     <span className="ptv-row-figure">
                       <b className={toneOf(p.unrealized)}>{signed(p.unrealized)}</b>
                       <small>margin {usdt(p.margin)}</small>
@@ -206,12 +220,12 @@ export function Sheet({ data, loading, problem, many, tradeClosed, exportButton,
                 const gap = m !== undefined && o.price !== undefined ? ((o.price - m) / m) * 100 : undefined;
                 return (
                   <li key={o.id} className="ptv-row ptv-row-order">
-                    <span className="ptv-row-name">
+                    <button type="button" className="ptv-row-name ptv-row-pick" onClick={() => onSymbol(o.symbol)} title={`Show the ${baseOf(o.symbol)} market`}>
                       <b>{orderTitle(o)}</b>
                       <small>
                         {o.market === "futures" ? "Futures" : "Spot"} · placed {whenOf(o.createdAt)}
                       </small>
-                    </span>
+                    </button>
                     <span className="ptv-row-figure">
                       <b>{price(o.price)}</b>
                       <small>{gap !== undefined ? `${Math.abs(gap).toFixed(2)} % ${gap < 0 ? "below" : "above"} the market` : "limit"}</small>
@@ -301,6 +315,53 @@ function NameTitle({ name, onRename }: { name: string; onRename: (name: string) 
         }}
       />
       {problem && <p className="wlv-problem">{problem}</p>}
+    </div>
+  );
+}
+
+/** The record: six figures as one block of tiles. */
+function Stats({ stats }: { stats: StatsData }) {
+  return (
+    <div className="wlv-insights ptv-stats">
+      <Figure label="Trades closed" value={String(stats.trades)} sub={`${stats.fills} fill${stats.fills === 1 ? "" : "s"} in all`} />
+      <Figure label="Win rate" value={stats.winRate === undefined ? "—" : `${stats.winRate.toFixed(0)} %`} sub={stats.trades ? `${stats.wins} won, ${stats.trades - stats.wins} lost` : "no trade closed yet"} />
+      <Figure label="Best trade" value={stats.best === undefined ? "—" : signed(stats.best)} tone={toneOf(stats.best)} sub={stats.avgWin === undefined ? "—" : `${signed(stats.avgWin)} on average`} />
+      <Figure label="Worst trade" value={stats.worst === undefined ? "—" : signed(stats.worst)} tone={toneOf(stats.worst)} sub={stats.avgLoss === undefined ? "—" : `${signed(stats.avgLoss)} on average`} />
+      <Figure label="Deepest drawdown" value={stats.maxDrawdown === undefined ? "—" : `${stats.maxDrawdown.toFixed(2)} %`} tone={stats.maxDrawdown ? "is-down" : undefined} sub="from a peak of the curve" />
+      <Figure label="Volume traded" value={usdt(stats.volume)} sub={`${usdt(stats.fees)} of fees paid`} />
+    </div>
+  );
+}
+
+/* Apple's system colours, never green or red — those are a gain and a loss. */
+const SHARE_COLORS = ["#0a84ff", "#bf5af2", "#ff9f0a", "#40c8e0", "#5e5ce6", "#ff375f", "#ffd60a", "#64d2ff"];
+
+/** Where the capital is: cash, each holding, each position (its margin and
+    its result), as one bar of shares and a legend. */
+function Allocation({ v }: { v: Valuation }) {
+  const parts = [
+    { key: "cash", label: "Cash", sub: CASH, value: Math.max(0, v.cash) },
+    ...v.holdings.map((h) => ({ key: `spot:${h.asset}`, label: h.asset, sub: "spot", value: Math.max(0, h.value ?? 0) })),
+    ...v.positions.map((p) => ({ key: `fut:${p.symbol}`, label: baseOf(p.symbol), sub: `${p.side} ×${p.leverage}`, value: Math.max(0, p.margin + (p.unrealized ?? 0)) })),
+  ];
+  const total = parts.reduce((t, x) => t + x.value, 0);
+  const colorOf = (i: number) => (i === 0 ? "var(--label-3)" : SHARE_COLORS[(i - 1) % SHARE_COLORS.length]);
+  return (
+    <div className="ptv-alloc">
+      <div className="ptv-alloc-bar" aria-hidden>
+        {parts.map((x, i) => (x.value > 0 ? <i key={x.key} style={{ flexGrow: x.value, background: colorOf(i) }} /> : null))}
+      </div>
+      <ul className="ptv-alloc-legend">
+        {parts.map((x, i) => (
+          <li key={x.key}>
+            <span className="ptv-alloc-dot" style={{ background: colorOf(i) }} />
+            <b>{x.label}</b>
+            <small>{x.sub}</small>
+            <span className="ptv-alloc-value">{usdt(x.value)}</span>
+            <span className="ptv-alloc-share">{total > 0 ? `${((x.value / total) * 100).toFixed(1)} %` : "—"}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -2,21 +2,23 @@
 
 import { useRef, useState } from "react";
 import type { Settings } from "@/lib/domain/types";
-import type { Priced } from "@/lib/plugins/shared/prices";
+import type { Listed, Priced } from "@/lib/plugins/shared/prices";
 import { Segmented } from "@/components/ui/segmented";
 import { Check } from "@/components/ui/icons";
 import { fmt } from "../bits";
-import { act, usePluginData } from "../use-plugin-data";
-import { useAwakeInterval, useViewActive } from "../view-activity";
+import { act } from "../use-plugin-data";
+import { useViewActive } from "../view-activity";
 import { CASH, baseOf, dayOf, pct, price, toneOf, usdt, type PaperState } from "./format";
 import { useNoteField } from "./note-field";
+import { PairField } from "./pair-field";
 
 /* ---------------------------------------------------------------------------
    The right column (closable, its width the user's): the card — what the
    chosen portfolio is worth, named, on a banknote under glass
    (`note-field.ts`) — then the order ticket, into that portfolio, read top
-   to bottom like a sentence: buy or sell, spot or futures, which pair (its
-   price live under the field), at the market or at a price, how much. The
+   to bottom like a sentence: buy or sell, spot or futures, which pair
+   (every one BytNode covers, `pair-field.tsx`; its price live under the
+   field), at the market or at a price, how much. The
    ticket says what the order will do before it is placed — the quantity,
    the fee, the margin — and its one button names it: "Buy BTC", "Short
    ETH ×5". What was placed is said under it, in the result's words.
@@ -41,14 +43,6 @@ const KINDS: Array<{ value: Kind; label: string }> = [
 ];
 const LEVERAGES = ["1", "2", "3", "5", "10", "20"] as const;
 const QUICK = ["BTC", "ETH", "SOL"];
-/** The ticket's price, read again while the tab is in front. */
-const QUOTE_MS = 5_000;
-
-const pairOf = (raw: string): string => {
-  const t = raw.trim().toUpperCase();
-  if (!t) return "";
-  return t.includes("/") ? t : `${t}/${CASH}`;
-};
 
 const num = (s: string): number => {
   const n = Number(s.replace(/\s/g, "").replace(",", "."));
@@ -90,36 +84,31 @@ export function Card({ data }: { data: PaperState | null }) {
   );
 }
 
-export function Ticket({ data, portfolio, settings, onPlaced }: { data: PaperState | null; portfolio: string; settings: Settings; onPlaced: () => void }) {
+type TicketProps = {
+  data: PaperState | null;
+  portfolio: string;
+  settings: Settings;
+  /** The pair, shared with the sheet's market chart. */
+  symbol: string;
+  onSymbol: (symbol: string) => void;
+  /** Its live price (the view reads it). */
+  quote: Priced | null;
+  pairs: Listed[] | null;
+  pairsUnavailable: string | null;
+  onPlaced: () => void;
+};
+
+export function Ticket({ data, portfolio, settings, symbol, onSymbol, quote: q, pairs, pairsUnavailable, onPlaced }: TicketProps) {
   const [side, setSide] = useState<Side>("buy");
   const [market, setMarket] = useState<Market>("spot");
   const [kind, setKind] = useState<Kind>("market");
   const [unit, setUnit] = useState<Unit>("quote");
-  const [draft, setDraft] = useState("BTC/USDT");
-  const [symbol, setSymbol] = useState("BTC/USDT");
   const [size, setSize] = useState("");
   const [limit, setLimit] = useState("");
   const [leverage, setLeverage] = useState<string>("1");
   const [placing, setPlacing] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
-  const typing = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  /* The pair is read a moment after the typing stops, not at each key. */
-  const type = (raw: string) => {
-    setDraft(raw);
-    if (typing.current) clearTimeout(typing.current);
-    typing.current = setTimeout(() => setSymbol(pairOf(raw)), 450);
-  };
-  const pick = (s: string) => {
-    if (typing.current) clearTimeout(typing.current);
-    setDraft(s);
-    setSymbol(s);
-  };
-
-  const quote = usePluginData<Priced>("paper-trading", "quote", settings, { symbol });
-  useAwakeInterval(quote.reload, QUOTE_MS);
-  const q = quote.data && quote.data.symbol === symbol ? quote.data : null;
   const live = q && !("error" in q) ? q.price : undefined;
   const base = baseOf(symbol) || "base";
 
@@ -194,22 +183,14 @@ export function Ticket({ data, portfolio, settings, onPlaced }: { data: PaperSta
       </div>
       <Segmented label="Market" value={market} options={MARKETS} onChange={setMarket} wide />
 
-      <label className="ptv-field">
+      <div className="ptv-field">
         <span className="ptv-field-label">Pair</span>
-        <input
-          className="wlv-input"
-          value={draft}
-          spellCheck={false}
-          autoComplete="off"
-          placeholder="BTC/USDT"
-          onChange={(e) => type(e.target.value)}
-          onBlur={() => pick(pairOf(draft))}
-        />
-      </label>
+        <PairField value={symbol} pairs={pairs} unavailable={pairsUnavailable} onChange={onSymbol} />
+      </div>
       <div className="ptv-quote">
         <span className="ptv-chips" role="group" aria-label="Quick pairs">
           {quick.map((a) => (
-            <button key={a} type="button" className={`ptv-chip${base === a ? " is-on" : ""}`} onClick={() => pick(`${a}/${CASH}`)}>
+            <button key={a} type="button" className={`ptv-chip${base === a ? " is-on" : ""}`} onClick={() => onSymbol(`${a}/${CASH}`)}>
               {a}
             </button>
           ))}
