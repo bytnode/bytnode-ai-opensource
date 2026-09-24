@@ -144,7 +144,7 @@ export function DcaView({ settings }: ViewProps) {
             <header className="wlv-head">
               <div className="wlv-title-block">
                 <h2 className="wlv-sheet-title">
-                  <span className="pv-ink">New plan</span>
+                  <span className="pv-ink">New DCA</span>
                 </h2>
                 <p className="wlv-sheet-sub">The same amount, bought at regular intervals.</p>
               </div>

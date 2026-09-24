@@ -156,9 +156,9 @@ export function Sheet(props: Props) {
         {scope.kind === "all" && plans.length === 0 ? (
           <div className="dcv-empty">
             <b>No recurring purchase yet.</b>
-            <span>Create a plan, or a group to gather several — or ask an agent: “buy 50 USDT of ETH every Monday in paper”.</span>
+            <span>Create a DCA, or a group to gather several — or ask an agent: “buy 50 USDT of ETH every Monday in paper”.</span>
             <button type="button" className="dcv-button is-primary" onClick={() => onScope({ kind: "new" })}>
-              New plan
+              New DCA
             </button>
           </div>
         ) : (
@@ -266,7 +266,7 @@ export function Sheet(props: Props) {
                   {group && (
                     <button type="button" className="dcv-plan dcv-plan-add" onClick={() => onScope({ kind: "new", groupId: group.id })}>
                       <Plus />
-                      Add a plan to this group
+                      Add a DCA to this group
                     </button>
                   )}
                 </div>

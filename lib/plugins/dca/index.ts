@@ -10,7 +10,7 @@ import { dcaPauseTool } from "./dca-pause";
 import { dcaManifest } from "./manifest";
 import { advance, changePlan, dueNow, newPlan, readOrderOutcome, summarize, type DcaPlan, type PlanAction, type Purchase } from "./plans";
 import { precheck } from "./precheck";
-import { addGroup, curveDays, groupNamed, movePlan, planCurve, renameGroup, ungroup, type DcaGroup } from "./groups";
+import { addGroup, curveDays, groupNamed, movePlan, planCurve, renameGroup, seedGroups, ungroup, type DcaGroup } from "./groups";
 import { candles, isQuote, quotes } from "../shared/prices";
 import type { Candle } from "../shared/candle";
 
@@ -132,6 +132,8 @@ export const dcaPlugin = definePlugin({
     /* --- The view ---------------------------------------------------------- */
 
     ctx.api("state", async () => {
+      /* The tab opens with a group ready ("My DCA"), made the first time. */
+      if ((await ctx.store.read<DcaGroup[] | null>(GROUPS, null)) === null) await ctx.store.update<DcaGroup[] | null>(GROUPS, null, (stored) => seedGroups(stored, randomUUID().slice(0, 8), new Date()));
       const [list, all, known] = await Promise.all([plans(), purchases(), groups()]);
       return {
         plans: list.map((plan) => ({ ...plan, summary: summarize(all.filter((p) => p.planId === plan.id)) })),

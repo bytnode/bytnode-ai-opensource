@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { addGroup, curveDays, groupNamed, movePlan, planCurve, removeGroup, renameGroup } from "./groups";
+import { DEFAULT_GROUP, addGroup, curveDays, groupNamed, movePlan, planCurve, removeGroup, renameGroup, seedGroups } from "./groups";
 import type { DcaPlan, Purchase } from "./plans";
 
 const now = new Date("2026-09-24T10:00:00Z");
 const plan = (id: string, symbol: string, groupId?: string): DcaPlan => ({ id, symbol, quoteAmount: 100, frequency: "daily at 09:00", destination: "paper", startAt: "", status: "active", createdAt: "", ...(groupId ? { groupId } : {}) });
 
 describe("groups", () => {
+  it("opens with a default group, made once", () => {
+    expect(seedGroups(null, "g0", now)).toEqual([{ id: "g0", name: DEFAULT_GROUP, createdAt: now.toISOString() }]);
+    /* The user deleted every group: none comes back. */
+    expect(seedGroups([], "g0", now)).toEqual([]);
+    expect(seedGroups([{ id: "g1", name: "Alts", createdAt: "" }], "g0", now).map((g) => g.id)).toEqual(["g1"]);
+  });
+
   it("makes a group, refusing an empty or taken name", () => {
     const made = addGroup([], "  Long   term ", "g1", now);
     expect("error" in made ? made.error : made.group).toEqual({ id: "g1", name: "Long term", createdAt: now.toISOString() });

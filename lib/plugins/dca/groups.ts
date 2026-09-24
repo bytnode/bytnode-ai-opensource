@@ -13,6 +13,8 @@ import type { DcaPlan, Purchase } from "./plans";
 export type DcaGroup = { id: string; name: string; createdAt: string };
 
 export const MAX_GROUP_NAME = 40;
+/** The group the tab opens with, made once: deleted, it does not come back. */
+export const DEFAULT_GROUP = "My DCA";
 export const MAX_GROUPS = 50;
 
 type Failed = { error: string };
@@ -23,6 +25,12 @@ function cleanName(name: unknown, groups: DcaGroup[], except?: string): string |
   if (text.length > MAX_GROUP_NAME) return { error: `A group's name is at most ${MAX_GROUP_NAME} characters.` };
   if (groups.some((g) => g.id !== except && g.name.toLowerCase() === text.toLowerCase())) return { error: `A group is already named "${text}".` };
   return text;
+}
+
+/** The groups as first read: none ever made (`null`, no file yet) gives
+    the default one; an emptied list stays empty. */
+export function seedGroups(stored: DcaGroup[] | null, id: string, now: Date): DcaGroup[] {
+  return stored ?? [{ id, name: DEFAULT_GROUP, createdAt: now.toISOString() }];
 }
 
 /** The group of that name, whatever its case. */

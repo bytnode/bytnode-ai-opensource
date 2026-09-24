@@ -13,7 +13,7 @@ import type { Scope } from "./view";
    first, then each group (a project: its plans are listed when it is
    opened, not here), then the plans that belong to none. The one open is
    lit. A right click opens the item's menu (rename or delete a group; move,
-   pause or delete a plan). Under the block, "New plan" and "New group" —
+   pause or delete a plan). Under the block, "New DCA" and "New group" —
    the group's name typed in place.
 --------------------------------------------------------------------------- */
 
@@ -124,7 +124,7 @@ export function Side({ plans, groups, accounts, figures, unit, scope, onScope, o
       <div className="dcv-new">
         <button type="button" className={`dcv-new-open${scope.kind === "new" ? " is-on" : ""}`} onClick={() => onScope({ kind: "new" })}>
           <Plus />
-          New plan
+          New DCA
         </button>
         {naming ? (
           <form

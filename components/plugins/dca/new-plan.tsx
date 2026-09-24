@@ -23,7 +23,7 @@ type Props = {
   pairs: Listed[] | null;
   pairsUnavailable: string | null;
   paperCash: string;
-  /** The group it opens in (from a group's "Add a plan"). */
+  /** The group it opens in (from a group's "Add a DCA"); else the first. */
   groupId?: string;
   /** Creates the plan; answers why not, or null. */
   onCreate: (input: Record<string, unknown>) => Promise<string | null>;
@@ -46,7 +46,7 @@ export function NewPlan({ groups, accounts, pairs, pairsUnavailable, paperCash, 
   const [days, setDays] = useState("7");
   const [destination, setDestination] = useState<"paper" | "exchange">("paper");
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
-  const [group, setGroup] = useState(groupId ?? "");
+  const [group, setGroup] = useState(groupId ?? groups[0]?.id ?? "");
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -134,7 +134,7 @@ export function NewPlan({ groups, accounts, pairs, pairsUnavailable, paperCash, 
           Cancel
         </button>
         <button type="submit" className="dcv-button is-primary" disabled={!ready || busy}>
-          {busy ? "Creating…" : "Create plan"}
+          {busy ? "Creating…" : "Create DCA"}
         </button>
       </div>
     </form>
