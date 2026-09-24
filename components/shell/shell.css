@@ -72,6 +72,7 @@ html[data-theme="light"] .tb {
   display: flex;
   flex: 0 1 auto;
   align-items: flex-end;
+  gap: 3px;
   align-self: stretch;
   min-width: 0;
   /* Room for the front tab's flared foot on each side. */
@@ -98,19 +99,30 @@ html[data-theme="light"] .tb {
   /* The bar's line under the tabs: the front one covers it. */
   margin-bottom: -1px;
   border-radius: var(--tb-r) var(--tb-r) 0 0;
-  /* Asleep, like their pages: a dimmed title, a darkened ground. */
-  background: rgba(0, 0, 0, 0.14);
-  color: rgba(var(--ink), 0.42);
-  transition: background-color 120ms ease, color 120ms ease;
+  /* Every tab is drawn the same — the ones behind get a veil. */
+  background: var(--tb-on);
+  color: var(--fg);
 }
 
-html[data-theme="light"] .tb-tab {
-  background: rgba(0, 0, 0, 0.035);
+/* Asleep, like their pages: a veil of shade laid over the tab (its
+   ground, its title, its icon alike), deeper at its foot; it lifts a
+   little under the hand. Never on the cross's clicks. */
+.tb-tab:not(.is-on)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(rgba(0, 0, 0, 0.42), rgba(0, 0, 0, 0.55));
+  pointer-events: none;
+  transition: opacity 160ms ease;
 }
 
-.tb-tab:hover {
-  background: rgba(var(--ink), 0.06);
-  color: rgba(var(--ink), 0.82);
+html[data-theme="light"] .tb-tab:not(.is-on)::after {
+  background: linear-gradient(rgba(18, 22, 34, 0.1), rgba(18, 22, 34, 0.16));
+}
+
+.tb-tab:not(.is-on):hover::after {
+  opacity: 0.45;
 }
 
 .tb-tab.is-on {
@@ -140,8 +152,9 @@ html[data-theme="light"] .tb-tab {
   background: radial-gradient(circle at 100% 0, transparent calc(var(--tb-r) - 0.5px), var(--tb-on) var(--tb-r));
 }
 
-/* The thin rule between two flat tabs. */
+/* The thin rule between two tabs: the veiled grounds part them now. */
 .tb-sep {
+  display: none;
   position: absolute;
   top: 11px;
   bottom: 11px;
