@@ -2,9 +2,11 @@ import { resolveWorkspace } from "@/lib/server/workspace";
 import { definePlugin } from "../core/contract";
 import type { ReportService } from "../report-export/service";
 import type { SchedulerService } from "../scheduler/service";
+import { quote } from "../shared/prices";
 import { normalizeSymbol } from "../shared/quote";
+import { resultCurve } from "./curve";
 import { paperDesk, type DeskSettings } from "./desk";
-import { CASH, type CheckEvent, type OrderType, type PaperMarket, type Side } from "./engine";
+import { CASH, available, type CheckEvent, type OrderType, type PaperMarket, type Side } from "./engine";
 import { paperTradingManifest } from "./manifest";
 import { paperCancelTool } from "./paper-cancel";
 import { paperOrderTool } from "./paper-order";
@@ -70,17 +72,30 @@ export const paperTradingPlugin = definePlugin({
     ctx.api("state", async (_params, { transport, signal }) => {
       const look = await desk.look({ bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal });
       const s = settings();
+      const assets = [CASH, ...Object.keys(look.book.balances).filter((a) => a !== CASH)];
       return {
         valuation: look.valuation,
         capital: look.book.capital,
         createdAt: look.book.createdAt,
         orders: look.book.orders.filter((o) => o.status === "open"),
         fills: look.book.fills.slice(-100).reverse(),
+        /* What the open orders do not hold back: what a new order may use. */
+        available: Object.fromEntries(assets.map((a) => [a, available(look.book, a, s.engine)])),
+        /* The market, for the open orders' distance to their price. */
+        prices: Object.fromEntries(look.prices),
+        curve: resultCurve(look.book, look.at, look.valuation.equity),
         at: look.at.toISOString(),
         priceErrors: look.priceErrors,
         feePercent: s.engine.feeRate * 100,
         slippagePercent: s.engine.slippage * 100,
       };
+    });
+    /* The order ticket's price: one pair, as the order would fill on it. */
+    ctx.api("quote", async (params, { transport, signal }) => {
+      const symbol = normalizeSymbol(String(params.symbol ?? ""));
+      if (!symbol) return { symbol: "", error: "Give a pair, e.g. BTC/USDT." };
+      if (symbol.split("/")[1] !== CASH) return { symbol, error: `The paper portfolio trades against ${CASH}: use ${symbol.split("/")[0]}/${CASH}.` };
+      return quote(symbol, { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal });
     });
     ctx.api("order", async (params, { transport, signal }) => {
       const symbol = normalizeSymbol(String(params.symbol ?? ""));

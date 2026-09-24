@@ -85,4 +85,20 @@ describe("paper trading plugin", () => {
     expect(state.fills[0].price).toBe(49_000);
     expect(h.notifications).toHaveLength(1);
   });
+
+  it("the view reads what is free to trade, the market, the curve, and a pair's price", async () => {
+    h = await harness([paperTradingPlugin], ZERO);
+    const req = { transport: { openrouterKey: "", bytnodeKey: "k", exchangeAccounts: [], plugins: null }, signal: new AbortController().signal };
+    await h.tool("PaperOrder").execute({ symbol: "BTC/USDT", side: "buy", type: "market", quoteAmount: 500 }, h.ctx());
+    await h.tool("PaperOrder").execute({ symbol: "BTC/USDT", side: "buy", type: "limit", price: 40_000, amount: 0.01 }, h.ctx());
+    const state = (await h.runtime.handler("paper-trading", "state")!({}, req)) as { available: Record<string, number>; prices: Record<string, number>; curve: { candles: Array<{ c: number }> } };
+    /* 500 USDT left, 400 of them held back by the open limit. */
+    expect(state.available).toEqual({ USDT: 100, BTC: 0.01 });
+    expect(state.prices).toEqual({ "BTC/USDT": 50_000 });
+    expect(state.curve.candles.at(-1)?.c).toBe(1000);
+
+    const q = h.runtime.handler("paper-trading", "quote")!;
+    expect(await q({ symbol: "btc" }, req)).toMatchObject({ symbol: "BTC/USDT", price: 50_000 });
+    expect(await q({ symbol: "ETH/BTC" }, req)).toEqual({ symbol: "ETH/BTC", error: "The paper portfolio trades against USDT: use ETH/USDT." });
+  });
 });

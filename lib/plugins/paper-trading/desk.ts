@@ -17,7 +17,7 @@ export const BOOK = "default.json";
 
 export type DeskSettings = { capital: number; engine: EngineConfig };
 
-export type Look = { book: Book; valuation: Valuation; events: CheckEvent[]; at: Date; priceErrors: string[] };
+export type Look = { book: Book; valuation: Valuation; events: CheckEvent[]; at: Date; priceErrors: string[]; prices: Map<string, number> };
 
 export type Desk = {
   read(): Promise<Book>;
@@ -84,7 +84,7 @@ export function paperDesk(store: PluginStore, settings: () => DeskSettings, onEv
           })
         : seen;
       if (events.length) await onEvents(events);
-      return { book, valuation: valuation(book, prices, settings().engine), events, at, priceErrors };
+      return { book, valuation: valuation(book, prices, settings().engine), events, at, priceErrors, prices };
     },
   };
 }
