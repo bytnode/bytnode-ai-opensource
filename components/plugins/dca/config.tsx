@@ -15,12 +15,12 @@ import { badgeClass, when, type Badge } from "./format";
 
 /* ---------------------------------------------------------------------------
    A DCA's configuration, opened at once in the sheet — to make one, or to
-   change one. Left, every setting in its section: the asset, the amount
-   each time, the schedule (how often, from when, until when), where it
-   buys, its group and its name. Right, what it will do, read live from
-   those settings: the price now and what one purchase buys, the next five
-   dates, what it spends a month, in all when it ends, and — on a real
-   account — that each purchase waits for the user's click. A DCA's asset,
+   change one. Left, the settings in four short blocks: what (the asset and
+   the amount each time), when (how often, from when, until when), where,
+   and how it is filed (group, name). Right, what it will do, read live:
+   its schedule in words, a month's and a year's spending (or the total
+   when it ends), the first purchases — and, on a real account, that each
+   one waits for the user's click. A DCA's asset,
    start and account are set when it is made; a new DCA for another one.
 --------------------------------------------------------------------------- */
 
@@ -77,7 +77,6 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
   const [accountId, setAccountId] = useState(plan?.accountId ?? accounts[0]?.id ?? "");
   const [group, setGroup] = useState(plan?.groupId ?? groupId ?? groups[0]?.id ?? "");
   const [name, setName] = useState(plan?.name ?? "");
-  const [note, setNote] = useState(plan?.note ?? "");
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -96,7 +95,7 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
   const startMs = editing ? Math.max(now, Date.parse(plan.startAt) || now) : start === "date" ? Date.parse(startDate) : now;
   const nCount = Math.round(Number(count));
   const endMs = end === "date" ? Date.parse(`${endDate}T23:59:59`) : end === "count" && nCount >= 1 && cadenceOk ? nthPurchase(frequency, startMs, nCount) : undefined;
-  const upcoming = cadenceOk && Number.isFinite(startMs) ? schedule(frequency, startMs, endMs, 5) : [];
+  const upcoming = cadenceOk && Number.isFinite(startMs) ? schedule(frequency, startMs, endMs, 3) : [];
   const total = cadenceOk && endMs !== undefined && Number.isFinite(endMs) ? purchasesUntil(frequency, startMs, endMs) : undefined;
   const month = cadenceOk ? perMonth(frequency) : 0;
   const account = accounts.find((a) => a.id === accountId);
@@ -110,8 +109,8 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
     setBusy(true);
     const endAt = endMs !== undefined && Number.isFinite(endMs) ? new Date(endMs).toISOString() : "";
     const input: Record<string, unknown> = editing
-      ? { id: plan.id, quoteAmount, frequency, endAt, name, note, groupId: group }
-      : { symbol, quoteAmount, frequency, destination, ...(destination === "exchange" ? { accountId } : {}), groupId: group, name, note, ...(start === "date" ? { startAt: new Date(startMs).toISOString() } : {}), ...(endAt ? { endAt } : {}) };
+      ? { id: plan.id, quoteAmount, frequency, endAt, name, groupId: group }
+      : { symbol, quoteAmount, frequency, destination, ...(destination === "exchange" ? { accountId } : {}), groupId: group, name, ...(start === "date" ? { startAt: new Date(startMs).toISOString() } : {}), ...(endAt ? { endAt } : {}) };
     const p = await onSave(input);
     setBusy(false);
     setProblem(p);
@@ -120,21 +119,15 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
   return (
     <div className="dcv-config">
       <div className="dcv-config-main">
-        <Block title="Asset" sub={editing ? "set when the DCA was made" : "what each purchase buys"}>
-          <Row label="Pair">
+        <Block title="What">
+          <Row label="Asset" hint={price !== undefined ? `${fmt(price)} ${quoteCcy} now` : quote.data && "error" in quote.data ? quote.data.error : undefined}>
             {editing ? (
               <b className="dcv-fixed">{symbol}</b>
             ) : (
               <PairField value={symbol} pairs={pairs} unavailable={pairsUnavailable} onChange={setSymbol} />
             )}
           </Row>
-          <Row label="Price now" hint={quote.data && "error" in quote.data ? quote.data.error : "BytNode, else an exchange account"}>
-            <b className="dcv-fixed">{price !== undefined ? `${fmt(price)} ${quoteCcy}` : quote.loading ? "Reading…" : "—"}</b>
-          </Row>
-        </Block>
-
-        <Block title="Amount" sub="spent at each purchase">
-          <Row label="Each time" hint={price !== undefined && quoteAmount > 0 ? `≈ ${fmt(quoteAmount / price)} ${base} at today's price` : undefined}>
+          <Row label="Each time" hint={price !== undefined && quoteAmount > 0 ? `≈ ${fmt(quoteAmount / price)} ${base}` : undefined}>
             <span className="dcv-amount">
               <input className="wlv-input" inputMode="decimal" placeholder="100" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="Amount each time" />
               <b>{quoteCcy}</b>
@@ -142,7 +135,7 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
           </Row>
         </Block>
 
-        <Block title="Schedule" sub="the machine's local time; purchases run while the app is open">
+        <Block title="When">
           <Row label="How often">
             <Segmented label="How often" value={kind} options={KINDS} onChange={setKind} />
           </Row>
@@ -157,7 +150,7 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
             </Row>
           )}
           {kind === "days" && (
-            <Row label="Every" hint="1 to 31 days">
+            <Row label="Every">
               <span className="dcv-amount dcv-short">
                 <input className="wlv-input" inputMode="numeric" aria-label="Every how many days" value={days} onChange={(e) => setDays(e.target.value)} />
                 <b>days</b>
@@ -165,7 +158,7 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
             </Row>
           )}
           {kind === "hours" && (
-            <Row label="Every" hint="at least every hour">
+            <Row label="Every">
               <span className="dcv-amount dcv-short">
                 <input className="wlv-input" inputMode="numeric" aria-label="Every how many hours" value={hours} onChange={(e) => setHours(e.target.value)} />
                 <b>hours</b>
@@ -213,7 +206,7 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
           </Row>
         </Block>
 
-        <Block title="Where" sub={editing ? "set when the DCA was made" : "simulated, or real money"}>
+        <Block title="Where">
           {editing ? (
             <Row label="Buys on">
               <span className="dcv-inline">
@@ -243,15 +236,12 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
           )}
         </Block>
 
-        <Block title="Group and name" sub="how it is filed and called">
+        <Block title="Filed">
           <Row label="Group">
             <Select id="dca-group" label="Group" value={group} placeholder="No group — make one first" options={groups.map((g) => ({ value: g.id, label: g.name }))} onChange={setGroup} />
           </Row>
-          <Row label="Name" hint="optional">
-            <input className="wlv-input" placeholder={`${base} ${frequencyWords(frequency).replace(/^Every/, "every")}`} value={name} maxLength={60} onChange={(e) => setName(e.target.value)} aria-label="Name" />
-          </Row>
-          <Row label="Note" hint="optional">
-            <input className="wlv-input" placeholder="Why this DCA" value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} aria-label="Note" />
+          <Row label="Name">
+            <input className="wlv-input" placeholder={`Optional — ${base} ${frequencyWords(frequency).replace(/^Every/, "every")}`} value={name} maxLength={60} onChange={(e) => setName(e.target.value)} aria-label="Name" />
           </Row>
         </Block>
       </div>
@@ -262,19 +252,15 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
           <span className={badgeClass(badge)}>{badge}</span>
           <b>{name.trim() || `${base} · ${quoteAmount > 0 ? `${quoteAmount} ${quoteCcy}` : quoteCcy}`}</b>
         </header>
+        <p className="dcv-summary-lead">{cadenceOk ? frequencyWords(frequency) : "—"}</p>
         <dl className="dcv-facts">
-          <Fact label="Buys">{`${quoteAmount > 0 ? `${fmt(quoteAmount)} ${quoteCcy}` : "—"} of ${base}`}</Fact>
-          <Fact label="Each time">{price !== undefined && quoteAmount > 0 ? `≈ ${fmt(quoteAmount / price)} ${base}` : "—"}</Fact>
-          <Fact label="How often">{cadenceOk ? frequencyWords(frequency) : "—"}</Fact>
-          <Fact label={editing ? "Next purchase" : "First purchase"}>{upcoming[0] ? when(new Date(upcoming[0]).toISOString()) : "—"}</Fact>
-          <Fact label="Ends">{end === "never" ? "never — until you pause it" : total !== undefined ? `${when(new Date(endMs!).toISOString())} · ${total} purchase${total === 1 ? "" : "s"}` : "—"}</Fact>
-          <Fact label="A month">{quoteAmount > 0 && month ? `≈ ${fmt(month * quoteAmount, 2)} ${quoteCcy} · ${fmt(month, 1)} purchases` : "—"}</Fact>
-          <Fact label={total !== undefined ? "In all" : "A year"}>{quoteAmount > 0 ? (total !== undefined ? `${fmt(total * quoteAmount, 2)} ${quoteCcy}` : month ? `≈ ${fmt(month * quoteAmount * 12.17, 2)} ${quoteCcy}` : "—") : "—"}</Fact>
-          <Fact label="Group">{groups.find((g) => g.id === group)?.name ?? "—"}</Fact>
+          <Fact label="A month">{quoteAmount > 0 && month ? `${fmt(month * quoteAmount, 0)} ${quoteCcy}` : "—"}</Fact>
+          <Fact label={total !== undefined ? `In all · ${total} buys` : "A year"}>{quoteAmount > 0 ? (total !== undefined ? `${fmt(total * quoteAmount, 0)} ${quoteCcy}` : month ? `${fmt(month * quoteAmount * 12.17, 0)} ${quoteCcy}` : "—") : "—"}</Fact>
+          <Fact label="Ends">{end === "never" ? "Never" : endMs !== undefined && Number.isFinite(endMs) ? new Date(endMs).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—"}</Fact>
         </dl>
 
         <div className="dcv-next">
-          <span className="dcv-caption">Next purchases</span>
+          <span className="dcv-caption">{editing ? "Next purchases" : "First purchases"}</span>
           {upcoming.length ? (
             <ol>
               {upcoming.map((t) => (
@@ -288,8 +274,8 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
 
         <p className={`dcv-sentence${destination === "exchange" ? " is-real" : ""}`}>
           {destination === "paper"
-            ? `Simulated: bought automatically in the paper portfolio, never real money.${quoteCcy !== paperCash ? ` The paper portfolio trades against ${paperCash}.` : ""}`
-            : `Real money on ${account?.label ?? "the account"}: each purchase is checked (market open, minimum, balance), then waits for your click in the notifications — nothing is bought without it.`}
+            ? `Simulated, bought automatically.${quoteCcy !== paperCash ? ` The paper portfolio trades against ${paperCash}.` : ""}`
+            : "Real money: each purchase waits for your click."}
         </p>
 
         {(problem ?? (!ready ? why : null)) && <p className="dcv-problem">{problem ?? why}</p>}
@@ -323,13 +309,10 @@ export function ConfigHead({ title, sub, onClose }: { title: string; sub: string
   );
 }
 
-function Block({ title, sub, children }: { title: string; sub: string; children: ReactNode }) {
+function Block({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="dcv-block">
-      <header className="dcv-block-head">
-        <h3>{title}</h3>
-        <span>{sub}</span>
-      </header>
+      <h3 className="dcv-block-head">{title}</h3>
       <div className="dcv-rows">{children}</div>
     </section>
   );

@@ -580,55 +580,45 @@ html[data-theme="light"] .dcv {
 }
 
 /* --- A DCA's configuration --------------------------------------------------
-   Left, the settings, a block per section and a row per setting (its name,
-   its control, a hint); right, what it will do — kept in view. */
+   Left, the settings — four short blocks, a row per setting, room around
+   each; right, what it will do, kept in view. Large enough to read at a
+   glance (the bare views are drawn at 90 %). */
 
 .dcv-config {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
   align-items: start;
-  gap: 22px;
-  padding: 24px var(--side) 0;
+  gap: 32px;
+  max-width: 1180px;
+  padding: 30px var(--side) 0;
 }
 
 .dcv-config-main {
   display: grid;
-  gap: 26px;
+  gap: 40px;
   min-width: 0;
 }
 
 .dcv-block-head {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin: 0 0 12px;
-}
-
-.dcv-block-head h3 {
-  margin: 0;
-  font-size: 15.5px;
+  margin: 0 0 14px 4px;
+  font-size: 19px;
   font-weight: 650;
-}
-
-.dcv-block-head span {
-  font-size: 12.5px;
-  color: var(--label-3);
+  letter-spacing: -0.01em;
 }
 
 .dcv-rows {
   display: grid;
   gap: var(--tile-gap);
-  overflow: visible;
   border-radius: var(--r-block);
 }
 
 .dcv-row {
   display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
+  grid-template-columns: 170px minmax(0, 1fr);
   align-items: center;
-  gap: 18px;
-  min-height: 60px;
-  padding: 12px 20px;
+  gap: 24px;
+  min-height: 78px;
+  padding: 16px 26px;
   background: var(--tile);
 }
 
@@ -645,36 +635,42 @@ html[data-theme="light"] .dcv {
 }
 
 .dcv-row-label {
-  font-size: 13.5px;
+  font-size: 15.5px;
   font-weight: 600;
-  color: var(--label-2);
+  color: var(--label);
 }
 
 .dcv-row-control {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
+}
+
+.dcv-row-control .wlv-input {
+  height: 46px;
+  font-size: 15.5px;
 }
 
 .dcv-row-control .seg {
   justify-self: start;
   max-width: 100%;
-  border-radius: var(--r-sm);
+  border-radius: 12px;
 }
 
 .dcv-row-control .seg button {
-  height: 30px;
-  padding: 0 12px;
-  border-radius: 9px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-size: 14.5px;
 }
 
 .dcv-row-hint {
-  font-size: 12px;
+  font-size: 13.5px;
   color: var(--label-3);
 }
 
 .dcv-fixed {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
 }
 
@@ -682,13 +678,13 @@ html[data-theme="light"] .dcv {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .dcv-amount {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .dcv-amount .wlv-input {
@@ -697,30 +693,30 @@ html[data-theme="light"] .dcv {
 }
 
 .dcv-amount b {
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--label-2);
 }
 
 .dcv-short {
-  width: 190px;
+  width: 220px;
 }
 
 .dcv-time {
-  width: 130px;
+  width: 150px;
 }
 
 .dcv-date {
-  width: 210px;
+  width: 240px;
 }
 
 /* What it will do. */
 .dcv-summary {
   position: sticky;
-  top: 12px;
+  top: 16px;
   display: grid;
-  gap: 18px;
-  padding: 20px 20px 18px;
+  gap: 24px;
+  padding: 26px 26px 24px;
   border-radius: var(--r-block);
   background: var(--tile);
 }
@@ -728,48 +724,61 @@ html[data-theme="light"] .dcv {
 .dcv-summary-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
 }
 
 .dcv-summary-head b {
   overflow: hidden;
   font-family: var(--font-display), sans-serif;
-  font-size: 18px;
+  font-size: 24px;
   font-weight: 500;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
+.dcv-summary-lead {
+  margin: -12px 0 0;
+  font-size: 15.5px;
+  color: var(--label-2);
+}
+
 .dcv-facts {
   display: grid;
-  gap: 10px;
+  gap: var(--tile-gap);
   margin: 0;
+  overflow: hidden;
+  border-radius: var(--r);
 }
 
 .dcv-fact {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 14px;
-  font-size: 13.5px;
+  gap: 16px;
+  padding: 14px 16px;
+  background: rgba(var(--ink), 0.035);
 }
 
 .dcv-fact dt {
   flex: none;
+  font-size: 14px;
   color: var(--label-3);
 }
 
 .dcv-fact dd {
   margin: 0;
+  font-family: var(--font-display), sans-serif;
+  font-size: 18px;
   font-weight: 500;
   text-align: right;
 }
 
 .dcv-next ol {
   display: grid;
-  gap: 6px;
-  margin: 8px 0 0;
+  gap: 10px;
+  margin: 12px 0 0;
   padding: 0;
   list-style: none;
   counter-reset: next;
@@ -777,9 +786,10 @@ html[data-theme="light"] .dcv {
 
 .dcv-next li {
   display: flex;
-  gap: 10px;
-  font-size: 13px;
-  color: var(--label-2);
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  color: var(--label);
   counter-increment: next;
 }
 
@@ -788,13 +798,31 @@ html[data-theme="light"] .dcv {
   display: grid;
   place-items: center;
   flex: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
   background: color-mix(in srgb, var(--dca-accent) 18%, transparent);
   color: var(--dca-accent);
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 650;
+}
+
+.dcv-summary .dcv-caption {
+  font-size: 14px;
+}
+
+.dcv-summary .dcv-sentence {
+  font-size: 14.5px;
+}
+
+.dcv-summary .dcv-form-actions .dcv-button {
+  height: 42px;
+  padding: 0 20px;
+  font-size: 15px;
+}
+
+.dcv-summary .dcv-problem {
+  font-size: 14px;
 }
 
 @media (max-width: 980px) {

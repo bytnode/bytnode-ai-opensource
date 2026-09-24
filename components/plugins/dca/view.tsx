@@ -142,7 +142,7 @@ export function DcaView({ settings }: ViewProps) {
         <ColumnHandle panel={panel} cssVar="--wlv-list" width={ui.dcaWidth} min={DCA_MIN} max={DCA_MAX} reset={DCA_DEFAULT} clamp={clampDcaWidth} onCommit={(w) => updateUiPrefs({ dcaWidth: w })} label="Width of the groups column" />
         {scope?.kind === "config" && groups ? (
           <main className="wlv-pane wlv-sheet dcv-sheet">
-            <ConfigHead title={configured ? `Configure ${planTitle(configured)}` : "New DCA"} sub={configured ? "Change its amount, its schedule, its end, its group or its name." : `In ${groups.find((g) => g.id === scope.groupId)?.name ?? "a group"} — every setting, and what it will do.`} onClose={closeConfig} />
+            <ConfigHead title={configured ? `Configure ${planTitle(configured)}` : "New DCA"} sub={configured ? `In ${groups.find((g) => g.id === configured.groupId)?.name ?? "its group"}` : `In ${groups.find((g) => g.id === scope.groupId)?.name ?? "a group"}`} onClose={closeConfig} />
             <div className="wlv-body dcv-body">
               <DcaConfig key={configured?.id ?? `new:${scope.groupId ?? ""}`} settings={settings} plan={configured} groups={groups} accounts={accounts} pairs={pairs} pairsUnavailable={pairsUnavailable} paperCash={state.data?.paperCash ?? "USDT"} groupId={scope.groupId} onSave={saveConfig} onCancel={closeConfig} />
             </div>
