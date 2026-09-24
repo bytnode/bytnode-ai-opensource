@@ -299,7 +299,9 @@ html[data-theme="light"] .tb {
   align-self: flex-end;
   width: 1px;
   height: 16px;
-  margin: 0 0 11px -6px;
+  /* Back over the strip's end padding (the front tab's foot) and the
+     bar's gap: on the last tab's edge, as the rules between tabs. */
+  margin: 0 0 11px -15px;
   background: rgba(var(--ink), 0.1);
 }
 
@@ -307,10 +309,12 @@ html[data-theme="light"] .tb {
   visibility: hidden;
 }
 
+/* "+" and the bell on the tabs' middle line, not the bar's: the tabs sit
+   on its floor. */
 .tb-add {
   flex: none;
-  align-self: center;
-  margin-left: -2px;
+  align-self: flex-end;
+  margin: 0 0 1px 2px;
 }
 
 /* A spring that pushes what follows to the end of a row (the views'
@@ -324,7 +328,8 @@ html[data-theme="light"] .tb {
 .nc {
   position: relative;
   flex: none;
-  align-self: center;
+  align-self: flex-end;
+  margin-bottom: 1px;
 }
 
 .nc-count {
