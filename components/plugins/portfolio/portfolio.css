@@ -727,6 +727,23 @@ html[data-theme="light"] .pfv-currency-list {
   background: color-mix(in srgb, var(--tone) 16%, var(--tile));
 }
 
+/* A held asset: the calendar's block in the asset's colour. */
+.pfv-holding {
+  background: color-mix(in srgb, var(--tone) 12%, var(--tile));
+}
+
+.pfv-holding:hover {
+  background: color-mix(in srgb, var(--tone) 18%, var(--tile));
+}
+
+.pfv-held-on + .pfv-held-on {
+  margin-left: 10px;
+}
+
+.pfv-held-value {
+  color: var(--label);
+}
+
 .pfv-position-pair {
   display: flex;
   align-items: baseline;

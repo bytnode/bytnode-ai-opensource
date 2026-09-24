@@ -21,7 +21,8 @@ import { accountKey } from "./side";
    donut and a bar per asset; the composition, three tiles side by side —
    cash (stablecoins) against crypto, the wallets (spot, futures,
    funding), the positions' exposure and PnL;
-   for the whole, the accounts compared; and the open positions.
+   for the whole, the accounts compared (one or many); and the positions —
+   every asset held (spot) and every open futures position.
 
    An account's page holds the same report, from its own daily totals —
    filed under the account's settings id, never its name; its curve
@@ -63,6 +64,15 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
   const short = positions.filter((p) => /short|sell/i.test(p.side)).reduce((s, p) => s + Math.abs(p.size * (p.mark ?? p.entry ?? 0)), 0);
   const pnl = positions.reduce((s, p) => s + (p.pnl ?? 0), 0);
   const unpriced = account ? summary.unpriced.filter((u) => u.label === account.label) : summary.unpriced;
+  /* What is held, as positions too: every asset but the stablecoins (cash,
+     in the composition), with the accounts that hold it. */
+  const holdings = assets
+    .filter((a) => !STABLES.has(a.asset))
+    .map((a) => ({
+      ...a,
+      tone: parts.find((x) => x.key === a.asset)?.tone ?? "var(--alloc-other)",
+      accounts: account ? [{ label: account.label, testnet: account.testnet }] : summary.accounts.filter((x) => !x.testnet && x.assets.some((y) => y.asset === a.asset)).map((x) => ({ label: x.label, testnet: x.testnet })),
+    }));
 
   return (
     <>
@@ -181,7 +191,7 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
         </div>
       </Part>
 
-      {whole && summary.accounts.length > 1 && (
+      {whole && summary.accounts.length > 0 && (
         <Part title="Accounts" sub="compared">
           <div className="pfv-bars">
             {summary.accounts.map((a) => {
@@ -206,9 +216,31 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
         </Part>
       )}
 
-      {positions.length > 0 && (
-        <Part title="Open positions" sub={`${positions.length}`}>
+      <Part title="Positions" sub={holdings.length + positions.length ? `${holdings.length} held · ${positions.length} open` : undefined}>
+        {holdings.length + positions.length === 0 ? (
+          <p className="pfv-quiet">No asset held and no open position.</p>
+        ) : (
           <div className="wlv-events">
+            {holdings.map((h) => (
+              <div key={`held:${h.asset}`} className="wlv-event pfv-position pfv-holding" style={{ "--tone": h.tone } as CSSProperties}>
+                <span className="pfv-position-pair">
+                  <b>{h.asset}</b>
+                  <small className="pfv-side is-long">Spot</small>
+                </span>
+                <span className="pfv-position-account">
+                  {h.accounts.map((a) => (
+                    <span key={a.label} className="pfv-held-on">
+                      <span className={`xch-badge${a.testnet ? "" : " is-live"}`}>{a.testnet ? "TESTNET" : "LIVE"}</span>
+                      {a.label}
+                    </span>
+                  ))}
+                </span>
+                <span className="pfv-position-figures">
+                  <small>Amount</small> {fmt(h.amount)} <small>Price</small> {h.amount > 0 ? value(h.usd / h.amount) : "—"} <small>Share</small> {(h.share * 100).toFixed(1)} %
+                </span>
+                <span className="pfv-position-pnl pfv-held-value">{value(h.usd)}</span>
+              </div>
+            ))}
             {positions.map((p) => (
               <div key={`${p.label}:${p.symbol}:${p.side}`} className={`wlv-event pfv-position ${typeof p.pnl === "number" && p.pnl < 0 ? "is-down" : "is-up"}`}>
                 <span className="pfv-position-pair">
@@ -233,8 +265,8 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
               </div>
             ))}
           </div>
-        </Part>
-      )}
+        )}
+      </Part>
 
       {unpriced.length > 0 && (
         <Part title="Not counted" sub="no price available">
