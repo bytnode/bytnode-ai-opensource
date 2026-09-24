@@ -482,12 +482,6 @@ body.is-resizing .pv-resize + * {
   background: var(--matter);
 }
 
-/* --- Paper trading ------------------------------------------------------ */
-
-.pt-form {
-  margin-top: 14px;
-}
-
 /* --- Alerts ------------------------------------------------------------- */
 
 /* A switch with its label, in the toolbar. */

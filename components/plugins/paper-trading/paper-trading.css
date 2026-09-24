@@ -1,0 +1,625 @@
+/* ---------------------------------------------------------------------------
+   The Paper trading tab. It wears the watchlist's sheet (`../watchlist/
+   watchlist.css`: the columns, the head, the tiles, the sections) and adds
+   its own: the banknote card, the order ticket, and the rows of what the
+   portfolio holds. Colour is the data's only — Apple's green for a buy, a
+   gain, a long; red for a sell, a loss, a short. The one ornament is the
+   card's guilloché, drawn on the GPU (`note-field.ts`).
+--------------------------------------------------------------------------- */
+
+.ptv .is-flat {
+  --tone: var(--label-3);
+}
+
+.ptv .seg {
+  border-radius: var(--r-sm);
+}
+
+.ptv .seg button {
+  height: 30px;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+/* --- The card ------------------------------------------------------------------ */
+
+/* A card's proportions, a banknote's lines: the ground and the corners are
+   CSS, the lines and the result's colour the canvas's. */
+.ptv-card {
+  position: relative;
+  display: grid;
+  flex: none;
+  grid-template-rows: auto 1fr auto auto;
+  aspect-ratio: 1.586;
+  margin: 0 18px;
+  padding: 18px 20px 16px;
+  overflow: hidden;
+  border-radius: var(--r-pop);
+  background:
+    linear-gradient(150deg, rgba(var(--ink), 0.11) 0%, rgba(var(--ink), 0.035) 55%, rgba(var(--ink), 0.07) 100%),
+    var(--sheet);
+  box-shadow: inset 0 1px 0 rgba(var(--ink), 0.1);
+  isolation: isolate;
+}
+
+html[data-theme="light"] .ptv-card {
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.95) 0%, rgba(var(--ink), 0.03) 60%, rgba(var(--ink), 0.06) 100%),
+    var(--sheet);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(var(--ink), 0.06);
+}
+
+/* Without the GPU: the result's colour as a plain wash in the corner. */
+.ptv-card:is(.is-up, .is-down):not(:has(.ptv-card-canvas.is-live)) {
+  background-image:
+    radial-gradient(circle at 100% 100%, color-mix(in srgb, var(--tone) 22%, transparent), transparent 60%),
+    linear-gradient(150deg, rgba(var(--ink), 0.11) 0%, rgba(var(--ink), 0.035) 55%, rgba(var(--ink), 0.07) 100%);
+}
+
+.ptv-card-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.ptv-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ptv-card-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.ptv-card-value {
+  display: flex;
+  align-items: baseline;
+  align-self: end;
+  gap: 8px;
+  margin: 0;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 300;
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.ptv-card-value small {
+  font-family: var(--font-body, inherit), sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--label-3);
+}
+
+.ptv-card-move {
+  margin: 8px 0 0;
+  font-size: 13.5px;
+  color: var(--label-2);
+}
+
+.ptv-card-move b {
+  margin-right: 4px;
+  color: var(--tone, var(--label));
+  font-weight: 650;
+}
+
+.ptv-card-foot {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--label-3);
+}
+
+/* --- The ticket ------------------------------------------------------------------ */
+
+.ptv-ticket {
+  display: grid;
+  gap: 12px;
+  padding: 26px 18px 28px;
+}
+
+.ptv-ticket-title {
+  margin: 0 0 2px;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+/* Buy in green, sell in red — the chosen side only. */
+.ptv-sides.is-buy .seg button.is-on,
+html[data-theme="light"] .ptv-sides.is-buy .seg button.is-on {
+  background: var(--up);
+  color: #fff;
+}
+
+.ptv-sides.is-sell .seg button.is-on,
+html[data-theme="light"] .ptv-sides.is-sell .seg button.is-on {
+  background: var(--down);
+  color: #fff;
+}
+
+.ptv-field {
+  display: grid;
+  gap: 6px;
+}
+
+.ptv-field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.ptv-quote {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: -4px;
+}
+
+.ptv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ptv-chip {
+  height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ptv-chip:hover {
+  color: var(--label);
+}
+
+.ptv-chip.is-on {
+  background: rgba(var(--ink), 0.16);
+  color: var(--label);
+}
+
+.ptv-price {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ptv-price.is-error {
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--down);
+  white-space: normal;
+  text-align: right;
+}
+
+.ptv-amount {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.ptv-max {
+  justify-self: start;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: #0a84ff;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+html[data-theme="light"] .ptv-max {
+  color: #007aff;
+}
+
+.ptv-locked {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* What the order will do, before it is placed. */
+.ptv-estimate {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 12px 14px;
+  border-radius: var(--r);
+  background: var(--tile);
+}
+
+.ptv-estimate div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.ptv-estimate dt {
+  color: var(--label-3);
+}
+
+.ptv-estimate dd {
+  margin: 0;
+  color: var(--label);
+  text-align: right;
+}
+
+/* The one button, named by what it does, in the side's colour. */
+.ptv-place {
+  height: 46px;
+  margin-top: 2px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--tone);
+  color: #fff;
+  font: inherit;
+  font-size: 15.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition:
+    filter 120ms ease,
+    opacity 120ms ease;
+}
+
+.ptv-place.is-buy {
+  --tone: var(--up);
+}
+
+.ptv-place.is-sell {
+  --tone: var(--down);
+}
+
+.ptv-place:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.ptv-place:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.ptv-ticket-problem {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--down);
+}
+
+.ptv-ticket-done {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--label-2);
+}
+
+.ptv-ticket-done svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+  stroke-width: 2.2;
+  color: var(--up);
+}
+
+.ptv-ticket-note {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--label-3);
+}
+
+/* --- The sheet ------------------------------------------------------------------- */
+
+.ptv-pill,
+.ptv-export .btn {
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ptv-export .btn {
+  margin-left: 4px;
+}
+
+.ptv-pill:hover:not(:disabled),
+.ptv-export .btn:hover:not(:disabled) {
+  background: rgba(var(--ink), 0.12);
+}
+
+.ptv-pill:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ptv-report {
+  padding: 0 var(--side);
+}
+
+.ptv-report .pv-note {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--label-3);
+}
+
+.ptv-figures {
+  --cols: 4;
+
+  flex: none;
+  margin: 16px var(--side) 18px;
+}
+
+.ptv-chart-bar {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 0 14px 0 0;
+}
+
+.ptv-chart-bar span {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.ptv-chart-bar small {
+  font-size: 12.5px;
+  color: var(--label-3);
+}
+
+.ptv-empty {
+  flex: none;
+  margin: 0 var(--side);
+  padding: 26px 26px 28px;
+  border-radius: var(--r-block);
+  background: var(--tile);
+}
+
+.ptv-empty-title {
+  margin: 0 0 8px;
+  font-family: var(--font-display), sans-serif;
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.ptv-empty p:last-child {
+  max-width: 62ch;
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--label-2);
+}
+
+/* What the portfolio holds: rows of one block, 2 px apart, round at its
+   ends only — each with the one action it calls for. */
+.ptv-rows {
+  display: grid;
+  gap: var(--tile-gap);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+  border-radius: var(--r-block);
+}
+
+.ptv-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 8px 16px;
+  min-height: 62px;
+  padding: 10px 14px 10px 18px;
+  background: var(--tile);
+}
+
+.ptv-row-name {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.ptv-row-name b {
+  overflow: hidden;
+  font-family: var(--font-display), sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ptv-row-name em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--tone);
+}
+
+.ptv-row-name small {
+  overflow: hidden;
+  font-size: 12.5px;
+  color: var(--label-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ptv-row-figure {
+  display: grid;
+  gap: 3px;
+  text-align: right;
+}
+
+.ptv-row-figure b {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.ptv-row-figure small {
+  font-size: 12.5px;
+  color: var(--label-3);
+}
+
+.ptv-row-figure :is(b, small):is(.is-up, .is-down),
+.ptv-fill-result:is(.is-up, .is-down) {
+  color: var(--tone);
+}
+
+.ptv-row-pill {
+  min-width: 80px;
+}
+
+.ptv-row-act {
+  height: 28px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ptv-row-act:hover:not(:disabled) {
+  background: rgba(var(--ink), 0.14);
+}
+
+.ptv-row-act:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* A position's way to its liquidation: an empty track is safe. */
+.ptv-liq {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 2px;
+}
+
+.ptv-liq-track {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(var(--ink), 0.08);
+}
+
+.ptv-liq-track i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 2px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--down) 35%, transparent), var(--down));
+}
+
+.ptv-liq small {
+  font-size: 12px;
+  color: var(--label-3);
+  white-space: nowrap;
+}
+
+.ptv-row-order {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.ptv-fill {
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  min-height: 54px;
+}
+
+.ptv-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tone);
+}
+
+.ptv-fill.is-liquidation {
+  background: color-mix(in srgb, var(--down) 12%, var(--tile));
+}
+
+.ptv-fill-result {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ptv-more {
+  margin-top: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--label-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ptv-more:hover {
+  color: var(--label);
+}
+
+.ptv-foot {
+  flex: none;
+  margin: 26px var(--side) 0;
+  font-size: 12.5px;
+  color: var(--label-3);
+}
+
+/* --- Narrow sheets ----------------------------------------------------------------- */
+
+@container (max-width: 720px) {
+  .ptv-figures {
+    --cols: 2;
+  }
+
+  .ptv-row-pill {
+    display: none;
+  }
+
+  .ptv-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .ptv-fill {
+    grid-template-columns: 8px minmax(0, 1fr) auto;
+  }
+
+  .ptv-row-order {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ptv-place {
+    transition: none;
+  }
+}
