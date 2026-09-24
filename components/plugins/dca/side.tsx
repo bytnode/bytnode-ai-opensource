@@ -10,7 +10,7 @@ import { money, pct, toneOf, when } from "./format";
    The left column: the groups, and nothing else — one block of tiles, as
    the portfolio's. A group says how many DCAs it holds, what went in, when
    the next purchase is and its result; the one open is lit. A right click
-   renames or deletes it. Under the block, "New group" — its name typed in
+   renames or deletes it. Above the block, "New group" — its name typed in
    place. The DCAs themselves open in the sheet, inside their group.
 --------------------------------------------------------------------------- */
 
@@ -53,37 +53,6 @@ export function Side({ groups, plans, figures, unit, open, onOpen, onMenu, onCre
         {groups && groups.length > 0 && <span className="wlv-count">{groups.length}</span>}
       </header>
 
-      {groups === null ? (
-        <p className="dcv-side-note">Reading your groups…</p>
-      ) : groups.length === 0 ? (
-        <p className="dcv-side-note">No group yet: make one to hold your DCAs.</p>
-      ) : (
-        <nav className="dcv-nav" aria-label="Groups">
-          {groups.map((g) => {
-            const inside = plans.filter((p) => p.groupId === g.id);
-            const f = figures(inside);
-            const on = open === g.id;
-            const next = nextDue(inside);
-            return (
-              <button key={g.id} type="button" className={`dcv-item dcv-group${on ? " is-on" : ""}`} aria-pressed={on} onClick={() => onOpen(g.id)} onContextMenu={(e) => onMenu(e, g.id)}>
-                <span className="dcv-item-icon" aria-hidden>
-                  <Folder />
-                </span>
-                <span className="dcv-item-main">
-                  <b>{g.name}</b>
-                  <small>
-                    {inside.length ? `${inside.length} DCA${inside.length === 1 ? "" : "s"}` : "No DCA yet"}
-                    {f.invested > 0 ? ` · ${money(f.invested, unit(inside))}` : ""}
-                    {next ? ` · next ${when(next)}` : ""}
-                  </small>
-                </span>
-                {f.pct !== undefined && <span className={`wlv-pill dcv-pill ${toneOf(f.pct)}`}>{pct(f.pct)}</span>}
-              </button>
-            );
-          })}
-        </nav>
-      )}
-
       <div className="dcv-new">
         {naming ? (
           <form
@@ -118,6 +87,37 @@ export function Side({ groups, plans, figures, unit, open, onOpen, onMenu, onCre
           </button>
         )}
       </div>
+
+      {groups === null ? (
+        <p className="dcv-side-note">Reading your groups…</p>
+      ) : groups.length === 0 ? (
+        <p className="dcv-side-note">No group yet: make one to hold your DCAs.</p>
+      ) : (
+        <nav className="dcv-nav" aria-label="Groups">
+          {groups.map((g) => {
+            const inside = plans.filter((p) => p.groupId === g.id);
+            const f = figures(inside);
+            const on = open === g.id;
+            const next = nextDue(inside);
+            return (
+              <button key={g.id} type="button" className={`dcv-item dcv-group${on ? " is-on" : ""}`} aria-pressed={on} onClick={() => onOpen(g.id)} onContextMenu={(e) => onMenu(e, g.id)}>
+                <span className="dcv-item-icon" aria-hidden>
+                  <Folder />
+                </span>
+                <span className="dcv-item-main">
+                  <b>{g.name}</b>
+                  <small>
+                    {inside.length ? `${inside.length} DCA${inside.length === 1 ? "" : "s"}` : "No DCA yet"}
+                    {f.invested > 0 ? ` · ${money(f.invested, unit(inside))}` : ""}
+                    {next ? ` · next ${when(next)}` : ""}
+                  </small>
+                </span>
+                {f.pct !== undefined && <span className={`wlv-pill dcv-pill ${toneOf(f.pct)}`}>{pct(f.pct)}</span>}
+              </button>
+            );
+          })}
+        </nav>
+      )}
     </section>
   );
 }

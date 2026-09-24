@@ -179,7 +179,7 @@ export function Sheet(props: Props) {
           /* An empty group: a quiet invitation. */
           <div className="dcv-start">
             <p>Choose an asset, an amount and a schedule.</p>
-            <button type="button" className="dcv-ghost" onClick={() => onConfigure({ groupId: group.id })}>
+            <button type="button" className="dcv-button is-primary dcv-start-button" onClick={() => onConfigure({ groupId: group.id })}>
               <Plus />
               Add a DCA
             </button>

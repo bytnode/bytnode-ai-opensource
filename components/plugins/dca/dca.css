@@ -192,12 +192,11 @@ html[data-theme="light"] .dcv {
   font-size: 12.5px;
 }
 
-/* Under the block: a new plan, a new group — its name typed in place. */
+/* Above the block: a new group — its name typed in place. */
 .dcv-new {
   display: grid;
   gap: 4px;
-  margin-top: auto;
-  padding: 14px 14px 22px;
+  padding: 0 14px 10px;
 }
 
 .dcv-new-open {
@@ -531,37 +530,12 @@ html[data-theme="light"] .dcv {
   color: var(--label-3);
 }
 
-.dcv-ghost {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 38px;
-  padding: 0 16px 0 13px;
-  border: 1px solid rgba(var(--ink), 0.16);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--label);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.dcv-ghost:hover {
-  border-color: rgba(var(--ink), 0.3);
-  background: var(--fill);
-}
-
-.dcv-ghost:focus-visible {
-  outline: 2px solid var(--dca-accent);
-  outline-offset: 2px;
-}
-
-.dcv-ghost svg {
-  width: 15px;
-  height: 15px;
-  stroke-width: 2;
-  stroke-linecap: round;
+.dcv-start-button {
+  height: 42px;
+  padding: 0 20px 0 16px;
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--dca-accent) 28%, transparent);
 }
 
 .dcv-button svg {
