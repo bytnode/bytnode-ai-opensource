@@ -70,6 +70,9 @@ export type PluginManifest = {
   category: PluginCategory;
   /** One line, for the library list. */
   summary: string;
+  /** What it is for, told to the agents in their prompt — about "the
+      user", never "you" (`summary` speaks to the user). */
+  forAgents: string;
   /** The full presentation, for the plugin's page. */
   description: string;
   /** The plugins it cannot run without: disabling one of them disables it. */

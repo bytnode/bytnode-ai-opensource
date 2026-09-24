@@ -20,6 +20,15 @@ describe("the shipped plugins", () => {
     for (const m of PLUGIN_MANIFESTS) for (const dep of m.optional) expect(ids).toContain(dep);
   });
 
+  it("each tells the agents what it is for, in full sentences about the user", () => {
+    for (const m of PLUGIN_MANIFESTS) {
+      expect(m.forAgents.length, m.id).toBeGreaterThan(40);
+      expect(m.forAgents, m.id).toMatch(/\.$/);
+      /* `summary` speaks to the user ("your…"); in a prompt, "your" would be the agent's. */
+      expect(m.forAgents, m.id).not.toMatch(/\byour\b/i);
+    }
+  });
+
   it("every default configuration value is valid for its own schema", () => {
     for (const m of PLUGIN_MANIFESTS) {
       for (const [key, prop] of Object.entries(m.config.properties)) expect(validValue(prop, prop.default), `${m.id}.${key}`).toBe(true);

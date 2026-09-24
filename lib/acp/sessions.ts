@@ -35,6 +35,7 @@ import type { WireEvent } from "./wire";
 import type { ExchangeAccount } from "@/lib/domain/types";
 import { isAlwaysAskTitle } from "@/lib/tools/names";
 import { activeRuntime } from "@/lib/plugins/core/active";
+import { pluginPrompt } from "@/lib/plugins/extras";
 export type { WireEvent };
 
 /** A call that commits funds, or whose tool always asks by its policy:
@@ -512,12 +513,23 @@ export async function runSubagent(input: SubagentInput, signal: AbortSignal): Pr
   if (!parent.busy) throw new Error("The requester's turn is over.");
   const { agent, cwd: workspace } = parent;
 
-  const [prof, skillSet, project, bytnode] = await Promise.all([loadProfession(PROJECT_ROOT, input.profession), subagentSkillSet(), userSkills(), bytnodeStatus(input.bytnodeKey)]);
+  const runtime = activeRuntime();
+  const needs = { "exchange-account": input.exchangeAccounts.length > 0, "bytnode-key": Boolean(input.bytnodeKey.trim()) };
+  const [prof, skillSet, project, bytnode, plugged] = await Promise.all([
+    loadProfession(PROJECT_ROOT, input.profession),
+    subagentSkillSet(),
+    userSkills(),
+    bytnodeStatus(input.bytnodeKey),
+    runtime ? pluginPrompt(runtime, parent.plugins, { agentId: parent.agentId, engine: "mcp", subagent: true }, needs) : "",
+  ]);
   await syncSubagentSkills(workspace, skillSet);
   const system = [
     subagentFrame(input.profession, prof.prompt, workspace),
     buildAcpPrompt(workspace, [...prof.skills, ...project], bytnode, acpAgentInfo(agent).product, input.exchangeAccounts, 0, true),
-  ].join("\n\n");
+    plugged,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
   return throwawayTurn(
     {
       agent,
@@ -564,7 +576,8 @@ export async function runBackground(input: BackgroundInput, signal: AbortSignal)
   );
 }
 
-const bytnodeStatus = (key: string) =>
+/** Whether BytNode answers with this key, for the prompt's data-source line. */
+export const bytnodeStatus = (key: string) =>
   key.trim()
     ? bytnodeTools(key).then(
         (infos) => ({ ok: true, count: infos.length }),

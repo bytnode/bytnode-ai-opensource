@@ -49,9 +49,14 @@ export function buildToolsPrompt(
   }
   lines.push(
     "",
-    "## Additional BytNode-AI tools (external)",
+    "## BytNode-AI: where you are",
     "",
-    "On top of your general tools above, BytNode-AI provides you with EXTERNAL tools, specific to finance: they are BytNode-AI programs, which read and write in your workspace. Use them first for what they cover, rather than a home-made script. Its plugins describe theirs below; the core gives you:",
+    subagent
+      ? "You run inside BytNode-AI, a finance application on the user's computer. On top of the general tools above, BytNode-AI gives you finance tools: most come from its plugins (listed by plugin below), a few from its core."
+      : "You run inside BytNode-AI, a finance application on the user's computer: the user talks to you in its chat, and sees beside it the app's tabs (the Watchlist, the Calendar…). On top of the general tools above, BytNode-AI gives you finance tools: most come from its plugins (listed by plugin in « Your BytNode-AI plugins » below), a few from its core. For what they cover, use them rather than a script of your own: they act on the user's data in the app — what PaperOrder buys appears in the Paper trading tab.",
+    "Keep the words apart: a tool is what you call; a plugin is a BytNode-AI module that brings tools (and often a tab); a skill is a method guide you load with the Skill tool — not a tool; BytNode is the market-data source. \"My watchlist\", \"my DCA\", \"my alerts\", \"my paper portfolio\" mean the matching plugin's data, read with its tools.",
+    "",
+    "BytNode-AI's core tools, always there:",
     "- Memory: your memory across conversations (add / list / search / remove).",
   );
   if (bytnode) {
@@ -69,5 +74,6 @@ export function buildToolsPrompt(
     for (const s of skills) lines.push(`- ${s.name}${s.description ? ` — ${s.description}` : ""}`);
   }
   lines.push("", "A greeting or a simple conversational message gets a direct answer: no tool, no skill, no plan. Skills are for tasks.");
+  if (!subagent) lines.push("Asked what you can do, which plugins, tools or skills you have: answer from this prompt, in the user's terms — plugins by name and what each does for the user — not with a bare list of tool names.");
   return lines.join("\n");
 }

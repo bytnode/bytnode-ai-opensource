@@ -245,7 +245,17 @@ export class PluginRuntime {
   }
 
   tools(ids: string[] | null, needs?: AgentNeeds): Tool[] {
-    return this.selected(ids, needs).flatMap((id) => [...this.running.get(id)!.tools.values()]);
+    return this.selected(ids, needs).flatMap((id) => this.toolsOf(id));
+  }
+
+  /** The plugins an agent actually has: running, enabled for it, needs met. */
+  forAgent(ids: string[] | null, needs?: AgentNeeds): string[] {
+    return this.selected(ids, needs);
+  }
+
+  /** A running plugin's tools (none when it does not run). */
+  toolsOf(id: string): Tool[] {
+    return [...(this.running.get(id)?.tools.values() ?? [])];
   }
 
   /** Every tool of a running plugin, with its plugin: the library shows
@@ -268,12 +278,17 @@ export class PluginRuntime {
   /** The prompt sections of these plugins, each bounded; a section that
       fails is left out. */
   async prompts(ids: string[] | null, target: PromptTarget, needs?: AgentNeeds): Promise<string[]> {
-    const out: string[] = [];
+    return (await this.promptSections(ids, target, needs)).map((s) => s.text);
+  }
+
+  /** The same sections, each with the plugin that wrote it. */
+  async promptSections(ids: string[] | null, target: PromptTarget, needs?: AgentNeeds): Promise<Array<{ id: string; text: string }>> {
+    const out: Array<{ id: string; text: string }> = [];
     for (const id of this.selected(ids, needs)) {
       for (const render of this.running.get(id)!.prompts) {
         try {
           const text = (await render(target)).trim();
-          if (text) out.push(text.length > PROMPT_LIMIT ? `${text.slice(0, PROMPT_LIMIT - 1)}…` : text);
+          if (text) out.push({ id, text: text.length > PROMPT_LIMIT ? `${text.slice(0, PROMPT_LIMIT - 1)}…` : text });
         } catch (e) {
           this.env.log(`[plugins] ${id}: prompt section failed: ${e instanceof Error ? e.message : String(e)}`);
         }

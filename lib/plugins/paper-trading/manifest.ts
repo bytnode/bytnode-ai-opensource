@@ -7,6 +7,7 @@ export const paperTradingManifest: PluginManifest = {
   tier: "core",
   category: "portfolio",
   summary: "Trade with simulated money, never real funds",
+  forAgents: "Simulated portfolios with fake money — spot and futures, market and limit orders at live prices. Never real funds, never a real order.",
   description:
     "A simulated portfolio to try a strategy, move from a backtest toward real trading without risk, or discover the app without giving an exchange key. Orders take the same shape as real ones — market or limit, spot or futures with leverage — and fill at the current BytNode price (or your exchange's), with the fees and slippage you set; a limit waits until the market reaches it. Every paper order carries a PAPER badge in the thread, and the agents always say that a paper result is simulated, never a real performance.",
   requires: [],

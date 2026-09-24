@@ -9,6 +9,7 @@ export const manifest = (id: string, requires: string[] = [], optional: string[]
   tier: "core",
   category: "tools",
   summary: id,
+  forAgents: id,
   description: id,
   requires,
   optional,

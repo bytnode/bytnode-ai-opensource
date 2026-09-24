@@ -8,6 +8,7 @@ export const portfolioManifest: PluginManifest = {
   tier: "core",
   category: "portfolio",
   summary: "One view of all your exchange accounts",
+  forAgents: "The user's real holdings across all their exchange accounts, valued in their currency, and how the total evolved. Read-only.",
   description:
     "\"How much do I have, and how did it do?\" across every exchange account you allowed: balances of all wallets (spot, futures, funding), valued in the currency you choose, split by asset and by account, with the open positions. Testnet accounts are shown apart and never added to the total; an asset without a price is listed, never valued at zero in silence; an account that cannot be read is flagged without blocking the others. A daily snapshot of the total (while the app is open) draws the evolution. Values come from BytNode, or from your exchange when BytNode does not cover an asset.",
   requires: [],

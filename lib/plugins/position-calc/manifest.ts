@@ -7,6 +7,7 @@ export const positionCalcManifest: PluginManifest = {
   tier: "core",
   category: "portfolio",
   summary: "Size, liquidation price and risk/reward before a trade",
+  forAgents: "Position size from the capital and the risk the user accepts, liquidation price, reward/risk — to run before proposing any order.",
   description:
     "Reliable figures before any order. How much to buy for the risk you accept, where a leveraged position would be liquidated, and what each target pays for what the stop risks — fees included. The agent runs these before it proposes an order; you can ask for them directly too. The liquidation price is an estimate: exchanges use tiered margin tables, and the assumptions are always shown.",
   requires: [],

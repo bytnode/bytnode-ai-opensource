@@ -3,7 +3,7 @@ import { buildToolsPrompt } from "@/lib/agent/tools-prompt";
 import { runAgentLoop } from "@/lib/agent/loop";
 import { acpAgentOf, acpModelId } from "@/lib/acp/agents";
 import { buildAcpPrompt } from "@/lib/acp/prompt";
-import { runBackground } from "@/lib/acp/sessions";
+import { bytnodeStatus, runBackground } from "@/lib/acp/sessions";
 import { loadProfession } from "@/lib/professions/load";
 import { streamOpenRouter } from "@/lib/server/openrouter-stream";
 import { PROJECT_ROOT, resolveWorkspace } from "@/lib/server/workspace";
@@ -51,7 +51,7 @@ export async function runAgentInBackground(input: AgentRunInput, session: Sessio
 
   try {
     if (acp) {
-      const system = [buildSystemPrompt(session.profile, agent), prof.prompt, buildAcpPrompt(workspace, skills, undefined, acp.product, accounts, 0, true), plugged, frame].filter(Boolean).join("\n\n");
+      const system = [buildSystemPrompt(session.profile, agent), prof.prompt, buildAcpPrompt(workspace, skills, await bytnodeStatus(session.bytnodeKey), acp.product, accounts, 0, true), plugged, frame].filter(Boolean).join("\n\n");
       const text = await runBackground(
         {
           agent: acp.id,
