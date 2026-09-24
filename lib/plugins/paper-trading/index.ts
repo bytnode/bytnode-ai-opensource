@@ -5,10 +5,12 @@ import { definePlugin } from "../core/contract";
 import type { ReportService } from "../report-export/service";
 import type { SchedulerService } from "../scheduler/service";
 import type { PriceSources } from "../shared/prices";
-import { quote } from "../shared/prices";
+import { bytnodePairs, candles, quote } from "../shared/prices";
+import { isInterval } from "../shared/candle";
 import { normalizeSymbol } from "../shared/quote";
 import { INDEX, addBook, bookFile, findBook, listOrDefault, removeBook, renameBook, type PaperBook } from "./books";
 import { resultCurve } from "./curve";
+import { tradeStats } from "./stats";
 import { paperDesk, type Desk, type DeskSettings, type Picked, type Shelf } from "./desk";
 import { CASH, available, emptyBook, type CheckEvent, type OrderType, type PaperMarket, type Side } from "./engine";
 import { paperTradingManifest } from "./manifest";
@@ -166,6 +168,7 @@ export const paperTradingPlugin = definePlugin({
       const look = await desk.look(sourcesOf(transport, signal));
       const s = settings();
       const assets = [CASH, ...Object.keys(look.book.balances).filter((a) => a !== CASH)];
+      const curve = resultCurve(look.book, look.at, look.valuation.equity);
       return {
         id: meta.id,
         name: meta.name,
@@ -178,12 +181,24 @@ export const paperTradingPlugin = definePlugin({
         available: Object.fromEntries(assets.map((a) => [a, available(look.book, a, s.engine)])),
         /* The market, for the open orders' distance to their price. */
         prices: Object.fromEntries(look.prices),
-        curve: resultCurve(look.book, look.at, look.valuation.equity),
+        curve,
+        stats: tradeStats(look.book.fills, curve),
         at: look.at.toISOString(),
         priceErrors: look.priceErrors,
         feePercent: s.engine.feeRate * 100,
         slippagePercent: s.engine.slippage * 100,
       };
+    });
+    /* What the ticket offers: every pair BytNode covers that the paper
+       portfolios can trade — quoted in USDT. One cached BytNode call. */
+    ctx.api("pairs", async (_params, { transport, signal }) => (await bytnodePairs(transport.bytnodeKey, signal)).filter((p) => p.symbol.endsWith(`/${CASH}`)));
+    /* The market chart of the pair in the ticket. */
+    ctx.api("candles", async (params, { transport, signal }) => {
+      const symbol = normalizeSymbol(String(params.symbol ?? ""));
+      const interval = isInterval(params.interval) ? params.interval : "1h";
+      if (!symbol) return { symbol: "", interval, error: "Choose a pair." };
+      const limit = typeof params.limit === "number" ? params.limit : 200;
+      return candles(symbol, interval, limit, sourcesOf(transport, signal));
     });
     /* The order ticket's price: one pair, as the order would fill on it. */
     ctx.api("quote", async (params, { transport, signal }) => {
