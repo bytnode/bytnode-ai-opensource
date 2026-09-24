@@ -10,6 +10,9 @@ import { moneyIn } from "./money";
 import { portfolioHistoryTool } from "./portfolio-history";
 import { portfolioSummaryTool } from "./portfolio-summary";
 import { exportSections } from "./present";
+import { candles } from "../shared/prices";
+import type { Candle } from "../shared/candle";
+import { assetsOf, estimateHistory, type Holdings } from "./backfill";
 
 /* The consolidated portfolio: two read-only tools, a daily snapshot of the
    total while the app is open (when the scheduler runs), and the view's
@@ -52,6 +55,23 @@ export const portfolioPlugin = definePlugin({
     ctx.api("history", async (params) => {
       const days = typeof params.days === "number" ? params.days : 90;
       return { points: history(await snapshots(), days, new Date()) };
+    });
+    /* The history before the snapshots, estimated: today's holdings (sent
+       by the view, from its summary) at each past day's close — BytNode's
+       daily klines, else an account's exchange. */
+    ctx.api("backfill", async (params, { transport, signal }) => {
+      const days = Math.max(7, Math.min(365, typeof params.days === "number" ? Math.round(params.days) : 365));
+      const holdings: Holdings = (Array.isArray(params.holdings) ? params.holdings : [])
+        .filter((h): h is { id: string; assets: unknown[] } => typeof h?.id === "string" && Array.isArray(h.assets))
+        .map((h) => ({ id: h.id, assets: h.assets.flatMap((a) => (typeof (a as { asset?: unknown }).asset === "string" && typeof (a as { amount?: unknown }).amount === "number" ? [a as { asset: string; amount: number }] : [])) }));
+      const closes: Record<string, Candle[]> = {};
+      await Promise.all(
+        assetsOf(holdings).map(async (asset) => {
+          const r = await candles(`${asset}/USDT`, "1d", days + 1, { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal });
+          if ("candles" in r) closes[asset] = r.candles;
+        }),
+      );
+      return estimateHistory(holdings, closes);
     });
     ctx.api("export", async (params, { transport, signal }) => {
       const report = ctx.optional<ReportService>("report-export");

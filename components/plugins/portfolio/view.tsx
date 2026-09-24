@@ -6,6 +6,7 @@ import { performance, slicePeriod, type Period } from "@/lib/plugins/portfolio/p
 import type { Money } from "@/lib/plugins/portfolio/present";
 import { dailySeries } from "@/lib/plugins/portfolio/view-model";
 import { samplePoints, sampleSummary } from "@/lib/plugins/portfolio/sample";
+import { mergeHistory, type Estimated } from "@/lib/plugins/portfolio/backfill";
 import { pluginManifest } from "@/lib/plugins/catalog";
 import { pluginSettings, resolveConfig } from "@/lib/plugins/core/state";
 import { goToSettings } from "@/lib/state/navigation";
@@ -58,6 +59,13 @@ export function PortfolioView({ settings }: ViewProps) {
   useAwakeInterval(reload, REFRESH);
   const history = usePluginData<{ points: Snapshot[] }>("portfolio", "history", settings, { days: HISTORY_DAYS });
   useAwakeInterval(history.reload, REFRESH * 5);
+  /* Before the snapshots, the history is estimated: today's holdings at
+     each past day's close (the server's `backfill`); a real snapshot wins
+     its day. Asked again only when the holdings change. */
+  const holdings = (data?.summary.accounts ?? [])
+    .filter((a) => a.id && !a.testnet)
+    .map((a) => ({ id: a.id as string, assets: a.assets.map((x) => ({ asset: x.asset, amount: Number(x.amount.toPrecision(6)) })) }));
+  const backfill = usePluginData<{ points: Estimated[]; missing: string[] }>("portfolio", "backfill", settings, { holdings, days: HISTORY_DAYS - 1 });
   const report = useReportExport("portfolio", settings, { currency });
   const ui = useUiPrefs();
   const panel = useRef<HTMLDivElement>(null);
@@ -71,7 +79,8 @@ export function PortfolioView({ settings }: ViewProps) {
   /* The whole's series (the navigator shows its move), and the one of
      what is shown: the whole, or the account's own (filed under its id —
      an account without one has no curve). */
-  const points = sample ? sample.points : (history.data?.points ?? []);
+  const points = sample ? sample.points : mergeHistory(history.data?.points ?? [], backfill.data?.points ?? []);
+  const estimated = !sample && (backfill.data?.points.length ?? 0) > 0;
   const wholeSeries = m ? slicePeriod(dailySeries(points, m.perUsd), period) : [];
   const series = !m ? [] : !account ? wholeSeries : account.id ? slicePeriod(dailySeries(points, m.perUsd, account.id), period) : [];
   const perf = performance(wholeSeries);
@@ -164,7 +173,7 @@ export function PortfolioView({ settings }: ViewProps) {
                   )}
                 </div>
               ) : (
-                <Dashboard summary={s} account={account} series={series} period={period} onPeriod={setPeriod} value={value} perUsd={m.perUsd} currency={m.currency} onScope={setScope} />
+                <Dashboard summary={s} account={account} series={series} period={period} onPeriod={setPeriod} value={value} perUsd={m.perUsd} currency={m.currency} onScope={setScope} estimated={estimated} />
               )
             )}
           </div>
