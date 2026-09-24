@@ -105,8 +105,8 @@ html[data-theme="light"] .tb {
    shows (icon, title, cross) faded, washed out rather than darkened;
    under the hand, a faint ground and most of its colour back. */
 .tb-tab:not(.is-on) > :not(.tb-sep) {
-  opacity: 0.24;
-  filter: brightness(0.7);
+  opacity: 0.36;
+  filter: brightness(0.8);
   transition: opacity 140ms ease, filter 140ms ease;
 }
 
