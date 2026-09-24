@@ -56,7 +56,7 @@ export function TabBar({ settings, views, tabs, active }: Props) {
           return (
             <div key={t.view} className={`tb-tab${on ? " is-on" : ""}`} {...hover(t.view)}>
               <span className="tb-sep" aria-hidden />
-              <button type="button" role="tab" aria-selected={on} className="tb-label" onClick={() => activateTab(t.view)} title={entry.description}>
+              <button type="button" role="tab" aria-selected={on} className="tb-label" onClick={() => activateTab(t.view)}>
                 <TabIcon view={t.view} className="tb-favicon" />
                 <span className="tb-title">{entry.title}</span>
               </button>
