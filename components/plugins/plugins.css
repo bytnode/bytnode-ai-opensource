@@ -68,6 +68,8 @@
   --cal-expiry: #bf5af2;
   --cal-upgrade: #40c8e0;
   --cal-project: #ff375f;
+  --cal-task: #5e5ce6;
+  --cal-scheduled: #ac8e68;
   --cal-today: #ff453a;
 }
 
@@ -89,6 +91,8 @@ html[data-theme="light"] .pv-bare {
   --cal-expiry: #af52de;
   --cal-upgrade: #0a9dbb;
   --cal-project: #ff2d55;
+  --cal-task: #5856d6;
+  --cal-scheduled: #a2845e;
   --cal-today: #ff3b30;
 }
 

@@ -25,6 +25,7 @@ const scheduler = definePlugin({
       job: (spec) => void jobs.set(`${caller.id}:${spec.id}`, spec),
       trigger: async () => {},
       runAgent: async () => ({ ok: false, error: "not in tests" }),
+      planned: async () => [],
     }));
   },
 });

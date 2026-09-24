@@ -46,7 +46,7 @@ export function HourScale({ day, events, now, anchor }: Props) {
 
 function EventBlock({ event, open, onToggle }: { event: CalendarEvent; open: boolean; onToggle: () => void }) {
   return (
-    <div className={`calv-block${open ? " is-open" : ""}${event.importance === 3 ? " is-strong" : ""}`} style={toneOf(event.category)}>
+    <div className={`calv-block${open ? " is-open" : ""}${event.importance === 3 ? " is-strong" : ""}${event.done ? " is-done" : ""}`} style={toneOf(event.category)}>
       <button type="button" className="calv-block-main" onClick={onToggle} aria-expanded={open}>
         {!event.allDay && <span className="calv-block-time">{timeOf(event)}</span>}
         <span className="calv-block-title">{event.title}</span>

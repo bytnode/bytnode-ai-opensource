@@ -1,15 +1,21 @@
 /* ---------------------------------------------------------------------------
-   The market events table: what it holds, what gets in, how it is searched.
+   The calendar's table: what it holds, what gets in, how it is searched.
 
-   Every event is SOURCED: a collected event without an http(s) URL is
-   rejected, never stored. The same event collected twice is updated, not
-   duplicated: its key is the source's id when there is one, otherwise the
-   day and the title. Thirty days of past events are kept, all the known
+   Your agents write it (`CalendarEdit`): market events, each SOURCED — one
+   without an http(s) URL is rejected, never stored — and the user's own
+   entries (tasks, reminders, deadlines: the `task` calendar), which need no
+   source. The same event written twice is updated, not duplicated: its key
+   is the day and the title. Two calendars are COMPUTED, never stored: the
+   options and futures expiries (`expiries.ts`) and the coming runs of the
+   scheduled tasks. Thirty days of past entries are kept, all the known
    future. Pure, tested.
 --------------------------------------------------------------------------- */
 
-export const CATEGORIES = ["macro", "unlock", "listing", "expiry", "upgrade", "project"] as const;
+export const CATEGORIES = ["macro", "unlock", "listing", "expiry", "upgrade", "project", "task", "scheduled"] as const;
 export type Category = (typeof CATEGORIES)[number];
+
+/** The calendars an agent writes; the two others are computed. */
+export const WRITABLE = ["macro", "unlock", "listing", "upgrade", "project", "task"] as const satisfies readonly Category[];
 
 export const CATEGORY_LABELS: Record<Category, string> = {
   macro: "Macro",
@@ -18,6 +24,8 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   expiry: "Options & futures expiry",
   upgrade: "Upgrade / fork",
   project: "Project",
+  task: "Task",
+  scheduled: "Scheduled task",
 };
 
 export type CalendarEvent = {
@@ -30,17 +38,27 @@ export type CalendarEvent = {
   /** Base assets concerned (`BTC`); empty: the whole market. */
   assets: string[];
   importance: 1 | 2 | 3;
+  /** Who announces it — for a task, the agent that wrote it. */
   source: string;
+  /** The page that announces it; empty for a task or a scheduled run. */
   url: string;
-  /** When it was collected (or computed). */
+  /** When it was written (or computed). */
   fetchedAt: string;
-  /** Computed from a venue's schedule (an expiry), not collected. */
+  /** A few lines of context, written by the agent. */
+  notes?: string;
+  /** The id of the agent that wrote it, when known (its name is in `source`
+      for a task, and the view names it from the settings). */
+  by?: string;
+  /** A task the agent marked done. */
+  done?: true;
+  /** Computed (an expiry, a scheduled run), not written: nobody edits it. */
   computed?: true;
 };
 
 const DAY = 24 * 3600_000;
 export const RETENTION_DAYS = 30;
 const MAX_TITLE = 200;
+const MAX_NOTES = 1000;
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
@@ -56,63 +74,69 @@ function hash(text: string): string {
   return a.toString(16).padStart(8, "0") + b.toString(16).padStart(8, "0");
 }
 
-/** The key of an event: the source's id, or the day and the title. */
-export function eventKey(day: string, title: string, sourceId?: string): string {
-  if (sourceId?.trim()) return sourceId.trim().slice(0, 120);
+/** The key of an entry: its day and its title. */
+export function eventKey(day: string, title: string): string {
   return hash(`${day}|${title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()}`);
 }
 
-/** A collected event, checked: the event, or why it is rejected. */
-export function validateEvent(raw: unknown, now: Date): CalendarEvent | { error: string } {
+/** An entry as an agent writes it, checked: the entry, or why it is
+    rejected. `by`: the agent's name, the source of a task. */
+export function validateEvent(raw: unknown, now: Date, by = "an agent"): CalendarEvent | { error: string } {
   if (!isRecord(raw)) return { error: "not an object" };
   const title = typeof raw.title === "string" ? raw.title.trim().slice(0, MAX_TITLE) : "";
   if (!title) return { error: "no title" };
+  const category = CATEGORIES.find((c) => c === raw.category);
+  if (!category) return { error: `unknown category "${String(raw.category)}": "${title}"` };
+  if (category === "expiry" || category === "scheduled") return { error: `${category === "expiry" ? "expiries" : "scheduled runs"} are computed, not written: "${title}"` };
   const url = typeof raw.url === "string" ? raw.url.trim() : "";
   let parsed: URL | null = null;
   try {
-    parsed = new URL(url);
+    parsed = url ? new URL(url) : null;
   } catch {
     /* rejected below */
   }
-  if (!parsed || !/^https?:$/.test(parsed.protocol)) return { error: `no source URL: "${title}"` };
+  if (parsed && !/^https?:$/.test(parsed.protocol)) parsed = null;
+  if (!parsed && (url || category !== "task")) return { error: `no source URL: "${title}"` };
   const starts = typeof raw.startsAt === "string" ? Date.parse(raw.startsAt) : NaN;
   if (!Number.isFinite(starts)) return { error: `no valid date: "${title}"` };
-  const category = CATEGORIES.find((c) => c === raw.category);
-  if (!category) return { error: `unknown category "${String(raw.category)}": "${title}"` };
   const importance = raw.importance === 1 || raw.importance === 2 || raw.importance === 3 ? raw.importance : 1;
   const assets = Array.isArray(raw.assets) ? [...new Set(raw.assets.filter((a): a is string => typeof a === "string").map((a) => a.trim().toUpperCase().split("/")[0]).filter((a) => /^[A-Z0-9]{2,15}$/.test(a)))] : [];
   const startsAt = new Date(starts).toISOString();
-  const allDay = raw.allDay === true;
+  const notes = typeof raw.notes === "string" ? raw.notes.trim().slice(0, MAX_NOTES) : "";
+  const source = typeof raw.source === "string" && raw.source.trim() ? raw.source.trim().slice(0, 80) : parsed ? parsed.hostname : by;
   return {
-    id: eventKey(startsAt.slice(0, 10), title, typeof raw.id === "string" ? raw.id : undefined),
+    id: eventKey(startsAt.slice(0, 10), title),
     startsAt,
-    allDay,
+    allDay: raw.allDay === true,
     category,
     title,
     assets,
     importance,
-    source: typeof raw.source === "string" && raw.source.trim() ? raw.source.trim().slice(0, 80) : parsed.hostname,
-    url: parsed.toString(),
+    source,
+    url: parsed ? parsed.toString() : "",
     fetchedAt: now.toISOString(),
+    ...(notes ? { notes } : {}),
+    ...(raw.done === true && category === "task" ? { done: true as const } : {}),
   };
 }
 
-/** Merges collected events into the table: new ones added, known ones
+/** Merges written events into the table: new ones added, known ones
     (same key, or same URL on the same day) updated — never duplicated —
     and the old past dropped. */
-export function mergeEvents(stored: CalendarEvent[], incoming: CalendarEvent[], now: Date): { events: CalendarEvent[]; added: number; updated: number } {
+export function mergeEvents(stored: CalendarEvent[], incoming: CalendarEvent[], now: Date): { events: CalendarEvent[]; added: CalendarEvent[]; updated: CalendarEvent[] } {
   const byId = new Map(stored.map((e) => [e.id, e]));
-  let added = 0;
-  let updated = 0;
+  const added: CalendarEvent[] = [];
+  const updated: CalendarEvent[] = [];
   for (const e of incoming) {
-    const same = byId.get(e.id) ?? [...byId.values()].find((x) => x.url === e.url && x.startsAt.slice(0, 10) === e.startsAt.slice(0, 10));
+    const same = byId.get(e.id) ?? [...byId.values()].find((x) => e.url !== "" && x.url === e.url && x.startsAt.slice(0, 10) === e.startsAt.slice(0, 10));
     if (same) {
+      const next = { ...e, id: same.id };
       byId.delete(same.id);
-      byId.set(same.id, { ...e, id: same.id });
-      updated++;
+      byId.set(same.id, next);
+      updated.push(next);
     } else {
       byId.set(e.id, e);
-      added++;
+      added.push(e);
     }
   }
   return { events: prune([...byId.values()], now), added, updated };
@@ -142,27 +166,37 @@ export function searchEvents(events: CalendarEvent[], q: EventQuery): CalendarEv
       if (q.categories?.length && !q.categories.includes(e.category)) return false;
       if (q.minImportance && e.importance < q.minImportance) return false;
       if (assets?.length && e.assets.length && !e.assets.some((a) => assets.includes(a))) return false;
-      if (text && !`${e.title} ${e.assets.join(" ")} ${e.source}`.toLowerCase().includes(text)) return false;
+      if (text && !`${e.title} ${e.assets.join(" ")} ${e.source} ${e.notes ?? ""}`.toLowerCase().includes(text)) return false;
       return true;
     })
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
 }
 
-/** An event in one line, with its source and collection date (or that it
-    is computed). */
+/** An entry in one line, with its id (to edit it), its source and when
+    it was written — or that it is computed. */
 export function eventLine(e: CalendarEvent): string {
   const when = e.allDay ? `${e.startsAt.slice(0, 10)} (all day)` : `${e.startsAt.slice(0, 16).replace("T", " ")} UTC`;
   const assets = e.assets.length ? ` [${e.assets.join(", ")}]` : "";
-  return `${when} — ${e.title}${assets} · ${CATEGORY_LABELS[e.category]}, importance ${e.importance} · source: ${e.source} ${e.url} (${e.computed ? "computed, not collected" : `collected ${e.fetchedAt.slice(0, 10)}`})`;
+  const what = e.category === "task" || e.category === "scheduled" ? CATEGORY_LABELS[e.category] : `${CATEGORY_LABELS[e.category]}, importance ${e.importance}`;
+  const origin = e.computed ? "computed, not editable" : `id ${e.id}, written ${e.fetchedAt.slice(0, 10)}`;
+  const notes = e.notes ? ` · notes: ${e.notes.replace(/\s+/g, " ").slice(0, 200)}` : "";
+  return `${when} — ${e.title}${e.done ? " (done)" : ""}${assets} · ${what} · source: ${e.source}${e.url ? ` ${e.url}` : ""} (${origin})${notes}`;
 }
 
 const PROMPT_HOURS = 48;
 const PROMPT_MAX = 3;
 
-/** The prompt section: the most important events of the next 48 hours
-    (at most 3), so the agent can mention them unprompted. */
+/** The prompt section: the most important market events of the next 48
+    hours and the user's open tasks due by then (at most 3 each), so the
+    agent can mention them unprompted. */
 export function calendarPrompt(events: CalendarEvent[], now: Date): string {
-  const soon = searchEvents(events, { from: now, to: new Date(now.getTime() + PROMPT_HOURS * 3600_000), minImportance: 3 }).slice(0, PROMPT_MAX);
-  if (soon.length === 0) return "";
-  return ["## Market events in the next 48 hours", ...soon.map((e) => `- ${eventLine(e)}`), "EventSearch finds the others."].join("\n");
+  const soon = searchEvents(events, { from: now, to: new Date(now.getTime() + PROMPT_HOURS * 3600_000) });
+  const market = soon.filter((e) => e.importance === 3 && e.category !== "task" && e.category !== "scheduled").slice(0, PROMPT_MAX);
+  const tasks = soon.filter((e) => e.category === "task" && !e.done).slice(0, PROMPT_MAX);
+  if (market.length === 0 && tasks.length === 0) return "";
+  return [
+    ...(market.length ? ["## Market events in the next 48 hours", ...market.map((e) => `- ${eventLine(e)}`)] : []),
+    ...(tasks.length ? ["## The user's tasks in the next 48 hours", ...tasks.map((e) => `- ${eventLine(e)}`)] : []),
+    "EventSearch finds the others; CalendarEdit writes to the calendar.",
+  ].join("\n");
 }

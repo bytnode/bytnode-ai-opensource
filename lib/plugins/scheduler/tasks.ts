@@ -149,6 +149,51 @@ export function taskLines(tasks: AgentTask[], states: Record<string, RunState>):
   });
 }
 
+/** A coming run of an agent task, as the calendar shows it. */
+export type PlannedRun = {
+  taskId: string;
+  title: string;
+  /** The agent's name when it is known, else what the task names. */
+  agent: string;
+  frequency: string;
+  /** ISO. For a task that runs more often than hourly: the day, at 00:00 UTC. */
+  at: string;
+  /** More often than hourly: one entry for the day rather than dozens. */
+  allDay: boolean;
+};
+
+const HOURLY = 60;
+const MAX_PLANNED = 500;
+
+/** The coming runs of the active tasks between `from` and `to` — from
+    `now` on: what already ran is in the run log, not in the plan. A task
+    that runs more often than hourly gets one all-day entry per day. */
+export function plannedRuns(tasks: AgentTask[], states: Record<string, RunState>, from: number, to: number, now: number, agentName: (ref: string) => string = (r) => r): PlannedRun[] {
+  const out: PlannedRun[] = [];
+  const start = Math.max(from, now);
+  for (const t of tasks) {
+    if (t.status !== "active") continue;
+    const f = parseFrequency(t.frequency);
+    if ("error" in f) continue;
+    const base = { taskId: t.id, title: t.title, agent: agentName(t.agent), frequency: t.frequency };
+    if (f.kind === "interval" && f.minutes < HOURLY) {
+      for (let d = new Date(start); d.getTime() <= to && out.length < MAX_PLANNED; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+        const p = (n: number) => String(n).padStart(2, "0");
+        out.push({ ...base, at: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T00:00:00.000Z`, allDay: true });
+      }
+      continue;
+    }
+    const s = states[taskKey(t.id)] ?? {};
+    const known = s.nextRun && s.every === t.frequency ? Date.parse(s.nextRun) : NaN;
+    /* An interval counts from its known next run; a time of day falls on
+       its time whatever the past. */
+    let at = f.kind === "interval" ? (Number.isFinite(known) ? known : s.lastRun ? nextRun(f, Date.parse(s.lastRun)) : now) : nextRun(f, start - 1);
+    if (f.kind === "interval" && at < start) at += Math.ceil((start - at) / (f.minutes * 60_000)) * f.minutes * 60_000;
+    for (; at <= to && out.length < MAX_PLANNED; at = nextRun(f, at)) out.push({ ...base, at: new Date(at).toISOString(), allDay: false });
+  }
+  return out.sort((a, b) => a.at.localeCompare(b.at));
+}
+
 /** The frame of a background run: who is (not) there, what it may do,
     what it must hand back. */
 export function backgroundFrame(purpose: string, now: Date): string {

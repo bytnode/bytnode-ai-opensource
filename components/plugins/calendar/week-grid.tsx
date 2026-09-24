@@ -84,7 +84,7 @@ function WeekBlock({ event, open, onToggle, onClose, flip }: BlockProps) {
   const when = new Date(event.startsAt).toLocaleDateString(LOCALE, { weekday: "long", day: "numeric", month: "long", timeZone: event.allDay ? "UTC" : undefined });
 
   return (
-    <div ref={root} className={`calv-wblock${event.importance === 3 ? " is-strong" : ""}${open ? " is-open" : ""}`} style={toneOf(event.category)}>
+    <div ref={root} className={`calv-wblock${event.importance === 3 ? " is-strong" : ""}${event.done ? " is-done" : ""}${open ? " is-open" : ""}`} style={toneOf(event.category)}>
       <button type="button" className="calv-wblock-main" onClick={onToggle} aria-expanded={open} title={event.title}>
         {!event.allDay && <span className="calv-wblock-time">{timeOf(event)}</span>}
         <span className="calv-wblock-title">{event.title}</span>

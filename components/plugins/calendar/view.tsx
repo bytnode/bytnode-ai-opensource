@@ -8,7 +8,8 @@ import type { ViewProps } from "../views";
 import { ColumnHandle } from "../column-handle";
 import { act, usePluginData } from "../use-plugin-data";
 import { useAwakeInterval } from "../view-activity";
-import { Agenda, type Collection } from "./agenda";
+import { CalendarActionsProvider, type CalendarActions } from "./actions";
+import { Agenda } from "./agenda";
 import { useFilter } from "./filters";
 import { recall, remember } from "./memory";
 import { MonthPane, type PeriodKey } from "./month";
@@ -22,15 +23,15 @@ import "./calendar.css";
    between the two columns is a handle (`../column-handle.tsx`) that widens
    or narrows the month — a screen habit, kept with the others. Where the
    tab was left — period, month, filters — survives a visit to another
-   tab (`./memory.ts`).
+   tab (`./memory.ts`). Nothing here fetches events: the user's agents
+   write the calendar (`CalendarEdit`), the view reads it and lets the
+   user delete an entry.
 --------------------------------------------------------------------------- */
 
-type Week = { events: CalendarEvent[]; last: Collection; watchlist: boolean };
+type Week = { events: CalendarEvent[]; watchlist: boolean };
 
-/** The data is read again now and then: a collection lands in the background. */
+/** The data is read again now and then: an agent writes in the background. */
 const REFRESH = 30_000;
-/** How long "Collecting" is shown at most: the scheduler says a failure. */
-const COLLECT_MS = 12 * 60_000;
 
 export function CalendarView({ settings, params }: ViewProps) {
   const [today] = useState(() => startOfDay(new Date()));
@@ -49,7 +50,6 @@ export function CalendarView({ settings, params }: ViewProps) {
       setMonth(firstOfMonth(askedDay));
     }
   }
-  const [requested, setRequested] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const filter = useFilter();
   const ui = useUiPrefs();
@@ -72,17 +72,10 @@ export function CalendarView({ settings, params }: ViewProps) {
 
   useAwakeInterval(reload, REFRESH);
 
-  useEffect(() => {
-    if (requested === null) return;
-    const t = setTimeout(() => setRequested(null), COLLECT_MS);
-    return () => clearTimeout(t);
-  }, [requested]);
-
   const events = data?.events ?? [];
   const days = byDay(filter.apply(events));
   const counts: Partial<Record<Category, number>> = {};
   for (const e of events) if (sameMonth(eventDay(e), month)) counts[e.category] = (counts[e.category] ?? 0) + 1;
-  const collecting = requested !== null && (data?.last?.at ?? "") === requested;
 
   const choose = (k: PeriodKey) => {
     setPeriod(k === "today" ? { kind: "day", day: today } : { kind: k });
@@ -92,10 +85,12 @@ export function CalendarView({ settings, params }: ViewProps) {
     setPeriod({ kind: "day", day: d });
     if (!sameMonth(d, month)) setMonth(firstOfMonth(d));
   };
-  const collect = async () => {
-    const p = await act("calendar", "refresh", { days: 7 }, settings);
-    setProblem(p);
-    if (!p) setRequested(data?.last?.at ?? "");
+  const actions: CalendarActions = {
+    remove: async (id) => {
+      setProblem(await act("calendar", "remove", { id }, settings));
+      reload();
+    },
+    agentName: (id) => (id ? (settings.agents.find((a) => a.id === id)?.name.trim() ?? null) : null),
   };
 
   return (
@@ -125,7 +120,9 @@ export function CalendarView({ settings, params }: ViewProps) {
           onCommit={(w) => updateUiPrefs({ calendarWidth: w })}
           label="Width of the month column"
         />
-        <Agenda period={period} span={span} today={today} days={days} last={data?.last ?? null} loading={loading && !data} problem={problem ?? error ?? null} collecting={collecting} onCollect={() => void collect()} onPick={pick} />
+        <CalendarActionsProvider value={actions}>
+          <Agenda period={period} span={span} today={today} days={days} loading={loading && !data} problem={problem ?? error ?? null} onPick={pick} />
+        </CalendarActionsProvider>
       </div>
     </div>
   );

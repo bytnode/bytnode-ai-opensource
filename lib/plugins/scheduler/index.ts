@@ -6,7 +6,7 @@ import type { AgentRunInput, SchedulerService } from "./service";
 import { taskCancelTool } from "./task-cancel";
 import { taskListTool } from "./task-list";
 import { taskScheduleTool } from "./task-schedule";
-import { changeTask, findAgent, newTask, taskKey, type AgentTask, type RunRecord, type RunState, type TaskAction } from "./tasks";
+import { changeTask, findAgent, newTask, plannedRuns, taskKey, type AgentTask, type RunRecord, type RunState, type TaskAction } from "./tasks";
 
 /* The scheduler: the clock of the background (`engine.ts`), the user's
    agent tasks and their three tools, the service the other plugins
@@ -59,6 +59,10 @@ export const schedulerPlugin = definePlugin({
         const session = ctx.session();
         if (!session) return { ok: false, error: "No tab is open: background runs need the app open." };
         return runAgent(input, session);
+      },
+      planned: async (from, to) => {
+        const agents = ctx.session()?.agents ?? [];
+        return plannedRuns(await tasks(), await states(), from.getTime(), to.getTime(), Date.now(), (ref) => findAgent(agents, ref)?.name ?? ref);
       },
     }));
 

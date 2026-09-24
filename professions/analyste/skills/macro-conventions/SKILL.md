@@ -31,11 +31,11 @@ Three reasons why this chain fails regularly, to check before invoking it:
 
 So: the macro reading enters the analysis as **context and calendar**, not as a short-term forecasting mechanism.
 
-## The calendar, without a database
+## The calendar
 
-You have no economic calendar tool. What you can do, honestly:
+The user's calendar (when the Calendar plugin is on) holds only what agents wrote in it: `EventSearch` reads it, it does not fetch anything. What you can do, honestly:
 
-- **Dates known by construction** (central bank meetings, monthly releases) are looked up on the web, dated and attributed (`WebSearch`, `WebFetch`).
+- **Dates known by construction** (central bank meetings, monthly releases) are looked up on the web, dated and attributed (`WebSearch`, `WebFetch`) — and, when the user wants them kept, written to the calendar with `CalendarEdit`, each with the URL of the page that announces it.
 - What is **in the BytNode data** (`get_market_indicators`, the macro families that `get_system_info` lists) takes precedence, because it is measured.
 - What you cannot verify, you do not assert: "I do not know the exact date of the next CPI release, I can look it up".
 

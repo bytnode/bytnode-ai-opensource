@@ -1,65 +1,72 @@
-import { definePlugin, type Session } from "../core/contract";
+import { definePlugin } from "../core/contract";
 import type { SchedulerService } from "../scheduler/service";
 import { baseOf } from "../shared/quote";
 import type { WatchlistService } from "../watchlist/service";
-import { absorb, collectorPrompt, parseCollected } from "./collect";
-import { eventRefreshTool } from "./event-refresh";
+import { calendarEditTool } from "./calendar-edit";
+import { editCalendar, type Author, type Edit } from "./edit";
 import { eventSearchTool } from "./event-search";
 import { calendarPrompt, searchEvents, type CalendarEvent, type Category, type EventQuery } from "./events";
 import { expiries } from "./expiries";
 import { calendarManifest } from "./manifest";
 import type { CalendarService } from "./service";
 
-/* The market calendar: the stored events (collected by an agent, in two
-   background jobs) and the computed expiries, searched together by the
-   tools, the prompt, the alerts and the week view. */
+/* The calendar: what the user's agents write in it (`CalendarEdit`), the
+   computed expiries and the scheduled tasks' coming runs (when the
+   scheduler is on), searched together by the tools, the prompt, the
+   alerts and the view. Nothing fills it behind the user's back: an agent
+   writes when it is asked to, or when a scheduled task tells it to. */
 
 const EVENTS = "events.json";
-const LAST = "collection.json";
 const DAY = 24 * 3600_000;
 const MAX_VIEW_DAYS = 62;
-
-type LastCollection = { at: string; days: number; added: number; updated: number; rejected: string[] };
 
 export const calendarPlugin = definePlugin({
   manifest: calendarManifest,
   setup(ctx) {
-    const scheduler = ctx.inject<SchedulerService>("scheduler");
     const watchlist = async () => {
       const service = ctx.optional<WatchlistService>("watchlist");
       return service ? (await service.symbols()).map(baseOf) : null;
     };
-    /* Collected and computed, searched as one table. */
-    const search = async (q: EventQuery) => searchEvents([...(await ctx.store.read<CalendarEvent[]>(EVENTS, [])), ...expiries(q.from, q.to, new Date())], q);
-    const last = () => ctx.store.read<LastCollection | null>(LAST, null);
-
-    const collect = async (days: number, session: Session, signal: AbortSignal) => {
-      const agentId = String(ctx.config().agent) || session.agents[0]?.id;
-      if (!agentId) throw new Error("No agent to collect the events: create one first.");
-      const from = new Date();
-      const to = new Date(from.getTime() + days * DAY);
-      const run = await scheduler.runAgent({ agentId, prompt: collectorPrompt(from, to, (await watchlist()) ?? []), purpose: `market calendar collection, next ${days} days`, signal });
-      if (!run.ok) throw new Error(run.error);
-      const raw = parseCollected(run.text);
-      if ("error" in raw) throw new Error(raw.error);
-      let summary: LastCollection = { at: "", days, added: 0, updated: 0, rejected: [] };
-      await ctx.store.update<CalendarEvent[]>(EVENTS, [], (stored) => {
-        const r = absorb(stored, raw, new Date());
-        summary = { at: new Date().toISOString(), days, added: r.added, updated: r.updated, rejected: r.rejected.slice(0, 20) };
-        return r.events;
-      });
-      await ctx.store.write(LAST, summary);
-      return `${summary.added} new, ${summary.updated} updated, ${summary.rejected.length} rejected.`;
+    /* The coming runs of the agent tasks, as calendar entries. */
+    const planned = async (from: Date, to: Date): Promise<CalendarEvent[]> => {
+      const scheduler = ctx.optional<SchedulerService>("scheduler");
+      if (!scheduler) return [];
+      const fetchedAt = new Date().toISOString();
+      return (await scheduler.planned(from, to)).map((r) => ({
+        id: `scheduled-${r.taskId}-${r.at}`,
+        startsAt: r.at,
+        allDay: r.allDay,
+        category: "scheduled",
+        title: r.title,
+        assets: [],
+        importance: 1,
+        source: `Scheduled task — agent ${r.agent}, ${r.frequency}`,
+        url: "",
+        fetchedAt,
+        computed: true,
+      }));
     };
-    scheduler.job({ id: "daily", title: "Calendar: the next 7 days", every: String(ctx.config().daily), catchUp: "run-once-on-start", run: ({ session, signal }) => collect(7, session, signal) });
-    scheduler.job({ id: "weekly", title: "Calendar: the next 30 days", every: String(ctx.config().weekly), catchUp: "run-once-on-start", run: ({ session, signal }) => collect(30, session, signal) });
-    const refresh = (days: 7 | 30) => scheduler.trigger(days === 30 ? "weekly" : "daily");
+    /* Written, computed and planned, searched as one table. */
+    const search = async (q: EventQuery) => searchEvents([...(await ctx.store.read<CalendarEvent[]>(EVENTS, [])), ...expiries(q.from, q.to, new Date()), ...(await planned(q.from, q.to))], q);
+    const edit = async (change: Edit, author: Author) => {
+      let result = editCalendar([], {}, new Date(), author);
+      await ctx.store.update<CalendarEvent[]>(EVENTS, [], (stored) => {
+        result = editCalendar(stored, change, new Date(), author);
+        return result.events;
+      });
+      if (result.added.length || result.updated.length || result.removed.length) ctx.emit("changed", {});
+      return result;
+    };
+    /* A task's source is the agent that wrote it — named when the session
+       is at hand (the Next server; a subscription agent's MCP server only
+       knows the id, which the view names). */
+    const author = (agentId?: string): Author => ({ name: ctx.session()?.agents.find((a) => a.id === agentId)?.name.trim() || "an agent", agentId: agentId || undefined });
 
-    ctx.tool(eventSearchTool({ search, watchlist, lastCollection: async () => (await last())?.at ?? null }));
-    ctx.tool(eventRefreshTool(refresh));
+    ctx.tool(eventSearchTool({ search, watchlist }));
+    ctx.tool(calendarEditTool((change, tctx) => edit(change, author(tctx.agentId))));
     ctx.prompt(async () => {
       const now = new Date();
-      return calendarPrompt(await search({ from: now, to: new Date(now.getTime() + 2 * DAY), minImportance: 3 }), now);
+      return calendarPrompt(await search({ from: now, to: new Date(now.getTime() + 2 * DAY) }), now);
     });
     ctx.provide<CalendarService>(() => ({
       upcoming: ({ assets, withinHours, minImportance }) => {
@@ -79,13 +86,15 @@ export const calendarPlugin = definePlugin({
       const days = typeof params.days === "number" ? Math.min(Math.max(Math.round(params.days), 1), MAX_VIEW_DAYS) : 7;
       return {
         events: await search({ from, to: new Date(from.getTime() + days * DAY), categories, minImportance, assets: mine ?? undefined }),
-        last: await last(),
         watchlist: (await watchlist()) !== null,
       };
     });
-    ctx.api("refresh", async (params) => {
-      await refresh(params.days === 30 ? 30 : 7);
-      return { requested: true };
+    /* The user deletes an entry from its details. */
+    ctx.api("remove", async (params) => {
+      if (typeof params.id !== "string") throw new Error("Expected `id`.");
+      const r = await edit({ remove: [params.id] }, { name: "you" });
+      if (!r.removed.length) throw new Error("This entry is no longer in the calendar.");
+      return { removed: params.id };
     });
   },
 });

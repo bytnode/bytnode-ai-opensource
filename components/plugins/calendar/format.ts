@@ -25,6 +25,8 @@ export const TONE: Record<Category, string> = {
   expiry: "var(--cal-expiry)",
   upgrade: "var(--cal-upgrade)",
   project: "var(--cal-project)",
+  task: "var(--cal-task)",
+  scheduled: "var(--cal-scheduled)",
 };
 
 export const toneOf = (c: Category) => ({ "--tone": TONE[c] }) as CSSProperties;

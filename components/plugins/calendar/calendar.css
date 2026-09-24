@@ -472,12 +472,6 @@ html[data-theme="light"] .calv-agenda {
   color: var(--label-2);
 }
 
-.calv-collect-status {
-  padding-top: 5px;
-  font-size: 12.5px;
-  color: var(--label-3);
-}
-
 .calv-problem {
   margin: 4px 30px 0;
   font-size: 13px;
@@ -506,6 +500,12 @@ html[data-theme="light"] .calv-agenda {
   margin: 12px 0 0;
   font-size: 15px;
   color: var(--label-3);
+}
+
+/* Who fills the calendar, said where it is empty. */
+.calv-agenda-hint {
+  flex-basis: 100%;
+  font-size: 13px;
 }
 
 .calv-next {
@@ -569,6 +569,48 @@ html[data-theme="light"] .calv-agenda {
 
 .calv-facts a:hover {
   text-decoration: underline;
+}
+
+.calv-facts .calv-notes {
+  display: block;
+  white-space: pre-wrap;
+}
+
+/* What can be done with an entry: under its facts, on the right. */
+.calv-facts-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.calv-fact-btn {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.calv-fact-btn:hover {
+  background: rgba(var(--ink), 0.1);
+}
+
+.calv-fact-btn.is-danger:hover,
+.calv-fact-btn.is-armed {
+  color: var(--down);
+}
+
+.calv-fact-btn.is-armed {
+  background: color-mix(in srgb, var(--down) 14%, transparent);
+}
+
+.calv-fact-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .calv-swatch {
@@ -686,6 +728,13 @@ html[data-theme="light"] .calv-agenda {
 
 .calv-block.is-strong .calv-block-title {
   font-weight: 600;
+}
+
+/* A task ticked off stays on its day, crossed out. */
+.calv-block.is-done .calv-block-title,
+.calv-wblock.is-done .calv-wblock-title {
+  text-decoration: line-through;
+  color: var(--label-3);
 }
 
 .calv-block-assets {

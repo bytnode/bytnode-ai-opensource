@@ -1,15 +1,18 @@
 import type { Session } from "../core/contract";
+import type { PlannedRun } from "./tasks";
+
+export type { PlannedRun };
 
 /* ---------------------------------------------------------------------------
    What the scheduler offers the plugins that depend on it: the background.
 
-   A plugin registers JOBS (refresh the calendar, check the alerts, take the
-   portfolio's snapshot, run a DCA purchase); they run on the Next server
-   only, only while a tab is open (the session's keys), never twice at the
-   same time, and go with the plugin that registered them. It can also run
-   an AGENT in the background — a scheduled task, the calendar's collector —
-   with the tools of a sub-agent: nothing that waits for the user, nothing
-   that commits funds.
+   A plugin registers JOBS (check the alerts, take the portfolio's
+   snapshot, run a DCA purchase); they run on the Next server only, only
+   while a tab is open (the session's keys), never twice at the same time,
+   and go with the plugin that registered them. It can also run an AGENT in
+   the background, with the tools of a sub-agent: nothing that waits for
+   the user, nothing that commits funds. And it tells what the user's agent
+   tasks will do next (the calendar shows it).
 --------------------------------------------------------------------------- */
 
 export type CatchUp = "skip" | "run-once-on-start";
@@ -54,4 +57,6 @@ export type SchedulerService = {
   trigger(jobId: string): Promise<void>;
   /** Runs an agent in the background. */
   runAgent(input: AgentRunInput): Promise<AgentRunResult>;
+  /** The coming runs of the user's active agent tasks in a period. */
+  planned(from: Date, to: Date): Promise<PlannedRun[]>;
 };

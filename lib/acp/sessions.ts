@@ -534,8 +534,7 @@ export async function runSubagent(input: SubagentInput, signal: AbortSignal): Pr
 }
 
 /* ---------------------------------------------------------------------------
-   A subscription agent in the background (a scheduled task, the calendar's
-   collector): the same throwaway session as a sub-agent — depth-1 tools,
+   A subscription agent in the background (a scheduled task): the same throwaway session as a sub-agent — depth-1 tools,
    permissions granted except what commits funds — for an agent of the
    user's, with the system prompt the caller built.
 --------------------------------------------------------------------------- */

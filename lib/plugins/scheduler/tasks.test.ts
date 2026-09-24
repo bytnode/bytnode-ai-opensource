@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentConfig } from "@/lib/domain/types";
-import { afterRun, backgroundFrame, changeTask, decide, findAgent, findTask, newTask, shortDate, taskKey, taskLines, type AgentTask, type RunState } from "./tasks";
+import { afterRun, backgroundFrame, changeTask, decide, findAgent, findTask, newTask, plannedRuns, shortDate, taskKey, taskLines, type AgentTask, type RunState } from "./tasks";
 
 const at = (h: number, m = 0, d = 23) => new Date(2026, 8, d, h, m).getTime();
 const opts = { resumed: false, catchUp: "skip" as const, triggered: false };
@@ -97,5 +97,30 @@ describe("tasks", () => {
     expect(lines[0]).toBe("- Morning brief [t1] — agent a1, daily at 08:00; last 2026-09-23 08:00 (ok); next 2026-09-24 08:00");
     expect(lines[1]).toBe("- Funding watch [t2] — agent a1, daily at 08:00; never run; paused");
     expect(shortDate(undefined)).toBe("—");
+  });
+});
+
+describe("plannedRuns", () => {
+  const task = (id: string, frequency: string, status: AgentTask["status"] = "active"): AgentTask => ({ id, title: `Task ${id}`, prompt: "p", agent: "a1", frequency, catchUp: "skip", status, createdAt: "2026-09-01T00:00:00Z" });
+  const name = (ref: string) => (ref === "a1" ? "Analyst" : ref);
+
+  it("the coming runs of the active tasks, from now on, in order", () => {
+    const tasks = [task("m", "daily at 08:00"), task("w", "every friday at 18:30"), task("p", "daily at 09:00", "paused"), task("x", "sometimes")];
+    const runs = plannedRuns(tasks, {}, at(0), at(0, 0, 27), at(10), name);
+    expect(runs.map((r) => [r.taskId, r.at])).toEqual([
+      ["w", new Date(at(18, 30, 25)).toISOString()],
+      ["m", new Date(at(8, 0, 24)).toISOString()],
+      ["m", new Date(at(8, 0, 25)).toISOString()],
+      ["m", new Date(at(8, 0, 26)).toISOString()],
+    ].sort((a, b) => a[1].localeCompare(b[1])));
+    expect(runs[0]).toMatchObject({ agent: "Analyst", title: expect.stringMatching(/^Task /), allDay: false });
+  });
+
+  it("an interval counts from its known next run; more often than hourly, one entry a day", () => {
+    const states: Record<string, RunState> = { [taskKey("h")]: { nextRun: new Date(at(10, 30)).toISOString(), every: "every 4 hours" } };
+    const hours = plannedRuns([task("h", "every 4 hours")], states, at(0), at(23, 59), at(10), name).map((r) => r.at);
+    expect(hours).toEqual([at(10, 30), at(14, 30), at(18, 30), at(22, 30)].map((t) => new Date(t).toISOString()));
+    const often = plannedRuns([task("q", "every 15 minutes")], {}, at(0), at(12, 0, 25), at(10), name);
+    expect(often.map((r) => [r.at, r.allDay])).toEqual([["2026-09-23T00:00:00.000Z", true], ["2026-09-24T00:00:00.000Z", true], ["2026-09-25T00:00:00.000Z", true]]);
   });
 });

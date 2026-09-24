@@ -17,6 +17,8 @@ const SHORT: Record<Category, string> = {
   expiry: "Expiries",
   upgrade: "Upgrades",
   project: "Projects",
+  task: "Tasks",
+  scheduled: "Scheduled",
 };
 
 export function useFilter() {

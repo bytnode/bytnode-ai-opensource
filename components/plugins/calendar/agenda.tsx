@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CalendarEvent } from "@/lib/plugins/calendar/events";
 import { dayKey, nextBusyDay, sameDay, type Period } from "@/lib/plugins/calendar/days";
-import { ChevronRight, Refresh } from "@/components/ui/icons";
+import { ChevronRight } from "@/components/ui/icons";
 import { useAwakeInterval, useViewActive } from "../view-activity";
 import { HourScale } from "./hours";
 import { WeekGrid, WeekHead } from "./week-grid";
@@ -11,28 +11,23 @@ import { LOCALE, dayLabel } from "./format";
 
 /* The right pane: the chosen period on a scale of time — a day on its
    hours, or this week as a grid of days by hours, the days' heads right
-   above it. An empty day points to the next day that has something. The
-   collection's state and "Collect now" sit discreetly in the corner. */
-
-export type Collection = { at: string; days: number; added: number; updated: number; rejected: string[] } | null;
+   above it. An empty day points to the next day that has something, and
+   says who fills the calendar: the user's agents, when asked. */
 
 type Props = {
   period: Period;
   span: Date[];
   today: Date;
   days: Map<string, CalendarEvent[]>;
-  last: Collection;
   loading: boolean;
   problem: string | null;
-  collecting: boolean;
-  onCollect: () => void;
   onPick: (day: Date) => void;
 };
 
 /** The red line of the day moves with the clock. */
 const TICK = 60_000;
 
-export function Agenda({ period, span, today, days, last, loading, problem, collecting, onCollect, onPick }: Props) {
+export function Agenda({ period, span, today, days, loading, problem, onPick }: Props) {
   const [now, setNow] = useState(() => new Date());
   const list = useRef<HTMLDivElement>(null);
   /* What the list was last placed on: it is placed once per period, not
@@ -65,14 +60,6 @@ export function Agenda({ period, span, today, days, last, loading, problem, coll
     period.kind === "day"
       ? { title: dayLabel(period.day, today), sub: period.day.toLocaleDateString(LOCALE, { weekday: sameDay(period.day, today) ? "long" : undefined, day: "numeric", month: "long", year: "numeric" }) }
       : { title: "This week", sub: `${span[0].toLocaleDateString(LOCALE, { day: "numeric", month: span[0].getMonth() === span[6].getMonth() ? undefined : "short" })} – ${span[6].toLocaleDateString(LOCALE, { day: "numeric", month: "long", year: "numeric" })}` };
-  const status = loading
-    ? "Loading…"
-    : collecting
-      ? "Collecting — a few minutes"
-      : last
-        ? `Updated ${new Date(last.at).toLocaleString(LOCALE, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`
-        : "Not collected yet";
-
   return (
     <main className="calv-pane calv-agenda">
       <header className="calv-agenda-head">
@@ -81,23 +68,17 @@ export function Agenda({ period, span, today, days, last, loading, problem, coll
           <p className="calv-agenda-sub">{head.sub}</p>
           {empty && (
             <p className="calv-agenda-empty">
-              No events
+              Nothing on this day
               {next && (
                 <button type="button" className="calv-next" onClick={() => onPick(next)}>
                   Next event: {dayLabel(next, today)}, {next.toLocaleDateString(LOCALE, { day: "numeric", month: "long" })}
                   <ChevronRight />
                 </button>
               )}
+              <span className="calv-agenda-hint">Ask one of your agents to add an event, a task or a reminder.</span>
             </p>
           )}
         </div>
-        <span className="calv-spacer" />
-        <span className="calv-collect-status" title={last ? `Last collection: ${last.added} new, ${last.updated} updated, ${last.rejected.length} rejected (no source or no date).` : undefined}>
-          {status}
-        </span>
-        <button type="button" className="calv-icon" onClick={onCollect} disabled={collecting} aria-label="Collect the events now" title="Collect the events of the next 7 days now">
-          <Refresh />
-        </button>
       </header>
       {problem && <p className="calv-problem">{problem}</p>}
       {period.kind === "week" && <WeekHead span={span} today={today} onPick={onPick} />}
