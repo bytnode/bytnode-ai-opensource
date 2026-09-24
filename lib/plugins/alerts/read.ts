@@ -5,15 +5,20 @@ import { describeExchangeError } from "@/lib/tools/exchange/errors";
 import { liquidationDistance } from "@/lib/tools/exchange/format";
 import { toSymbol } from "@/lib/tools/exchange/symbols";
 import type { CalendarService } from "../calendar/service";
-import { fundingRate, isQuote, quotes } from "../shared/prices";
+import { withTick, type Candle, type Interval } from "../shared/candle";
+import { candles, fundingRate, isQuote, quotes } from "../shared/prices";
 import { baseOf } from "../shared/quote";
-import { onPosition, type AlertCondition, type Reading } from "./conditions";
+import { metricsOf, onPosition, type AlertCondition, type Reading } from "./conditions";
+import { barsNeeded, compute, metricKey, metricLabel, timeframeOf, type Metric } from "./metrics";
 
 /* ---------------------------------------------------------------------------
    One reading of the market for every alert at once, grouped by asset: one
    price per pair (BytNode, else an exchange), one funding rate per pair
-   that needs it, one positions read per account, one calendar query per
-   asset. What cannot be read is said per part. SERVER-ONLY.
+   that needs it, one candles read per pair and timeframe an indicator
+   needs (kept a little while: the live price moves the last bar in
+   between, so a check a minute does not cost a candles read a minute), one
+   positions read per account, one calendar query per asset. What cannot be
+   read is said per part. SERVER-ONLY.
 --------------------------------------------------------------------------- */
 
 export type Want = { symbol: string; condition: AlertCondition; accountId?: string };
@@ -22,13 +27,54 @@ export type Sources = { bytnodeKey: string; accounts: ExchangeAccount[]; signal:
 
 const NOTABLE = 2;
 
+/** How long a pair's candles are kept, per timeframe: the last bar is
+    moved by the live price in between. */
+const CANDLES_TTL: Record<Interval, number> = { "15m": 60_000, "1h": 2 * 60_000, "4h": 5 * 60_000, "1d": 10 * 60_000 };
+const kept = new Map<string, { at: number; bars: number; candles: Candle[] }>();
+
+async function series(symbol: string, tf: Interval, bars: number, sources: Sources): Promise<Candle[] | string> {
+  const key = `${symbol}|${tf}`;
+  const hit = kept.get(key);
+  if (hit && hit.bars >= bars && Date.now() - hit.at < CANDLES_TTL[tf]) return hit.candles;
+  const r = await candles(symbol, tf, bars, { bytnodeKey: sources.bytnodeKey, accounts: sources.accounts, signal: sources.signal });
+  if ("error" in r) return r.error;
+  kept.set(key, { at: Date.now(), bars, candles: r.candles });
+  return r.candles;
+}
+
 export async function readAll(wants: Want[], sources: Sources, calendar: CalendarService | undefined): Promise<(symbol: string, accountId?: string) => Reading> {
   const symbols = [...new Set(wants.map((w) => w.symbol))];
   const priced = await quotes(symbols, { bytnodeKey: sources.bytnodeKey, accounts: sources.accounts, signal: sources.signal });
 
   const funding = new Map<string, number | undefined>();
-  for (const s of new Set(wants.filter((w) => w.condition.kind === "funding").map((w) => w.symbol))) {
+  for (const s of new Set(wants.filter((w) => w.condition.kind === "funding" || metricsOf(w.condition).some((m) => m.kind === "funding")).map((w) => w.symbol))) {
     funding.set(s, await fundingRate(s, { bytnodeKey: sources.bytnodeKey, accounts: sources.accounts, signal: sources.signal }));
+  }
+
+  /* The indicators, per pair: one candles read per timeframe, as many bars
+     as the most demanding indicator on it. */
+  const values = new Map<string, { values: Record<string, number>; errors: Record<string, string> }>();
+  for (const s of symbols) {
+    const metrics = new Map<string, Metric>();
+    for (const w of wants.filter((x) => x.symbol === s)) for (const m of metricsOf(w.condition)) if (timeframeOf(m)) metrics.set(metricKey(m), m);
+    if (!metrics.size) continue;
+    const out = { values: {} as Record<string, number>, errors: {} as Record<string, string> };
+    const q = priced.get(s);
+    for (const tf of new Set([...metrics.values()].map((m) => timeframeOf(m)!))) {
+      const onTf = [...metrics.values()].filter((m) => timeframeOf(m) === tf);
+      const got = await series(s, tf, Math.max(...onTf.map(barsNeeded)), sources);
+      for (const m of onTf) {
+        if (typeof got === "string") {
+          out.errors[metricKey(m)] = got;
+          continue;
+        }
+        const live = q && isQuote(q) ? withTick(got, q.price, Date.now(), tf) : got;
+        const v = compute(m, live);
+        if (v === null || !Number.isFinite(v)) out.errors[metricKey(m)] = `Not enough ${tf} candles for ${metricLabel(m)} on ${s} (${live.length}).`;
+        else out.values[metricKey(m)] = v;
+      }
+    }
+    values.set(s, out);
   }
 
   const events = new Map<string, Array<{ title: string; startsAt: string }>>();
@@ -69,6 +115,11 @@ export async function readAll(wants: Want[], sources: Sources, calendar: Calenda
       const f = funding.get(symbol);
       if (f === undefined) r.errors!.funding = `No funding rate for ${symbol}: BytNode does not give it, and no futures account lists it.`;
       else r.funding = f;
+    }
+    const v = values.get(symbol);
+    if (v) {
+      r.values = v.values;
+      if (Object.keys(v.errors).length) r.errors!.values = v.errors;
     }
     if (windows.has(symbol)) {
       if (calendar) r.events = events.get(symbol) ?? [];

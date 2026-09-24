@@ -173,6 +173,18 @@ export const Bell = (p: P) => (
   </svg>
 );
 
+export const Pause = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M9 6v12M15 6v12" />
+  </svg>
+);
+
+export const Play = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M8 5.5v13l10.5-6.5L8 5.5Z" />
+  </svg>
+);
+
 export const Clock = (p: P) => (
   <svg {...base(p)}>
     <circle cx="12" cy="12" r="8.5" />

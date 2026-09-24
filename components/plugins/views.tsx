@@ -34,4 +34,4 @@ export const VIEWS: Record<string, ComponentType<ViewProps>> = {
 
 /** The views that draw their own header and fill the tab edge to edge, on
     the app's backdrop: the frame gives them the whole page, nothing else. */
-export const BARE_VIEWS: ReadonlySet<string> = new Set(["calendar", "watchlist", "portfolio", "paper-trading", "dca", "scheduler"]);
+export const BARE_VIEWS: ReadonlySet<string> = new Set(["calendar", "watchlist", "portfolio", "paper-trading", "dca", "scheduler", "alerts"]);

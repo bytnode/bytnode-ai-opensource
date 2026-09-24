@@ -1,198 +1,144 @@
 "use client";
 
-import { useState } from "react";
-import { WATCHLIST, type Alert, type Trigger } from "@/lib/plugins/alerts/alerts";
-import { EXAMPLES } from "@/lib/plugins/alerts/conditions";
-import { Select } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Plus, Trash } from "@/components/ui/icons";
+import { useCallback, useState } from "react";
+import { WATCHLIST, alertLabel, type Alert, type Trigger } from "@/lib/plugins/alerts/alerts";
+import type { Listed } from "@/lib/plugins/shared/prices";
+import { Segmented } from "@/components/ui/segmented";
+import { Plus } from "@/components/ui/icons";
 import type { ViewProps } from "../views";
 import { act, usePluginData } from "../use-plugin-data";
 import { useAwakeInterval } from "../view-activity";
-import { Loading, Problem } from "../bits";
+import { AlertRow, ago, stateOf } from "./alert-row";
+import { Composer } from "./composer";
+import "./alerts.css";
 
 /* ---------------------------------------------------------------------------
-   The Alerts tab: create an alert, see which are active, which fired, which
-   cannot be checked (and why), and what fired lately.
+   The Alerts tab, in the bare views' language but in ONE column — no side
+   pane: the title and its counts, a filter, "New alert"; the form when it
+   is open (`composer.tsx`, open by itself while there is no alert); the
+   alerts as a list of tiles (`alert-row.tsx`); and what fired lately. The
+   plugin checks every minute while the app is open: the list is read
+   again as often.
 --------------------------------------------------------------------------- */
 
 type State = { alerts: Alert[]; triggers: Trigger[]; calendar: boolean };
+type Filter = "all" | "active" | "paused" | "done";
 
 const REFRESH = 15_000;
-const POSITION = /^(pnl|liq|closed)/i;
-const time = (iso: string) => new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+const TICK = 30_000;
+const HISTORY = 12;
 
 export function AlertsView({ settings }: ViewProps) {
-  const { data, error, loading, reload } = usePluginData<State>("alerts", "state", settings);
-  const [target, setTarget] = useState("BTC/USDT");
-  const [condition, setCondition] = useState("");
-  const [once, setOnce] = useState(true);
-  const [note, setNote] = useState("");
-  const [accountId, setAccountId] = useState(settings.keys.exchanges[0]?.id ?? "");
+  const { data, error, reload } = usePluginData<State>("alerts", "state", settings);
+  const pairsData = usePluginData<Listed[]>("alerts", "pairs", settings, {}, { keep: "latest" });
+  const pairs = Array.isArray(pairsData.data) && pairsData.data.length ? pairsData.data : null;
+  const [filter, setFilter] = useState<Filter>("all");
+  const [composing, setComposing] = useState<boolean | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const tick = useCallback(() => setNow(Date.now()), []);
 
   useAwakeInterval(reload, REFRESH);
+  useAwakeInterval(tick, TICK);
+
+  const alerts = data?.alerts ?? [];
+  /* The form opens by itself on an empty list — until the user closes it. */
+  const open = composing ?? (data !== undefined && alerts.length === 0);
+  const count = (f: Filter) => alerts.filter((a) => f === "all" || (f === "active" ? a.status === "active" : a.status === f)).length;
+  const shown = alerts.filter((a) => filter === "all" || (filter === "active" ? a.status === "active" : a.status === filter)).sort((a, b) => order(a) - order(b) || b.createdAt.localeCompare(a.createdAt));
+  const accountName = (id?: string) => (id ? (settings.keys.exchanges.find((x) => x.id === id)?.label ?? "account removed") : null);
 
   const run = async (action: string, params: Record<string, unknown>) => {
-    const p = await act("alerts", action, params, settings);
-    setProblem(p);
+    setProblem(await act("alerts", action, params, settings));
     reload();
-    return p;
   };
-  const create = async () => {
-    const p = await run("create", { target, condition, once, note, ...(POSITION.test(condition.trim()) ? { accountId } : {}) });
-    if (p) return;
-    setCondition("");
-    setNote("");
-  };
-
-  const onPosition = POSITION.test(condition.trim());
-  const accountName = (id?: string) => settings.keys.exchanges.find((a) => a.id === id)?.label;
 
   return (
-    <>
-      <form
-        className="pv-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void create();
-        }}
-      >
-        <div className="field">
-          <label className="field-label" htmlFor="al-target">
-            On
-          </label>
-          <input id="al-target" className="field-input" list="al-targets" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="BTC/USDT, or watchlist" />
-          <datalist id="al-targets">
-            <option value={WATCHLIST}>Every asset of the watchlist</option>
-          </datalist>
-        </div>
-        <div className="field">
-          <label className="field-label" htmlFor="al-condition">
-            When
-          </label>
-          <input id="al-condition" className="field-input" value={condition} onChange={(e) => setCondition(e.target.value)} placeholder="price>=70000" title={EXAMPLES.replace(/`/g, "")} />
-        </div>
-        {onPosition && (
-          <div className="field">
-            <label className="field-label" htmlFor="al-account">
-              Account
-            </label>
-            <Select id="al-account" label="Account" value={accountId} options={settings.keys.exchanges.map((a) => ({ value: a.id, label: a.label }))} placeholder="No exchange account" onChange={setAccountId} />
-          </div>
-        )}
-        <div className="field">
-          <label className="field-label" htmlFor="al-note">
-            Note <small>optional</small>
-          </label>
-          <input id="al-note" className="field-input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why" />
-        </div>
-        <span className="cv-switch">
-          <Switch on={once} onChange={setOnce} label="Fire once" />
-          {once ? "Once" : "Every crossing"}
-        </span>
-        <button type="submit" className="btn btn-primary" disabled={!target.trim() || !condition.trim()}>
-          <Plus />
-          Create
-        </button>
-      </form>
-      <p className="pv-note">
-        Conditions: {EXAMPLES.replace(/`/g, "")}
-        {data && !data.calendar ? " (event alerts need the market calendar)" : ""}. Checked every minute while the app is open; one notification per crossing.
-      </p>
-      {problem && <Problem message={problem} />}
-      {error && <Problem message={error} />}
-      {!data ? (
-        <Loading />
-      ) : (
-        <>
-          <section className="pv-section">
-            <h2 className="pv-section-title">
-              Alerts
-              {loading && <span className="pv-chip">Updating…</span>}
-            </h2>
-            {data.alerts.length === 0 ? (
-              <p className="pv-note">No alert yet. Create one above, or ask an agent: &quot;tell me if ETH drops below 3 000&quot;.</p>
-            ) : (
-              <div className="pv-table-wrap">
-                <table className="pv-table">
-                  <thead>
-                    <tr>
-                      <th>On</th>
-                      <th>When</th>
-                      <th>Fires</th>
-                      <th>State</th>
-                      <th>Last fired</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.alerts.map((a) => {
-                      const fired = Object.values(a.state)
-                        .map((s) => s.firedAt)
-                        .filter((x): x is string => Boolean(x))
-                        .sort()
-                        .pop();
-                      const errors = Object.entries(a.errors ?? {});
-                      return (
-                        <tr key={a.id}>
-                          <td>
-                            <strong>{a.target === WATCHLIST ? "Watchlist" : a.target}</strong>
-                            {a.accountId && <span className="pv-muted"> · {accountName(a.accountId) ?? "account removed"}</span>}
-                            {a.note && <div className="pv-muted">{a.note}</div>}
-                          </td>
-                          <td className="mono">{a.condition}</td>
-                          <td className="pv-muted">{a.once ? "once" : "every crossing"}</td>
-                          <td>
-                            {errors.length ? (
-                              <span className="pv-down" title={errors.map(([s, e]) => `${s}: ${e}`).join("\n")}>
-                                cannot check: {errors[0][1]}
-                              </span>
-                            ) : a.status === "done" ? (
-                              <span className="pv-chip">done</span>
-                            ) : (
-                              <span className="pv-chip is-strong">active</span>
-                            )}
-                          </td>
-                          <td className="pv-muted">{fired ? time(fired) : "—"}</td>
-                          <td className="pv-actions">
-                            <button type="button" className="st-icon" onClick={() => void run("delete", { id: a.id })} aria-label={`Delete the alert ${a.target} ${a.condition}`} title="Delete">
-                              <Trash />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+    <div className="alv">
+      <div className="alv-sheet">
+        <div className="alv-page">
+          <header className="alv-head">
+            <div>
+              <h1 className="alv-title pv-ink">Alerts</h1>
+              <p className="alv-sub">
+                {count("active")} watching{count("paused") ? ` · ${count("paused")} paused` : ""} · checked every minute while BytNode-AI is open
+              </p>
+            </div>
+            <span className="alv-spacer" />
+            {alerts.length > 0 && (
+              <Segmented
+                label="Show"
+                value={filter}
+                options={[
+                  { value: "all", label: `All ${alerts.length}` },
+                  { value: "active", label: "Active" },
+                  { value: "paused", label: "Paused" },
+                  { value: "done", label: "Done" },
+                ]}
+                onChange={setFilter}
+              />
             )}
-          </section>
-          <section className="pv-section">
-            <h2 className="pv-section-title">Fired lately</h2>
-            {data.triggers.length === 0 ? (
-              <p className="pv-note">Nothing yet.</p>
-            ) : (
-              <ul className="sv-runs">
-                {data.triggers.map((t) => (
-                  <li key={t.id}>
-                    <div className="sv-run-head">
-                      <strong>
-                        {t.symbol} · {t.condition}
-                      </strong>
-                      <span className="pv-muted">{time(t.at)}</span>
-                    </div>
-                    <p className="sv-run-body">
+            {!open && (
+              <button type="button" className="alv-btn is-primary" onClick={() => setComposing(true)}>
+                <Plus />
+                New alert
+              </button>
+            )}
+          </header>
+
+          {open && (
+            <Composer
+              settings={settings}
+              pairs={pairs}
+              calendar={data?.calendar ?? false}
+              onDone={() => {
+                setComposing(false);
+                setFilter("all");
+                reload();
+              }}
+              onClose={() => setComposing(false)}
+            />
+          )}
+
+          {(problem ?? error) && <p className="alv-problem">{problem ?? error}</p>}
+
+          {data && alerts.length === 0 && !open && <p className="alv-empty">No alert yet. Create one, or ask an agent: “tell me when the RSI of ETH on the hour drops under 30”.</p>}
+
+          {shown.length > 0 && (
+            <section className="alv-list" aria-label="Your alerts">
+              {shown.map((a) => (
+                <AlertRow key={a.id} alert={a} now={now} account={accountName(a.accountId)} onPause={(paused) => void run("pause", { id: a.id, paused })} onDelete={() => void run("delete", { id: a.id })} />
+              ))}
+            </section>
+          )}
+          {alerts.length > 0 && shown.length === 0 && <p className="alv-empty">Nothing {filter === "done" ? "done" : filter} here.</p>}
+
+          {data && data.triggers.length > 0 && (
+            <section className="alv-history" aria-label="Fired lately">
+              <h2 className="alv-h2">Fired lately</h2>
+              <div className="alv-list">
+                {data.triggers.slice(0, HISTORY).map((t) => (
+                  <div key={t.id} className="alv-fire">
+                    <span className="alv-fire-when">{ago(t.at, now)}</span>
+                    <b>{t.symbol}</b>
+                    <span className="alv-fire-what">{alertLabel(t.condition)}</span>
+                    <span className="alv-fire-seen">
                       {t.observed}
                       {t.note ? ` — ${t.note}` : ""}
-                    </p>
-                  </li>
+                    </span>
+                  </div>
                 ))}
-              </ul>
-            )}
-          </section>
-        </>
-      )}
-    </>
+              </div>
+            </section>
+          )}
+        </div>
+      </div>
+    </div>
   );
+}
+
+/** What needs an eye first: an alert that cannot be checked, one true
+    now, the watching ones, then paused and done. */
+function order(a: Alert): number {
+  return ["failing", "holding", "watching", "paused", "done"].indexOf(stateOf(a)) + (a.target === WATCHLIST ? 0.5 : 0);
 }

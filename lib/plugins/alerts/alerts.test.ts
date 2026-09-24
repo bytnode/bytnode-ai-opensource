@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { alertLine, newAlert, step, type Alert } from "./alerts";
-import { evaluate, parseCondition, type AlertCondition, type Reading } from "./conditions";
+import { conditionText, describeCondition, evaluate, parseCondition, waitsForCrossing, type AlertCondition, type Reading } from "./conditions";
+import { metricKey, metricLabel, parseMetric } from "./metrics";
 
 const now = new Date("2026-09-23T10:00:00Z");
 const later = (min: number) => new Date(now.getTime() + min * 60_000);
@@ -101,5 +102,61 @@ describe("alerts", () => {
     expect(alertLine(f2.alert)).toContain("CANNOT EVALUATE: No price for BTC/USDT.");
     a = step(f2.alert, "BTC/USDT", { holds: false, observed: "price 1" }, later(2), 0).alert;
     expect(a.errors).toBeUndefined();
+  });
+});
+
+describe("metrics and indicator conditions", () => {
+  it("reads a metric with its parameters, or its defaults", () => {
+    expect(parseMetric("RSI(14, 1H)")).toEqual({ kind: "rsi", length: 14, tf: "1h" });
+    expect(parseMetric("rsi")).toEqual({ kind: "rsi", length: 14, tf: "1h" });
+    expect(parseMetric("ema(200,4h)")).toEqual({ kind: "ema", length: 200, tf: "4h" });
+    expect(parseMetric("macd(12,26,9,1d).signal")).toEqual({ kind: "macd", fast: 12, slow: 26, signal: 9, tf: "1d", line: "signal" });
+    expect(parseMetric("macd")).toMatchObject({ kind: "macd", line: "hist" });
+    expect(parseMetric("bb(20,2.5,15m).lower")).toEqual({ kind: "bb", length: 20, mult: 2.5, tf: "15m", band: "lower" });
+    expect(parseMetric("stoch(14,3,1h).d")).toEqual({ kind: "stoch", length: 14, smooth: 3, tf: "1h", line: "d" });
+    expect(parseMetric("volume(4h)")).toEqual({ kind: "volume", tf: "4h" });
+    expect(parseMetric("change24h")).toEqual({ kind: "change", window: "24h" });
+    expect(parseMetric("rsi(14,3h)")).toMatchObject({ error: expect.stringMatching(/^Timeframe/) });
+    expect(parseMetric("bb(20,2,1h)")).toMatchObject({ error: expect.stringMatching(/\.upper, \.middle or \.lower/) });
+    expect(parseMetric("macd(26,12,9)")).toMatchObject({ error: expect.stringMatching(/fast < slow/) });
+    expect(parseMetric("vibes")).toMatchObject({ error: 'Unknown metric "vibes".' });
+    for (const t of ["rsi(14,1h)", "macd(12,26,9,4h).hist", "bb(20,2,1h).upper", "stoch(14,3,15m).k", "volume(1d)", "change7d", "funding", "price"]) expect(metricKey(parseMetric(t) as never)).toBe(t);
+    expect(metricLabel(parseMetric("rsi(14,1h)") as never)).toBe("RSI 14 · 1H");
+  });
+
+  it("a metric against a level or another metric; `crosses_*` waits for a crossing", () => {
+    const rsiUnder = cond("rsi(14,1h) < 30");
+    expect(rsiUnder).toEqual({ kind: "compare", left: { kind: "rsi", length: 14, tf: "1h" }, op: "<", right: { value: 30 } });
+    const golden = cond("EMA(50,1d) crosses above ema(200,1d)");
+    expect(golden).toMatchObject({ kind: "compare", op: "crosses_above", right: { metric: { kind: "ema", length: 200 } } });
+    expect(conditionText(golden, "")).toBe("ema(50,1d) crosses_above ema(200,1d)");
+    expect(describeCondition(golden)).toBe("EMA 50 · 1D crosses above EMA 200 · 1D");
+    expect(describeCondition(cond("change24h crosses_below -5"))).toBe("24h change crosses below -5 %");
+    expect(waitsForCrossing(golden)).toBe(true);
+    expect(waitsForCrossing(rsiUnder)).toBe(false);
+    /* The legacy forms keep their meaning. */
+    expect(cond("price>=70000")).toMatchObject({ kind: "until" });
+    expect(cond("price crosses_above 70000")).toMatchObject({ kind: "compare", left: { kind: "price" } });
+    expect(parseCondition("rsi(14,1h) < soon")).toMatchObject({ error: expect.stringMatching(/Unknown metric "soon"/) });
+
+    const r: Reading = { price: 64_000, values: { "rsi(14,1h)": 27.456, "ema(50,1d)": 61_000 }, errors: { values: { "ema(200,1d)": "Not enough 1d candles." } } };
+    expect(evaluate(rsiUnder, r, now)).toEqual({ holds: true, observed: "RSI 14 · 1H 27.456" });
+    expect(evaluate(cond("price>ema(50,1d)"), r, now)).toEqual({ holds: true, observed: "Price 64000, EMA 50 · 1D 61000" });
+    expect(evaluate(golden, r, now)).toEqual({ error: "Not enough 1d candles." });
+    expect(evaluate(cond("atr(14,1h)>1"), r, now)).toEqual({ error: "No value for ATR 14 · 1H." });
+  });
+
+  it("a crossing set while already across fires only on the next one", () => {
+    let a = make("rsi(14,1h) crosses_below 30", { once: false }).alert;
+    expect(a.condition).toBe("rsi(14,1h) crosses_below 30");
+    const at = (holds: boolean, t: Date) => {
+      const s = step(a, "BTC/USDT", { holds, observed: holds ? "RSI 14 · 1H 25" : "RSI 14 · 1H 40" }, t, 0);
+      a = s.alert;
+      return s.trigger;
+    };
+    expect(at(true, now)).toBeUndefined();
+    expect(a.state["BTC/USDT"]).toMatchObject({ holds: true, observed: "RSI 14 · 1H 25", checkedAt: now.toISOString() });
+    expect(at(false, later(1))).toBeUndefined();
+    expect(at(true, later(2))).toMatchObject({ condition: "rsi(14,1h) crosses_below 30" });
   });
 });

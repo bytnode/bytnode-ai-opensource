@@ -6,8 +6,10 @@ import type { WatchlistService } from "../watchlist/service";
 import { alertCreateTool } from "./alert-create";
 import { alertDeleteTool } from "./alert-delete";
 import { alertListTool } from "./alert-list";
-import { WATCHLIST, newAlert, step, type Alert, type Trigger } from "./alerts";
-import { evaluate, parseCondition, type AlertCondition } from "./conditions";
+import { WATCHLIST, alertLabel, newAlert, step, type Alert, type Trigger } from "./alerts";
+import { currentValue, evaluate, onPosition, parseCondition, type AlertCondition } from "./conditions";
+import { bytnodePairs } from "../shared/prices";
+import { normalizeSymbol } from "../shared/quote";
 import { alertsManifest } from "./manifest";
 import { readAll, type Sources } from "./read";
 
@@ -66,11 +68,11 @@ export const alertsPlugin = definePlugin({
       );
       for (const t of fired) {
         await ctx.store.append(TRIGGERS, t, MAX_TRIGGERS);
-        await ctx.notify({ title: `Alert: ${t.symbol} ${t.condition}`, body: `${t.observed}${t.note ? ` — ${t.note}` : ""}`, level: "warning", action: { kind: "open-view", view: "alerts" } });
+        await ctx.notify({ title: `${t.symbol}: ${alertLabel(t.condition)}`, body: `${t.observed}${t.note ? ` — ${t.note}` : ""}`, level: "warning", action: { kind: "open-view", view: "alerts" } });
         ctx.emit("fired", t);
       }
       for (const f of failing) {
-        await ctx.notify({ title: `Alert cannot be checked: ${f.symbol} ${f.alert.condition}`, body: f.error, level: "error", action: { kind: "open-view", view: "alerts" } });
+        await ctx.notify({ title: `Alert cannot be checked: ${f.symbol}, ${alertLabel(f.alert.condition)}`, body: f.error, level: "error", action: { kind: "open-view", view: "alerts" } });
       }
       return `${active.length} alert(s) checked, ${fired.length} fired${failing.length ? `, ${failing.length} cannot be checked` : ""}.`;
     };
@@ -100,5 +102,35 @@ export const alertsPlugin = definePlugin({
       return made.alert;
     });
     ctx.api("delete", async (params) => ({ removed: (await remove(String(params.id ?? ""))).length }));
+    /* Pause stops the checks; resume starts again from what holds now. */
+    ctx.api("pause", async (params) => {
+      const paused = params.paused === true;
+      let found = false;
+      await ctx.store.update<Alert[]>(ALERTS, [], (list) =>
+        list.map((a) => {
+          if (a.id !== params.id || a.status === "done") return a;
+          found = true;
+          return { ...a, status: paused ? "paused" : "active", ...(paused ? {} : { state: Object.fromEntries(Object.entries(a.state).map(([k, v]) => [k, { ...v, holds: true }])) }) };
+        }),
+      );
+      if (!found) throw new Error("This alert cannot be paused: it is done or gone.");
+      if (!paused) await scheduler.trigger("check");
+      return { paused };
+    });
+    /* The pairs the form offers: BytNode's. */
+    ctx.api("pairs", async (_params, { transport, signal }) => bytnodePairs(transport.bytnodeKey, signal));
+    /* What a condition reads now on a pair, while the user writes it. */
+    ctx.api("preview", async (params, { transport, signal }) => {
+      const condition = parseCondition(String(params.condition ?? ""));
+      if ("error" in condition) throw new Error(condition.error);
+      const raw = String(params.target ?? "");
+      const symbol = raw.toLowerCase() === WATCHLIST ? (await watchlist.symbols())[0] : normalizeSymbol(raw);
+      if (!symbol) throw new Error(raw.toLowerCase() === WATCHLIST ? "The watchlist is empty." : `Not a pair: "${raw}".`);
+      if (onPosition(condition)) return { symbol, error: "Read on the position at the first check." };
+      const accountId = typeof params.accountId === "string" ? params.accountId : undefined;
+      const reading = await readAll([{ symbol, condition, accountId }], { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal }, calendar());
+      const read = reading(symbol, accountId);
+      return { symbol, ...evaluate(condition, read, new Date()), value: currentValue(condition, read) };
+    });
   },
 });
