@@ -65,7 +65,7 @@ export function PortfolioView({ settings }: ViewProps) {
   const holdings = (data?.summary.accounts ?? [])
     .filter((a) => a.id && !a.testnet)
     .map((a) => ({ id: a.id as string, assets: a.assets.map((x) => ({ asset: x.asset, amount: Number(x.amount.toPrecision(6)) })) }));
-  const backfill = usePluginData<{ points: Estimated[]; missing: string[] }>("portfolio", "backfill", settings, { holdings, days: HISTORY_DAYS - 1 });
+  const backfill = usePluginData<{ points: Estimated[]; missing: string[]; sources: Record<string, "ledger" | "estimate"> }>("portfolio", "backfill", settings, { holdings, days: HISTORY_DAYS - 1 });
   const report = useReportExport("portfolio", settings, { currency });
   const ui = useUiPrefs();
   const panel = useRef<HTMLDivElement>(null);
@@ -80,7 +80,10 @@ export function PortfolioView({ settings }: ViewProps) {
      what is shown: the whole, or the account's own (filed under its id —
      an account without one has no curve). */
   const points = sample ? sample.points : mergeHistory(history.data?.points ?? [], backfill.data?.points ?? []);
-  const estimated = !sample && (backfill.data?.points.length ?? 0) > 0;
+  /* Where the curve's past comes from, for what is shown. */
+  const sources = sample ? {} : (backfill.data?.sources ?? {});
+  const kinds = new Set(account ? (account.id && sources[account.id] ? [sources[account.id]] : []) : Object.values(sources));
+  const origin: "ledger" | "mixed" | "estimate" | null = !(backfill.data?.points.length ?? 0) || sample ? null : kinds.size > 1 ? "mixed" : kinds.has("ledger") ? "ledger" : kinds.has("estimate") ? "estimate" : null;
   const wholeSeries = m ? slicePeriod(dailySeries(points, m.perUsd), period) : [];
   const series = !m ? [] : !account ? wholeSeries : account.id ? slicePeriod(dailySeries(points, m.perUsd, account.id), period) : [];
   const perf = performance(wholeSeries);
@@ -173,7 +176,7 @@ export function PortfolioView({ settings }: ViewProps) {
                   )}
                 </div>
               ) : (
-                <Dashboard summary={s} account={account} series={series} period={period} onPeriod={setPeriod} value={value} perUsd={m.perUsd} currency={m.currency} onScope={setScope} estimated={estimated} />
+                <Dashboard summary={s} account={account} series={series} period={period} onPeriod={setPeriod} value={value} perUsd={m.perUsd} currency={m.currency} onScope={setScope} origin={origin} />
               )
             )}
           </div>

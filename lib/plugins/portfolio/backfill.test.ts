@@ -1,36 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { assetsOf, estimateHistory, mergeHistory } from "./backfill";
+import { balancesByDay, lastDays, mergeHistory, valueByDay } from "./backfill";
 
 const D = 86_400_000;
 const t0 = Date.parse("2026-09-20T00:00:00Z");
 const bars = (closes: number[], from = t0) => closes.map((c, i) => ({ t: from + i * D, o: c, h: c, l: c, c, v: 0 }));
-
-describe("estimateHistory", () => {
-  const holdings = [
-    { id: "a", assets: [{ asset: "BTC", amount: 0.5 }, { asset: "USDT", amount: 100 }] },
-    { id: "b", assets: [{ asset: "ETH", amount: 2 }, { asset: "XYZ", amount: 9 }] },
-  ];
-
-  it("values today's holdings at each day's close, per account and in all", () => {
-    const { points, missing } = estimateHistory(holdings, { BTC: bars([100, 120, 110]), ETH: bars([10, 11, 12]) });
-    expect(missing).toEqual(["XYZ"]);
-    expect(points.map((p) => [p.date, p.totalUsd, p.accounts])).toEqual([
-      ["2026-09-20", 170, { a: 150, b: 20 }],
-      ["2026-09-21", 182, { a: 160, b: 22 }],
-      ["2026-09-22", 179, { a: 155, b: 24 }],
-    ]);
-    expect(points[0].estimated).toBe(true);
-  });
-
-  it("keeps only the days every priced asset has", () => {
-    const { points } = estimateHistory(holdings, { BTC: bars([100, 120, 110]), ETH: bars([11, 12], t0 + D) });
-    expect(points.map((p) => p.date)).toEqual(["2026-09-21", "2026-09-22"]);
-  });
-
-  it("lists the assets to find", () => {
-    expect(assetsOf(holdings)).toEqual(["BTC", "ETH", "XYZ"]);
-  });
-});
 
 describe("mergeHistory", () => {
   it("puts a real snapshot in place of its estimated day", () => {
@@ -41,5 +14,36 @@ describe("mergeHistory", () => {
       ["2026-09-22", 5],
       ["2026-09-23", 6],
     ]);
+  });
+});
+
+describe("the real history, from a ledger", () => {
+  const days = ["2026-09-20", "2026-09-21", "2026-09-22"];
+  const at = (day: string, h: number) => Date.parse(`${day}T${String(h).padStart(2, "0")}:00:00Z`);
+
+  it("walks the moves back from today's balances", () => {
+    /* On the 21st, 100 USDT bought 0.001 BTC; on the 22nd, 0.0005 BTC sold for 55 USDT. */
+    const moves = [
+      { t: at("2026-09-21", 10), asset: "USDT", delta: -100 },
+      { t: at("2026-09-21", 10), asset: "BTC", delta: 0.001 },
+      { t: at("2026-09-22", 9), asset: "BTC", delta: -0.0005 },
+      { t: at("2026-09-22", 9), asset: "USDT", delta: 55 },
+    ];
+    const b = balancesByDay({ BTC: 0.0005, USDT: 55 }, moves, days);
+    expect(b["2026-09-22"]).toEqual({ BTC: 0.0005, USDT: 55 });
+    expect(b["2026-09-21"].BTC).toBeCloseTo(0.001, 12);
+    expect(b["2026-09-21"].USDT).toBe(0);
+    expect(b["2026-09-20"]).toEqual({ BTC: 0, USDT: 100 });
+  });
+
+  it("values each day at its close, the latest before when a day is missing", () => {
+    const closes = { BTC: bars([100_000, 110_000], t0) };
+    const { values, missing } = valueByDay({ "2026-09-20": { BTC: 0.001, USDT: 5 }, "2026-09-22": { BTC: 0.001, ETH: 1 } }, closes);
+    expect(values).toEqual({ "2026-09-20": 105, "2026-09-22": 110 });
+    expect(missing).toEqual(["ETH"]);
+  });
+
+  it("names the last days", () => {
+    expect(lastDays(new Date("2026-09-24T10:00:00Z"), 3)).toEqual(["2026-09-22", "2026-09-23", "2026-09-24"]);
   });
 });

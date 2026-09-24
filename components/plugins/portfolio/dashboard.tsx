@@ -41,8 +41,8 @@ type Props = {
   perUsd: number;
   currency: string;
   onScope: (key: string) => void;
-  /** The curve's past is estimated from today's holdings. */
-  estimated?: boolean;
+  /** Where the curve's past comes from, before the daily snapshots. */
+  origin?: "ledger" | "mixed" | "estimate" | null;
 };
 
 const TONES = ["var(--alloc-0)", "var(--alloc-1)", "var(--alloc-2)", "var(--alloc-3)", "var(--alloc-4)", "var(--alloc-5)", "var(--alloc-6)"];
@@ -50,7 +50,7 @@ const signed = (v: number, digits = 2) => `${v >= 0 ? "+" : "−"}${Math.abs(v).
 const toneOf = (v: number | undefined) => (v === undefined || v === 0 ? "is-flat" : v > 0 ? "is-up" : "is-down");
 const dayOf = (t: number) => new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 
-export function Dashboard({ summary, account, series, period, onPeriod, value, perUsd, currency, onScope, estimated = false }: Props) {
+export function Dashboard({ summary, account, series, period, onPeriod, value, perUsd, currency, onScope, origin = null }: Props) {
   const whole = account === null;
   const perf = performance(series);
   const assets = account ? account.assets : summary.assets;
@@ -100,7 +100,7 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
         <Segmented label="Period" value={period} options={PERIODS} onChange={onPeriod} />
       </div>
 
-      <Part title="Performance" sub={estimated ? "estimated from today's holdings at past prices, until the daily snapshots take over" : whole ? "one snapshot of the total a day, while the app is open" : "one snapshot of this account a day, while the app is open"}>
+      <Part title="Performance" sub={origin === "ledger" ? "rebuilt from the exchange's ledger — trades, fees, deposits, withdrawals — at each day's price" : origin === "mixed" ? "rebuilt from the exchanges' ledgers; estimated from today's holdings where an exchange has none" : origin === "estimate" ? "estimated from today's holdings at past prices: this exchange gives no ledger" : whole ? "one snapshot of the total a day, while the app is open" : "one snapshot of this account a day, while the app is open"}>
           <div className="pfv-chart">
             <PriceChart candles={series} interval="1d" mode="line" fit returns message={series.length < 2 ? (whole ? "The curve appears after two daily snapshots." : account?.testnet ? "A testnet account is never recorded: no curve." : "This account's curve starts with its first daily snapshots.") : null} />
           </div>

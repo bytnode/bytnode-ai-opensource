@@ -12,7 +12,9 @@ import { portfolioSummaryTool } from "./portfolio-summary";
 import { exportSections } from "./present";
 import { candles } from "../shared/prices";
 import type { Candle } from "../shared/candle";
-import { assetsOf, estimateHistory, type Holdings } from "./backfill";
+import { balancesByDay, lastDays, valueByDay, type Holdings } from "./backfill";
+import { ledgerMoves } from "./ledger";
+import { STABLES } from "./aggregate";
 
 /* The consolidated portfolio: two read-only tools, a daily snapshot of the
    total while the app is open (when the scheduler runs), and the view's
@@ -56,22 +58,53 @@ export const portfolioPlugin = definePlugin({
       const days = typeof params.days === "number" ? params.days : 90;
       return { points: history(await snapshots(), days, new Date()) };
     });
-    /* The history before the snapshots, estimated: today's holdings (sent
-       by the view, from its summary) at each past day's close — BytNode's
-       daily klines, else an account's exchange. */
+    /* The history before the snapshots. Per live account: its real
+       balances day by day, rebuilt from the exchange's ledger (today's
+       holdings, sent by the view, walked back through every move); an
+       exchange without a usable ledger keeps today's holdings — an
+       estimate, said as such (`sources`). Each day valued at its close:
+       BytNode's daily klines, else an account's exchange. */
     ctx.api("backfill", async (params, { transport, signal }) => {
       const days = Math.max(7, Math.min(365, typeof params.days === "number" ? Math.round(params.days) : 365));
       const holdings: Holdings = (Array.isArray(params.holdings) ? params.holdings : [])
         .filter((h): h is { id: string; assets: unknown[] } => typeof h?.id === "string" && Array.isArray(h.assets))
         .map((h) => ({ id: h.id, assets: h.assets.flatMap((a) => (typeof (a as { asset?: unknown }).asset === "string" && typeof (a as { amount?: unknown }).amount === "number" ? [a as { asset: string; amount: number }] : [])) }));
+      const dayList = lastDays(new Date(), days);
+      const since = Date.parse(`${dayList[0]}T00:00:00Z`);
+      const accounts = transport.exchangeAccounts ?? [];
+      const sources: Record<string, "ledger" | "estimate"> = {};
+      const balances: Record<string, Record<string, Record<string, number>>> = {};
+      await Promise.all(
+        holdings.map(async (h) => {
+          const current = Object.fromEntries(h.assets.map((a) => [a.asset, a.amount]));
+          const account = accounts.find((a) => a.id === h.id);
+          const moves = account ? await ledgerMoves(account, since) : null;
+          sources[h.id] = moves ? "ledger" : "estimate";
+          balances[h.id] = balancesByDay(current, moves ?? [], dayList);
+        }),
+      );
+      /* The closes of every asset held on any day. */
+      const assets = [...new Set(Object.values(balances).flatMap((b) => Object.values(b).flatMap((held) => Object.entries(held).filter(([, v]) => v > 0).map(([a]) => a))))].filter((a) => !STABLES.has(a));
       const closes: Record<string, Candle[]> = {};
       await Promise.all(
-        assetsOf(holdings).map(async (asset) => {
-          const r = await candles(`${asset}/USDT`, "1d", days + 1, { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal });
+        assets.map(async (asset) => {
+          const r = await candles(`${asset}/USDT`, "1d", days + 1, { bytnodeKey: transport.bytnodeKey, accounts, signal });
           if ("candles" in r) closes[asset] = r.candles;
         }),
       );
-      return estimateHistory(holdings, closes);
+      const values: Record<string, Record<string, number>> = {};
+      const missing = new Set<string>();
+      for (const [id, b] of Object.entries(balances)) {
+        const v = valueByDay(b, closes);
+        values[id] = v.values;
+        v.missing.forEach((a) => missing.add(a));
+      }
+      const points = dayList.map((date) => {
+        const byAccount = Object.fromEntries(Object.keys(values).map((id) => [id, values[id][date] ?? 0]));
+        const total = Object.values(byAccount).reduce((t, v) => t + v, 0);
+        return { date, at: `${date}T00:00:00.000Z`, totalUsd: Math.round(total * 100) / 100, assets: {}, accounts: byAccount, estimated: true as const };
+      });
+      return { points: holdings.length ? points : [], missing: [...missing], sources };
     });
     ctx.api("export", async (params, { transport, signal }) => {
       const report = ctx.optional<ReportService>("report-export");
