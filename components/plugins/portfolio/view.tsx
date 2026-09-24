@@ -81,7 +81,7 @@ export function PortfolioView({ settings }: ViewProps) {
   return (
     <div className="wlv pfv">
       <div className="wlv-panel" ref={panel} style={{ "--wlv-list": `${ui.portfolioWidth}px` } as CSSProperties}>
-        <Side summary={s} scope={account ? scope : ALL} onScope={setScope} currency={currency} onCurrency={setCurrency} value={value} move={move} />
+        <Side summary={s} known={noAccount || sample ? [] : settings.keys.exchanges.map((a) => ({ id: a.id, label: a.label, exchange: a.exchange, testnet: a.testnet }))} problem={error ?? null} scope={account ? scope : ALL} onScope={setScope} currency={currency} onCurrency={setCurrency} value={value} move={move} />
         <ColumnHandle
           panel={panel}
           cssVar="--wlv-list"
@@ -144,7 +144,28 @@ export function PortfolioView({ settings }: ViewProps) {
                 </button>
               </div>
             ) : (
-              s && m && <Dashboard summary={s} account={account} series={series} period={period} onPeriod={setPeriod} value={value} perUsd={m.perUsd} currency={m.currency} onScope={setScope} />
+              !s || !m ? (
+                <div className="pfv-reading">
+                  {error ? (
+                    <>
+                      <b>The accounts could not be read.</b>
+                      <span>{error}</span>
+                      <button type="button" className="pfv-cta is-quiet" onClick={reload}>
+                        Try again
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <b>
+                        Reading {settings.keys.exchanges.length} account{settings.keys.exchanges.length === 1 ? "" : "s"}…
+                      </b>
+                      <span>Every wallet of each exchange (spot, futures, funding) and the open positions — a few seconds.</span>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <Dashboard summary={s} account={account} series={series} period={period} onPeriod={setPeriod} value={value} perUsd={m.perUsd} currency={m.currency} onScope={setScope} />
+              )
             )}
           </div>
         </main>

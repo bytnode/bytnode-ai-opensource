@@ -14,8 +14,15 @@ import { CurrencyMenu } from "./currency-menu";
 export const ALL = "all";
 export const accountKey = (a: { exchange: string; label: string }) => `${a.exchange}:${a.label}`;
 
+/** An account as the settings know it: listed at once, before its
+    balances are read. */
+export type Known = { id: string; label: string; exchange: string; testnet: boolean };
+
 type Props = {
   summary: Summary | null;
+  known: Known[];
+  /** Why the balances could not be read, if they could not. */
+  problem: string | null;
   scope: string;
   onScope: (key: string) => void;
   currency: string;
@@ -25,7 +32,7 @@ type Props = {
   move: { text: string; tone: string } | null;
 };
 
-export function Side({ summary, scope, onScope, currency, onCurrency, value, move }: Props) {
+export function Side({ summary, known, problem, scope, onScope, currency, onCurrency, value, move }: Props) {
   const accounts = summary?.accounts ?? [];
   const total = summary?.totalUsd ?? 0;
   return (
@@ -46,6 +53,25 @@ export function Side({ summary, scope, onScope, currency, onCurrency, value, mov
             {move && <b className={move.tone}>{move.text}</b>}
           </span>
         </button>
+      )}
+
+      {!summary && known.length > 0 && (
+        <>
+          <p className="pfv-side-title">Accounts</p>
+          <ul className="pfv-accounts">
+            {known.map((a) => (
+              <li key={a.id}>
+                <div className="pfv-account is-pending">
+                  <span className="pfv-account-top">
+                    <span className={`xch-badge${a.testnet ? "" : " is-live"}`}>{a.testnet ? "TESTNET" : "LIVE"}</span>
+                    <b>{a.label}</b>
+                  </span>
+                  <span className="pfv-account-sub">{problem ? `Not read: ${problem}` : `${a.exchange} · reading the balances…`}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       {accounts.length > 0 && (
