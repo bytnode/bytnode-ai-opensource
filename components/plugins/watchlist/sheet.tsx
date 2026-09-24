@@ -127,7 +127,7 @@ export function Sheet({ rows, asset, live, win, interval, candles, chartMessage,
 }
 
 /** A part of the sheet under the chart: its title in BytNode's ink. */
-function Section({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
+export function Section({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {
   return (
     <section className="wlv-section" aria-label={title}>
       <p className="wlv-section-title">

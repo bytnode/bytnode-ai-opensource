@@ -188,7 +188,7 @@
 }
 
 /* A spring that pushes what follows to the end of a row (the views'
-   toolbars use it: paper trading, portfolio). */
+   toolbars use it: paper trading). */
 .tb-space {
   flex: 1;
 }

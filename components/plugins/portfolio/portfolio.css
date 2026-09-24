@@ -1,0 +1,289 @@
+/* ---------------------------------------------------------------------------
+   The Portfolio tab's own pieces, on the watchlist's sheet (the rest is
+   `../watchlist/watchlist.css`, the tokens are the bare views',
+   plugins.css). The assets of the split wear Apple's system colours, one
+   each by rank; green and red stay for gains and losses.
+--------------------------------------------------------------------------- */
+
+.pfv {
+  --alloc-0: #0a84ff;
+  --alloc-1: #bf5af2;
+  --alloc-2: #40c8e0;
+  --alloc-3: #ff9f0a;
+  --alloc-4: #5e5ce6;
+  --alloc-5: #ff375f;
+  --alloc-6: #ffd60a;
+  --alloc-other: rgba(var(--ink), 0.3);
+}
+
+html[data-theme="light"] .pfv {
+  --alloc-0: #007aff;
+  --alloc-1: #af52de;
+  --alloc-2: #0a9dbb;
+  --alloc-3: #ff9500;
+  --alloc-4: #5856d6;
+  --alloc-5: #ff2d55;
+  --alloc-6: #d4a300;
+}
+
+/* --- The accounts (left) ------------------------------------------------------ */
+
+.pfv-side-title {
+  margin: 4px 0 8px 28px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.pfv-accounts {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0 12px 18px;
+  list-style: none;
+}
+
+.pfv-account {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 58px;
+  padding: 8px 12px 8px 14px;
+  border-radius: var(--r);
+}
+
+.pfv-account:hover {
+  background: var(--fill);
+}
+
+.pfv-account-name {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.pfv-account-name b {
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pfv-account-name small {
+  overflow: hidden;
+  font-size: 12.5px;
+  color: var(--label-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pfv-account.is-error small {
+  color: var(--down);
+}
+
+.pfv-account-value {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  font-size: 14.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.pfv-account-value small {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--label-3);
+}
+
+/* The export, under the rule, as a quiet pill. */
+.pfv-export {
+  display: grid;
+  gap: 10px;
+}
+
+.pfv-export .btn {
+  justify-content: center;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label);
+  font-size: 13.5px;
+}
+
+.pfv-export .btn:hover:not(:disabled) {
+  background: rgba(var(--ink), 0.12);
+}
+
+.pfv-export .pv-note {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--label-3);
+  overflow-wrap: anywhere;
+}
+
+/* --- The sheet (right) ------------------------------------------------------ */
+
+.pfv-kpis .wlv-insight {
+  min-height: 84px;
+}
+
+/* The evolution sits in its section: no side margin of its own, and a
+   height of its own (the sheet's chart gets its height as a flex item). */
+.wlv-chart-block.pfv-chart {
+  height: clamp(240px, 32vh, 340px);
+  margin: 0;
+  padding-top: 4px;
+}
+
+/* The split: one bar of shares, 2 px apart, round at its ends only. */
+.pfv-bar {
+  display: flex;
+  gap: var(--tile-gap);
+  height: 12px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  border-radius: 6px;
+}
+
+.pfv-bar i {
+  min-width: 3px;
+  background: var(--tone);
+}
+
+/* A short last row: its last tile spans the columns left, no hole
+   (four per row here; two in a narrow sheet, below). */
+.pfv-assets .wlv-insight:last-child:nth-child(4n + 1) {
+  grid-column: 1 / -1;
+}
+
+.pfv-assets .wlv-insight:last-child:nth-child(4n + 2) {
+  grid-column: span 3;
+}
+
+.pfv-assets .wlv-insight:last-child:nth-child(4n + 3) {
+  grid-column: span 2;
+}
+
+/* An asset's tile: washed in its colour, its colour on the left edge —
+   the calendar's block. */
+.pfv-asset {
+  background: color-mix(in srgb, var(--tone) 12%, var(--tile));
+  box-shadow: inset 4px 0 0 var(--tone);
+}
+
+.pfv-asset .wlv-insight-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--label);
+}
+
+.pfv-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tone);
+}
+
+/* An open position: the calendar's block, green or red by its PnL. */
+.pfv-position {
+  grid-template-columns: minmax(150px, auto) minmax(120px, auto) minmax(0, 1fr) auto;
+  cursor: default;
+}
+
+.pfv-position:hover {
+  background: color-mix(in srgb, var(--tone) 16%, var(--tile));
+}
+
+.pfv-position-pair {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.pfv-position-pair b {
+  font-weight: 600;
+}
+
+.pfv-position-pair small {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--label-3);
+  text-transform: capitalize;
+}
+
+.pfv-side.is-long {
+  color: var(--up);
+}
+
+.pfv-side.is-short {
+  color: var(--down);
+}
+
+.pfv-position-account {
+  overflow: hidden;
+  font-size: 13px;
+  color: var(--label-2);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pfv-position-figures {
+  overflow: hidden;
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pfv-position-figures small {
+  margin-left: 6px;
+  font-size: 11.5px;
+  color: var(--label-3);
+}
+
+.pfv-position-pnl {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--tone);
+}
+
+/* No account: one way on. */
+.pfv-empty {
+  padding: 24px var(--side);
+}
+
+.pfv-cta {
+  height: 40px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(var(--ink));
+  color: rgb(var(--ink-inv));
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+@container (max-width: 820px) {
+  .pfv-assets .wlv-insight:last-child:nth-child(n) {
+    grid-column: auto;
+  }
+
+  .pfv-assets .wlv-insight:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .pfv-position {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .pfv-position-account,
+  .pfv-position-figures {
+    grid-column: 1;
+  }
+}

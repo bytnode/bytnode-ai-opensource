@@ -5,11 +5,11 @@ import { BrowserStorage } from "@/lib/storage/storage";
 import { createStore } from "./store";
 
 /* Screen preferences: the column's width, and whether it is collapsed;
-   the width of the Calendar tab's month column and of the Watchlist tab's
-   list. Nothing more — this is
+   the width of the Calendar tab's month column, of the Watchlist tab's
+   list and of the Portfolio tab's accounts. Nothing more — this is
    not a setting, it is a habit. */
 
-export type UiPrefs = { sidebarWidth: number; sidebarCollapsed: boolean; calendarWidth: number; watchlistWidth: number };
+export type UiPrefs = { sidebarWidth: number; sidebarCollapsed: boolean; calendarWidth: number; watchlistWidth: number; portfolioWidth: number };
 
 const KEY = "agentchat:ui";
 export const SIDEBAR_MIN = 220;
@@ -21,9 +21,12 @@ export const CALENDAR_DEFAULT = 390;
 export const WATCHLIST_MIN = 290;
 export const WATCHLIST_MAX = 560;
 export const WATCHLIST_DEFAULT = 370;
+export const PORTFOLIO_MIN = 290;
+export const PORTFOLIO_MAX = 560;
+export const PORTFOLIO_DEFAULT = 370;
 
 const storage = new BrowserStorage();
-const defaults: UiPrefs = { sidebarWidth: SIDEBAR_DEFAULT, sidebarCollapsed: false, calendarWidth: CALENDAR_DEFAULT, watchlistWidth: WATCHLIST_DEFAULT };
+const defaults: UiPrefs = { sidebarWidth: SIDEBAR_DEFAULT, sidebarCollapsed: false, calendarWidth: CALENDAR_DEFAULT, watchlistWidth: WATCHLIST_DEFAULT, portfolioWidth: PORTFOLIO_DEFAULT };
 
 const store = createStore<UiPrefs>(defaults, () => {
   try {
@@ -33,6 +36,7 @@ const store = createStore<UiPrefs>(defaults, () => {
       sidebarCollapsed: raw.sidebarCollapsed === true,
       calendarWidth: clampCalendarWidth(typeof raw.calendarWidth === "number" ? raw.calendarWidth : CALENDAR_DEFAULT),
       watchlistWidth: clampWatchlistWidth(typeof raw.watchlistWidth === "number" ? raw.watchlistWidth : WATCHLIST_DEFAULT),
+      portfolioWidth: clampPortfolioWidth(typeof raw.portfolioWidth === "number" ? raw.portfolioWidth : PORTFOLIO_DEFAULT),
     };
   } catch {
     return defaults;
@@ -42,6 +46,7 @@ const store = createStore<UiPrefs>(defaults, () => {
 export const clampWidth = (w: number) => Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, Math.round(w)));
 export const clampCalendarWidth = (w: number) => Math.min(CALENDAR_MAX, Math.max(CALENDAR_MIN, Math.round(w)));
 export const clampWatchlistWidth = (w: number) => Math.min(WATCHLIST_MAX, Math.max(WATCHLIST_MIN, Math.round(w)));
+export const clampPortfolioWidth = (w: number) => Math.min(PORTFOLIO_MAX, Math.max(PORTFOLIO_MIN, Math.round(w)));
 
 export function useUiPrefs(): UiPrefs {
   return useSyncExternalStore(store.subscribe, store.get, store.getServer);
