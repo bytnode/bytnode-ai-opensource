@@ -744,9 +744,71 @@ html[data-theme="light"] .pfv-currency-list {
   color: var(--tone);
 }
 
-/* No account: one way on. */
+/* No account: one way on (and a look at a filled report). */
 .pfv-empty {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   padding: 24px var(--side);
+}
+
+.pfv-cta.is-quiet {
+  background: var(--fill);
+  color: var(--label);
+}
+
+/* Sample data: a chip in the head, and a band that says so. */
+.pfv-sample-chip {
+  height: 30px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pfv-sample-chip:hover {
+  background: rgba(var(--ink), 0.12);
+}
+
+.pfv-sample-chip.is-on {
+  background: var(--cal-unlock);
+  color: #1c1300;
+  font-weight: 600;
+}
+
+.pfv-sample {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 10px var(--side) 0;
+  padding: 9px 14px;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--cal-unlock) 16%, transparent);
+  box-shadow: inset 3px 0 0 var(--cal-unlock);
+  font-size: 13px;
+  color: var(--label-2);
+}
+
+.pfv-sample b {
+  color: var(--label);
+}
+
+.pfv-sample button {
+  margin-left: auto;
+  height: 26px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
 }
 
 .pfv-cta {

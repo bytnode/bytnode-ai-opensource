@@ -36,12 +36,33 @@ export function timeStep(barMs: number, barPx: number, minPx: number): number {
   return TIME_STEPS.find((s) => s / msPerPx >= minPx) ?? TIME_STEPS[TIME_STEPS.length - 1];
 }
 
-/** The times in [from, to] on the step, in the viewer's local time (a
-    day's step falls on local midnight). */
+/** The times in [from, to] on the step, in the viewer's local time. A
+    step of a day or more walks the calendar, not the milliseconds — a day
+    is not always 24 h (summer time) — on local midnights; a step of four
+    weeks or more falls on the first of the months. */
 export function timeTicks(from: number, to: number, step: number): number[] {
   if (!(to > from) || step <= 0) return [];
-  const offset = new Date(from).getTimezoneOffset() * 60_000;
   const out: number[] = [];
+  const DAY = 86_400_000;
+  if (step >= 28 * DAY) {
+    const months = Math.max(1, Math.round(step / (30 * DAY)));
+    const d = new Date(from);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(1);
+    if (d.getTime() < from) d.setMonth(d.getMonth() + 1);
+    d.setMonth(d.getMonth() - (d.getMonth() % months) + (d.getMonth() % months ? months : 0));
+    for (; d.getTime() <= to; d.setMonth(d.getMonth() + months)) out.push(d.getTime());
+    return out;
+  }
+  if (step >= DAY) {
+    const days = Math.round(step / DAY);
+    const d = new Date(from);
+    d.setHours(0, 0, 0, 0);
+    if (d.getTime() < from) d.setDate(d.getDate() + 1);
+    for (; d.getTime() <= to; d.setDate(d.getDate() + days)) out.push(d.getTime());
+    return out;
+  }
+  const offset = new Date(from).getTimezoneOffset() * 60_000;
   for (let t = Math.ceil((from - offset) / step) * step + offset; t <= to; t += step) out.push(t);
   return out;
 }

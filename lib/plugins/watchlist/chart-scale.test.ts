@@ -43,4 +43,22 @@ describe("time axis", () => {
     expect(timeLabel(ticks[0])).toBe("12:00");
     expect(timeLabel(ticks[2])).toBe("24 Sept");
   });
+
+  it("walks the calendar for days and months, across a change of hour", () => {
+    const from = new Date(2025, 9, 10, 12).getTime();
+    const to = new Date(2026, 3, 10).getTime();
+    const months = timeTicks(from, to, 30 * 86_400_000);
+    expect(months.map((t) => [new Date(t).getMonth(), new Date(t).getDate(), new Date(t).getHours()])).toEqual([
+      [10, 1, 0],
+      [11, 1, 0],
+      [0, 1, 0],
+      [1, 1, 0],
+      [2, 1, 0],
+      [3, 1, 0],
+    ]);
+    const days = timeTicks(new Date(2025, 9, 24, 6).getTime(), new Date(2025, 10, 3).getTime(), 2 * 86_400_000);
+    expect(days.every((t) => new Date(t).getHours() === 0)).toBe(true);
+    expect(days.map((t) => new Date(t).getDate())).toEqual([25, 27, 29, 31, 2]);
+    expect(timeLabel(months[0])).toBe("Nov");
+  });
 });

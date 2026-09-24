@@ -24,7 +24,9 @@ import { css, parseColor, type Rgba } from "./colors";
 
 export type ChartMode = "line" | "candles";
 
-type Props = { candles: Candle[] | null; interval: Interval; mode: ChartMode; message: string | null };
+/** `fit`: the whole series on screen, whatever its length (a period's
+    curve, the portfolio's), instead of the trading zoom. */
+type Props = { candles: Candle[] | null; interval: Interval; mode: ChartMode; message: string | null; fit?: boolean };
 
 /** Room for the time scale and the hover tag, in CSS px; the price
     scale is as wide as its longest label (`draw` returns it). */
@@ -61,8 +63,9 @@ function frame(n: number, view: View, plotW: number) {
   return { start, end, barW: plotW / view.bars };
 }
 
-function clampView(view: View, n: number): View {
-  const bars = Math.max(MIN_BARS, Math.min(Math.max(MIN_BARS, n + RIGHT_PAD), view.bars));
+function clampView(view: View, n: number, fit = false): View {
+  const min = fit ? Math.min(MIN_BARS, n + RIGHT_PAD) : MIN_BARS;
+  const bars = Math.max(min, Math.min(Math.max(min, n + RIGHT_PAD), view.bars));
   const offset = Math.max(-bars * 0.5, Math.min(Math.max(0, n - 8), view.offset));
   return { bars, offset };
 }
@@ -264,10 +267,10 @@ function draw(canvas: HTMLCanvasElement, data: Candle[], interval: Interval, mod
   return axisW;
 }
 
-export function PriceChart({ candles, interval, mode, message }: Props) {
+export function PriceChart({ candles, interval, mode, message, fit = false }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const state = useRef({ data: [] as Candle[], interval, mode, view: { bars: DEFAULT_BARS, offset: 0 } as View, hover: null as { x: number; y: number } | null, palette: null as Palette | null, axisW: AXIS_MIN, frame: 0, drag: null as { x: number; offset: number } | null });
+  const state = useRef({ data: [] as Candle[], interval, mode, view: { bars: DEFAULT_BARS, offset: 0 } as View, hover: null as { x: number; y: number } | null, palette: null as Palette | null, axisW: AXIS_MIN, fit: false, frame: 0, drag: null as { x: number; offset: number } | null });
   const active = useViewActive();
 
   /* The data: redrawn when it changes. A series that arrives (a new asset,
@@ -276,14 +279,15 @@ export function PriceChart({ candles, interval, mode, message }: Props) {
   useEffect(() => {
     const s = state.current;
     const data = candles ?? [];
-    if (data.length && (!s.data.length || s.interval !== interval)) s.view = { bars: DEFAULT_BARS, offset: 0 };
+    if (data.length && (!s.data.length || s.interval !== interval || (fit && data.length !== s.data.length))) s.view = { bars: fit ? data.length + RIGHT_PAD : DEFAULT_BARS, offset: 0 };
     s.interval = interval;
     s.mode = mode;
+    s.fit = fit;
     s.data = data;
-    if (data.length) s.view = clampView(s.view, data.length);
+    if (data.length) s.view = clampView(s.view, data.length, fit);
     const el = canvas.current;
     if (el && s.palette) s.axisW = draw(el, s.data, s.interval, s.mode, s.view, s.hover, s.palette);
-  }, [candles, interval, mode]);
+  }, [candles, interval, mode, fit]);
 
   /* The canvas's life while the tab is in front: size, theme, the hand. */
   useEffect(() => {
@@ -325,9 +329,9 @@ export function PriceChart({ candles, interval, mode, message }: Props) {
       const { start } = frame(n, s.view, p.w);
       const anchor = start + f * s.view.bars;
       const bars = Math.round(s.view.bars * Math.exp(e.deltaY * 0.0015));
-      const next = clampView({ bars, offset: 0 }, n);
+      const next = clampView({ bars, offset: 0 }, n, s.fit);
       const newStart = anchor - f * next.bars;
-      s.view = clampView({ bars: next.bars, offset: n - 1 + RIGHT_PAD - (newStart + next.bars - 1) }, n);
+      s.view = clampView({ bars: next.bars, offset: n - 1 + RIGHT_PAD - (newStart + next.bars - 1) }, n, s.fit);
       paint();
     };
     const down = (e: PointerEvent) => {
@@ -342,7 +346,7 @@ export function PriceChart({ candles, interval, mode, message }: Props) {
       if (s.drag) {
         const barW = p.w / s.view.bars;
         const z = el.getBoundingClientRect().width / (el.clientWidth || 1) || 1;
-        s.view = clampView({ bars: s.view.bars, offset: s.drag.offset + (e.clientX - s.drag.x) / z / barW }, s.data.length);
+        s.view = clampView({ bars: s.view.bars, offset: s.drag.offset + (e.clientX - s.drag.x) / z / barW }, s.data.length, s.fit);
       }
       paint();
     };
@@ -357,7 +361,7 @@ export function PriceChart({ candles, interval, mode, message }: Props) {
       paint();
     };
     const reset = () => {
-      s.view = clampView({ bars: DEFAULT_BARS, offset: 0 }, s.data.length);
+      s.view = clampView({ bars: s.fit ? s.data.length + RIGHT_PAD : DEFAULT_BARS, offset: 0 }, s.data.length, s.fit);
       paint();
     };
     el.addEventListener("wheel", wheel, { passive: false });

@@ -5,6 +5,7 @@ import type { Snapshot, Summary } from "@/lib/plugins/portfolio/aggregate";
 import { performance, slicePeriod, type Period } from "@/lib/plugins/portfolio/performance";
 import type { Money } from "@/lib/plugins/portfolio/present";
 import { dailySeries } from "@/lib/plugins/portfolio/view-model";
+import { samplePoints, sampleSummary } from "@/lib/plugins/portfolio/sample";
 import { pluginManifest } from "@/lib/plugins/catalog";
 import { pluginSettings, resolveConfig } from "@/lib/plugins/core/state";
 import { goToSettings } from "@/lib/state/navigation";
@@ -34,6 +35,12 @@ import "./portfolio.css";
 --------------------------------------------------------------------------- */
 
 type Current = { summary: Summary; money: Money; at: string };
+type Sample = { summary: Summary; points: Snapshot[] };
+
+/** The sample, drawn for today (a click's work, never a render's). */
+function drawSample(): Sample {
+  return { summary: sampleSummary(), points: samplePoints(new Date()) };
+}
 
 const REFRESH = 120_000;
 /** A year of daily snapshots: the longest period offered. */
@@ -44,6 +51,9 @@ export function PortfolioView({ settings }: ViewProps) {
   const [currency, setCurrency] = useState(configured);
   const [scope, setScope] = useState(ALL);
   const [period, setPeriod] = useState<Period>("30d");
+  /* Sample data, on demand: the report filled with made-up accounts —
+     said loudly, never exported, never mixed with the user's own. */
+  const [sample, setSample] = useState<Sample | null>(null);
   const { data, error, loading, reload } = usePluginData<Current>("portfolio", "summary", settings, { currency });
   useAwakeInterval(reload, REFRESH);
   const history = usePluginData<{ points: Snapshot[] }>("portfolio", "history", settings, { days: HISTORY_DAYS });
@@ -53,15 +63,15 @@ export function PortfolioView({ settings }: ViewProps) {
   const panel = useRef<HTMLDivElement>(null);
 
   const noAccount = settings.keys.exchanges.length === 0;
-  const s = noAccount ? null : (data?.summary ?? null);
-  const m = data?.money ?? null;
+  const s = sample ? sample.summary : noAccount ? null : (data?.summary ?? null);
+  const m: Money | null = sample ? (data?.money.currency === currency ? data.money : { currency: "USD", perUsd: 1, rateNote: "" }) : (data?.money ?? null);
   const value = (usd: number | undefined) => (m && typeof usd === "number" ? `${(usd * m.perUsd).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${m.currency}` : "—");
   /* An account that is no longer there sends back to the whole. */
   const account = s && scope !== ALL ? (s.accounts.find((a) => accountKey(a) === scope) ?? null) : null;
-  const series = m ? slicePeriod(dailySeries(history.data?.points ?? [], m.perUsd), period) : [];
+  const series = m ? slicePeriod(dailySeries(sample ? sample.points : (history.data?.points ?? []), m.perUsd), period) : [];
   const perf = performance(series);
   const move = perf ? { text: `${perf.pct >= 0 ? "+" : "−"}${Math.abs(perf.pct).toFixed(2)} %`, tone: perf.pct > 0 ? "is-up" : perf.pct < 0 ? "is-down" : "is-flat" } : null;
-  const status = noAccount ? "" : loading ? "Updating…" : data ? `Updated ${new Date(data.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : "Reading your accounts…";
+  const status = sample ? "" : noAccount ? "" : loading ? "Updating…" : data ? `Updated ${new Date(data.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : "Reading your accounts…";
 
   return (
     <div className="wlv pfv">
@@ -83,10 +93,10 @@ export function PortfolioView({ settings }: ViewProps) {
             <div className="wlv-title-block">
               <h2 className="wlv-sheet-title">
                 {account && <span className={`xch-badge pfv-title-badge${account.testnet ? "" : " is-live"}`}>{account.testnet ? "TESTNET" : "LIVE"}</span>}
-                <span className="pv-ink">{noAccount ? "No account yet" : account ? account.label : "All portfolios"}</span>
+                <span className="pv-ink">{noAccount && !sample ? "No account yet" : account ? account.label : "All portfolios"}</span>
               </h2>
               <p className="wlv-sheet-sub">
-                {noAccount
+                {noAccount && !sample
                   ? "The portfolio reads the exchange accounts you add in Settings → Auth."
                   : account
                     ? account.error
@@ -98,20 +108,34 @@ export function PortfolioView({ settings }: ViewProps) {
               </p>
             </div>
             {status && <span className="wlv-status">{status}</span>}
-            {!noAccount && (
+            <button type="button" className={`pfv-sample-chip${sample ? " is-on" : ""}`} aria-pressed={sample !== null} onClick={() => setSample(sample ? null : drawSample())} title={sample ? "Back to your accounts" : "Fill the report with made-up accounts, to see it"}>
+              Sample data
+            </button>
+            {!noAccount && !sample && (
               <button type="button" className="wlv-icon" onClick={reload} disabled={loading} aria-label="Read the accounts again" title="Read the accounts again">
                 <Refresh />
               </button>
             )}
-            {!noAccount && <span className="pfv-export">{report.button(!s)}</span>}
+            {!noAccount && !sample && <span className="pfv-export">{report.button(!s)}</span>}
           </header>
+          {sample && (
+            <p className="pfv-sample">
+              <b>Sample data</b> — made-up accounts and figures, not yours. Nothing is saved or exported.
+              <button type="button" onClick={() => setSample(null)}>
+                Back to my accounts
+              </button>
+            </p>
+          )}
           {error && <p className="wlv-problem">{error}</p>}
           <div className="pfv-report">{report.result}</div>
           <div className="wlv-body pfv-body">
-            {noAccount ? (
+            {noAccount && !sample ? (
               <div className="pfv-empty">
                 <button type="button" className="pfv-cta" onClick={() => goToSettings({ tab: "auth" })}>
                   Add an exchange account
+                </button>
+                <button type="button" className="pfv-cta is-quiet" onClick={() => setSample(drawSample())}>
+                  Preview with sample data
                 </button>
               </div>
             ) : (

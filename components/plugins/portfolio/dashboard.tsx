@@ -88,7 +88,7 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
       {whole ? (
         <Part title="Performance" sub="one snapshot of the total a day, while the app is open">
           <div className="pfv-chart">
-            <PriceChart candles={series} interval="1d" mode="line" message={series.length < 2 ? "The curve appears after two daily snapshots." : null} />
+            <PriceChart candles={series} interval="1d" mode="line" fit message={series.length < 2 ? "The curve appears after two daily snapshots." : null} />
           </div>
           <div className="wlv-insights pfv-metrics" style={{ "--cols": 5 } as CSSProperties}>
             <Metric label="Return" value={perf ? signed(perf.pct) : "—"} tone={toneOf(perf?.pct)} sub={perf ? `${perf.change >= 0 ? "+" : "−"}${inCur(Math.abs(perf.change))}` : "—"} />
