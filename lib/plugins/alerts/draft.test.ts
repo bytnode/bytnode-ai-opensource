@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { describeCondition } from "./conditions";
-import { PRESETS, buildCondition, defaultMetric, draftCondition, type Draft } from "./draft";
+import { BLANK_DRAFT, buildCondition, defaultMetric, draftCondition, type Draft } from "./draft";
 
 describe("the form's draft", () => {
   it("builds the condition an agent would write", () => {
@@ -14,14 +14,16 @@ describe("the form's draft", () => {
     expect(buildCondition({ subject: { kind: "event", hours: 24 }, op: ">", against: { kind: "value", value: "" } })).toBe("event<24h");
   });
 
-  it("every preset with a level makes a condition that reads well", () => {
-    const labels = PRESETS.filter((p) => p.draft.against.kind === "metric" || p.draft.against.value !== "").map((p) => {
-      const c = draftCondition(p.draft);
-      if ("error" in c) throw new Error(`${p.id}: ${c.error}`);
+  it("reads well in words; the blank draft waits for its level", () => {
+    const say = (d: Draft) => {
+      const c = draftCondition(d);
+      if ("error" in c) throw new Error(c.error);
       return describeCondition(c);
-    });
-    expect(labels).toContain("EMA 50 · 1D crosses above EMA 200 · 1D");
-    expect(labels).toContain("Price crosses above Bollinger upper 20,2 · 1H");
-    expect(labels).toContain("Liquidation < 5 % away");
+    };
+    expect(say({ subject: { kind: "metric", metric: { kind: "ema", length: 50, tf: "1d" } }, op: "crosses_above", against: { kind: "metric", metric: { kind: "ema", length: 200, tf: "1d" } } })).toBe("EMA 50 · 1D crosses above EMA 200 · 1D");
+    expect(say({ subject: { kind: "metric", metric: { kind: "price" } }, op: "crosses_above", against: { kind: "metric", metric: { kind: "bb", length: 20, mult: 2, tf: "1h", band: "upper" } } })).toBe("Price crosses above Bollinger upper 20,2 · 1H");
+    expect(say({ subject: { kind: "position", field: "liq" }, op: "<", against: { kind: "value", value: "5" } })).toBe("Liquidation < 5 % away");
+    expect(buildCondition(BLANK_DRAFT)).toEqual({ error: "Enter a number." });
+    expect(buildCondition({ ...BLANK_DRAFT, against: { kind: "value", value: "120000" } })).toBe("price>120000");
   });
 });

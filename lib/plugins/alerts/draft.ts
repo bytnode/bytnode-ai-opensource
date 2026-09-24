@@ -7,7 +7,7 @@ import { metricKey, type Metric, type MetricKind } from "./metrics";
    watched (a metric, a position figure, a calendar event), HOW it is
    compared (above, below, crosses), and AGAINST what (a level or another
    metric) — turned into the condition text the plugin stores, the same
-   an agent writes. The presets are drafts too. Pure, tested.
+   an agent writes. Pure, tested.
 --------------------------------------------------------------------------- */
 
 export type PositionField = "pnl" | "pnlPct" | "liq" | "closed";
@@ -95,19 +95,5 @@ export function draftCondition(d: Draft): AlertCondition | { error: string } {
   return typeof text === "string" ? parseCondition(text) : text;
 }
 
-export type Preset = { id: string; label: string; draft: Draft; position?: true };
-
-const m = (metric: Metric): Subject => ({ kind: "metric", metric });
-
-export const PRESETS: Preset[] = [
-  { id: "level", label: "Price level", draft: { subject: m({ kind: "price" }), op: "crosses_above", against: { kind: "value", value: "" } } },
-  { id: "oversold", label: "RSI oversold", draft: { subject: m({ kind: "rsi", length: 14, tf: "1h" }), op: "crosses_below", against: { kind: "value", value: "30" } } },
-  { id: "overbought", label: "RSI overbought", draft: { subject: m({ kind: "rsi", length: 14, tf: "1h" }), op: "crosses_above", against: { kind: "value", value: "70" } } },
-  { id: "golden", label: "Golden cross", draft: { subject: m({ kind: "ema", length: 50, tf: "1d" }), op: "crosses_above", against: { kind: "metric", metric: { kind: "ema", length: 200, tf: "1d" } } } },
-  { id: "ema200", label: "Price vs EMA 200", draft: { subject: m({ kind: "price" }), op: "crosses_above", against: { kind: "metric", metric: { kind: "ema", length: 200, tf: "4h" } } } },
-  { id: "macd", label: "MACD turns up", draft: { subject: m({ kind: "macd", fast: 12, slow: 26, signal: 9, tf: "4h", line: "hist" }), op: "crosses_above", against: { kind: "value", value: "0" } } },
-  { id: "breakout", label: "Bollinger breakout", draft: { subject: m({ kind: "price" }), op: "crosses_above", against: { kind: "metric", metric: { kind: "bb", length: 20, mult: 2, tf: "1h", band: "upper" } } } },
-  { id: "move", label: "Big daily move", draft: { subject: m({ kind: "change", window: "24h" }), op: ">", against: { kind: "value", value: "5" } } },
-  { id: "funding", label: "Funding spike", draft: { subject: m({ kind: "funding" }), op: ">", against: { kind: "value", value: "0.05" } } },
-  { id: "liq", label: "Near liquidation", draft: { subject: { kind: "position", field: "liq" }, op: "<", against: { kind: "value", value: "5" } }, position: true },
-];
+/** What the form opens on: the price, above a level still to type. */
+export const BLANK_DRAFT: Draft = { subject: { kind: "metric", metric: { kind: "price" } }, op: ">", against: { kind: "value", value: "" } };

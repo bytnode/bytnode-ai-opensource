@@ -14,11 +14,11 @@ import "./alerts.css";
 
 /* ---------------------------------------------------------------------------
    The Alerts tab, in the bare views' language but in ONE column — no side
-   pane: the title and its counts, a filter, "New alert"; the form when it
-   is open (`composer.tsx`, open by itself while there is no alert); the
-   alerts as a list of tiles (`alert-row.tsx`); and what fired lately. The
+   pane: the title and its counts, a filter, "New alert"; the alerts as a
+   list of tiles (`alert-row.tsx`); and what fired lately. The
    plugin checks every minute while the app is open: the list is read
-   again as often.
+   again as often. "New alert" opens the form in a window over the page
+   (`composer.tsx`).
 --------------------------------------------------------------------------- */
 
 type State = { alerts: Alert[]; triggers: Trigger[]; calendar: boolean };
@@ -33,7 +33,7 @@ export function AlertsView({ settings }: ViewProps) {
   const pairsData = usePluginData<Listed[]>("alerts", "pairs", settings, {}, { keep: "latest" });
   const pairs = Array.isArray(pairsData.data) && pairsData.data.length ? pairsData.data : null;
   const [filter, setFilter] = useState<Filter>("all");
-  const [composing, setComposing] = useState<boolean | null>(null);
+  const [composing, setComposing] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const tick = useCallback(() => setNow(Date.now()), []);
@@ -42,8 +42,6 @@ export function AlertsView({ settings }: ViewProps) {
   useAwakeInterval(tick, TICK);
 
   const alerts = data?.alerts ?? [];
-  /* The form opens by itself on an empty list — until the user closes it. */
-  const open = composing ?? (data !== undefined && alerts.length === 0);
   const count = (f: Filter) => alerts.filter((a) => f === "all" || (f === "active" ? a.status === "active" : a.status === f)).length;
   const shown = alerts.filter((a) => filter === "all" || (filter === "active" ? a.status === "active" : a.status === filter)).sort((a, b) => order(a) - order(b) || b.createdAt.localeCompare(a.createdAt));
   const accountName = (id?: string) => (id ? (settings.keys.exchanges.find((x) => x.id === id)?.label ?? "account removed") : null);
@@ -78,31 +76,24 @@ export function AlertsView({ settings }: ViewProps) {
                 onChange={setFilter}
               />
             )}
-            {!open && (
+            <button type="button" className="alv-btn is-primary" onClick={() => setComposing(true)}>
+              <Plus />
+              New alert
+            </button>
+          </header>
+
+
+          {(problem ?? error) && <p className="alv-problem">{problem ?? error}</p>}
+
+          {data && alerts.length === 0 && (
+            <div className="alv-empty">
+              <p>No alert yet. Create one, or ask an agent: “tell me when the RSI of ETH on the hour drops under 30”.</p>
               <button type="button" className="alv-btn is-primary" onClick={() => setComposing(true)}>
                 <Plus />
                 New alert
               </button>
-            )}
-          </header>
-
-          {open && (
-            <Composer
-              settings={settings}
-              pairs={pairs}
-              calendar={data?.calendar ?? false}
-              onDone={() => {
-                setComposing(false);
-                setFilter("all");
-                reload();
-              }}
-              onClose={() => setComposing(false)}
-            />
+            </div>
           )}
-
-          {(problem ?? error) && <p className="alv-problem">{problem ?? error}</p>}
-
-          {data && alerts.length === 0 && !open && <p className="alv-empty">No alert yet. Create one, or ask an agent: “tell me when the RSI of ETH on the hour drops under 30”.</p>}
 
           {shown.length > 0 && (
             <section className="alv-list" aria-label="Your alerts">
@@ -133,6 +124,19 @@ export function AlertsView({ settings }: ViewProps) {
           )}
         </div>
       </div>
+      {composing && (
+        <Composer
+          settings={settings}
+          pairs={pairs}
+          calendar={data?.calendar ?? false}
+          onDone={() => {
+            setComposing(false);
+            setFilter("all");
+            reload();
+          }}
+          onClose={() => setComposing(false)}
+        />
+      )}
     </div>
   );
 }

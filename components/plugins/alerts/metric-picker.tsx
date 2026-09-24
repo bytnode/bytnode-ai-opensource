@@ -37,11 +37,13 @@ export function Chips<T extends string>({ label, options, value, onChange }: { l
   return (
     <div className="alv-chips" role="radiogroup" aria-label={label}>
       <span className="alv-chips-label">{label}</span>
-      {options.map((o) => (
-        <button key={o.kind} type="button" role="radio" aria-checked={value === o.kind} className={`alv-chip${value === o.kind ? " is-on" : ""}`} onClick={() => onChange(o.kind)}>
-          {o.label}
-        </button>
-      ))}
+      <span className="alv-chips-list">
+        {options.map((o) => (
+          <button key={o.kind} type="button" role="radio" aria-checked={value === o.kind} className={`alv-chip${value === o.kind ? " is-on" : ""}`} onClick={() => onChange(o.kind)}>
+            {o.label}
+          </button>
+        ))}
+      </span>
     </div>
   );
 }

@@ -78,7 +78,11 @@ export function PairField({ value, pairs, onChange }: Props) {
         onKeyDown={(e) => {
           if (e.key === "ArrowDown") setActive(Math.min(lit + 1, options.length - 1));
           else if (e.key === "ArrowUp") setActive(Math.max(lit - 1, 0));
-          else if (e.key === "Escape") (e.target as HTMLInputElement).blur();
+          else if (e.key === "Escape") {
+            /* Closes the list, not the window it sits in. */
+            e.stopPropagation();
+            (e.target as HTMLInputElement).blur();
+          }
           else if (e.key === "Enter" && options[lit]) {
             e.preventDefault();
             choose(options[lit]);
