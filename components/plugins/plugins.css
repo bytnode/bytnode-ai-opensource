@@ -497,28 +497,7 @@ body.is-resizing .pv-resize + * {
   color: var(--fg-muted);
 }
 
-/* --- Scheduled tasks ---------------------------------------------------- */
-
-.sv-form .sv-prompt {
-  flex-basis: 100%;
-}
-
-.sv-form textarea.field-input {
-  height: auto;
-  min-height: 70px;
-  padding-top: 9px;
-  resize: vertical;
-  line-height: 1.45;
-}
-
-.sv-check {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1 1 260px;
-  font-size: 0.82rem;
-  color: var(--fg-muted);
-}
+/* --- A list of what happened (the alerts' triggers) ---------------------- */
 
 .sv-runs {
   display: grid;

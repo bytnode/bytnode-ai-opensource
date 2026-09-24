@@ -1,0 +1,788 @@
+/* ---------------------------------------------------------------------------
+   The Scheduled tasks tab. It wears the watchlist's sheet (`../watchlist/
+   watchlist.css`: the head, the body, the section titles) as one sheet over
+   the whole tab — no side column — and adds its own: the timeline of the
+   next 24 hours, the composer, the tasks' tiles and the rows of jobs and
+   runs. Blue is an agent task (Apple's system blue), grey a plugin's job;
+   green and red only say how a run went.
+--------------------------------------------------------------------------- */
+
+.sdv {
+  --task: #0a84ff;
+  --ok: var(--up);
+  --failed: var(--down);
+}
+
+html[data-theme="light"] .sdv {
+  --task: #007aff;
+}
+
+/* One sheet over the whole tab: slightly round under the tab bar, fully
+   round below. */
+.sdv-sheet {
+  border-radius: var(--r-sm) var(--r-sm) var(--r-panel) var(--r-panel);
+}
+
+/* The content keeps a reading width on a wide screen, the head with it. */
+.sdv-sheet .wlv-head,
+.sdv-sheet > .wlv-problem {
+  width: min(1180px, 100%);
+  margin-right: auto;
+  margin-left: auto;
+  padding-right: var(--side);
+  padding-left: var(--side);
+}
+
+.sdv-inner {
+  display: grid;
+  gap: 0;
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 14px var(--side) 0;
+}
+
+.sdv-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--label-2);
+  white-space: nowrap;
+}
+
+.sdv-block-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.sdv-note {
+  margin: 10px 4px 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--label-3);
+}
+
+.sdv-empty {
+  margin: 0;
+  padding: 18px 20px;
+  border-radius: var(--r-block);
+  background: var(--tile);
+  font-size: 14px;
+  color: var(--label-2);
+}
+
+.sdv-section {
+  padding-top: 26px;
+}
+
+.sdv-pill {
+  height: 28px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sdv-pill:hover:not(:disabled) {
+  background: rgba(var(--ink), 0.14);
+}
+
+.sdv-pill:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.sdv-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--fill);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+/* Running: the task's blue, breathing. */
+.sdv-badge.is-running {
+  background: color-mix(in srgb, var(--task) 18%, transparent);
+  color: var(--task);
+  animation: sdv-breathe 2s ease-in-out infinite;
+}
+
+@keyframes sdv-breathe {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* --- The next 24 hours ------------------------------------------------------------- */
+
+.sdv-timeline {
+  padding: 16px 22px 14px;
+  border-radius: var(--r-block);
+  background: var(--tile);
+}
+
+.sdv-timeline-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sdv-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--label-3);
+}
+
+.sdv-legend i {
+  width: 8px;
+  height: 8px;
+  margin-left: 8px;
+  border-radius: 50%;
+}
+
+.sdv-legend i.is-task {
+  background: var(--task);
+}
+
+.sdv-legend i.is-job {
+  background: var(--label-3);
+}
+
+/* The line: now at its left end, a tick every three hours; names of the
+   tasks above it (two rows, alternating), the jobs' dots on it. */
+.sdv-track {
+  position: relative;
+  height: 92px;
+  margin: 8px 6px 0 34px;
+}
+
+.sdv-track::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 58px;
+  height: var(--rule);
+  border-radius: var(--rule);
+  background: var(--sep);
+}
+
+.sdv-now {
+  position: absolute;
+  top: 50px;
+  left: -34px;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--label-2);
+}
+
+.sdv-tick {
+  position: absolute;
+  top: 54px;
+  width: var(--rule);
+  height: 10px;
+  border-radius: var(--rule);
+  background: var(--sep);
+}
+
+.sdv-tick small {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: var(--label-3);
+  white-space: nowrap;
+}
+
+.sdv-mark {
+  position: absolute;
+  top: 54px;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border-radius: 50%;
+}
+
+.sdv-mark.is-job {
+  top: 55px;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  background: var(--label-3);
+}
+
+.sdv-mark.is-task {
+  background: var(--task);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--task) 22%, transparent);
+}
+
+/* A task's name, over its dot, on a stem. */
+.sdv-mark.is-task b {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  max-width: 150px;
+  padding: 3px 8px;
+  overflow: hidden;
+  transform: translateX(-50%);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--task) 16%, transparent);
+  color: var(--label);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sdv-mark.is-task.is-high b {
+  bottom: 40px;
+}
+
+.sdv-timeline-empty {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--label-3);
+}
+
+.sdv-bands {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: var(--label-3);
+}
+
+.sdv-bands > span:first-child {
+  font-weight: 650;
+  color: var(--label-2);
+}
+
+.sdv-band {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--label);
+}
+
+.sdv-band small {
+  font-size: 12px;
+  color: var(--label-3);
+}
+
+/* --- Schedule a task --------------------------------------------------------------- */
+
+.sdv-composer {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 18px 20px 16px;
+  border-radius: var(--r-block);
+  background: var(--tile);
+}
+
+.sdv-composer-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* The task's name, as a title being written. */
+.sdv-title-input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--label);
+  font-family: var(--font-display), sans-serif;
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.sdv-title-input::placeholder {
+  color: var(--label-3);
+}
+
+.sdv-title-input:focus {
+  outline: none;
+}
+
+.sdv-agent {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  min-width: 220px;
+}
+
+.sdv-agent > :last-child {
+  flex: 1;
+}
+
+.sdv-none {
+  font-size: 13px;
+  color: var(--down);
+}
+
+.sdv-prompt {
+  height: auto;
+  min-height: 78px;
+  padding: 11px 14px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.sdv-when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+}
+
+.sdv-when .seg {
+  border-radius: var(--r-sm);
+}
+
+.sdv-when .seg button {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 9px;
+}
+
+.sdv-when-detail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.sdv-time {
+  width: 118px;
+  height: 32px;
+  color-scheme: light dark;
+}
+
+.sdv-custom {
+  width: min(320px, 60vw);
+  height: 32px;
+}
+
+.sdv-custom[aria-invalid="true"] {
+  box-shadow: inset 0 0 0 var(--rule) color-mix(in srgb, var(--down) 55%, transparent);
+}
+
+/* When it first runs: the answer to the choice, in the task's blue. */
+.sdv-next {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--task);
+}
+
+.sdv-next.is-error {
+  color: var(--down);
+}
+
+.sdv-composer-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding-top: 4px;
+}
+
+.sdv-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--label-2);
+  cursor: pointer;
+}
+
+.sdv-schedule {
+  height: 38px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--task);
+  color: #fff;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    filter 120ms ease,
+    opacity 120ms ease;
+}
+
+.sdv-schedule:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.sdv-schedule:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.sdv-problem,
+.sdv-done {
+  margin: 0;
+  font-size: 13px;
+}
+
+.sdv-problem {
+  color: var(--down);
+}
+
+.sdv-done {
+  color: var(--label-2);
+}
+
+/* --- The agent tasks: tiles of one block ------------------------------------------ */
+
+.sdv-tasks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: var(--tile-gap);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+  border-radius: var(--r-block);
+}
+
+.sdv-task {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 6px;
+  min-width: 0;
+  padding: 16px 18px 14px;
+  background: var(--tile);
+  box-shadow: inset 3px 0 0 var(--task);
+}
+
+.sdv-task.is-paused {
+  box-shadow: inset 3px 0 0 var(--label-3);
+}
+
+.sdv-task.is-paused :is(.sdv-task-title, .sdv-task-prompt, .sdv-freq) {
+  opacity: 0.55;
+}
+
+.sdv-task-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sdv-freq {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--task);
+}
+
+.sdv-agent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  font-size: 12.5px;
+  color: var(--label-2);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sdv-agent-chip i {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.sdv-task-title {
+  margin: 2px 0 0;
+  overflow: hidden;
+  font-family: var(--font-display), sans-serif;
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sdv-task-prompt {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--label-2);
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.sdv-task-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.sdv-task-when {
+  display: grid;
+  gap: 3px;
+}
+
+.sdv-task-when b {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.sdv-task-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sdv-delete:hover:not(:disabled) {
+  color: var(--down);
+}
+
+/* How the last run went: a dot, green or red, grey if it never ran. */
+.sdv-outcome {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--label-3);
+  white-space: nowrap;
+}
+
+.sdv-outcome i,
+.sdv-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--label-3);
+}
+
+.sdv-outcome.is-ok i,
+.sdv-dot.is-ok {
+  background: var(--ok);
+}
+
+.sdv-outcome.is-failed i,
+.sdv-dot.is-failed {
+  background: var(--failed);
+}
+
+.sdv-outcome.is-failed {
+  color: var(--failed);
+}
+
+/* --- Jobs and runs: rows of one block ---------------------------------------------- */
+
+.sdv-rows {
+  display: grid;
+  gap: var(--tile-gap);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+  border-radius: var(--r-block);
+}
+
+.sdv-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 58px;
+  padding: 10px 14px 10px 16px;
+  border: 0;
+  background: var(--tile);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.sdv-plugin {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: #fff;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.sdv-row-name {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.sdv-row-name b {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sdv-row-name b small {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--label-3);
+}
+
+.sdv-row-name > small {
+  overflow: hidden;
+  font-size: 12.5px;
+  color: var(--label-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sdv-row-meta {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+}
+
+.sdv-row-meta > small {
+  font-size: 12px;
+  color: var(--label-3);
+  white-space: nowrap;
+}
+
+.sdv-run {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.sdv-run .sdv-dot {
+  margin-top: 7px;
+}
+
+.sdv-run.is-link {
+  cursor: pointer;
+}
+
+.sdv-run.is-link:hover {
+  background: var(--fill);
+}
+
+.sdv-run-text {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--label-2);
+  white-space: pre-line;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.sdv-run-text.is-failed {
+  color: var(--failed);
+}
+
+.sdv-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  align-self: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--task);
+}
+
+.sdv-open svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.2;
+}
+
+.sdv-more {
+  margin-top: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--label-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.sdv-more:hover {
+  color: var(--label);
+}
+
+.sdv-inner > :last-child {
+  margin-bottom: 8px;
+}
+
+@container (max-width: 720px) {
+  .sdv-composer-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sdv-next {
+    margin-left: 0;
+  }
+
+  .sdv-tasks {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .sdv-sheet {
+    border-radius: var(--r-panel);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sdv-badge.is-running {
+    animation: none;
+  }
+
+  .sdv-schedule {
+    transition: none;
+  }
+}

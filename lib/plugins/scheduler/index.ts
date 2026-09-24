@@ -71,6 +71,8 @@ export const schedulerPlugin = definePlugin({
     ctx.api("state", async () => {
       const [list, s, runs] = await Promise.all([tasks(), states(), ctx.store.lines<RunRecord>(RUNS)]);
       return {
+        /* The view's "now": every relative time on it is read against it. */
+        at: new Date().toISOString(),
         tasks: list.map((t) => ({ ...t, state: s[taskKey(t.id)] ?? {}, running: clock.isRunning(taskKey(t.id)) })),
         jobs: clock.list().map((j) => ({ ...j, state: s[j.id] ?? {} })),
         runs: runs
