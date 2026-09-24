@@ -105,8 +105,9 @@ html[data-theme="light"] .tb {
    shows (icon, title, cross) faded, washed out rather than darkened;
    under the hand, a faint ground and most of its colour back. */
 .tb-tab:not(.is-on) > :not(.tb-sep) {
-  opacity: 0.48;
-  transition: opacity 140ms ease;
+  opacity: 0.3;
+  filter: brightness(0.75);
+  transition: opacity 140ms ease, filter 140ms ease;
 }
 
 .tb-tab:not(.is-on):hover {
@@ -114,7 +115,8 @@ html[data-theme="light"] .tb {
 }
 
 .tb-tab:not(.is-on):hover > :not(.tb-sep) {
-  opacity: 0.85;
+  opacity: 0.8;
+  filter: none;
 }
 
 .tb-tab.is-on {
@@ -151,7 +153,7 @@ html[data-theme="light"] .tb {
   bottom: 11px;
   left: -1px;
   width: 1px;
-  background: rgba(var(--ink), 0.16);
+  background: rgba(var(--ink), 0.1);
   pointer-events: none;
   transition: opacity 120ms ease;
 }
