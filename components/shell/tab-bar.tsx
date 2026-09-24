@@ -60,8 +60,10 @@ export function TabBar({ settings, views, tabs, active }: Props) {
           );
         })}
       </div>
-      {/* Right after the last tab — outside the strip, whose scrolling
-          would cut its list off. */}
+      {/* A last rule closes the strip (hidden when the last tab is in
+          front: its foot flares there), then "+" right after it — outside
+          the strip, whose scrolling would cut its list off. */}
+      <span className={`tb-end${tabs.length ? (active === tabs[tabs.length - 1].view ? " is-hidden" : "") : active === HOME ? " is-hidden" : ""}`} aria-hidden />
       <div className="picker tb-add">
         <button type="button" className={`tb-icon${adding ? " is-on" : ""}`} onClick={() => setAdding(!adding)} aria-haspopup="dialog" aria-expanded={adding} aria-label="Open a view" title="Open a view">
           <Plus />

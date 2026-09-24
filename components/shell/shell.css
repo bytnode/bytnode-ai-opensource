@@ -293,10 +293,24 @@ html[data-theme="light"] .tb {
   stroke-linejoin: round;
 }
 
+/* The rule after the last tab, as the ones between them, and "+" beside it. */
+.tb-end {
+  flex: none;
+  align-self: flex-end;
+  width: 1px;
+  height: 16px;
+  margin: 0 0 11px -6px;
+  background: rgba(var(--ink), 0.1);
+}
+
+.tb-end.is-hidden {
+  visibility: hidden;
+}
+
 .tb-add {
   flex: none;
   align-self: center;
-  margin-left: -4px;
+  margin-left: -2px;
 }
 
 /* A spring that pushes what follows to the end of a row (the views'
