@@ -35,11 +35,18 @@ export type AccountRead = {
 /** USD per unit, by asset. */
 export type PriceBook = Record<string, number>;
 
+/** USD per wallet kind. */
+export type WalletSplit = Record<Wallet, number>;
+
 export type Summary = {
   totalUsd: number;
   testnetUsd: number;
   assets: Array<{ asset: string; amount: number; usd: number; share: number }>;
-  accounts: Array<{ label: string; exchange: string; testnet: boolean; usd: number; unpriced: number; error?: string }>;
+  /** The live accounts' value per wallet kind. */
+  wallets: WalletSplit;
+  /** Each account on its own — its assets (largest first, shares of the
+      account) and its wallets — for the view's per-account page. */
+  accounts: Array<{ label: string; exchange: string; testnet: boolean; usd: number; unpriced: number; error?: string; assets: Array<{ asset: string; amount: number; usd: number; share: number }>; wallets: WalletSplit }>;
   unpriced: Array<{ label: string; asset: string; amount: number }>;
   positions: Array<PositionRead & { label: string; testnet: boolean }>;
   /** Unrealized PnL of the live accounts' positions, in USD(T). */
@@ -56,10 +63,13 @@ export function summarize(reads: AccountRead[], prices: PriceBook): Summary {
   let totalUsd = 0;
   let testnetUsd = 0;
   let unrealizedPnl = 0;
+  const wallets: WalletSplit = { spot: 0, funding: 0, futures: 0 };
   for (const read of reads) {
     let usd = 0;
     let missing = 0;
-    for (const { rows } of read.wallets) {
+    const own = new Map<string, { amount: number; usd: number }>();
+    const ownWallets: WalletSplit = { spot: 0, funding: 0, futures: 0 };
+    for (const { wallet, rows } of read.wallets) {
       for (const { asset, amount } of rows) {
         if (!(amount > 0)) continue;
         const price = priceOf(asset, prices);
@@ -70,6 +80,10 @@ export function summarize(reads: AccountRead[], prices: PriceBook): Summary {
         }
         const value = amount * price;
         usd += value;
+        ownWallets[wallet] += value;
+        if (!read.testnet) wallets[wallet] += value;
+        const o = own.get(asset) ?? { amount: 0, usd: 0 };
+        own.set(asset, { amount: o.amount + amount, usd: o.usd + value });
         if (!read.testnet) {
           const a = assets.get(asset) ?? { amount: 0, usd: 0 };
           assets.set(asset, { amount: a.amount + amount, usd: a.usd + value });
@@ -82,7 +96,16 @@ export function summarize(reads: AccountRead[], prices: PriceBook): Summary {
     }
     if (read.testnet) testnetUsd += usd;
     else totalUsd += usd;
-    accounts.push({ label: read.label, exchange: read.exchange, testnet: read.testnet, usd, unpriced: missing, ...(read.error ? { error: read.error } : {}) });
+    accounts.push({
+      label: read.label,
+      exchange: read.exchange,
+      testnet: read.testnet,
+      usd,
+      unpriced: missing,
+      ...(read.error ? { error: read.error } : {}),
+      assets: [...own.entries()].map(([asset, a]) => ({ asset, amount: a.amount, usd: a.usd, share: usd > 0 ? a.usd / usd : 0 })).sort((a, b) => b.usd - a.usd),
+      wallets: ownWallets,
+    });
   }
   return {
     totalUsd,
@@ -90,6 +113,7 @@ export function summarize(reads: AccountRead[], prices: PriceBook): Summary {
     assets: [...assets.entries()]
       .map(([asset, a]) => ({ asset, amount: a.amount, usd: a.usd, share: totalUsd > 0 ? a.usd / totalUsd : 0 }))
       .sort((a, b) => b.usd - a.usd),
+    wallets,
     accounts,
     unpriced,
     positions,

@@ -1,70 +1,82 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { CSSProperties } from "react";
 import type { Summary } from "@/lib/plugins/portfolio/aggregate";
-import { CURRENCIES } from "@/lib/plugins/shared/fx";
-import { Segmented } from "@/components/ui/segmented";
+import { CurrencyMenu } from "./currency-menu";
 
-/* The left column: the tab's name, the currency the figures are in, the
-   accounts — each with its LIVE / TESTNET badge (never dropped: which
-   money is real is a guarantee of the app), its exchange, its value and
-   its share of the total, or why it could not be read — and, under a
-   rule, the export as a report. */
+/* The left column, a navigator: the tab's name with the currency beside
+   it; "All portfolios" — the whole, its total and its move over the
+   period — then each account, to see it on its own: its LIVE / TESTNET
+   badge (never dropped: which money is real is a guarantee of the app),
+   its exchange, its value and its share of the whole as a thin bar, or
+   why it could not be read. */
+
+export const ALL = "all";
+export const accountKey = (a: { exchange: string; label: string }) => `${a.exchange}:${a.label}`;
 
 type Props = {
   summary: Summary | null;
+  scope: string;
+  onScope: (key: string) => void;
   currency: string;
   onCurrency: (c: string) => void;
   value: (usd: number) => string;
-  exportButton: ReactNode;
-  exportResult: ReactNode;
+  /** The whole's move over the period, already written ("+4.2 %"). */
+  move: { text: string; tone: string } | null;
 };
 
-const OPTIONS = CURRENCIES.map((c) => ({ value: c as string, label: c }));
-
-export function Side({ summary, currency, onCurrency, value, exportButton, exportResult }: Props) {
+export function Side({ summary, scope, onScope, currency, onCurrency, value, move }: Props) {
   const accounts = summary?.accounts ?? [];
   const total = summary?.totalUsd ?? 0;
   return (
-    <section className="wlv-pane wlv-side" aria-label="Accounts">
-      <header className="wlv-side-bar">
+    <section className="wlv-pane wlv-side pfv-side" aria-label="Portfolios">
+      <header className="pfv-side-bar">
         <h2 className="wlv-title">
           <span className="pv-ink">Portfolio</span>
         </h2>
-        {accounts.length > 0 && <span className="wlv-count">{accounts.length}</span>}
+        <CurrencyMenu value={currency} onChange={onCurrency} />
       </header>
-      <div className="wlv-windows">
-        <Segmented label="Currency" value={currency} options={OPTIONS} onChange={onCurrency} wide />
-      </div>
+
+      {summary && (
+        <button type="button" className={`pfv-whole${scope === ALL ? " is-on" : ""}`} aria-pressed={scope === ALL} onClick={() => onScope(ALL)}>
+          <span className="pfv-whole-label">All portfolios</span>
+          <span className="pfv-whole-value">{value(total)}</span>
+          <span className="pfv-whole-sub">
+            {accounts.filter((a) => !a.testnet).length} live account{accounts.filter((a) => !a.testnet).length === 1 ? "" : "s"}
+            {move && <b className={move.tone}>{move.text}</b>}
+          </span>
+        </button>
+      )}
+
       {accounts.length > 0 && (
         <>
-          <p className="pfv-side-title">
-            <span className="pv-ink">Accounts</span>
-          </p>
+          <p className="pfv-side-title">Accounts</p>
           <ul className="pfv-accounts">
-            {accounts.map((a) => (
-              <li key={`${a.exchange}:${a.label}`} className={`pfv-account${a.error ? " is-error" : ""}`}>
-                <span className="pfv-account-name">
-                  <b>
-                    <span className={`xch-badge${a.testnet ? "" : " is-live"}`}>{a.testnet ? "TESTNET" : "LIVE"}</span>
-                    {a.label}
-                  </b>
-                  <small>{a.error ? `Could not be read: ${a.error}` : `${a.exchange}${a.unpriced ? ` · ${a.unpriced} unpriced asset${a.unpriced > 1 ? "s" : ""}` : ""}${a.testnet ? " · not counted" : ""}`}</small>
-                </span>
-                <span className="pfv-account-value">
-                  {value(a.usd)}
-                  {!a.testnet && total > 0 && <small>{((a.usd / total) * 100).toFixed(1)} %</small>}
-                </span>
-              </li>
-            ))}
+            {accounts.map((a) => {
+              const key = accountKey(a);
+              const share = !a.testnet && total > 0 ? a.usd / total : 0;
+              return (
+                <li key={key}>
+                  <button type="button" className={`pfv-account${scope === key ? " is-on" : ""}${a.error ? " is-error" : ""}`} aria-pressed={scope === key} onClick={() => onScope(key)}>
+                    <span className="pfv-account-top">
+                      <span className={`xch-badge${a.testnet ? "" : " is-live"}`}>{a.testnet ? "TESTNET" : "LIVE"}</span>
+                      <b>{a.label}</b>
+                      <span className="pfv-account-value">{value(a.usd)}</span>
+                    </span>
+                    <span className="pfv-account-sub">
+                      {a.error ? `Could not be read: ${a.error}` : `${a.exchange}${a.testnet ? " · not counted" : ` · ${(share * 100).toFixed(1)} %`}${a.unpriced ? ` · ${a.unpriced} unpriced` : ""}`}
+                    </span>
+                    {!a.testnet && !a.error && (
+                      <span className="pfv-account-bar" aria-hidden>
+                        <i style={{ "--w": `${share * 100}%` } as CSSProperties} />
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </>
-      )}
-      {exportButton && (
-        <div className="wlv-switches pv-rule pfv-export">
-          {exportButton}
-          {exportResult}
-        </div>
       )}
     </section>
   );

@@ -42,6 +42,16 @@ describe("summarize", () => {
     expect(s.assets.find((a) => a.asset === "USDT")?.amount).toBe(1500);
   });
 
+  it("splits the live value by wallet, and each account on its own", () => {
+    expect(s.wallets).toEqual({ spot: 6400 + 1000 + 3000, funding: 40, futures: 500 });
+    const m = s.accounts[0];
+    expect(m.wallets).toEqual({ spot: 7400, funding: 40, futures: 500 });
+    expect(m.assets.map((a) => a.asset)).toEqual(["BTC", "USDT", "USDC"]);
+    expect(m.assets[1]).toMatchObject({ amount: 1500, usd: 1500 });
+    expect(m.assets[0].share).toBeCloseTo(6400 / 7940, 10);
+    expect(s.accounts[2].wallets.spot).toBe(10000);
+  });
+
   it("reports an account's error without dropping it", () => {
     expect(s.accounts[1]).toMatchObject({ label: "Bybit", usd: 3000, error: "Funding wallet: key lacks the transfer permission." });
   });
