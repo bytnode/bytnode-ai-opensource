@@ -23,9 +23,9 @@ import { accountKey } from "./side";
    funding), the positions' exposure and PnL;
    for the whole, the accounts compared; and the open positions.
 
-   The daily snapshots keep the whole portfolio, never an account (no
-   account name is ever written): an account's page says so where the
-   curve would be.
+   An account's page holds the same report, from its own daily totals —
+   filed under the account's settings id, never its name; its curve
+   starts with its first snapshot (the testnet is never filed).
 --------------------------------------------------------------------------- */
 
 type Account = Summary["accounts"][number];
@@ -49,7 +49,7 @@ const dayOf = (t: number) => new Date(t).toLocaleDateString("en-GB", { day: "num
 
 export function Dashboard({ summary, account, series, period, onPeriod, value, perUsd, currency, onScope }: Props) {
   const whole = account === null;
-  const perf = whole ? performance(series) : null;
+  const perf = performance(series);
   const assets = account ? account.assets : summary.assets;
   const wallets: WalletSplit = account ? account.wallets : summary.wallets;
   const positions = account ? summary.positions.filter((p) => p.label === account.label && p.testnet === account.testnet) : summary.positions.filter((p) => !p.testnet);
@@ -62,6 +62,7 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
   const long = positions.filter((p) => !/short|sell/i.test(p.side)).reduce((s, p) => s + Math.abs(p.size * (p.mark ?? p.entry ?? 0)), 0);
   const short = positions.filter((p) => /short|sell/i.test(p.side)).reduce((s, p) => s + Math.abs(p.size * (p.mark ?? p.entry ?? 0)), 0);
   const pnl = positions.reduce((s, p) => s + (p.pnl ?? 0), 0);
+  const unpriced = account ? summary.unpriced.filter((u) => u.label === account.label) : summary.unpriced;
 
   return (
     <>
@@ -81,16 +82,15 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
               </span>
             </p>
           ) : (
-            <p className="pfv-hero-note">{whole ? "The move appears after two daily snapshots." : `${assets.length} asset${assets.length === 1 ? "" : "s"} · ${positions.length} open position${positions.length === 1 ? "" : "s"}`}</p>
+            <p className="pfv-hero-note">The move appears after two daily snapshots.</p>
           )}
         </div>
-        {whole && <Segmented label="Period" value={period} options={PERIODS} onChange={onPeriod} />}
+        <Segmented label="Period" value={period} options={PERIODS} onChange={onPeriod} />
       </div>
 
-      {whole ? (
-        <Part title="Performance" sub="one snapshot of the total a day, while the app is open">
+      <Part title="Performance" sub={whole ? "one snapshot of the total a day, while the app is open" : "one snapshot of this account a day, while the app is open"}>
           <div className="pfv-chart">
-            <PriceChart candles={series} interval="1d" mode="line" fit returns message={series.length < 2 ? "The curve appears after two daily snapshots." : null} />
+            <PriceChart candles={series} interval="1d" mode="line" fit returns message={series.length < 2 ? (whole ? "The curve appears after two daily snapshots." : account?.testnet ? "A testnet account is never recorded: no curve." : "This account's curve starts with its first daily snapshots.") : null} />
           </div>
           <div className="wlv-insights pfv-metrics" style={{ "--cols": 5 } as CSSProperties}>
             <Metric label="Return" value={perf ? signed(perf.pct) : "—"} tone={toneOf(perf?.pct)} sub={perf ? `${perf.change >= 0 ? "+" : "−"}${inCur(Math.abs(perf.change))}` : "—"} />
@@ -99,10 +99,7 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
             <Metric label="Best · Worst day" value={perf?.best ? signed(perf.best.pct) : "—"} tone={perf?.best ? "is-up" : undefined} sub={perf?.worst ? `${signed(perf.worst.pct)} on ${dayOf(perf.worst.t)}` : "—"} />
             <Metric label="Volatility" value={perf?.volatility != null ? `${perf.volatility.toFixed(1)} %` : "—"} sub="annualized, daily moves" />
           </div>
-        </Part>
-      ) : (
-        <p className="pfv-quiet pfv-account-note">The daily snapshots keep the whole portfolio, not each account: the curve and the returns are on “All portfolios”.</p>
-      )}
+      </Part>
 
       <Part title="Allocation" sub={whole ? "live accounts" : account?.label}>
         {assets.length === 0 ? (
@@ -239,9 +236,9 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
         </Part>
       )}
 
-      {whole && summary.unpriced.length > 0 && (
+      {unpriced.length > 0 && (
         <Part title="Not counted" sub="no price available">
-          <p className="pfv-quiet">{summary.unpriced.map((u) => `${u.asset} ${fmt(u.amount)} (${u.label})`).join(" · ")}</p>
+          <p className="pfv-quiet">{unpriced.map((u) => `${u.asset} ${fmt(u.amount)}${whole ? ` (${u.label})` : ""}`).join(" · ")}</p>
         </Part>
       )}
     </>

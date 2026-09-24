@@ -23,6 +23,9 @@ export type PositionRead = {
 };
 
 export type AccountRead = {
+  /** The account's own id in the settings (a random UUID — neither its
+      name nor a key): what a snapshot files the account's total under. */
+  id?: string;
   label: string;
   exchange: string;
   testnet: boolean;
@@ -46,7 +49,7 @@ export type Summary = {
   wallets: WalletSplit;
   /** Each account on its own — its assets (largest first, shares of the
       account) and its wallets — for the view's per-account page. */
-  accounts: Array<{ label: string; exchange: string; testnet: boolean; usd: number; unpriced: number; error?: string; assets: Array<{ asset: string; amount: number; usd: number; share: number }>; wallets: WalletSplit }>;
+  accounts: Array<{ id?: string; label: string; exchange: string; testnet: boolean; usd: number; unpriced: number; error?: string; assets: Array<{ asset: string; amount: number; usd: number; share: number }>; wallets: WalletSplit }>;
   unpriced: Array<{ label: string; asset: string; amount: number }>;
   positions: Array<PositionRead & { label: string; testnet: boolean }>;
   /** Unrealized PnL of the live accounts' positions, in USD(T). */
@@ -97,6 +100,7 @@ export function summarize(reads: AccountRead[], prices: PriceBook): Summary {
     if (read.testnet) testnetUsd += usd;
     else totalUsd += usd;
     accounts.push({
+      ...(read.id ? { id: read.id } : {}),
       label: read.label,
       exchange: read.exchange,
       testnet: read.testnet,
@@ -126,12 +130,19 @@ export const assetsToPrice = (reads: AccountRead[]): string[] => [...new Set(rea
 
 /* --- Snapshots ---------------------------------------------------------- */
 
-/** One a day: the total and the split by asset, in USD — no key, no
-    account name. */
-export type Snapshot = { date: string; at: string; totalUsd: number; assets: Record<string, number> };
+/** One a day: the total, the split by asset and each live account's
+    total under its settings id, in USD — no key, no account name. */
+export type Snapshot = { date: string; at: string; totalUsd: number; assets: Record<string, number>; accounts?: Record<string, number> };
 
 export function snapshotOf(summary: Summary, now: Date): Snapshot {
-  return { date: now.toISOString().slice(0, 10), at: now.toISOString(), totalUsd: summary.totalUsd, assets: Object.fromEntries(summary.assets.map((a) => [a.asset, a.usd])) };
+  const accounts = Object.fromEntries(summary.accounts.filter((a) => a.id && !a.testnet && !a.error).map((a) => [a.id as string, a.usd]));
+  return {
+    date: now.toISOString().slice(0, 10),
+    at: now.toISOString(),
+    totalUsd: summary.totalUsd,
+    assets: Object.fromEntries(summary.assets.map((a) => [a.asset, a.usd])),
+    ...(Object.keys(accounts).length ? { accounts } : {}),
+  };
 }
 
 /** The journal read back: one snapshot per day (the last one of the day),

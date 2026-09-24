@@ -52,6 +52,14 @@ describe("summarize", () => {
     expect(s.accounts[2].wallets.spot).toBe(10000);
   });
 
+  it("files each live account's total under its id in the snapshot — never a name", () => {
+    const withIds = summarize([{ ...main, id: "u-1" }, { ...other, id: "u-2" }, { ...test, id: "u-3" }], prices);
+    const snap = snapshotOf(withIds, new Date("2026-09-24T23:55:00Z"));
+    /* Bybit could not be read in full: not filed; the testnet: never. */
+    expect(snap.accounts).toEqual({ "u-1": 7940 });
+    expect(JSON.stringify(snap)).not.toMatch(/Binance-main|Bybit|Test/);
+  });
+
   it("reports an account's error without dropping it", () => {
     expect(s.accounts[1]).toMatchObject({ label: "Bybit", usd: 3000, error: "Funding wallet: key lacks the transfer permission." });
   });

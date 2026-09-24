@@ -21,4 +21,15 @@ describe("sample data", () => {
     expect(points[0].date).toBe("2025-09-25");
     expect(samplePoints(now)).toEqual(points);
   });
+
+  it("gives each live account its own year, adding up to the total, ending on today", () => {
+    const points = samplePoints(new Date("2026-09-24T12:00:00Z"));
+    for (const p of [points[0], points[180], points.at(-1)!]) {
+      const sum = Object.values(p.accounts ?? {}).reduce((t, v) => t + v, 0);
+      expect(sum).toBeCloseTo(p.totalUsd, 0);
+    }
+    const kraken = s.accounts.find((a) => a.label.startsWith("Kraken"))!;
+    expect(points.at(-1)?.accounts?.[kraken.id!]).toBeCloseTo(kraken.usd, 0);
+    expect(Object.keys(points[0].accounts ?? {})).toHaveLength(3);
+  });
 });

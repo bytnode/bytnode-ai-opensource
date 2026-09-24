@@ -12,8 +12,9 @@ import type { Snapshot, Summary } from "./aggregate";
 
 const PRICES: Record<string, number> = { BTC: 112_480, ETH: 4_312, SOL: 232.7, BNB: 1_012, XRP: 2.94, DOGE: 0.2643, LINK: 23.52, AVAX: 30.12, ADA: 0.84, HYPE: 55.83, USDT: 1, USDC: 1 };
 
-const ACCOUNTS: Array<{ label: string; exchange: string; testnet: boolean; wallets: Record<"spot" | "futures" | "funding", Array<[string, number]>> }> = [
+const ACCOUNTS: Array<{ id: string; label: string; exchange: string; testnet: boolean; wallets: Record<"spot" | "futures" | "funding", Array<[string, number]>> }> = [
   {
+    id: "sample-binance-main",
     label: "Binance — main",
     exchange: "binance",
     testnet: false,
@@ -24,6 +25,7 @@ const ACCOUNTS: Array<{ label: string; exchange: string; testnet: boolean; walle
     },
   },
   {
+    id: "sample-bybit-trading",
     label: "Bybit — trading",
     exchange: "bybit",
     testnet: false,
@@ -34,6 +36,7 @@ const ACCOUNTS: Array<{ label: string; exchange: string; testnet: boolean; walle
     },
   },
   {
+    id: "sample-kraken-long-term",
     label: "Kraken — long term",
     exchange: "kraken",
     testnet: false,
@@ -44,6 +47,7 @@ const ACCOUNTS: Array<{ label: string; exchange: string; testnet: boolean; walle
     },
   },
   {
+    id: "sample-binance-testnet",
     label: "Binance — testnet",
     exchange: "binance",
     testnet: true,
@@ -77,6 +81,7 @@ export function sampleSummary(): Summary {
     if (a.testnet) testnetUsd += usd;
     else totalUsd += usd;
     return {
+      id: a.id,
       label: a.label,
       exchange: a.exchange,
       testnet: a.testnet,
@@ -105,8 +110,12 @@ export function sampleSummary(): Summary {
 }
 
 /** A year of daily totals ending on `now` at today's total: a seeded walk
-    with a drift, a correction in the spring and a recovery. */
-export function samplePoints(now: Date, total = sampleSummary().totalUsd, days = 365): Snapshot[] {
+    with a drift, a correction in the spring and a recovery — and each live
+    account's share of it, drifting on its own, ending on today's values
+    and always adding up to the total. */
+export function samplePoints(now: Date, days = 365): Snapshot[] {
+  const summary = sampleSummary();
+  const total = summary.totalUsd;
   let seed = 20260924;
   const rnd = () => {
     seed = (seed * 16807) % 2147483647;
@@ -120,9 +129,20 @@ export function samplePoints(now: Date, total = sampleSummary().totalUsd, days =
   /* Walked back from today, so the last point is today's total. */
   const values = [total];
   for (let i = moves.length - 1; i > 0; i--) values.unshift(values[0] / (1 + moves[i]));
+  /* Each account's weight: today's share, bent by its own slow walk. */
+  const live = summary.accounts.filter((a) => !a.testnet && a.id);
+  const bends = live.map(() => {
+    const walk = [0];
+    for (let i = 1; i < values.length; i++) walk.push(walk[i - 1] + (rnd() - 0.5) * 0.03);
+    const end = walk[walk.length - 1];
+    return walk.map((w) => Math.exp(w - end));
+  });
   const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   return values.map((v, i) => {
     const d = new Date(today - (values.length - 1 - i) * 86_400_000);
-    return { date: d.toISOString().slice(0, 10), at: d.toISOString(), totalUsd: Math.round(v * 100) / 100, assets: {} };
+    const raw = live.map((a, k) => (a.usd / total) * bends[k][i]);
+    const sum = raw.reduce((s, x) => s + x, 0);
+    const accounts = Object.fromEntries(live.map((a, k) => [a.id as string, Math.round(((v * raw[k]) / sum) * 100) / 100]));
+    return { date: d.toISOString().slice(0, 10), at: d.toISOString(), totalUsd: Math.round(v * 100) / 100, assets: {}, accounts };
   });
 }

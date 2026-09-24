@@ -33,7 +33,7 @@ const positionOf = (p: Position) => ({
 });
 
 export async function readAccount(account: ExchangeAccount): Promise<AccountRead> {
-  const read: AccountRead = { label: account.label, exchange: account.exchange, testnet: account.testnet, wallets: [], positions: [] };
+  const read: AccountRead = { id: account.id, label: account.label, exchange: account.exchange, testnet: account.testnet, wallets: [], positions: [] };
   const problems: string[] = [];
   const info = exchangeInfo(account.exchange);
   try {

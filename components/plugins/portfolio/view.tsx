@@ -68,8 +68,13 @@ export function PortfolioView({ settings }: ViewProps) {
   const value = (usd: number | undefined) => (m && typeof usd === "number" ? `${(usd * m.perUsd).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${m.currency}` : "—");
   /* An account that is no longer there sends back to the whole. */
   const account = s && scope !== ALL ? (s.accounts.find((a) => accountKey(a) === scope) ?? null) : null;
-  const series = m ? slicePeriod(dailySeries(sample ? sample.points : (history.data?.points ?? []), m.perUsd), period) : [];
-  const perf = performance(series);
+  /* The whole's series (the navigator shows its move), and the one of
+     what is shown: the whole, or the account's own (filed under its id —
+     an account without one has no curve). */
+  const points = sample ? sample.points : (history.data?.points ?? []);
+  const wholeSeries = m ? slicePeriod(dailySeries(points, m.perUsd), period) : [];
+  const series = !m ? [] : !account ? wholeSeries : account.id ? slicePeriod(dailySeries(points, m.perUsd, account.id), period) : [];
+  const perf = performance(wholeSeries);
   const move = perf ? { text: `${perf.pct >= 0 ? "+" : "−"}${Math.abs(perf.pct).toFixed(2)} %`, tone: perf.pct > 0 ? "is-up" : perf.pct < 0 ? "is-down" : "is-flat" } : null;
   const status = sample ? "" : noAccount ? "" : loading ? "Updating…" : data ? `Updated ${new Date(data.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : "Reading your accounts…";
 

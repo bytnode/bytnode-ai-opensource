@@ -408,10 +408,6 @@ html[data-theme="light"] .pfv-currency-list {
   color: var(--label-3);
 }
 
-.pfv-account-note {
-  padding: 18px var(--side) 0;
-}
-
 /* The curve and, in the same tile under it, the daily returns; the
    figures flush under the tile, one block with it. */
 .pfv-chart {

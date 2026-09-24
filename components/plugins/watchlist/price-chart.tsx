@@ -97,7 +97,7 @@ function draw(canvas: HTMLCanvasElement, data: Candle[], interval: Interval, mod
   const px = (v: number) => (Math.round(v * dpr) + 0.5) / dpr;
   /* The returns' panel, when asked: under the curve, above the times. */
   const panelH = returns ? Math.round(Math.min(96, Math.max(56, H * 0.24))) : 0;
-  const panelGap = returns ? 26 : 0;
+  const panelGap = returns ? 46 : 0;
   const bottom = H - TIME_H - BOTTOM_PAD - panelH - panelGap;
   const plotH = bottom - TOP;
   const panelTop = bottom + panelGap;
@@ -240,7 +240,7 @@ function draw(canvas: HTMLCanvasElement, data: Candle[], interval: Interval, mod
     g.fillStyle = css(pal.ink, 0.55);
     g.textAlign = "left";
     g.textBaseline = "alphabetic";
-    g.fillText("Daily returns", 0, panelTop - 8);
+    g.fillText("Daily returns", 0, panelTop - 12);
     g.font = font(11);
     g.fillStyle = css(pal.ink, 0.45);
     g.textBaseline = "middle";

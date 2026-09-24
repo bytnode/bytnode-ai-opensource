@@ -16,6 +16,16 @@ describe("dailySeries", () => {
     expect(bars[0]).toMatchObject({ o: 50, h: 50, l: 50, v: 0 });
   });
 
+  it("draws one account from the day it was first filed", () => {
+    const points = [snap("2026-09-20", 100), { ...snap("2026-09-21", 110), accounts: { a: 40 } }, { ...snap("2026-09-23", 130), accounts: { a: 60 } }];
+    expect(dailySeries(points, 1, "a").map((b) => [b.t, b.c])).toEqual([
+      [day("2026-09-21"), 40],
+      [day("2026-09-22"), 40],
+      [day("2026-09-23"), 60],
+    ]);
+    expect(dailySeries(points, 1, "b")).toEqual([]);
+  });
+
   it("is empty without a snapshot", () => {
     expect(dailySeries([], 1)).toEqual([]);
   });

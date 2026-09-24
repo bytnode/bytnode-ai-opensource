@@ -12,9 +12,12 @@ import type { Snapshot, Summary } from "./aggregate";
 const DAY = 86_400_000;
 
 /** The snapshots as daily bars (open = high = low = close = the total, in
-    the chosen currency), gaps filled with the day before. */
-export function dailySeries(points: Snapshot[], perUsd: number): Candle[] {
-  const byDay = new Map(points.map((p) => [Date.parse(`${p.date}T00:00:00Z`), p.totalUsd * perUsd]));
+    the chosen currency), gaps filled with the day before — the whole's, or
+    one account's (its total under its id; the days before its first
+    snapshot are left out). */
+export function dailySeries(points: Snapshot[], perUsd: number, accountId?: string): Candle[] {
+  const pick = (p: Snapshot) => (accountId ? p.accounts?.[accountId] : p.totalUsd);
+  const byDay = new Map(points.flatMap((p) => (typeof pick(p) === "number" ? [[Date.parse(`${p.date}T00:00:00Z`), (pick(p) as number) * perUsd] as [number, number]] : [])));
   const days = [...byDay.keys()].filter(Number.isFinite).sort((a, b) => a - b);
   if (!days.length) return [];
   const out: Candle[] = [];
