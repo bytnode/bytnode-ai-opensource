@@ -54,6 +54,48 @@ export type Palette = {
   eclat: readonly [number, number, number];
   atmoA: readonly [number, number, number];
   atmoB: readonly [number, number, number];
+  /** The ground and the light of the BACKDROP — what `fond.tsx` paints. */
+  scene: Scene;
+};
+
+/* ---------------------------------------------------------------------------
+   THE SCENE: the ground and its reflections, a paint sheet. The same as
+   bytnode.com's (`app_web/frontend/components/noeud/palette.ts`, "Black &
+   reflections", chosen on 2026-09-21) — keep the two in step.
+
+     solHaut / solBas  the ground's pigment, at the top and at the bottom of
+                       the page, laid OPAQUE: the black is in the matter, not
+                       in the transparency.
+     lumiere           the hue of the reflections. A muted, desaturated navy:
+                       a reflection lights the black by its presence, not its
+                       brightness — lighter it reads grey, more saturated it
+                       reads neon (both were tried and refused).
+     largeur           factor on the layers' half-width.
+     intensite         factor on their opacity.
+     nettete           0: a fully blended edge; 1: a plateau, then a drop.
+     trame             the opacity of the dot grid.
+     extinction        how hard the light dies towards the bottom right,
+                       towards `solBas` — never towards a black blacker than
+                       the ground.
+     diffusion         each layer carries, three times wider and very faint,
+                       the glow it leaves in the air. That is what melts its
+                       edge into the black instead of laying it on top.
+     nappes            the reflections, placed by hand: origin in screen
+                       fractions, tilt (factor of `fond.tsx`'s common angle),
+                       half-length and half-width in diagonal fractions, core
+                       opacity.
+--------------------------------------------------------------------------- */
+export type Scene = {
+  solHaut: readonly [number, number, number];
+  solBas: readonly [number, number, number];
+  lumiere: readonly [number, number, number];
+  largeur: number;
+  intensite: number;
+  nettete: number;
+  trame: number;
+  extinction: number;
+  diffusion: number;
+  nappes: ReadonlyArray<readonly [number, number, number, number, number, number]>;
 };
 
 /** ⚠️ "NAVY & SAND" — THE DIRECTION CHOSEN FOR THE SITE.
@@ -84,10 +126,39 @@ export const MARINE: Palette = {
      shell would have become a shiny cage around a void just as black. 1.18
      and not 1.5: beyond that, the rear hemisphere stops reading through the
      front and the object loses its volume. */
-  ambiance: 0.96,
+  ambiance: 0,
   halo: 1.12,
   corps: 1.18,
   lueur: 0.24,
+  /* ⚠️ THE GROUND IS BLACK AND THE BLUE IS IN THE REFLECTIONS — the "Black &
+     reflections" direction bytnode.com took on 2026-09-21, after three deep
+     blues then additive beams were refused (too light, then neon). What
+     held: a barely blue black, and three layers of muted navy, wide, with a
+     fully blended edge, on the SAME diagonal (rising to the right) — the
+     whole top-left corner, one high on the right, one low on the left. */
+  scene: {
+    solHaut: [1, 1, 4],
+    solBas: [0, 0, 1],
+    lumiere: [30, 56, 118],
+    largeur: 1.7,
+    intensite: 0.45,
+    nettete: 0,
+    trame: 0.05,
+    /* Almost no fade-out towards the bottom right: the light comes from that
+       side, it cannot die there. */
+    extinction: 0.12,
+    diffusion: 2.0,
+    nappes: [
+      /* The top-left corner, whole: the layer is centred ON the corner, three
+         quarters out of frame — a light coming from behind the angle, not a
+         spot laid on the page. */
+      [0.0, 0.0, -0.9, 0.46, 0.18, 0.62],
+      /* High on the right: leaves the corner and descends, dying out. */
+      [0.9, 0.2, -0.9, 0.5, 0.15, 0.5],
+      /* The same reflection lower down, shifted left. */
+      [0.5, 0.8, -0.9, 0.5, 0.15, 0.36],
+    ],
+  },
 };
 
 export const mel = (
