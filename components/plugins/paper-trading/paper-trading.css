@@ -1073,3 +1073,232 @@ html[data-theme="light"] .ptv-pill.is-primary {
     animation: none;
   }
 }
+
+/* --- A portfolio opened in place, and what it holds (books.tsx) --------------
+
+   The chevron sits before the portfolio's row, in its left padding; the
+   row keeps its whole width. Opened, the positions and holdings hang under
+   it, indented along the chevron, each a small row lit like the
+   watchlist's when it is the one shown. The portfolio of a shown position
+   keeps a lighter fill: it is where that position lives. */
+
+.ptv-book-item {
+  position: relative;
+}
+
+.ptv-book-item > .ptv-book {
+  padding-left: 38px;
+}
+
+.ptv-book-toggle {
+  position: absolute;
+  z-index: 1;
+  top: 17px;
+  left: 8px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--label-3);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.ptv-book-toggle:hover {
+  background: var(--fill);
+  color: var(--label);
+}
+
+.ptv-book-toggle svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transform: rotate(-90deg);
+  transition: transform 160ms var(--ease);
+}
+
+.ptv-book-item.is-open .ptv-book-toggle svg {
+  transform: none;
+}
+
+.ptv-book.is-parent {
+  background: var(--fill);
+}
+
+.ptv-items {
+  display: grid;
+  gap: 2px;
+  margin: 4px 0 8px 30px;
+  padding: 0;
+  list-style: none;
+  animation: wlv-pop 140ms var(--ease) both;
+}
+
+.ptv-items-note {
+  margin: 4px 0 10px 44px;
+  font-size: 13px;
+  color: var(--label-3);
+}
+
+.ptv-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 12px 6px 14px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--label);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.ptv-item:hover {
+  background: var(--fill);
+}
+
+.ptv-item.is-selected {
+  background: rgba(var(--ink), 0.1);
+}
+
+.ptv-item-name {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+}
+
+.ptv-item-name b {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.ptv-item-name em {
+  font-style: normal;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.ptv-item-name em.is-up {
+  color: var(--up);
+}
+
+.ptv-item-name em.is-down {
+  color: var(--down);
+}
+
+.ptv-item-name small {
+  font-size: 12.5px;
+  color: var(--label-3);
+}
+
+.ptv-item-result {
+  display: grid;
+  justify-items: end;
+  gap: 1px;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ptv-item-result.is-up {
+  color: var(--up);
+}
+
+.ptv-item-result.is-down {
+  color: var(--down);
+}
+
+.ptv-item-result small {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--label-3);
+}
+
+/* --- One position alone, in the middle sheet (sheet.tsx `Detail`) ------------ */
+
+/* The way back to the whole portfolio: a chip above the title. */
+.ptv-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  margin: 0 0 10px;
+  padding: 0 12px 0 9px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.ptv-back:hover {
+  background: rgba(var(--ink), 0.12);
+  color: var(--label);
+}
+
+.ptv-back svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ptv-detail-side {
+  font-style: normal;
+  font-size: 0.7em;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.ptv-detail-side.is-up {
+  color: var(--up);
+}
+
+.ptv-detail-side.is-down {
+  color: var(--down);
+}
+
+.ptv-detail-lev {
+  font-size: 0.7em;
+  color: var(--label-3);
+}
+
+.ptv-detail-figures {
+  --cols: 3;
+
+  flex: none;
+  margin: 16px var(--side) 18px;
+}
+
+.ptv-detail-liq {
+  display: grid;
+  gap: 10px;
+}
+
+.ptv-detail-liq .ptv-liq-track {
+  height: 6px;
+  border-radius: 3px;
+}
+
+.ptv-detail-liq small {
+  font-size: 13px;
+  color: var(--label-3);
+}

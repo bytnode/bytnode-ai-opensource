@@ -13,7 +13,7 @@ import { useReportExport } from "../use-report-export";
 import type { Listed, Priced } from "@/lib/plugins/shared/prices";
 import { Books } from "./books";
 import { Market } from "./market";
-import type { BookRow, PaperState } from "./format";
+import { focusSymbol, type BookRow, type Focus, type PaperState } from "./format";
 import { Sheet } from "./sheet";
 import { Card, Ticket } from "./ticket";
 import "../watchlist/watchlist.css";
@@ -32,6 +32,11 @@ import "./paper-trading.css";
      then offers "Trade" to bring it back); both are kept (`agentchat:ui`).
    PAPER everywhere: nothing here is real money.
 
+   A portfolio opens in place in the left column (its positions and
+   holdings under it); a click on one of them shows it alone in the middle
+   sheet (`focus`), and its pair becomes the ticket's; a click on the
+   portfolio itself shows the whole again.
+
    The portfolio shown is the one clicked, else the one a notification
    opened the tab on (`params.portfolio`), else the default one. The list is
    read every 30 s, the chosen portfolio every 15 s (each reading also fills
@@ -46,9 +51,9 @@ const QUOTE_MS = 5_000;
 export function PaperTradingView({ settings, params }: ViewProps) {
   const ui = useUiPrefs();
   const panel = useRef<HTMLDivElement>(null);
-  const focus = typeof params?.portfolio === "string" ? params.portfolio : null;
-  const [pick, setPick] = useState<{ focus: string | null; id: string | null }>({ focus, id: null });
-  const chosen = (pick.focus === focus ? pick.id : null) ?? focus;
+  const focus0 = typeof params?.portfolio === "string" ? params.portfolio : null;
+  const [pick, setPick] = useState<{ focus: string | null; id: string | null }>({ focus: focus0, id: null });
+  const chosen = (pick.focus === focus0 ? pick.id : null) ?? focus0;
 
   const books = usePluginData<BookRow[]>("paper-trading", "books", settings, {}, { keep: "latest" });
   useAwakeInterval(books.reload, BOOKS_MS);
@@ -78,6 +83,14 @@ export function PaperTradingView({ settings, params }: ViewProps) {
     if (ui.paperTradeClosed) updateUiPrefs({ paperTradeClosed: false });
   };
   const [problem, setProblem] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string[]>([]);
+  const [focused, setFocused] = useState<{ portfolio: string; focus: Focus } | null>(null);
+  /* Only while it is still held: a position closed meanwhile (here, by a
+     liquidation or by an agent) gives the whole portfolio back. */
+  const focus =
+    focused && data && focused.portfolio === data.id && (focused.focus.kind === "position" ? data.valuation.positions.some((p) => focused.focus.kind === "position" && p.symbol === focused.focus.symbol) : data.valuation.holdings.some((h) => focused.focus.kind === "holding" && h.asset === focused.focus.asset))
+      ? focused.focus
+      : null;
   const [confirm, setConfirm] = useState<"reset" | "delete" | null>(null);
 
   const reload = () => {
@@ -92,7 +105,24 @@ export function PaperTradingView({ settings, params }: ViewProps) {
   };
   const choose = (next: string) => {
     setProblem(null);
-    setPick({ focus, id: next });
+    setFocused(null);
+    setPick({ focus: focus0, id: next });
+  };
+  /* Opening another portfolio shows it too: only the one shown has its
+     positions read. */
+  const expand = (book: string) => {
+    if (book !== (data?.id ?? id)) {
+      choose(book);
+      setExpanded((e) => (e.includes(book) ? e : [...e, book]));
+      return;
+    }
+    setExpanded((e) => (e.includes(book) ? e.filter((x) => x !== book) : [...e, book]));
+  };
+  const show = (f: Focus) => {
+    if (!data) return;
+    setProblem(null);
+    setFocused({ portfolio: data.id, focus: f });
+    showPair(focusSymbol(f));
   };
   /* A new portfolio is shown at once. */
   const create = async (name: string, capital: number) => {
@@ -117,6 +147,11 @@ export function PaperTradingView({ settings, params }: ViewProps) {
           selected={data?.id ?? (id || null)}
           defaultCapital={defaultCapital}
           onPick={choose}
+          expanded={expanded}
+          onExpand={expand}
+          data={data}
+          focus={focus}
+          onFocus={show}
           onCreate={create}
         />
         <ColumnHandle
@@ -145,6 +180,8 @@ export function PaperTradingView({ settings, params }: ViewProps) {
           onRename={(name) => run("rename", { name })}
           onAct={run}
           onSymbol={showPair}
+          focus={focus}
+          onUnfocus={() => setFocused(null)}
           market={<Market symbol={symbol} quote={live} pairs={pairs} data={data} settings={settings} />}
         />
         {!closed && (
@@ -195,7 +232,7 @@ export function PaperTradingView({ settings, params }: ViewProps) {
           confirmLabel="Delete"
           onConfirm={() => {
             setConfirm(null);
-            void run("delete", {}).then((p) => !p && setPick({ focus, id: null }));
+            void run("delete", {}).then((p) => !p && setPick({ focus: focus0, id: null }));
           }}
           onCancel={() => setConfirm(null)}
         />

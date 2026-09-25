@@ -29,6 +29,16 @@ export type PaperState = {
 
 export const CASH = "USDT";
 
+/** What the middle sheet shows instead of the whole portfolio: one futures
+    position (by its pair) or one spot holding (by its asset). */
+export type Focus = { kind: "position"; symbol: string } | { kind: "holding"; asset: string };
+
+export const sameFocus = (a: Focus | null, b: Focus | null): boolean =>
+  !!a && !!b && (a.kind === "position" && b.kind === "position" ? a.symbol === b.symbol : a.kind === "holding" && b.kind === "holding" && a.asset === b.asset);
+
+/** The pair a focus trades: the position's, or the holding's against the cash. */
+export const focusSymbol = (f: Focus): string => (f.kind === "position" ? f.symbol : `${f.asset}/${CASH}`);
+
 /** A sum in USDT, grouped, two decimals. */
 export const usdt = (n: number | undefined): string => (n === undefined || !Number.isFinite(n) ? "—" : fmt(n, 2));
 

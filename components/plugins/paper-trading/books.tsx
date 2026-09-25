@@ -1,16 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { Plus } from "@/components/ui/icons";
-import { CASH, pct, toneOf, usdt, type BookRow } from "./format";
+import { ChevronDown, Plus } from "@/components/ui/icons";
+import { fmt } from "../bits";
+import { CASH, baseOf, pct, sameFocus, signed, toneOf, usdt, type BookRow, type Focus, type PaperState } from "./format";
 
 /* ---------------------------------------------------------------------------
    The left column: the paper portfolios, like the watchlist's assets —
    each its name, under it its value and what is open in it, and its
    result in a pill of Apple's green or red; the one shown is lit. The
    first is the default one (what an agent trades when it names none), and
-   says so. Under the list,
-   "New portfolio" opens a small form in place: a name, a starting capital.
+   says so. The chevron before a portfolio opens it in place: under it,
+   each thing it holds — its futures positions, then its spot holdings —
+   with its result; a click shows that one alone in the middle sheet.
+   Only the portfolio shown can be opened (its figures are the ones read):
+   opening another shows it first. Under the list, "New portfolio" opens
+   a small form in place: a name, a starting capital.
 --------------------------------------------------------------------------- */
 
 type Props = {
@@ -18,11 +23,18 @@ type Props = {
   selected: string | null;
   defaultCapital: number;
   onPick: (id: string) => void;
+  /** The portfolios opened in place (their positions listed under them). */
+  expanded: string[];
+  onExpand: (id: string) => void;
+  /** The portfolio shown, whose positions the opened row lists. */
+  data: PaperState | null;
+  focus: Focus | null;
+  onFocus: (focus: Focus) => void;
   /** Creates a portfolio; answers why not, or null. */
   onCreate: (name: string, capital: number) => Promise<string | null>;
 };
 
-export function Books({ books, selected, defaultCapital, onPick, onCreate }: Props) {
+export function Books({ books, selected, defaultCapital, onPick, expanded, onExpand, data, focus, onFocus, onCreate }: Props) {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [capital, setCapital] = useState("");
@@ -58,8 +70,11 @@ export function Books({ books, selected, defaultCapital, onPick, onCreate }: Pro
           const on = b.id === selected;
           const open = [b.positions ? `${b.positions} position${b.positions === 1 ? "" : "s"}` : "", b.orders ? `${b.orders} order${b.orders === 1 ? "" : "s"}` : ""].filter(Boolean).join(", ");
           return (
-            <li key={b.id}>
-              <button type="button" className={`wlv-row ptv-book${on ? " is-selected" : ""}`} aria-current={on || undefined} onClick={() => onPick(b.id)}>
+            <li key={b.id} className={`ptv-book-item${expanded.includes(b.id) ? " is-open" : ""}`}>
+              <button type="button" className="ptv-book-toggle" onClick={() => onExpand(b.id)} aria-expanded={expanded.includes(b.id)} aria-label={`${expanded.includes(b.id) ? "Hide" : "Show"} the positions of ${b.name}`} title={expanded.includes(b.id) ? "Hide the positions" : "Show the positions"}>
+                <ChevronDown />
+              </button>
+              <button type="button" className={`wlv-row ptv-book${on && !focus ? " is-selected" : ""}${on && focus ? " is-parent" : ""}`} aria-current={(on && !focus) || undefined} onClick={() => onPick(b.id)}>
                 <span className="wlv-row-name">
                   <b>{b.name}</b>
                   <small>
@@ -69,6 +84,7 @@ export function Books({ books, selected, defaultCapital, onPick, onCreate }: Pro
                 </span>
                 <span className={`wlv-pill ${toneOf(b.returnPct)}`}>{pct(b.returnPct)}</span>
               </button>
+              {expanded.includes(b.id) && on && <Items data={data && data.id === b.id ? data : null} focus={focus} onFocus={onFocus} />}
             </li>
           );
         })}
@@ -110,5 +126,56 @@ export function Books({ books, selected, defaultCapital, onPick, onCreate }: Pro
         )}
       </div>
     </section>
+  );
+}
+
+/** What an opened portfolio holds, one row each: the positions, then the
+    spot holdings, each with its result; the one shown is lit. */
+function Items({ data, focus, onFocus }: { data: PaperState | null; focus: Focus | null; onFocus: (focus: Focus) => void }) {
+  if (!data) return <p className="ptv-items-note">Reading…</p>;
+  const { positions, holdings } = data.valuation;
+  if (positions.length === 0 && holdings.length === 0) return <p className="ptv-items-note">Nothing open.</p>;
+  return (
+    <ul className="ptv-items" aria-label={`What ${data.name} holds`}>
+      {positions.map((p) => {
+        const f: Focus = { kind: "position", symbol: p.symbol };
+        const on = sameFocus(f, focus);
+        const roe = p.unrealized !== undefined && p.margin > 0 ? (p.unrealized / p.margin) * 100 : undefined;
+        return (
+          <li key={`p:${p.symbol}`}>
+            <button type="button" className={`ptv-item${on ? " is-selected" : ""}`} aria-current={on || undefined} onClick={() => onFocus(f)}>
+              <span className="ptv-item-name">
+                <b>{baseOf(p.symbol)}</b>
+                <em className={p.side === "long" ? "is-up" : "is-down"}>{p.side === "long" ? "Long" : "Short"}</em>
+                <small>×{p.leverage}</small>
+              </span>
+              <span className={`ptv-item-result ${toneOf(p.unrealized)}`}>
+                {signed(p.unrealized)}
+                <small>{pct(roe)}</small>
+              </span>
+            </button>
+          </li>
+        );
+      })}
+      {holdings.map((h) => {
+        const f: Focus = { kind: "holding", asset: h.asset };
+        const on = sameFocus(f, focus);
+        return (
+          <li key={`h:${h.asset}`}>
+            <button type="button" className={`ptv-item${on ? " is-selected" : ""}`} aria-current={on || undefined} onClick={() => onFocus(f)}>
+              <span className="ptv-item-name">
+                <b>{h.asset}</b>
+                <em>Spot</em>
+                <small>{fmt(h.amount)}</small>
+              </span>
+              <span className={`ptv-item-result ${toneOf(h.unrealized)}`}>
+                {signed(h.unrealized)}
+                <small>{usdt(h.value)}</small>
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

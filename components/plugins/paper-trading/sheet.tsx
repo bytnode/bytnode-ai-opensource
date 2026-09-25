@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Close, Pencil, Refresh } from "@/components/ui/icons";
+import { ArrowLeft, Close, Pencil, Refresh } from "@/components/ui/icons";
 import { fmt } from "../bits";
 import { PriceChart } from "../watchlist/price-chart";
 import type { Valuation } from "@/lib/plugins/paper-trading/engine";
 import type { Stats as StatsData } from "@/lib/plugins/paper-trading/stats";
-import { CASH, baseOf, dayOf, fillTitle, orderTitle, pct, price, signed, toneOf, usdt, whenOf, type PaperState } from "./format";
+import { CASH, baseOf, dayOf, fillTitle, focusSymbol, orderTitle, pct, price, signed, toneOf, usdt, whenOf, type Focus, type PaperState } from "./format";
 
 /* ---------------------------------------------------------------------------
    The middle sheet, the chosen portfolio top to bottom: its name (a click
@@ -18,6 +18,11 @@ import { CASH, baseOf, dayOf, fillTitle, orderTitle, pct, price, signed, toneOf,
    it calls for (a holding sold, a position closed, an order cancelled) and
    whose name shows its market. Last, the activity: every fill, newest
    first. A fresh portfolio says how to begin.
+
+   With a `focus` (a position or a holding picked in the left column), the
+   sheet shows that one alone instead (`Detail`): its figures, how close
+   its liquidation is, its market, its orders and its fills, and the one
+   action it calls for.
 --------------------------------------------------------------------------- */
 
 type Props = {
@@ -42,11 +47,15 @@ type Props = {
   market: ReactNode;
   /** A row's pair becomes the ticket's (and the market block's). */
   onSymbol: (symbol: string) => void;
+  /** The position or holding shown alone, if one is. */
+  focus: Focus | null;
+  /** Back to the whole portfolio. */
+  onUnfocus: () => void;
 };
 
 const SHOWN_FILLS = 12;
 
-export function Sheet({ data, loading, problem, many, tradeClosed, exportButton, exportResult, onReload, onReset, onDelete, onOpenTrade, onRename, onAct, market, onSymbol }: Props) {
+export function Sheet({ data, loading, problem, many, tradeClosed, exportButton, exportResult, onReload, onReset, onDelete, onOpenTrade, onRename, onAct, market, onSymbol, focus, onUnfocus }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [allFills, setAllFills] = useState(false);
   const v = data?.valuation;
@@ -62,6 +71,10 @@ export function Sheet({ data, loading, problem, many, tradeClosed, exportButton,
   const invested = v ? v.holdings.reduce((t, h) => t + (h.value ?? 0), 0) + v.positions.reduce((t, p) => t + p.margin + (p.unrealized ?? 0), 0) : undefined;
   const curve = data?.curve;
   const chartMessage = !curve ? "Loading…" : curve.candles.length < 2 ? "The curve draws itself as the portfolio lives: come back after a few trades." : null;
+
+  if (data && focus) {
+    return <Detail data={data} focus={focus} status={status} live={!loading && !problem} problem={problem} busy={busy} tradeClosed={tradeClosed} market={market} onBack={onUnfocus} onReload={onReload} onOpenTrade={onOpenTrade} onRun={run} />;
+  }
 
   return (
     <main className="wlv-pane wlv-sheet ptv-sheet">
@@ -265,6 +278,187 @@ export function Sheet({ data, loading, problem, many, tradeClosed, exportButton,
         )}
 
         {data && <p className="ptv-foot">Prices from BytNode, or from your exchange for a pair BytNode does not cover. A paper result is a simulation, never a real performance.</p>}
+      </div>
+    </main>
+  );
+}
+
+/* --- One position, or one holding, alone ----------------------------------- */
+
+type DetailProps = {
+  data: PaperState;
+  focus: Focus;
+  status: string;
+  live: boolean;
+  problem: string | null;
+  busy: string | null;
+  tradeClosed: boolean;
+  market: ReactNode;
+  onBack: () => void;
+  onReload: () => void;
+  onOpenTrade: () => void;
+  onRun: (key: string, action: string, params: Record<string, unknown>) => Promise<void>;
+};
+
+/** The sheet of a single position or holding: a way back to the whole
+    portfolio, its name as the title, six figures as one block of tiles,
+    for a position its road to the liquidation, then its market, its open
+    orders and its fills — with its one action in the head. */
+function Detail({ data, focus, status, live, problem, busy, tradeClosed, market, onBack, onReload, onOpenTrade, onRun }: DetailProps) {
+  const v = data.valuation;
+  const symbol = focusSymbol(focus);
+  const futures = focus.kind === "position";
+  const orders = data.orders.filter((o) => o.symbol === symbol && (o.market === "futures") === futures);
+  const fills = data.fills.filter((f) => f.symbol === symbol && (f.market === "futures") === futures);
+  const p = focus.kind === "position" ? v.positions.find((x) => x.symbol === focus.symbol) : undefined;
+  const h = focus.kind === "holding" ? v.holdings.find((x) => x.asset === focus.asset) : undefined;
+  if (!p && !h) return null;
+
+  let title: ReactNode = null;
+  let sub = "";
+  let action: ReactNode = null;
+  let figures: ReactNode = null;
+  let extra: ReactNode = null;
+  if (p) {
+    const roe = p.unrealized !== undefined && p.margin > 0 ? (p.unrealized / p.margin) * 100 : undefined;
+    const move = p.mark !== undefined ? ((p.mark - p.entryPrice) / p.entryPrice) * 100 : undefined;
+    const toward = p.mark !== undefined ? Math.max(0, Math.min(1, (p.entryPrice - p.mark) / (p.entryPrice - p.liquidation))) : 0;
+    const away = p.mark !== undefined ? (Math.abs(p.mark - p.liquidation) / p.mark) * 100 : undefined;
+    title = (
+      <>
+        <span className="pv-ink">{baseOf(p.symbol)}</span> <em className={`ptv-detail-side ${p.side === "long" ? "is-up" : "is-down"}`}>{p.side === "long" ? "Long" : "Short"}</em> <span className="ptv-detail-lev">×{p.leverage}</span>
+      </>
+    );
+    sub = `${p.symbol} futures, isolated margin — opened ${whenOf(p.openedAt)}. Paper money.`;
+    action = (
+      <button type="button" className="ptv-pill is-danger" disabled={busy !== null} onClick={() => void onRun(`close:${p.symbol}`, "order", { symbol: p.symbol, side: p.side === "long" ? "sell" : "buy", type: "market", market: "futures", amount: p.amount, reduceOnly: true })}>
+        {busy === `close:${p.symbol}` ? "Closing…" : "Close the position"}
+      </button>
+    );
+    figures = (
+      <>
+        <Figure label="Unrealized" value={signed(p.unrealized)} tone={toneOf(p.unrealized)} sub={`${pct(roe)} on the margin`} />
+        <Figure label="Size" value={`${fmt(p.amount)} ${baseOf(p.symbol)}`} sub={`${usdt(p.mark !== undefined ? p.amount * p.mark : undefined)} ${CASH} at the mark`} />
+        <Figure label="Margin" value={usdt(p.margin)} sub={`×${p.leverage}, isolated`} />
+        <Figure label="Entry price" value={price(p.entryPrice)} sub={`opened ${whenOf(p.openedAt)}`} />
+        <Figure label="Mark price" value={price(p.mark)} tone={toneOf(move === undefined ? undefined : p.side === "long" ? move : -move)} sub={move === undefined ? "no price yet" : `${pct(move)} since the entry`} />
+        <Figure label="Liquidation" value={price(p.liquidation)} tone="is-down" sub={away === undefined ? "—" : `${away.toFixed(1)} % away`} />
+      </>
+    );
+    extra = (
+      <Section title="Liquidation" sub="how far the price has gone toward it">
+        <div className="ptv-detail-liq">
+          <span className="ptv-liq-track" aria-hidden>
+            <i style={{ width: `${toward * 100}%` }} />
+          </span>
+          <small>
+            Entry {price(p.entryPrice)} · now {price(p.mark)} · liquidation {price(p.liquidation)}
+          </small>
+        </div>
+      </Section>
+    );
+  } else if (h) {
+    const cost = h.amount * h.avgPrice;
+    const move = h.unrealized !== undefined && cost > 0 ? (h.unrealized / cost) * 100 : undefined;
+    const free = data.available[h.asset] ?? 0;
+    title = (
+      <>
+        <span className="pv-ink">{h.asset}</span> <em className="ptv-detail-side">Spot</em>
+      </>
+    );
+    sub = `${h.asset}/${CASH} spot holding. Paper money.`;
+    action = (
+      <button type="button" className="ptv-pill is-danger" disabled={busy !== null || free <= 0} onClick={() => void onRun(`sell:${h.asset}`, "order", { symbol: `${h.asset}/${CASH}`, side: "sell", type: "market", market: "spot", amount: free })}>
+        {busy === `sell:${h.asset}` ? "Selling…" : "Sell all"}
+      </button>
+    );
+    figures = (
+      <>
+        <Figure label="Value" value={usdt(h.value)} sub={`${CASH} at the market`} />
+        <Figure label="Unrealized" value={signed(h.unrealized)} tone={toneOf(h.unrealized)} sub={`${pct(move)} on the cost`} />
+        <Figure label="Amount" value={`${fmt(h.amount)} ${h.asset}`} sub={`${fmt(free)} free to sell`} />
+        <Figure label="Average price" value={price(h.avgPrice)} sub="what it cost, on average" />
+        <Figure label="Price now" value={price(h.price)} tone={toneOf(move)} sub={pct(move)} />
+        <Figure label="Cost basis" value={usdt(cost)} sub={`${CASH} put in`} />
+      </>
+    );
+  }
+
+  return (
+    <main className="wlv-pane wlv-sheet ptv-sheet ptv-detail">
+      <header className="wlv-head">
+        <div className="wlv-title-block">
+          <button type="button" className="ptv-back" onClick={onBack}>
+            <ArrowLeft />
+            {data.name}
+          </button>
+          <h2 className="wlv-sheet-title">{title}</h2>
+          <p className="wlv-sheet-sub">{sub}</p>
+        </div>
+        <span className={`wlv-status${live ? " is-live" : ""}`}>{status}</span>
+        <button type="button" className="wlv-icon" onClick={onReload} aria-label="Read the prices again" title="Read the prices again">
+          <Refresh />
+        </button>
+        {action}
+        {tradeClosed && (
+          <button type="button" className="ptv-pill is-primary" onClick={onOpenTrade}>
+            Trade
+          </button>
+        )}
+      </header>
+      {problem && <p className="wlv-problem">{problem}</p>}
+
+      <div className="wlv-body">
+        <div className="wlv-insights ptv-detail-figures">{figures}</div>
+
+        {extra}
+
+        {market}
+
+        {orders.length > 0 && (
+          <Section title="Open orders" sub="on this pair">
+            <ul className="ptv-rows">
+              {orders.map((o) => {
+                const m = data.prices[o.symbol];
+                const gap = m !== undefined && o.price !== undefined ? ((o.price - m) / m) * 100 : undefined;
+                return (
+                  <li key={o.id} className="ptv-row ptv-row-order">
+                    <span className="ptv-row-name">
+                      <b>{orderTitle(o)}</b>
+                      <small>placed {whenOf(o.createdAt)}</small>
+                    </span>
+                    <span className="ptv-row-figure">
+                      <b>{price(o.price)}</b>
+                      <small>{gap !== undefined ? `${Math.abs(gap).toFixed(2)} % ${gap < 0 ? "below" : "above"} the market` : "limit"}</small>
+                    </span>
+                    <button type="button" className="wlv-icon ptv-cancel" disabled={busy !== null} onClick={() => void onRun(`cancel:${o.id}`, "cancel", { orderId: o.id })} aria-label={`Cancel: ${orderTitle(o)}`} title="Cancel the order">
+                      <Close />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </Section>
+        )}
+
+        <Section title="Activity" sub={fills.length ? `${fills.length} fill${fills.length === 1 ? "" : "s"} on this pair` : "no fill kept on this pair"}>
+          {fills.length > 0 && (
+            <ul className="ptv-rows ptv-activity">
+              {fills.map((f) => (
+                <li key={f.id} className={`ptv-row ptv-fill${f.liquidation ? " is-liquidation" : ""}`}>
+                  <span className={`ptv-dot ${f.liquidation ? "is-down" : f.side === "buy" ? "is-up" : "is-down"}`} aria-hidden />
+                  <span className="ptv-row-name">
+                    <b>{fillTitle(f)}</b>
+                    <small>
+                      {whenOf(f.at)} · at {price(f.price)} · fee {usdt(f.fee)}
+                    </small>
+                  </span>
+                  <span className={`ptv-fill-result ${toneOf(f.realizedPnl)}`}>{f.realizedPnl ? signed(f.realizedPnl) : ""}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
       </div>
     </main>
   );
