@@ -996,7 +996,7 @@ html[data-theme="light"] .md pre {
   height: 260px;
   transform: translateX(-50%);
   border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(48, 84, 168, 0.6), rgba(36, 66, 138, 0.24) 50%, transparent);
+  background: radial-gradient(closest-side, rgba(48, 84, 168, 0.45), rgba(36, 66, 138, 0.17) 50%, transparent);
   filter: blur(30px);
   opacity: 0.85;
   pointer-events: none;
