@@ -193,8 +193,8 @@ body.is-resizing {
 /* An expanded agent becomes a block: its row at the top, its conversations
    below, linked by a vertical rule. The block breathes (margins, space
    between rows) instead of stacking tight. */
+/* Open, an agent has no frame: its conversations simply unfold under it. */
 .sb-agent.is-open {
-  background: var(--matter);
   padding: 2px 4px 8px;
   margin: 2px 0 6px;
 }
