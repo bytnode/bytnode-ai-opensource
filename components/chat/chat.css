@@ -28,7 +28,6 @@
   background: rgba(4, 6, 15, 0.97);
   -webkit-backdrop-filter: blur(24px);
   backdrop-filter: blur(24px);
-  border-right: 1px solid var(--line);
 }
 
 html[data-theme="light"] .sb {
