@@ -32,9 +32,17 @@ type Props = {
 };
 
 /* A model's short name: OpenRouter prefixes the vendor's name
-   ("Anthropic: Claude Sonnet 4"); in a list already filtered by vendor,
-   that is noise. */
-export const shortName = (m: Model) => m.name.replace(/^[^:]+:\s*/, "");
+   ("Anthropic: Claude Sonnet 4"), and a subscription agent adds a note in
+   brackets ("Opus (1M context)", "Default (recommended)") — noise in a chip
+   or a value. The note is kept for the list's second line, where it tells
+   two "Opus" apart. */
+export const shortName = (m: Model) =>
+  m.name
+    .replace(/^[^:]+:\s*/, "")
+    .replace(/\s*\([^)]*\)\s*$/, "")
+    .trim() || m.name;
+
+const noteOf = (m: Model) => m.name.match(/\(([^)]*)\)\s*$/)?.[1] ?? null;
 
 const fmtContext = (n: number | null) => (n === null ? "" : n >= 1_000_000 ? `${(n / 1_000_000).toFixed(n % 1_000_000 ? 1 : 0)}M` : `${Math.round(n / 1000)}k`);
 
@@ -111,7 +119,7 @@ export function ModelPicker({
       ? "Does not reason"
       : effortValue
         ? effortLabel(effortValue)
-        : `Default${current.defaultEffort ? ` · ${effortLabel(current.defaultEffort)}` : ""}`;
+        : "Default";
 
   const choice = (key: string, title: string, sub: string | null | undefined, on: boolean, pick: () => void) => (
     <button key={key} type="button" data-item className={`cmp-item${on ? " is-on" : ""}`} aria-pressed={on} onClick={pick}>
@@ -208,7 +216,8 @@ export function ModelPicker({
                         >
                           <span className="cmp-item-text">
                             <b>{shortName(m)}</b>
-                            <small>{m.id}</small>
+                            {/* A subscription's model: its note; OpenRouter's: its id. */}
+                            {(acp ? noteOf(m) : m.id) && <small>{acp ? noteOf(m) : m.id}</small>}
                           </span>
                           {m.contextLength !== null && <span className="cmp-item-meta">{fmtContext(m.contextLength)}</span>}
                           <span className="cmp-item-check">{m.id === modelId && <Check />}</span>
@@ -222,7 +231,7 @@ export function ModelPicker({
 
             {view === "effort" && current && (
               <div className="cmp-list">
-                {choice("default", "Default", current.defaultEffort ? `The model's own: ${effortLabel(current.defaultEffort)}` : "The model decides", effortValue === null, () => {
+                {choice("default", "Default", null, effortValue === null, () => {
                   onEffort(null);
                   close(true);
                 })}

@@ -13,12 +13,14 @@ import { useEffect, useRef, type RefObject } from "react";
    one smaller with a touch of the palette's sand —, a faint bloom just
    outside the edge under the glints, and inside, a sheen.
 
-   ⚠️ THE LIGHT COMES FROM THE TOP LEFT, like the backdrop's widest
-   reflection (the whole top-left corner of the page). The edge facing it
-   is lit, the one facing away (bottom right) nearly dark, and a glint
-   fades as it travels round to the shadowed side; the inner sheen pools in
-   the top-left corner. Everything is kept soft: a pane catching a
-   reflection, never a neon tube (the first version was judged too bright).
+   ⚠️ THE LIGHT FALLS WHERE THE BACKDROP'S BEAM REACHES THE PANE, from
+   above: on the centre of the centred composer (the glow under it lights
+   its middle, not its ends), on the left of the docked one (the page's
+   top-left reflection). The top edge under that spot is lit, the rest of
+   the rim fades away from it, a glint dims as it travels into the shade,
+   and the inner sheen pools under the spot. Docked, everything is quieter
+   still — the composer then sits under the reading. Kept soft throughout:
+   a pane catching a reflection, never a neon tube.
 
    It answers what happens, and nothing else moves it:
      idle    the rim at rest, drawn once — no loop;
@@ -53,6 +55,8 @@ uniform float uRadius;  // the glass's corner radius, CSS px
 uniform float uTime;    // s
 uniform float uLevel;   // 0 idle .. 1 busy
 uniform float uLight;   // 1 on a dark theme, 0 on a light one
+uniform float uSpotX;   // where the light falls, -1 (left end) .. 1 (right end)
+uniform float uStrength;
 
 out vec4 outColor;
 
@@ -80,10 +84,11 @@ void main() {
   float t = uTime;
   float g1 = glint(a, t * 0.42 - 2.2, 7.0);
   float g2 = glint(a, -t * 0.27 + 0.9, 16.0);
-  // How much the edge here faces the light, which comes from the top left
-  // (y grows downward): 1 on the lit side, 0 on the far one.
+  // How much this part of the edge receives the light: under the spot, on
+  // the top edge (y grows downward), fading along the pane away from it.
   vec2 n = normalize(p / max(hs, vec2(1.0)) + 1e-5);
-  float facing = smoothstep(-0.55, 0.95, dot(n, normalize(vec2(-1.0, -0.85))));
+  float along = p.x / max(hs.x, 1.0) - uSpotX;
+  float facing = exp(-along * along * 2.2) * mix(0.3, 1.0, smoothstep(-0.4, 0.9, -n.y));
   float lit = (0.1 + 0.9 * facing) * (0.3 + 0.7 * clamp(g1 + 0.8 * g2, 0.0, 1.0) * (0.25 + 0.75 * facing));
 
   // The hues: the backdrop's navy, a steel blue for the glints, the sand.
@@ -102,14 +107,14 @@ void main() {
   float bloom = d > 0.0 ? exp(-d / 7.0) * 0.16 * (g1 + 0.7 * g2) * facing : 0.0;
   // Inside: a sheen falling from the top edge, a pane catching the light.
   float inside = d < 0.0 ? 1.0 : 0.0;
-  // The sheen pools in the top-left corner and dies across the pane.
-  vec2 corner = (px - vec2(uBleed)) / max(hs * 2.0, vec2(1.0));
+  // The sheen pools under the spot and dies across the pane.
+  vec2 corner = (px - vec2(centre.x + uSpotX * hs.x, uBleed)) / max(hs * 2.0, vec2(1.0));
   float pool = exp(-dot(corner * vec2(1.6, 1.1), corner * vec2(1.6, 1.1)) * 2.2);
   float sheen = inside * (exp(-(-d) / 14.0) * 0.07 * facing + pool * 0.06);
 
   float alpha = (line * lit * 0.75 + bloom + sheen) * level;
   // A light theme: the same light, quieter, the glints darker than the page.
-  alpha *= mix(0.55, 1.0, uLight);
+  alpha *= mix(0.55, 1.0, uLight) * uStrength;
   alpha = clamp(alpha, 0.0, 1.0);
   outColor = vec4(hue * alpha, alpha);
 }`;
@@ -121,7 +126,7 @@ type Rim = {
 };
 
 const RIMS = new WeakMap<HTMLCanvasElement, Rim>();
-const UNIFORMS = ["uSize", "uDpr", "uBleed", "uRadius", "uTime", "uLevel", "uLight"];
+const UNIFORMS = ["uSize", "uDpr", "uBleed", "uRadius", "uTime", "uLevel", "uLight", "uSpotX", "uStrength"];
 
 function build(canvas: HTMLCanvasElement): Rim | null {
   const gl = canvas.getContext("webgl2", { alpha: true, premultipliedAlpha: true, antialias: false });
@@ -165,9 +170,13 @@ const TARGET: Record<RimState, number> = { idle: 0, focus: 0.62, busy: 1 };
 /** How fast the glints travel, per state. */
 const PACE: Record<RimState, number> = { idle: 0, focus: 0.55, busy: 1.6 };
 
+/** Where the light falls and how strong it is: centred on the centred
+    composer, on the left and quieter on the docked one. */
+const SPOT = { centred: { x: 0.05, strength: 1 }, docked: { x: -0.55, strength: 0.5 } };
+
 /** Draws the rim on `canvas` (which overflows its glass by `RIM_BLEED`);
     `radius` is the glass's corner radius in CSS px. */
-export function useRimLight(canvas: RefObject<HTMLCanvasElement | null>, state: RimState, radius: number) {
+export function useRimLight(canvas: RefObject<HTMLCanvasElement | null>, state: RimState, radius: number, docked: boolean) {
   const target = useRef(state);
   const wake = useRef<(() => void) | null>(null);
 
@@ -213,6 +222,9 @@ export function useRimLight(canvas: RefObject<HTMLCanvasElement | null>, state: 
       gl.uniform1f(u.uTime, clock);
       gl.uniform1f(u.uLevel, level);
       gl.uniform1f(u.uLight, document.documentElement.dataset.theme === "light" ? 0 : 1);
+      const spot = docked ? SPOT.docked : SPOT.centred;
+      gl.uniform1f(u.uSpotX, spot.x);
+      gl.uniform1f(u.uStrength, spot.strength);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
 
@@ -258,5 +270,5 @@ export function useRimLight(canvas: RefObject<HTMLCanvasElement | null>, state: 
       el.removeEventListener("webglcontextlost", lost);
       el.classList.remove("is-live");
     };
-  }, [canvas, radius]);
+  }, [canvas, radius, docked]);
 }

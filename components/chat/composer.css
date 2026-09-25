@@ -20,8 +20,10 @@
   --cmp-hair: rgba(var(--ink), 0.1);
   --cmp-catch: rgba(var(--ink), 0.06);
   --cmp-shade: rgba(0, 0, 0, 0.32);
-  /* The backdrop's reflection, falling on the glass from the top left. */
+  /* The backdrop's reflection, and where it falls on the glass. */
   --cmp-reflet: 58, 94, 178;
+  --cmp-reflet-a: 0.17;
+  --cmp-light-at: 52%;
   --cmp-fill: rgba(var(--ink), 0.065);
   --cmp-fill-hover: rgba(var(--ink), 0.11);
   --cmp-label: rgba(var(--ink), 0.94);
@@ -40,12 +42,13 @@
   display: flex;
   flex-direction: column;
   border-radius: 26px;
-  /* Lit where the backdrop's top-left reflection falls on it, in shade
-     towards the bottom right. */
+  /* Lit where the backdrop's beam falls on it (`--cmp-light-at`: the
+     middle of the centred composer, the left of the docked one), in shade
+     away from it — the ends of the centred one, the right of the docked
+     one. The rim's shader puts its light at the same place. */
   background:
-    radial-gradient(90% 190% at 0% 0%, rgba(var(--cmp-reflet), 0.2), rgba(var(--cmp-reflet), 0.06) 45%, transparent 72%),
-    radial-gradient(120% 160% at 0% 0%, rgba(var(--ink), 0.05), rgba(var(--ink), 0.015) 38%, transparent 62%),
-    linear-gradient(135deg, transparent 45%, var(--cmp-shade) 100%),
+    radial-gradient(55% 190% at var(--cmp-light-at) 0%, rgba(var(--cmp-reflet), var(--cmp-reflet-a)), rgba(var(--cmp-reflet), calc(var(--cmp-reflet-a) * 0.3)) 50%, transparent 80%),
+    radial-gradient(85% 210% at var(--cmp-light-at) 0%, transparent 32%, var(--cmp-shade) 100%),
     var(--cmp-glass);
   -webkit-backdrop-filter: blur(28px) saturate(1.6);
   backdrop-filter: blur(28px) saturate(1.6);
@@ -137,11 +140,29 @@ html[data-theme="light"] .cmp {
    grows the field upward. The capsule's radius (26 px) is half its height:
    one line reads as a pill, several as a rounded pane — the rim follows. */
 .cmp.is-docked {
+  --cmp-glass: rgba(var(--voile), 0.84);
+  --cmp-reflet-a: 0.09;
+  --cmp-light-at: 16%;
+  --cmp-catch: rgba(var(--ink), 0.04);
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: end;
   column-gap: 6px;
   padding: 8px;
+}
+
+html[data-theme="light"] .cmp.is-docked {
+  --cmp-glass: rgba(255, 255, 255, 0.8);
+}
+
+/* The halo under the composer (`.chat-composer::before`, chat.css) is
+   quieter once it is docked: the light belongs to the reading then. */
+.chat-main:not(.is-fresh) .chat-composer::before {
+  opacity: 0.45;
+}
+
+.chat-main:not(.is-fresh) .chat-composer:focus-within::before {
+  opacity: 0.6;
 }
 
 .cmp.is-docked > .cmp-joints {
@@ -182,7 +203,8 @@ html[data-theme="light"] .cmp {
 }
 
 .cmp.is-docked .cmp-round,
-.cmp.is-docked .cmp-chip {
+.cmp.is-docked .cmp-chip,
+.cmp.is-docked .cmp-plus {
   height: 36px;
 }
 
@@ -246,22 +268,46 @@ html[data-theme="light"] .cmp {
   stroke-linejoin: round;
 }
 
-.cmp-plus svg {
-  transition: transform 220ms cubic-bezier(0.3, 0.68, 0.25, 1);
+/* The "+": the sign alone, no disc around it. */
+.cmp-plus {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--cmp-label-3);
+  transition: color 140ms ease;
 }
 
-/* Open, the "+" turns into a cross: pressing it again closes. */
+.cmp-plus:hover:not(:disabled),
 .cmp-plus.is-open {
-  background: var(--cmp-fill-hover);
   color: var(--cmp-label);
 }
 
+.cmp-plus svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  transition: transform 220ms cubic-bezier(0.3, 0.68, 0.25, 1);
+}
+
+/* Open, it turns into a cross: pressing it again closes. */
 .cmp-plus.is-open svg {
   transform: rotate(45deg);
 }
 
 .cmp-plus:disabled {
   opacity: 0.4;
+}
+
+.cmp-plus:focus-visible {
+  outline: 2px solid var(--cmp-accent);
+  outline-offset: 0;
 }
 
 /* Send: glass at rest; the backdrop's navy, lit, when there is something
@@ -313,21 +359,24 @@ html[data-theme="light"] .cmp {
   gap: 7px;
   height: 34px;
   max-width: 280px;
-  padding: 0 10px 0 14px;
+  padding: 0 8px 0 10px;
   border: 0;
-  border-radius: 999px;
-  background: var(--cmp-fill);
-  box-shadow: inset 0 0 0 1px var(--cmp-hair), inset 0 1px 0 var(--cmp-catch);
-  color: var(--cmp-label);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--cmp-label-2);
   font-size: 13px;
   font-weight: 500;
   letter-spacing: -0.005em;
-  transition: background-color 140ms ease;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
 }
 
+/* No grey pill: the model in ink, and a veil only under the hand. */
 .cmp-chip:hover:not(:disabled),
 .cmp-chip.is-open {
-  background: var(--cmp-fill-hover);
+  background: rgba(var(--ink), 0.06);
+  color: var(--cmp-label);
 }
 
 .cmp-chip:disabled {

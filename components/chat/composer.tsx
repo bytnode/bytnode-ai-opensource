@@ -106,7 +106,7 @@ export function Composer({
   const index = Math.min(selected, Math.max(0, commands.length - 1));
 
   const rim: RimState = streaming ? "busy" : focused || text.length > 0 ? "focus" : "idle";
-  useRimLight(rimCanvas, rim, RADIUS);
+  useRimLight(rimCanvas, rim, RADIUS, docked);
 
   useEffect(() => {
     area.current?.focus();
@@ -286,7 +286,7 @@ export function Composer({
           <button
             ref={plus}
             type="button"
-            className={`cmp-round cmp-plus${pop === "plus" ? " is-open" : ""}`}
+            className={`cmp-plus${pop === "plus" ? " is-open" : ""}`}
             aria-label="Add"
             aria-haspopup="dialog"
             aria-expanded={pop === "plus"}
