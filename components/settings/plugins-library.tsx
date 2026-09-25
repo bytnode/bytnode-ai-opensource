@@ -20,8 +20,8 @@ import type { SettingsTab } from "./settings-panel";
    The plugin library, in the settings.
 
    Only the plugins shipped with the app — no catalogue from elsewhere.
-   The list groups them by category, with a search, a switch, the
-   prerequisites they need and their state when it is not "running". A
+   The library shows them as blocks grouped by category, with a search;
+   each block carries the prerequisites it needs, its state and its switch. A
    plugin's page says everything it does: what it is, the views it opens,
    the tools it gives the agents WITH WHAT EACH MAY DO WITHOUT YOU, whom it
    depends on and who depends on it, its settings, which agents may use
@@ -96,12 +96,27 @@ export function PluginsLibrary({ settings, initial, onUpdate, onGo }: Props) {
   );
 }
 
-/* --- The list ---------------------------------------------------------------- */
+/* --- The library ------------------------------------------------------------
 
-function StateNote({ status }: { status: PluginStatus }) {
-  if (status.state === "error") return <span className="pl-state is-error" title={status.message}>Error</span>;
-  if (status.state === "blocked") return <span className="pl-state" title={status.message}>Waiting</span>;
-  return null;
+   A shelf of blocks, one per plugin, under its category. A block opens the
+   plugin's page; its foot says whether it runs — on the left, green when
+   active, red when off (and when it failed), amber while it waits for a
+   plugin it needs — and holds its switch on the right. */
+
+function StateTag({ on, status }: { on: boolean; status: PluginStatus }) {
+  const [tone, label] = !on
+    ? ["is-off", "Inactive"]
+    : status.state === "error"
+      ? ["is-off", "Error"]
+      : status.state === "blocked"
+        ? ["is-wait", "Waiting"]
+        : ["is-on", "Active"];
+  return (
+    <span className={`pl-state ${tone}`} title={on && status.state !== "active" ? status.message : undefined}>
+      <i aria-hidden="true" />
+      {label}
+    </span>
+  );
 }
 
 function PluginList({ settings, statusOf, onOpen, onToggle }: { settings: Settings; statusOf: (id: string) => PluginStatus; onOpen: (id: string) => void; onToggle: (id: string, on: boolean) => void }) {
@@ -124,18 +139,20 @@ function PluginList({ settings, statusOf, onOpen, onToggle }: { settings: Settin
         if (inCat.length === 0) return null;
         return (
           <section key={cat.id} className="st-section">
-            <h2 className="st-section-title">{cat.label}</h2>
-            <ul className="pl-list">
+            <h2 className="st-section-title">
+              {cat.label}
+              <span className="pl-count">{inCat.length}</span>
+            </h2>
+            <ul className="pl-grid">
               {inCat.map((m) => {
                 const on = pluginSettings(settings.plugins, m.id).enabled;
-                const st = statusOf(m.id);
                 const missing = unmetNeeds(settings, m);
                 return (
-                  <li key={m.id} className="pl-item">
+                  <li key={m.id} className={`pl-card${on ? "" : " is-disabled"}`}>
                     <button type="button" className="pl-open" onClick={() => onOpen(m.id)}>
                       <span className="pl-name">
                         {m.name}
-                        <StateNote status={st} />
+                        <ArrowRight />
                       </span>
                       <span className="pl-summary">{m.summary}</span>
                       {m.needs.length > 0 && (
@@ -148,7 +165,10 @@ function PluginList({ settings, statusOf, onOpen, onToggle }: { settings: Settin
                         </span>
                       )}
                     </button>
-                    <Switch on={on} onChange={(v) => onToggle(m.id, v)} label={`${on ? "Switch off" : "Switch on"} ${m.name}`} />
+                    <div className="pl-foot">
+                      <StateTag on={on} status={statusOf(m.id)} />
+                      <Switch on={on} onChange={(v) => onToggle(m.id, v)} label={`${on ? "Switch off" : "Switch on"} ${m.name}`} />
+                    </div>
                   </li>
                 );
               })}

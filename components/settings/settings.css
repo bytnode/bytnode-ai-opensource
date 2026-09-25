@@ -4,8 +4,8 @@
    A block laid on the veil (`.ob`, shared with the assistant): a navigation
    column on the left, the content on the right, which scrolls on its own.
    Each setting is a ROW — the label and its hint on the left, the control on
-   the right — separated from the next by a rule; the section title groups
-   them. No cards: the structure is carried by rules, not by boxes.
+   the right — and a section's rows form one group of tiles (see "The
+   plugins' language" below).
 --------------------------------------------------------------------------- */
 
 .st-veil {
@@ -396,7 +396,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 18px;
+  margin-top: 22px;
   padding: 0 14px;
   height: 40px;
   border-radius: var(--radius);
@@ -422,48 +422,97 @@
   outline: none;
 }
 
-.pl-list {
-  list-style: none;
-  margin: 0;
+/* The library: a shelf of blocks, as the plugins' tiles — a round block
+   per plugin that lights up under the hand, its name, what it does, what
+   it needs; at its foot the state (a coloured dot and a word) on the left
+   and the switch on the right. Colour is the state's only: Apple's green,
+   red and amber, as in the plugins' views. */
+.pl-grid {
+  --pl-on: #30d158;
+  --pl-off: #ff453a;
+  --pl-wait: #ff9f0a;
+
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 18px;
+  margin: 18px 0 0;
   padding: 0;
+  list-style: none;
 }
 
-.pl-item {
+/* Air between the categories: each shelf stands on its own. */
+.st-section:has(> .pl-grid) {
+  margin-top: 44px;
+}
+
+html[data-theme="light"] .pl-grid {
+  --pl-on: #248a3d;
+  --pl-off: #d70015;
+  --pl-wait: #c77700;
+}
+
+.pl-card {
   display: flex;
-  align-items: center;
-  gap: 16px;
-  border-bottom: 1px solid var(--line);
+  flex-direction: column;
+  min-height: 164px;
+  border-radius: 18px;
+  background: rgba(var(--ink), 0.035);
+  transition: background-color 120ms ease;
+}
+
+.pl-card:hover {
+  background: rgba(var(--ink), 0.06);
 }
 
 .pl-open {
   flex: 1;
-  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 13px 8px 13px 0;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 20px 20px 12px;
   border: 0;
+  border-radius: 18px 18px 0 0;
   background: transparent;
   color: var(--fg);
   text-align: left;
 }
 
-.pl-open:hover .pl-name {
-  text-decoration: underline;
-  text-decoration-color: var(--line-strong);
-  text-underline-offset: 3px;
-}
-
 .pl-name {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.92rem;
-  font-weight: 500;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* The arrow says the block opens a page; it wakes under the hand. */
+.pl-name svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--fg-faint);
+  opacity: 0;
+  transform: translateX(-3px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.pl-card:hover .pl-name svg {
+  opacity: 1;
+  transform: none;
 }
 
 .pl-summary {
-  font-size: 0.8rem;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.5;
   color: var(--fg-muted);
 }
 
@@ -471,34 +520,66 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 3px;
+  margin-top: 2px;
 }
 
 .pl-need {
-  padding: 1px 8px;
+  padding: 2px 8px;
   border-radius: 999px;
-  border: 1px solid var(--line);
-  font-size: 0.7rem;
+  background: rgba(var(--ink), 0.06);
+  font-size: 11.5px;
   color: var(--fg-muted);
 }
 
 .pl-need.is-missing {
-  border-color: #e3b341;
-  color: #e3b341;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--pl-wait);
+  color: var(--pl-wait);
+}
+
+/* The foot: the state on the left, the switch on the right — no rule,
+   the air parts it from the text. */
+.pl-foot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 18px 18px 20px;
 }
 
 .pl-state {
-  padding: 0 7px;
-  border-radius: 999px;
-  background: var(--matter-strong);
-  color: var(--fg-muted);
-  font-size: 0.68rem;
-  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
 }
 
-.pl-state.is-error {
-  background: #b3261e;
-  color: #fff;
+.pl-state i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.pl-state.is-on {
+  color: var(--pl-on);
+}
+
+.pl-state.is-off {
+  color: var(--pl-off);
+}
+
+.pl-state.is-wait {
+  color: var(--pl-wait);
+}
+
+/* How many plugins a category holds, set back beside its name. */
+.pl-count {
+  margin-left: 8px;
+  font-weight: 400;
+  color: var(--fg-faint);
 }
 
 .pl-notice {
@@ -561,6 +642,340 @@
 
 .pl-agents {
   margin-top: 12px;
+}
+
+/* --- The plugins' language, over the whole panel ----------------------------
+
+   Like the chat and the plugins' views (plugins.css, "the bare views'
+   language") and Apple's settings: three levels of label, the title in
+   BytNode's ink, and each section a GROUP of rows set on tiles parted by
+   2 px — one block, only its outer corners round — under a small title set
+   back. Chips for states, circles for round buttons, colour for the state
+   only (a signed-in account's green dot). Scoped to `.st`: the onboarding
+   sheets that lend their forms here keep their own look. */
+
+.st {
+  --label: rgba(var(--ink), 0.95);
+  --label-2: rgba(var(--ink), 0.72);
+  --label-3: rgba(var(--ink), 0.5);
+  --sep: rgba(var(--ink), 0.1);
+  --tile: rgba(var(--ink), 0.045);
+  --tile-hover: rgba(var(--ink), 0.065);
+  --fill: rgba(var(--ink), 0.06);
+  --fill-strong: rgba(var(--ink), 0.1);
+  --r-block: 14px;
+  --r-sm: 10px;
+  --title-ink: linear-gradient(180deg, #f1f4f9 0%, #e1e6ee 45%, #c3cad5 100%);
+  --up: #30d158;
+
+  border-radius: 22px;
+  border-color: rgba(var(--ink), 0.1);
+  color: var(--label);
+}
+
+html[data-theme="light"] .st {
+  --label: rgba(var(--ink), 0.94);
+  --label-2: rgba(var(--ink), 0.68);
+  --label-3: rgba(var(--ink), 0.5);
+  --tile: rgba(var(--ink), 0.04);
+  --tile-hover: rgba(var(--ink), 0.06);
+  --title-ink: linear-gradient(180deg, #3a4d6b 0%, #2c3e5a 55%, #22334c 100%);
+  --up: #248a3d;
+}
+
+/* The navigation: the watchlist's left pane — entries that fill up. */
+.st .st-nav {
+  gap: 2px;
+  padding: 24px 12px;
+  border-right-color: var(--sep);
+  background: rgba(var(--ink), 0.02);
+}
+
+.st .st-nav-title {
+  padding: 0 12px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--label-3);
+}
+
+.st .st-nav-item {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: var(--r-sm);
+  color: var(--label-2);
+  font-size: 14px;
+}
+
+.st .st-nav-item:hover {
+  background: var(--fill);
+  color: var(--label);
+}
+
+.st .st-nav-item.is-on {
+  background: var(--fill-strong);
+  color: var(--label);
+  font-weight: 600;
+}
+
+.st .st-close:hover,
+.st .st-icon:hover,
+.st .st-back:hover {
+  background: var(--fill);
+  color: var(--label);
+}
+
+/* The page: a title in BytNode's ink, a lede set back. */
+.st .st-content {
+  padding: 34px 44px 48px;
+}
+
+.st .st-title,
+.st .st-agent-form .ob-title {
+  margin-bottom: 8px;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 500;
+  font-size: 28px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  background-image: var(--title-ink);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.st .st-head .st-title {
+  margin: 0;
+}
+
+.st .st-lede,
+.st .st-agent-form .ob-lede {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--label-3);
+}
+
+/* A section: its small title, then its group. */
+.st .st-section {
+  margin-top: 36px;
+}
+
+.st .st-section-title {
+  margin: 0 0 10px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--label-3);
+}
+
+/* The rows of a section and the agents: each its own tile, fully round,
+   with air between them — a row reads alone. The providers stay one group
+   of tiles parted by 2 px (the first rounds its top, the last its bottom). */
+.st .st-row,
+.st .st-agent,
+.st .sub {
+  border: 0;
+  background: var(--tile);
+  box-shadow: none;
+}
+
+.st .st-row {
+  padding: 16px 20px;
+  border-radius: var(--r-block);
+}
+
+.st .st-row + .st-row {
+  margin-top: 10px;
+}
+
+.st .st-agent {
+  padding: 10px 12px 10px 20px;
+  border-radius: var(--r-block);
+}
+
+.st .st-agent + .st-agent {
+  margin-top: 10px;
+}
+
+.st .sub {
+  padding: 14px 18px;
+  border-radius: 4px;
+}
+
+.st .sub + .sub {
+  margin-top: 2px;
+}
+
+.st .sub:not(.sub + .sub) {
+  border-top-left-radius: var(--r-block);
+  border-top-right-radius: var(--r-block);
+}
+
+.st .sub:not(:has(+ .sub)) {
+  border-bottom-left-radius: var(--r-block);
+  border-bottom-right-radius: var(--r-block);
+}
+
+.st .st-row-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--label);
+}
+
+.st .st-row-hint,
+.st .field-hint {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--label-3);
+}
+
+/* Fields: a fill a shade above the tile, rounder. */
+.st .field-input {
+  height: 40px;
+  border-radius: var(--r-sm);
+  background: var(--fill);
+  font-size: 14px;
+}
+
+.st textarea.field-input {
+  height: auto;
+  padding-top: 11px;
+}
+
+.st .field-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+/* The forms lent by the onboarding (the keys, the exchanges): one tile
+   each. */
+.st .st-form {
+  gap: 24px;
+  padding: 20px 20px 22px;
+  border-radius: var(--r-block);
+  background: var(--tile);
+}
+
+/* Two positions: Apple's segmented control. */
+.st .st-seg {
+  padding: 3px;
+  border-radius: var(--r-sm);
+  background: var(--fill);
+}
+
+.st .st-seg-btn {
+  padding: 6px 16px;
+  border-radius: 8px;
+  color: var(--label-2);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.st .st-seg-btn.is-on {
+  background: rgba(var(--ink), 0.18);
+  color: var(--label);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+html[data-theme="light"] .st .st-seg-btn.is-on {
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+/* Agents: the group of their rows; the name in ink, the rest set back. */
+.st .st-agents {
+  margin-top: 24px;
+}
+
+.st .st-agent:hover {
+  background: var(--tile-hover);
+}
+
+.st .st-agent-name {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.st .st-agent-text {
+  gap: 2px;
+}
+
+.st .st-agent-meta {
+  font-size: 12.5px;
+  color: var(--label-3);
+}
+
+.st .st-icon {
+  border-radius: 50%;
+  color: var(--label-3);
+}
+
+.st .st-empty {
+  border: 0;
+  border-radius: var(--r-block);
+  background: var(--tile);
+  font-size: 13.5px;
+  color: var(--label-3);
+}
+
+.st .st-back {
+  margin-bottom: 20px;
+  height: 30px;
+  padding: 0 12px 0 9px;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* The foot of the agent form, under a 2 px rule with round ends. */
+.st .st-foot {
+  position: relative;
+  border-top: 0;
+}
+
+.st .st-foot::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--sep);
+}
+
+/* Providers: one group of rows. A signed-in account says so with a green
+   dot before its name, not a bar on its edge. */
+.st .subs {
+  gap: 0;
+}
+
+.st .sub:hover {
+  background: var(--tile-hover);
+}
+
+.st .sub-name {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--label);
+}
+
+.st .sub-desc {
+  font-size: 12.5px;
+  color: var(--label-3);
+}
+
+.st .sub.is-on .sub-name::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--up);
+  vertical-align: 1px;
 }
 
 /* --- Narrow ------------------------------------------------------------------ */
