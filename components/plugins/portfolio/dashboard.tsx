@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { STABLES, type Summary, type WalletSplit } from "@/lib/plugins/portfolio/aggregate";
 import { PERIODS, performance, type Period } from "@/lib/plugins/portfolio/performance";
 import type { Activity, Coverage } from "@/lib/plugins/portfolio/backfill";
@@ -73,7 +73,12 @@ const signed = (v: number, digits = 2) => `${v >= 0 ? "+" : "−"}${Math.abs(v).
 const toneOf = (v: number | undefined) => (v === undefined || v === 0 ? "is-flat" : v > 0 ? "is-up" : "is-down");
 const dayOf = (t: number) => new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 
+/** Activities shown before "Show more". */
+const ACTS_SHOWN = 3;
+
 export function Dashboard({ summary, account, series, period, onPeriod, value, perUsd, currency, onScope, origin = null, activity = null, coverage = null, reading = false, access = null }: Props) {
+  /* The activity list: the three latest, the rest behind "Show more". */
+  const [allActs, setAllActs] = useState(false);
   const whole = account === null;
   const perf = performance(series);
   const assets = account ? account.assets : summary.assets;
@@ -345,7 +350,7 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
             <p className="pfv-quiet">{reading ? "Reading the trades, deposits and withdrawals…" : "No trade, deposit or withdrawal in this period."}</p>
           ) : (
             <div className="wlv-events">
-              {acts.slice(0, 14).map((a, i) => (
+              {(allActs ? acts : acts.slice(0, ACTS_SHOWN)).map((a, i) => (
                 <div key={`${a.t}:${a.kind}:${a.asset}:${i}`} className="wlv-event pfv-act" style={{ "--tone": ACT_TONE[a.kind] } as CSSProperties}>
                   <span className="pfv-act-when">{new Date(a.t).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
                   <span className="pfv-act-what">
@@ -356,7 +361,11 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
                   <span className="pfv-position-account">{labelOf.get(a.account)?.label ?? ""}</span>
                 </div>
               ))}
-              {acts.length > 14 && <p className="pfv-quiet pfv-act-more">and {acts.length - 14} more in this period</p>}
+              {acts.length > ACTS_SHOWN && (
+                <button type="button" className="pfv-act-more" onClick={() => setAllActs(!allActs)} aria-expanded={allActs}>
+                  {allActs ? "Show less" : `Show ${acts.length - ACTS_SHOWN} more`}
+                </button>
+              )}
             </div>
           )}
         </Part>

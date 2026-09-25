@@ -896,9 +896,29 @@ html[data-theme="light"] .pfv-currency-list {
   color: var(--label-3);
 }
 
+/* After the three latest: the rest on demand, as the list's last tile. */
 .pfv-act-more {
+  width: 100%;
+  min-height: 44px;
   padding: 10px 24px;
+  border: 0;
   background: var(--tile);
+  color: var(--label-2);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pfv-act-more:hover {
+  background: var(--tile-today);
+  color: var(--label);
+}
+
+.pfv-act-more:focus-visible {
+  outline: 2px solid rgba(var(--ink), 0.5);
+  outline-offset: -2px;
 }
 
 /* How far each exchange's history reached: a row per account, a chip per
