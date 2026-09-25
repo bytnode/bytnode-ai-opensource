@@ -172,7 +172,7 @@ const PACE: Record<RimState, number> = { idle: 0, focus: 0.55, busy: 1.6 };
 
 /** Where the light falls and how strong it is: centred on the centred
     composer, on the left and quieter on the docked one. */
-const SPOT = { centred: { x: 0.05, strength: 1 }, docked: { x: -0.55, strength: 0.5 } };
+const SPOT = { centred: { x: 0.05, strength: 0.72 }, docked: { x: -0.55, strength: 0.5 } };
 
 /** Draws the rim on `canvas` (which overflows its glass by `RIM_BLEED`);
     `radius` is the glass's corner radius in CSS px. */

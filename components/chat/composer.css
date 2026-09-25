@@ -21,8 +21,8 @@
   --cmp-catch: rgba(var(--ink), 0.06);
   --cmp-shade: rgba(0, 0, 0, 0.32);
   /* The backdrop's reflection, and where it falls on the glass. */
-  --cmp-reflet: 58, 94, 178;
-  --cmp-reflet-a: 0.17;
+  --cmp-reflet: 44, 72, 140;
+  --cmp-reflet-a: 0.11;
   --cmp-light-at: 52%;
   --cmp-fill: rgba(var(--ink), 0.065);
   --cmp-fill-hover: rgba(var(--ink), 0.11);
@@ -155,8 +155,17 @@ html[data-theme="light"] .cmp.is-docked {
   --cmp-glass: rgba(255, 255, 255, 0.8);
 }
 
-/* The halo under the composer (`.chat-composer::before`, chat.css) is
-   quieter once it is docked: the light belongs to the reading then. */
+/* The halo under the composer (`.chat-composer::before`, chat.css): a
+   little quieter centred, where it lit the pane's middle too brightly, and
+   quieter still once docked — the light belongs to the reading then. */
+.chat-main.is-fresh .chat-composer::before {
+  opacity: 0.62;
+}
+
+.chat-main.is-fresh .chat-composer:focus-within::before {
+  opacity: 0.75;
+}
+
 .chat-main:not(.is-fresh) .chat-composer::before {
   opacity: 0.45;
 }
