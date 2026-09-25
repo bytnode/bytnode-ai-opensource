@@ -22,10 +22,9 @@
   flex-direction: column;
   min-height: 0;
   padding: 14px 12px;
-  /* A blue so dark it is almost black — the backdrop's ground with a touch
-     more blue — and opaque enough that the page's light does not show
-     through: a quiet band beside the reading. */
-  background: rgba(4, 6, 15, 0.97);
+  /* Black — the backdrop's own ground (1 1 4), opaque enough that the
+     page's light does not show through: a quiet band beside the reading. */
+  background: rgba(1, 1, 4, 0.98);
   -webkit-backdrop-filter: blur(24px);
   backdrop-filter: blur(24px);
 }
