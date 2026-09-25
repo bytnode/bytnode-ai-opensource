@@ -31,6 +31,8 @@ type Props = {
   onScreenshot: () => Promise<Attachment[]>;
   /** Changes on every new conversation: the field takes focus again. */
   focusKey: string;
+  /** The conversation has begun: one line under it, not the centred pane. */
+  docked?: boolean;
 };
 
 /** The glass's corner radius, CSS px: `composer.css` (`.cmp`) and the rim's
@@ -43,11 +45,12 @@ const RADIUS = 26;
    The glass is CSS (`composer.css`); its edge is a rim of light drawn by a
    shader (`rim-light.ts`) that wakes when the user writes and travels while
    the agent replies. Enter sends, Shift+Enter breaks the line; the field
-   grows with the text up to a height where it scrolls. Under it, in glass
-   too: the "+" on the left; on the right the conversation's settings (a
-   chip: the model, its effort) and the send button — the backdrop's navy,
-   lit, when there is something to send; a square while the agent replies,
-   which stops it.
+   grows with the text up to a height where it scrolls. Centred (a new
+   conversation), the field is on top and the controls under it; `docked`
+   (the conversation has begun), everything is one line: the "+", the
+   field, the conversation's settings (a chip: the model, its effort), the
+   send button — the backdrop's navy, lit, when there is something to send;
+   a square while the agent replies, which stops it.
 
    The two popovers (the "+", the settings) close as menus do: a press
    anywhere else, Escape — and typing or clicking in the field, since the
@@ -78,6 +81,7 @@ export function Composer({
   onAttachFiles,
   onScreenshot,
   focusKey,
+  docked = false,
 }: Props) {
   const [text, setText] = useState("");
   const area = useRef<HTMLTextAreaElement>(null);
@@ -203,7 +207,7 @@ export function Composer({
   const canSend = (text.trim().length > 0 || attachments.length > 0) && !disabled && !!modelId;
 
   return (
-    <div className={`cmp${focused ? " is-focused" : ""}${streaming ? " is-busy" : ""}`} onFocus={onFocusIn} onBlur={onFocusOut}>
+    <div className={`cmp${docked ? " is-docked" : ""}${focused ? " is-focused" : ""}${streaming ? " is-busy" : ""}`} onFocus={onFocusIn} onBlur={onFocusOut}>
       <canvas ref={rimCanvas} className="cmp-rim" aria-hidden />
       {(attachments.length > 0 || research || failure) && (
         <div className="cmp-joints">

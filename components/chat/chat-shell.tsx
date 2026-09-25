@@ -507,6 +507,7 @@ export function ChatShell({ settings }: Props) {
             onAttachFiles={(files) => attachFiles(cible, files)}
             onScreenshot={() => attachScreenshot(cible)}
             focusKey={`${agent?.id ?? ""}:${active ?? "new"}`}
+            docked={!fresh}
           />
           <p className="chat-foot">
             The agent can make mistakes. Check what matters.

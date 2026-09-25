@@ -11,8 +11,14 @@ import { useEffect, useRef, type RefObject } from "react";
    hairline along the edge, in the backdrop's navy (`MARINE.scene.lumiere`,
    raised to read on black), where two soft glints travel — one steel blue,
    one smaller with a touch of the palette's sand —, a faint bloom just
-   outside the edge under the glints, and inside, a sheen falling from the
-   top edge as on a glass pane.
+   outside the edge under the glints, and inside, a sheen.
+
+   ⚠️ THE LIGHT COMES FROM THE TOP LEFT, like the backdrop's widest
+   reflection (the whole top-left corner of the page). The edge facing it
+   is lit, the one facing away (bottom right) nearly dark, and a glint
+   fades as it travels round to the shadowed side; the inner sheen pools in
+   the top-left corner. Everything is kept soft: a pane catching a
+   reflection, never a neon tube (the first version was judged too bright).
 
    It answers what happens, and nothing else moves it:
      idle    the rim at rest, drawn once — no loop;
@@ -74,7 +80,11 @@ void main() {
   float t = uTime;
   float g1 = glint(a, t * 0.42 - 2.2, 7.0);
   float g2 = glint(a, -t * 0.27 + 0.9, 16.0);
-  float lit = 0.22 + 0.78 * clamp(g1 + 0.8 * g2, 0.0, 1.0);
+  // How much the edge here faces the light, which comes from the top left
+  // (y grows downward): 1 on the lit side, 0 on the far one.
+  vec2 n = normalize(p / max(hs, vec2(1.0)) + 1e-5);
+  float facing = smoothstep(-0.55, 0.95, dot(n, normalize(vec2(-1.0, -0.85))));
+  float lit = (0.1 + 0.9 * facing) * (0.3 + 0.7 * clamp(g1 + 0.8 * g2, 0.0, 1.0) * (0.25 + 0.75 * facing));
 
   // The hues: the backdrop's navy, a steel blue for the glints, the sand.
   vec3 navy = vec3(0.19, 0.33, 0.66);
@@ -83,19 +93,21 @@ void main() {
   vec3 hue = mix(navy, steel, clamp(g1 + g2, 0.0, 1.0));
   hue = mix(hue, sand, 0.45 * g2);
 
-  float level = mix(0.38, 1.0, uLevel);
+  float level = mix(0.3, 0.72, uLevel);
   float px1 = 1.0 / uDpr;
 
   // The hairline on the edge, one device pixel and its antialiasing.
   float line = 1.0 - smoothstep(0.0, 0.9 + px1, abs(d + 0.5));
   // The bloom outside the edge, under the glints only.
-  float bloom = d > 0.0 ? exp(-d / 7.0) * 0.32 * (g1 + 0.7 * g2) : 0.0;
+  float bloom = d > 0.0 ? exp(-d / 7.0) * 0.16 * (g1 + 0.7 * g2) * facing : 0.0;
   // Inside: a sheen falling from the top edge, a pane catching the light.
   float inside = d < 0.0 ? 1.0 : 0.0;
-  float top = clamp((px.y - uBleed) / max(hs.y * 2.0, 1.0), 0.0, 1.0);
-  float sheen = inside * exp(-(-d) / 16.0) * (0.10 + 0.14 * g1) + inside * (1.0 - smoothstep(0.0, 0.5, top)) * 0.035;
+  // The sheen pools in the top-left corner and dies across the pane.
+  vec2 corner = (px - vec2(uBleed)) / max(hs * 2.0, vec2(1.0));
+  float pool = exp(-dot(corner * vec2(1.6, 1.1), corner * vec2(1.6, 1.1)) * 2.2);
+  float sheen = inside * (exp(-(-d) / 14.0) * 0.07 * facing + pool * 0.06);
 
-  float alpha = (line * lit * 0.9 + bloom + sheen) * level;
+  float alpha = (line * lit * 0.75 + bloom + sheen) * level;
   // A light theme: the same light, quieter, the glints darker than the page.
   alpha *= mix(0.55, 1.0, uLight);
   alpha = clamp(alpha, 0.0, 1.0);

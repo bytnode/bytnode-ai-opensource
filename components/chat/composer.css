@@ -18,7 +18,10 @@
   --cmp-glass: rgba(var(--voile), 0.6);
   --cmp-pane: rgba(var(--voile), 0.94);
   --cmp-hair: rgba(var(--ink), 0.1);
-  --cmp-catch: rgba(var(--ink), 0.08);
+  --cmp-catch: rgba(var(--ink), 0.06);
+  --cmp-shade: rgba(0, 0, 0, 0.32);
+  /* The backdrop's reflection, falling on the glass from the top left. */
+  --cmp-reflet: 58, 94, 178;
   --cmp-fill: rgba(var(--ink), 0.065);
   --cmp-fill-hover: rgba(var(--ink), 0.11);
   --cmp-label: rgba(var(--ink), 0.94);
@@ -26,9 +29,9 @@
   --cmp-label-3: rgba(var(--ink), 0.44);
   /* The backdrop's navy, lit (`MARINE.scene.lumiere` raised), and the
      steel blue of the rim's glints: what is live or chosen. */
-  --cmp-lit-hi: 150, 184, 240;
-  --cmp-lit: 72, 108, 196;
-  --cmp-lit-lo: 38, 68, 146;
+  --cmp-lit-hi: 118, 150, 212;
+  --cmp-lit: 60, 92, 170;
+  --cmp-lit-lo: 34, 58, 124;
   --cmp-accent: rgb(132, 168, 234);
   --cmp-shadow: 0 26px 60px -26px rgba(0, 0, 0, 0.8), 0 2px 10px -4px rgba(0, 0, 0, 0.5);
   --cmp-pop-shadow: 0 30px 70px -20px rgba(0, 0, 0, 0.85), 0 4px 14px -6px rgba(0, 0, 0, 0.5);
@@ -37,8 +40,12 @@
   display: flex;
   flex-direction: column;
   border-radius: 26px;
+  /* Lit where the backdrop's top-left reflection falls on it, in shade
+     towards the bottom right. */
   background:
-    linear-gradient(180deg, rgba(var(--ink), 0.05), rgba(var(--ink), 0.012) 38%, transparent 70%),
+    radial-gradient(90% 190% at 0% 0%, rgba(var(--cmp-reflet), 0.2), rgba(var(--cmp-reflet), 0.06) 45%, transparent 72%),
+    radial-gradient(120% 160% at 0% 0%, rgba(var(--ink), 0.05), rgba(var(--ink), 0.015) 38%, transparent 62%),
+    linear-gradient(135deg, transparent 45%, var(--cmp-shade) 100%),
     var(--cmp-glass);
   -webkit-backdrop-filter: blur(28px) saturate(1.6);
   backdrop-filter: blur(28px) saturate(1.6);
@@ -54,6 +61,8 @@ html[data-theme="light"] .cmp {
   --cmp-pane: rgba(255, 255, 255, 0.96);
   --cmp-hair: rgba(var(--ink), 0.1);
   --cmp-catch: rgba(255, 255, 255, 0.9);
+  --cmp-shade: rgba(40, 60, 100, 0.07);
+  --cmp-reflet: 120, 150, 215;
   --cmp-fill: rgba(var(--ink), 0.05);
   --cmp-fill-hover: rgba(var(--ink), 0.09);
   --cmp-label: rgba(var(--ink), 0.92);
@@ -94,9 +103,9 @@ html[data-theme="light"] .cmp {
 
 .cmp-input {
   width: 100%;
-  min-height: 54px;
+  min-height: 48px;
   max-height: 220px;
-  padding: 17px 22px 6px;
+  padding: 14px 20px 4px;
   border: 0;
   background: transparent;
   color: var(--cmp-label);
@@ -120,6 +129,67 @@ html[data-theme="light"] .cmp {
   color: var(--cmp-label-3);
 }
 
+/* --- Docked: one line --------------------------------------------------------
+   Once the conversation has begun the composer sits under it as a single
+   capsule: the "+", the field, the settings chip, the send button, in that
+   order. The bar dissolves (`display: contents`) so its pieces take their
+   own columns; they stay at the foot of the line while a long message
+   grows the field upward. The capsule's radius (26 px) is half its height:
+   one line reads as a pill, several as a rounded pane — the rim follows. */
+.cmp.is-docked {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: end;
+  column-gap: 6px;
+  padding: 8px;
+}
+
+.cmp.is-docked > .cmp-joints {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  padding: 4px 4px 8px;
+}
+
+.cmp.is-docked .cmp-bar {
+  display: contents;
+}
+
+.cmp.is-docked .cmp-spacer {
+  display: none;
+}
+
+.cmp.is-docked .cmp-anchor:first-child {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.cmp.is-docked > .cmp-input {
+  grid-column: 2;
+  grid-row: 2;
+  min-height: 36px;
+  padding: 7px 6px;
+  font-size: 15px;
+}
+
+.cmp.is-docked .cmp-bar > .cmp-anchor:not(:first-child) {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.cmp.is-docked .cmp-send {
+  grid-column: 4;
+  grid-row: 2;
+}
+
+.cmp.is-docked .cmp-round,
+.cmp.is-docked .cmp-chip {
+  height: 36px;
+}
+
+.cmp.is-docked .cmp-round {
+  width: 36px;
+}
+
 /* --- The bar under it ------------------------------------------------------- */
 
 /* ⚠️ The bar and its anchors stay unpositioned: the popovers then rise
@@ -128,7 +198,7 @@ html[data-theme="light"] .cmp {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 11px 11px;
+  padding: 4px 9px 9px;
 }
 
 .cmp-spacer {
@@ -204,9 +274,9 @@ html[data-theme="light"] .cmp {
 .cmp-send.is-ready {
   background: radial-gradient(130% 130% at 30% 18%, rgb(var(--cmp-lit-hi)) 0%, rgb(var(--cmp-lit)) 46%, rgb(var(--cmp-lit-lo)) 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.38),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
-    0 8px 22px -6px rgba(var(--cmp-lit), 0.75);
+    inset 0 1px 0 rgba(255, 255, 255, 0.26),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 6px 16px -6px rgba(var(--cmp-lit), 0.55);
   color: #fff;
 }
 
