@@ -22,9 +22,10 @@
   flex-direction: column;
   min-height: 0;
   padding: 14px 12px;
-  /* A deep, dark navy, nearly opaque: darker than the lit page, bluer than
-     the backdrop's black ground — a quiet band beside the reading. */
-  background: rgba(6, 11, 26, 0.94);
+  /* A blue so dark it is almost black — the backdrop's ground with a touch
+     more blue — and opaque enough that the page's light does not show
+     through: a quiet band beside the reading. */
+  background: rgba(4, 6, 15, 0.97);
   -webkit-backdrop-filter: blur(24px);
   backdrop-filter: blur(24px);
   border-right: 1px solid var(--line);
