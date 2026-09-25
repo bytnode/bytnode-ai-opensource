@@ -96,25 +96,6 @@ html[data-theme="light"] .pv-bare {
   --cal-today: #ff3b30;
 }
 
-/* The main sheet beside a column — the watchlist's, the DCA's, the
-   portfolio's, the paper trading's middle one, the calendar's agenda —
-   wears the conversations' column's ground (chat.css `.sb`): a soft black
-   with a hint of blue, opaque enough that the page's light stays behind.
-   The views made of one sheet only (alerts, scheduled tasks) keep the
-   lighter veil. The light theme keeps its sheet. */
-.pv-bare {
-  --sheet-ground: rgba(6, 7, 13, 0.98);
-}
-
-html[data-theme="light"] .pv-bare {
-  --sheet-ground: var(--sheet);
-}
-
-.pv-bare .wlv-sheet:not(.sdv-sheet),
-.pv-bare .calv-agenda {
-  background: var(--sheet-ground);
-}
-
 /* A title in BytNode's ink. */
 .pv-ink,
 .calv-ink {
