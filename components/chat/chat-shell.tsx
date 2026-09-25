@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { AgentConfig, Settings } from "@/lib/domain/types";
 import { newId } from "@/lib/domain/conversation";
 import { contextEstimate } from "@/lib/agent/usage";
@@ -186,6 +186,41 @@ export function ChatShell({ settings }: Props) {
     : undefined;
   const contextNow = contextEstimate(conversation?.messages ?? []) + produced;
 
+  /* A conversation without a message yet: the greeting and the composer
+     stand together in the middle of the page, as on Claude. When the first
+     message leaves, the composer slides down to its place at the bottom —
+     a FLIP: the layout jumps at once, then the composer is moved back to
+     where it was and eased down. Only after a send of OURS (`sending`):
+     opening an existing conversation from a new one must not play it.
+     `follow` tells the thread a message left: it goes back to the bottom,
+     even when the reader had scrolled up. */
+  const fresh = !conversation || conversation.messages.length === 0;
+  const composerBox = useRef<HTMLDivElement>(null);
+  const composerTop = useRef<number | null>(null);
+  const wasFresh = useRef(fresh);
+  const sending = useRef(0);
+  const [follow, setFollow] = useState(0);
+  useLayoutEffect(() => {
+    const el = composerBox.current;
+    if (!el) return;
+    const top = el.getBoundingClientRect().top;
+    const from = composerTop.current;
+    const flipped = wasFresh.current && !fresh;
+    composerTop.current = top;
+    wasFresh.current = fresh;
+    if (!flipped || from === null || Date.now() - sending.current > 3000) return;
+    sending.current = 0;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const dy = from - top;
+    if (Math.abs(dy) < 4) return;
+    el.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], { duration: 620, easing: "cubic-bezier(0.3, 0.68, 0.25, 1)" });
+  });
+  const submit: typeof send = (text, opts) => {
+    sending.current = Date.now();
+    setFollow((n) => n + 1);
+    return send(text, opts);
+  };
+
   /* Where attachments go: the open agent's workspace. */
   const cible = { agentId: agent?.id ?? "", workspace: agent?.workspace ?? "" };
 
@@ -346,7 +381,7 @@ export function ChatShell({ settings }: Props) {
         />
       )}
 
-      <main className="chat-main">
+      <main className={`chat-main${fresh ? " is-fresh" : ""}`}>
         <header className="chat-top">
           <button
             type="button"
@@ -447,10 +482,11 @@ export function ChatShell({ settings }: Props) {
             streaming={streaming}
             onRetry={retry}
             onAnswer={answer}
+            follow={follow}
           />
         )}
 
-        <div className="chat-composer">
+        <div className="chat-composer" ref={composerBox}>
           <Composer
             key={`${agent?.id ?? ""}:${active ?? "new"}`}
             providerId={providerId}
@@ -466,7 +502,7 @@ export function ChatShell({ settings }: Props) {
             onProfession={chooseProfession}
             streaming={busy}
             disabled={!hasKey || !agent}
-            onSend={send}
+            onSend={submit}
             onStop={stop}
             onAttachFiles={(files) => attachFiles(cible, files)}
             onScreenshot={() => attachScreenshot(cible)}
@@ -476,6 +512,9 @@ export function ChatShell({ settings }: Props) {
             The agent can make mistakes. Check what matters.
           </p>
         </div>
+        {/* Under the centred composer, the room that sets it a little
+            above the middle. */}
+        {fresh && <div className="chat-spacer" aria-hidden />}
       </main>
 
       <UsageMeter
