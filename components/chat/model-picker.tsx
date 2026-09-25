@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { EFFORT_OFF, effortLabel, effortOptions, latestModels, searchModels } from "@/lib/catalog/catalog";
 import { loadCatalog, useCatalog } from "@/lib/catalog/use-catalog";
 import type { Model } from "@/lib/domain/types";
 import { acpAgentOf } from "@/lib/acp/agents";
-import { Check, ChevronDown } from "@/components/ui/icons";
-import { SearchPanel } from "@/components/ui/search-panel";
+import { Check, ChevronLeft, ChevronRight, Search } from "@/components/ui/icons";
+import { ComposerPopover } from "./composer-popover";
+
+type Option = { value: string; name: string; description?: string | null };
 
 type Props = {
   providerId: string;
@@ -17,37 +19,46 @@ type Props = {
   /** The current mode and the ones that can be chosen: the external agent's
       modes (subscriptions) or our two permission modes. */
   mode: string | null;
-  modeOptions: Array<{ value: string; name: string; description?: string | null }>;
+  modeOptions: Option[];
   onMode: (mode: string) => void;
   /** The agent's profession: changes its prompt and its skills. */
   profession: string;
-  professionOptions: Array<{ value: string; name: string; description?: string | null }>;
+  professionOptions: Option[];
   onProfession: (profession: string) => void;
   disabled?: boolean;
-  /** No background: the model in ink, the effort set back, the chevron —
-      for the composer. */
-  quiet?: boolean;
+  /** Open or not: the composer holds it, so typing can close it. */
+  open: boolean;
+  onOpenChange: (open: boolean, refocus?: boolean) => void;
 };
 
 /* A model's short name: OpenRouter prefixes the vendor's name
-   ("Anthropic: Claude Sonnet 4"); in a panel already filtered by vendor,
+   ("Anthropic: Claude Sonnet 4"); in a list already filtered by vendor,
    that is noise. */
 export const shortName = (m: Model) => m.name.replace(/^[^:]+:\s*/, "");
 
-const fmtContext = (n: number | null) =>
-  n === null ? "" : n >= 1_000_000 ? `${(n / 1_000_000).toFixed(n % 1_000_000 ? 1 : 0)}M ctx` : `${Math.round(n / 1000)}k ctx`;
+const fmtContext = (n: number | null) => (n === null ? "" : n >= 1_000_000 ? `${(n / 1_000_000).toFixed(n % 1_000_000 ? 1 : 0)}M` : `${Math.round(n / 1000)}k`);
 
 type View = "menu" | "model" | "effort" | "mode" | "profession";
 
-/* ---------------------------------------------------------------------------
-   The conversation settings, in the composer.
+const TITLES: Record<Exclude<View, "menu">, string> = { model: "Model", effort: "Effort", mode: "Mode", profession: "Profession" };
 
-   Closed: the current model, and the effort if it is set. Open: two rows —
-   Model, Effort — and nothing else; each opens its own view, with a back
-   button. The model: the provider's three latest releases, and a search for
-   all the others. The effort: the levels THIS model accepts, as OpenRouter
-   publishes them; a model that does not reason has no effort, and the row
-   says so instead of disappearing.
+/* The up-and-down chevron of a pop-up button, as on macOS. */
+const UpDown = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden className="cmp-updown">
+    <path d="m8 9.5 4-4 4 4M8 14.5l4 4 4-4" />
+  </svg>
+);
+
+/* ---------------------------------------------------------------------------
+   The conversation's settings, in the composer.
+
+   Closed: a glass chip — the model, the effort after a dot when one is set,
+   and a pop-up chevron. Open: a settings pane as on macOS — four rows, the
+   name on the left, the value on the right, a chevron — each opening its
+   own page with a back button. The model: the provider's latest releases
+   and a search over all the others, the context window beside each. The
+   effort: the levels THIS model accepts (OpenRouter's list); a model that
+   does not reason has no effort, and the row says so instead of vanishing.
 --------------------------------------------------------------------------- */
 export function ModelPicker({
   providerId,
@@ -62,32 +73,26 @@ export function ModelPicker({
   onMode,
   onProfession,
   disabled,
-  quiet,
+  open,
+  onOpenChange,
 }: Props) {
-  const [open, setOpen] = useState(false);
   const [view, setView] = useState<View>("menu");
   const [query, setQuery] = useState("");
+  const trigger = useRef<HTMLButtonElement>(null);
   const catalog = useCatalog();
 
   const current = catalog.models.find((m) => m.id === modelId);
   const efforts = current ? effortOptions(current) : [];
   const canEffort = efforts.length > 0;
 
-  const openAt = (v: View) => {
+  const go = (v: View) => {
     setView(v);
     setQuery("");
   };
-  const close = () => {
-    setOpen(false);
+  const close = (refocus = false) => {
+    onOpenChange(false, refocus);
     setView("menu");
     setQuery("");
-  };
-  const toggle = () => {
-    if (open) close();
-    else {
-      setView("menu");
-      setOpen(true);
-    }
   };
 
   const currentMode = modeOptions.find((m) => m.value === mode) ?? null;
@@ -100,188 +105,160 @@ export function ModelPicker({
   const acp = acpAgentOf(providerId);
   const results = searching ? searchModels(catalog.models, providerId, query) : acp ? searchModels(catalog.models, providerId, "") : latestModels(catalog.models, providerId);
 
+  const effortText = !current
+    ? "Choose a model"
+    : !canEffort
+      ? "Does not reason"
+      : effortValue
+        ? effortLabel(effortValue)
+        : `Default${current.defaultEffort ? ` · ${effortLabel(current.defaultEffort)}` : ""}`;
+
+  const choice = (key: string, title: string, sub: string | null | undefined, on: boolean, pick: () => void) => (
+    <button key={key} type="button" data-item className={`cmp-item${on ? " is-on" : ""}`} aria-pressed={on} onClick={pick}>
+      <span className="cmp-item-text">
+        <b>{title}</b>
+        {sub && <small>{sub}</small>}
+      </span>
+      <span className="cmp-item-check">{on && <Check />}</span>
+    </button>
+  );
+
   return (
-    <div className="picker">
+    <div className="cmp-anchor">
       <button
+        ref={trigger}
         type="button"
-        className={`picker-trigger${quiet ? " is-quiet" : ""}${current || modelId ? "" : " is-empty"}`}
+        className={`cmp-chip${open ? " is-open" : ""}`}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={`Settings: ${modelLabel}${effortValue ? `, effort ${effortLabel(effortValue)}` : ""}`}
+        aria-label={`Conversation settings: ${modelLabel}${effortValue ? `, effort ${effortLabel(effortValue)}` : ""}`}
         disabled={disabled}
-        onClick={toggle}
+        onClick={() => (open ? close() : (go("menu"), onOpenChange(true)))}
       >
-        <span>{modelLabel}</span>
-        {effortValue && <span className={quiet ? "picker-effort" : "picker-badge"}>{effortLabel(effortValue)}</span>}
-        <ChevronDown />
+        <span className="cmp-chip-model">{modelLabel}</span>
+        {effortValue && <span className="cmp-chip-effort">{effortLabel(effortValue)}</span>}
+        <UpDown />
       </button>
 
-      {view === "menu" && (
-        <SearchPanel open={open} onClose={close} label="Conversation settings" side="top" align="end" width={260} dense>
-          <SearchPanel.Item
-            title="Model"
-            meta={current ? current.id : "no model"}
-            onSelect={() => openAt("model")}
-            trailing={<ChevronDown className="sp-item-chevron" />}
-          />
-          <SearchPanel.Item
-            title="Effort"
-            meta={
-              !current
-                ? "choose a model first"
-                : !canEffort
-                  ? "this model does not reason"
-                  : effortValue
-                    ? effortLabel(effortValue)
-                    : `default${current.defaultEffort ? ` (${effortLabel(current.defaultEffort)})` : ""}`
-            }
-            disabled={!canEffort}
-            onSelect={() => openAt("effort")}
-            trailing={<ChevronDown className="sp-item-chevron" />}
-          />
-          <SearchPanel.Item
-            title="Mode"
-            meta={modeOptions.length === 0 ? "no mode" : (currentMode?.name ?? "default")}
-            disabled={modeOptions.length === 0}
-            onSelect={() => openAt("mode")}
-            trailing={<ChevronDown className="sp-item-chevron" />}
-          />
-          <SearchPanel.Item
-            title="Profession"
-            meta={currentProfession?.name ?? profession}
-            onSelect={() => openAt("profession")}
-            trailing={<ChevronDown className="sp-item-chevron" />}
-          />
-        </SearchPanel>
-      )}
-
-      {view === "model" && (
-        <SearchPanel
-          open={open}
-          onClose={close}
-          title="Model"
-          onBack={() => openAt("menu")}
-          query={query}
-          onQuery={setQuery}
-          placeholder="Search a model"
-          label="Models"
-          side="top"
-          align="end"
-          width={300}
-          dense
-        >
-          {catalog.status === "loading" || catalog.status === "idle" ? (
-            <SearchPanel.Empty>Reading the catalog…</SearchPanel.Empty>
-          ) : acp && catalog.acpLoading && results.length === 0 ? (
-            /* The agent publishes its models when a session opens: a few
-               seconds on the first call, during which "no model" would be a
-               lie. */
-            <SearchPanel.Empty>Reading the models of your {acp.label} subscription…</SearchPanel.Empty>
-          ) : catalog.status === "error" ? (
-            <SearchPanel.Empty>
-              {catalog.message}
-              <br />
-              <button type="button" className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => loadCatalog(true)}>
-                Reload
+      <ComposerPopover open={open} onClose={close} anchor={trigger} align="end" width={view === "menu" ? 292 : 316} label="Conversation settings" page={view} className={`is-${view}`}>
+        {view === "menu" ? (
+          <div className="cmp-group">
+            {(
+              [
+                ["model", "Model", current ? shortName(current) : "None", false],
+                ["effort", "Effort", effortText, !canEffort],
+                ["mode", "Mode", modeOptions.length === 0 ? "None" : (currentMode?.name ?? "Default"), modeOptions.length === 0],
+                ["profession", "Profession", currentProfession?.name ?? profession, false],
+              ] as const
+            ).map(([v, name, value, off]) => (
+              <button key={v} type="button" data-item className="cmp-row" disabled={off} onClick={() => go(v)}>
+                <span className="cmp-row-name">{name}</span>
+                <span className="cmp-row-value">{value}</span>
+                <ChevronRight className="cmp-row-go" />
               </button>
-            </SearchPanel.Empty>
-          ) : results.length === 0 ? (
-            <SearchPanel.Empty>
-              {searching ? `No model matches "${query}".` : "This provider has no model."}
-            </SearchPanel.Empty>
-          ) : (
-            <>
-              {!searching && <SearchPanel.Group>{acp ? `Models of your ${acp.label} subscription` : "Latest releases"}</SearchPanel.Group>}
-              {results.map((m) => (
-                <SearchPanel.Item
-                  key={m.id}
-                  title={shortName(m)}
-                  meta={m.id}
-                  selected={m.id === modelId}
-                  onSelect={() => {
-                    onModel(m.id);
-                    close();
-                  }}
-                  trailing={m.id === modelId ? <Check /> : <span className="sp-item-count">{fmtContext(m.contextLength)}</span>}
+            ))}
+          </div>
+        ) : (
+          <>
+            <header className="cmp-pop-head">
+              <button type="button" className="cmp-back" onClick={() => go("menu")} aria-label="Back to the settings">
+                <ChevronLeft />
+                Settings
+              </button>
+              <b>{TITLES[view]}</b>
+            </header>
 
-                />
-              ))}
-            </>
-          )}
-        </SearchPanel>
-      )}
+            {view === "model" && (
+              <>
+                <label className="cmp-search">
+                  <Search />
+                  <input data-autofocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search all models" aria-label="Search a model" />
+                </label>
+                <div className="cmp-list">
+                  {catalog.status === "loading" || catalog.status === "idle" ? (
+                    <p className="cmp-empty">Reading the catalog…</p>
+                  ) : acp && catalog.acpLoading && results.length === 0 ? (
+                    /* The agent publishes its models when a session opens:
+                       a few seconds on the first call, during which "no
+                       model" would be a lie. */
+                    <p className="cmp-empty">Reading the models of your {acp.label} subscription…</p>
+                  ) : catalog.status === "error" ? (
+                    <p className="cmp-empty">
+                      {catalog.message}
+                      <button type="button" className="cmp-retry" onClick={() => loadCatalog(true)}>
+                        Reload
+                      </button>
+                    </p>
+                  ) : results.length === 0 ? (
+                    <p className="cmp-empty">{searching ? `No model matches "${query}".` : "This provider has no model."}</p>
+                  ) : (
+                    <>
+                      {!searching && <p className="cmp-caption">{acp ? `Your ${acp.label} subscription` : "Latest releases"}</p>}
+                      {results.map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          data-item
+                          className={`cmp-item${m.id === modelId ? " is-on" : ""}`}
+                          aria-pressed={m.id === modelId}
+                          onClick={() => {
+                            onModel(m.id);
+                            close(true);
+                          }}
+                        >
+                          <span className="cmp-item-text">
+                            <b>{shortName(m)}</b>
+                            <small>{m.id}</small>
+                          </span>
+                          {m.contextLength !== null && <span className="cmp-item-meta">{fmtContext(m.contextLength)}</span>}
+                          <span className="cmp-item-check">{m.id === modelId && <Check />}</span>
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </>
+            )}
 
-      {view === "effort" && current && (
-        <SearchPanel open={open} onClose={close} title="Effort" onBack={() => openAt("menu")} label="Effort" side="top" align="end" width={240} dense>
-          <SearchPanel.Item
-            title={`Default${current.defaultEffort ? ` · ${effortLabel(current.defaultEffort)}` : ""}`}
-            selected={effortValue === null}
-            onSelect={() => {
-              onEffort(null);
-              close();
-            }}
-            trailing={effortValue === null ? <Check /> : undefined}
-          />
-          {efforts.map((e) => (
-            <SearchPanel.Item
-              key={e}
-              title={e === EFFORT_OFF ? "None · no reasoning" : effortLabel(e)}
-              selected={e === effortValue}
-              onSelect={() => {
-                onEffort(e);
-                close();
-              }}
-              trailing={e === effortValue ? <Check /> : undefined}
-            />
-          ))}
-        </SearchPanel>
-      )}
-      {view === "mode" && (
-        <SearchPanel open={open} onClose={close} title="Mode" onBack={() => openAt("menu")} label="Mode" side="top" align="end" width={300} dense>
-          {modeOptions.map((m) => (
-            <SearchPanel.Item
-              key={m.value}
-              title={m.name}
-              meta={m.description ?? undefined}
-              selected={m.value === mode}
-              onSelect={() => {
-                onMode(m.value);
-                close();
-              }}
-              trailing={m.value === mode ? <Check /> : undefined}
-            />
-          ))}
-        </SearchPanel>
-      )}
+            {view === "effort" && current && (
+              <div className="cmp-list">
+                {choice("default", "Default", current.defaultEffort ? `The model's own: ${effortLabel(current.defaultEffort)}` : "The model decides", effortValue === null, () => {
+                  onEffort(null);
+                  close(true);
+                })}
+                {efforts.map((e) =>
+                  choice(e, e === EFFORT_OFF ? "None" : effortLabel(e), e === EFFORT_OFF ? "No reasoning" : null, e === effortValue, () => {
+                    onEffort(e);
+                    close(true);
+                  }),
+                )}
+              </div>
+            )}
 
-      {view === "profession" && (
-        <SearchPanel
-          open={open}
-          onClose={close}
-          title="Profession"
-          onBack={() => openAt("menu")}
-          label="Profession"
-          side="top"
-          align="end"
-          width={320}
-          dense
-        >
-          {professionOptions.map((p) => (
-            <SearchPanel.Item
-              key={p.value}
-              title={p.name}
-              meta={p.description ?? undefined}
-              selected={p.value === profession}
-              onSelect={() => {
-                onProfession(p.value);
-                close();
-              }}
-              trailing={p.value === profession ? <Check /> : undefined}
-            />
-          ))}
-        </SearchPanel>
-      )}
+            {view === "mode" && (
+              <div className="cmp-list">
+                {modeOptions.map((m) =>
+                  choice(m.value, m.name, m.description, m.value === mode, () => {
+                    onMode(m.value);
+                    close(true);
+                  }),
+                )}
+              </div>
+            )}
 
+            {view === "profession" && (
+              <div className="cmp-list">
+                {professionOptions.map((p) =>
+                  choice(p.value, p.name, p.description, p.value === profession, () => {
+                    onProfession(p.value);
+                    close(true);
+                  }),
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </ComposerPopover>
     </div>
   );
 }

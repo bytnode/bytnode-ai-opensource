@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from "react";
 import type { Attachment } from "@/lib/agent/attachments";
 import { completeCommand, isCommandText, matchCommands, runCommand, type SlashCommand } from "@/lib/agent/commands";
-import { ArrowUp, Camera, Close, File as FileIcon, Plus, Search, Spinner, Stop } from "@/components/ui/icons";
+import { ArrowUp, Camera, Check, Close, File as FileIcon, Plus, Search, Spinner, Stop } from "@/components/ui/icons";
+import { ComposerPopover } from "./composer-popover";
 import { ModelPicker } from "./model-picker";
+import { useRimLight, type RimState } from "./rim-light";
+import "./composer.css";
 
 type Props = {
   providerId: string;
@@ -30,13 +33,25 @@ type Props = {
   focusKey: string;
 };
 
-/* ---------------------------------------------------------------------------
-   The composer: the only rectangle of solid material on the page.
+/** The glass's corner radius, CSS px: `composer.css` (`.cmp`) and the rim's
+    shader draw the same curve. */
+const RADIUS = 26;
 
-   Enter sends, Shift+Enter breaks the line. The area grows with the text up
-   to a height where it scrolls. At the bottom: on the left the "+"; on the
-   right the model and the effort in bare text, then the button — an arrow
-   that becomes a square while the agent replies, and stops the reply.
+/* ---------------------------------------------------------------------------
+   The composer: a pane of frosted glass on the backdrop's light.
+
+   The glass is CSS (`composer.css`); its edge is a rim of light drawn by a
+   shader (`rim-light.ts`) that wakes when the user writes and travels while
+   the agent replies. Enter sends, Shift+Enter breaks the line; the field
+   grows with the text up to a height where it scrolls. Under it, in glass
+   too: the "+" on the left; on the right the conversation's settings (a
+   chip: the model, its effort) and the send button — the backdrop's navy,
+   lit, when there is something to send; a square while the agent replies,
+   which stops it.
+
+   The two popovers (the "+", the settings) close as menus do: a press
+   anywhere else, Escape — and typing or clicking in the field, since the
+   user has moved on.
 
    COMMANDS ARE DISCOVERED BY TYPING `/`. From the first character, the list
    of those that match opens above the field, with a word of explanation
@@ -67,12 +82,15 @@ export function Composer({
   const [text, setText] = useState("");
   const area = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  const root = useRef<HTMLDivElement>(null);
+  const plus = useRef<HTMLButtonElement>(null);
+  const rimCanvas = useRef<HTMLCanvasElement>(null);
   /* What will leave with the message: the attachments already dropped, and
      the deep research request. */
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [research, setResearch] = useState(false);
-  const [menu, setMenu] = useState(false);
+  /* The popover open, if any: one at a time. */
+  const [pop, setPop] = useState<"plus" | "settings" | null>(null);
+  const [focused, setFocused] = useState(false);
   const [busy, setBusy] = useState<"fichiers" | "capture" | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   /* The command list: the chosen row, and the text for which it was closed
@@ -83,28 +101,27 @@ export function Composer({
   const palette = commands.length > 0 && dismissed !== text;
   const index = Math.min(selected, Math.max(0, commands.length - 1));
 
+  const rim: RimState = streaming ? "busy" : focused || text.length > 0 ? "focus" : "idle";
+  useRimLight(rimCanvas, rim, RADIUS);
+
   useEffect(() => {
     area.current?.focus();
   }, [focusKey]);
 
-  useEffect(() => {
-    if (!menu) return;
-    const onDown = (e: MouseEvent) => {
-      if (root.current && !root.current.contains(e.target as Node)) setMenu(false);
-    };
-    const onEsc = (e: globalThis.KeyboardEvent) => {
-      if (e.key === "Escape") setMenu(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onEsc);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onEsc);
-    };
-  }, [menu]);
+  const closePop = useCallback((refocus = false) => {
+    setPop(null);
+    if (refocus) area.current?.focus();
+  }, []);
+
+  /* Focus inside the composer — the field, a button, a popover — lights the
+     rim; leaving it for the page puts it back to rest. */
+  const onFocusIn = () => setFocused(true);
+  const onFocusOut = (e: FocusEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
+  };
 
   const joindre = async (quoi: "fichiers" | "capture", run: () => Promise<Attachment[]>) => {
-    setMenu(false);
+    setPop(null);
     setBusy(quoi);
     setFailure(null);
     try {
@@ -186,11 +203,12 @@ export function Composer({
   const canSend = (text.trim().length > 0 || attachments.length > 0) && !disabled && !!modelId;
 
   return (
-    <div className="composer" ref={root}>
+    <div className={`cmp${focused ? " is-focused" : ""}${streaming ? " is-busy" : ""}`} onFocus={onFocusIn} onBlur={onFocusOut}>
+      <canvas ref={rimCanvas} className="cmp-rim" aria-hidden />
       {(attachments.length > 0 || research || failure) && (
-        <div className="composer-joints">
+        <div className="cmp-joints">
           {research && (
-            <span className="joint joint-research">
+            <span className="cmp-joint is-research">
               <Search />
               Deep research
               <button type="button" onClick={() => setResearch(false)} aria-label="Remove deep research">
@@ -199,29 +217,25 @@ export function Composer({
             </span>
           )}
           {attachments.map((a) => (
-            <span key={a.path} className="joint" title={a.path}>
+            <span key={a.path} className="cmp-joint" title={a.path}>
               {a.dataUrl ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={a.dataUrl} alt="" className="joint-vignette" />
+                <img src={a.dataUrl} alt="" className="cmp-joint-thumb" />
               ) : (
                 <FileIcon />
               )}
               {a.name}
-              <button
-                type="button"
-                onClick={() => setAttachments((prev) => prev.filter((x) => x.path !== a.path))}
-                aria-label={`Remove ${a.name}`}
-              >
+              <button type="button" onClick={() => setAttachments((prev) => prev.filter((x) => x.path !== a.path))} aria-label={`Remove ${a.name}`}>
                 <Close />
               </button>
             </span>
           ))}
-          {failure && <span className="joint joint-error">{failure}</span>}
+          {failure && <span className="cmp-joint is-error">{failure}</span>}
         </div>
       )}
       <textarea
         ref={area}
-        className="composer-input"
+        className="cmp-input"
         rows={1}
         placeholder={disabled ? "Connect an access to the models to write." : "Write your message…  (/ for commands)"}
         value={text}
@@ -229,15 +243,18 @@ export function Composer({
         onChange={(e) => {
           setText(e.target.value);
           setSelected(0);
+          /* Typing means the user has moved on: an open popover goes. */
+          setPop(null);
           grow();
         }}
+        onPointerDown={() => setPop(null)}
         onKeyDown={onKey}
         aria-label="Your message"
         aria-autocomplete="list"
         aria-controls={palette ? "composer-commands" : undefined}
       />
       {palette && (
-        <div className="composer-commands" id="composer-commands" role="listbox" aria-label="Commands">
+        <div className="cmp-commands" id="composer-commands" role="listbox" aria-label="Commands">
           {commands.map((c, i) => (
             <button
               key={c.name}
@@ -250,29 +267,72 @@ export function Composer({
               onMouseEnter={() => setSelected(i)}
               onClick={() => run(c)}
             >
-              <span className="composer-command-name mono">
+              <span className="cmp-command-name">
                 /{c.name}
-                {c.args && <span className="composer-command-args"> {c.args}</span>}
+                {c.args && <span className="cmp-command-args"> {c.args}</span>}
               </span>
               <small>{c.description}</small>
             </button>
           ))}
-          <p className="composer-commands-hint">↑↓ choose · Tab complete · Enter run · Esc close</p>
+          <p className="cmp-commands-hint">↑↓ to choose · Tab to complete · Enter to run · Esc to close</p>
         </div>
       )}
-      <div className="composer-bar">
-        <button
-          type="button"
-          className={`composer-plus${menu ? " is-open" : ""}`}
-          aria-label="Add"
-          aria-haspopup="menu"
-          aria-expanded={menu}
-          title="Add"
-          disabled={disabled || busy !== null}
-          onClick={() => setMenu(!menu)}
-        >
-          {busy ? <Spinner /> : <Plus />}
-        </button>
+      <div className="cmp-bar">
+        <div className="cmp-anchor">
+          <button
+            ref={plus}
+            type="button"
+            className={`cmp-round cmp-plus${pop === "plus" ? " is-open" : ""}`}
+            aria-label="Add"
+            aria-haspopup="dialog"
+            aria-expanded={pop === "plus"}
+            title="Add files, a screenshot, deep research"
+            disabled={disabled || busy !== null}
+            onClick={() => setPop(pop === "plus" ? null : "plus")}
+          >
+            {busy ? <Spinner /> : <Plus />}
+          </button>
+          <ComposerPopover open={pop === "plus"} onClose={closePop} anchor={plus} align="start" width={328} label="Add to the message">
+            <button type="button" data-item className="cmp-action" onClick={() => fileInput.current?.click()}>
+              <span className="cmp-action-icon">
+                <FileIcon />
+              </span>
+              <span className="cmp-action-text">
+                <b>Add files</b>
+                <small>Dropped into the agent&apos;s workspace</small>
+              </span>
+            </button>
+            <button type="button" data-item className="cmp-action" onClick={() => void joindre("capture", onScreenshot)}>
+              <span className="cmp-action-icon">
+                <Camera />
+              </span>
+              <span className="cmp-action-text">
+                <b>Take a screenshot</b>
+                <small>You choose the screen or the window</small>
+              </span>
+            </button>
+            <span className="cmp-sep" aria-hidden />
+            <button
+              type="button"
+              data-item
+              className={`cmp-action${research ? " is-on" : ""}`}
+              aria-pressed={research}
+              onClick={() => {
+                setResearch(!research);
+                closePop(true);
+              }}
+            >
+              <span className="cmp-action-icon">
+                <Search />
+              </span>
+              <span className="cmp-action-text">
+                <b>Deep research</b>
+                <small>{research ? "On for the next message" : "Several sources, cross-checked and dated"}</small>
+              </span>
+              <span className="cmp-item-check">{research && <Check />}</span>
+            </button>
+          </ComposerPopover>
+        </div>
         <input
           ref={fileInput}
           type="file"
@@ -284,40 +344,7 @@ export function Composer({
             e.target.value = "";
           }}
         />
-        {menu && (
-          <div className="composer-menu" role="menu">
-            <button type="button" role="menuitem" onClick={() => fileInput.current?.click()}>
-              <FileIcon />
-              <span>
-                Add files
-                <small>dropped into the agent&apos;s workspace</small>
-              </span>
-            </button>
-            <button type="button" role="menuitem" onClick={() => void joindre("capture", onScreenshot)}>
-              <Camera />
-              <span>
-                Take a screenshot
-                <small>you choose the screen or the window</small>
-              </span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              className={research ? "is-on" : ""}
-              onClick={() => {
-                setResearch(!research);
-                setMenu(false);
-              }}
-            >
-              <Search />
-              <span>
-                Deep research
-                <small>{research ? "on for the next message" : "several sources, cross-checked and dated"}</small>
-              </span>
-            </button>
-          </div>
-        )}
-        <span className="composer-spacer" />
+        <span className="cmp-spacer" />
         <ModelPicker
           providerId={providerId}
           modelId={modelId}
@@ -331,14 +358,15 @@ export function Composer({
           professionOptions={professionOptions}
           onProfession={onProfession}
           disabled={disabled}
-          quiet
+          open={pop === "settings"}
+          onOpenChange={(open, refocus) => (open ? setPop("settings") : closePop(refocus))}
         />
         {streaming ? (
-          <button type="button" className="composer-send is-stop" onClick={onStop} aria-label="Stop the reply">
+          <button type="button" className="cmp-round cmp-send is-stop" onClick={onStop} aria-label="Stop the reply" title="Stop the reply">
             <Stop />
           </button>
         ) : (
-          <button type="button" className="composer-send" onClick={submit} disabled={!canSend} aria-label="Send">
+          <button type="button" className={`cmp-round cmp-send${canSend ? " is-ready" : ""}`} onClick={submit} disabled={!canSend} aria-label="Send" title="Send (Enter)">
             <ArrowUp />
           </button>
         )}
