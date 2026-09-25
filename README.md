@@ -10,6 +10,14 @@ vendor's own agent (Claude Code, Codex, Gemini CLI, Copilot CLI, Grok Build) tha
 The background is BytNode's (`components/fond`), with the same tokens (`--ink`, `--paper`,
 `--voile`) and the same fonts (Geist, Inter, IBM Plex Mono).
 
+## License
+
+Free for any noncommercial use — personal, research, education, hobby, nonprofit — under the
+[PolyForm Noncommercial License 1.0.0](LICENSE): use it, study it, change it, share it.
+**Commercial use is not permitted** under this license; for a commercial license, contact
+BytNode at https://bytnode.com. Versions up to 0.1.3 were published under the MIT license and
+remain so.
+
 ## Install
 
 ```bash
