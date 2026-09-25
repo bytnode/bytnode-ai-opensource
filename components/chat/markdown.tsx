@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 /* ---------------------------------------------------------------------------
@@ -34,8 +34,22 @@ export function splitBlocks(text: string): string[] {
   return blocks;
 }
 
+/* A table sits in its own scroller, so it can take the full width as a
+   grid of tiles and still scroll sideways when it is wider than the thread. */
+const COMPONENTS: Components = {
+  table: ({ children }) => (
+    <div className="md-table">
+      <table>{children}</table>
+    </div>
+  ),
+};
+
 const Block = memo(function Block({ text }: { text: string }) {
-  return <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>;
+  return (
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={COMPONENTS}>
+      {text}
+    </ReactMarkdown>
+  );
 });
 
 export const Markdown = memo(function Markdown({ text }: { text: string }) {

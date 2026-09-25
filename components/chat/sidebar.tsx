@@ -100,6 +100,7 @@ export function Sidebar({
         New agent
       </button>
 
+      {settings.agents.length > 0 && <p className="sb-title">Agents</p>}
       <nav className="sb-list">
         {settings.agents.length === 0 ? (
           <p className="sb-empty">Create a first agent to get started.</p>

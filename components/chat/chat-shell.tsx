@@ -397,17 +397,19 @@ export function ChatShell({ settings }: Props) {
             <span />
             <span />
           </button>
-          {agent && (
-            <span className="chat-agent">
-              {agent.name}
-              <span className="chat-profession">
-                {professionInfo(agent.profession).label}
-              </span>
-            </span>
-          )}
-          {conversation && (
-            <span className="chat-title">{conversation.title}</span>
-          )}
+          {/* Like the plugins' sheets: the conversation is the title, in
+              BytNode's ink; who answers is the line under it. */}
+          <div className="chat-head">
+            <h1 className="chat-title">{conversation?.title ?? "New conversation"}</h1>
+            {agent && (
+              <p className="chat-sub">
+                <span className="chat-agent">{agent.name}</span>
+                <span className="chat-profession">
+                  {professionInfo(agent.profession).label}
+                </span>
+              </p>
+            )}
+          </div>
           {/* Compaction is requested by typing /compact: no button here.
               The badge only flags the testnet — a live account is the
               normal case, not an alert to carry permanently in the header. */}

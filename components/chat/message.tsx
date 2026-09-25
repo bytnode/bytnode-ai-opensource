@@ -10,6 +10,8 @@ import { ToolStepView } from "./tool-step";
 
 type Props = {
   message: MessageT;
+  /** Who answers: the agent's name, over its replies. */
+  author?: string;
   streaming: boolean;
   onRetry?: () => void;
   onAnswer?: (callId: string, allow: boolean, always?: boolean) => void;
@@ -20,13 +22,14 @@ type Props = {
 /* ---------------------------------------------------------------------------
    A message in the thread.
 
-   Yours is a block of material set to the right: you are the one speaking,
-   the shape says so. The agent's has no bubble — it is written straight on
-   the page, as an answer and not as a sticky note. Under it, in mono and in
-   faded ink, the model that produced it: that is information, not
-   decoration, and we look for it as soon as a reply surprises us.
+   Yours is a tile set to the right: you are the one speaking, the shape
+   says so. The agent's has no bubble — it is written straight on the page,
+   as an answer and not as a sticky note — under a line that says who
+   answers and, in mono and set back, the model that produced it: that is
+   information, not decoration, and we look for it as soon as a reply
+   surprises us.
 --------------------------------------------------------------------------- */
-export const Message = memo(function Message({ message, streaming, onRetry, onAnswer, fileUrl }: Props) {
+export const Message = memo(function Message({ message, author, streaming, onRetry, onAnswer, fileUrl }: Props) {
   if (message.role === "user") {
     const joints = message.attachments ?? [];
     return (
@@ -76,6 +79,17 @@ export const Message = memo(function Message({ message, streaming, onRetry, onAn
   const lastIsText = steps.length > 0 && steps[steps.length - 1].type === "text";
   return (
     <article className={`msg msg-agent${streaming && (steps.length === 0 || lastIsText) ? " is-streaming" : ""}`}>
+      {(author || message.modelId) && (
+        <header className="msg-head">
+          {author && <span className="msg-author">{author}</span>}
+          {message.modelId && (
+            <span className="msg-model mono">
+              {message.modelId}
+              {message.effort ? ` · ${message.effort}` : ""}
+            </span>
+          )}
+        </header>
+      )}
       {empty && streaming ? (
         <div className="msg-wait" aria-label="The agent is writing">
           <span />
@@ -116,12 +130,6 @@ export const Message = memo(function Message({ message, streaming, onRetry, onAn
           )}
         </div>
       )}
-      {message.modelId && !empty && (
-        <p className="msg-model mono">
-          {message.modelId}
-          {message.effort ? ` · ${message.effort}` : ""}
-        </p>
-      )}
     </article>
   );
 });
@@ -161,10 +169,15 @@ const CompactionView = memo(function CompactionView({ message }: { message: Mess
 
 const PlanView = memo(function PlanView({ entries }: { entries: PlanEntry[] }) {
   const faits = entries.filter((e) => e.status === "completed").length;
+  const share = entries.length > 0 ? (faits / entries.length) * 100 : 0;
   return (
     <div className="plan">
       <p className="plan-head">
-        Plan <span className="plan-count">{faits}/{entries.length}</span>
+        Plan
+        <span className="plan-bar" aria-hidden="true">
+          <i style={{ width: `${share}%` }} />
+        </span>
+        <span className="plan-count">{faits}/{entries.length}</span>
       </p>
       <ul>
         {entries.map((e, i) => (
@@ -172,7 +185,9 @@ const PlanView = memo(function PlanView({ entries }: { entries: PlanEntry[] }) {
             <span className="plan-mark" aria-hidden="true">
               {e.status === "completed" ? "✓" : e.status === "in_progress" ? "▸" : "·"}
             </span>
-            {e.content}
+            {/* The text in its own span: a done step is struck through,
+                its check mark is not. */}
+            <span className="plan-text">{e.content}</span>
           </li>
         ))}
       </ul>

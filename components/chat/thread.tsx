@@ -137,6 +137,7 @@ export function Thread({ settings, agent, conversation, streaming, onRetry, onAn
             <Message
               key={m.id}
               message={m}
+              author={agent.name.trim() || "Agent"}
               fileUrl={fileUrl}
               streaming={streaming && i === last}
               onRetry={i === last && m.error ? onRetry : undefined}
