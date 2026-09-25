@@ -3,15 +3,16 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { useDismiss } from "@/components/ui/use-dismiss";
 
-/* The menu a right click opens on a group or a plan of the column: the
-   watchlist's bubble (`wlv-menu`), where the click was, with the items the
-   caller gives. Escape, a click elsewhere or the wheel close it; ↑ ↓ move.
+/* The menu a right click opens on an item of a bare view's column (a DCA
+   group or plan, a paper portfolio, a portfolio group): the watchlist's
+   bubble (`wlv-menu`), where the click was, with the items the caller
+   gives. Escape, a click elsewhere or the wheel close it; ↑ ↓ move.
    ⚠️ Drawn at the view's root (the panes' `backdrop-filter` would contain
    a fixed bubble) and in the view's pixels (the bare views are zoomed). */
 
-export type MenuTarget = { kind: "group" | "plan"; id: string };
+export type MenuTarget = { kind: string; id: string };
 export type MenuAt = MenuTarget & { x: number; y: number };
-export type MenuItem = { label: string; icon?: ReactNode; danger?: boolean; onSelect: () => void };
+export type MenuItem = { label: string; icon?: ReactNode; danger?: boolean; disabled?: boolean; onSelect: () => void };
 
 const WIDTH = 240;
 
@@ -35,7 +36,7 @@ export function ItemMenu({ at, label, items, onClose }: { at: MenuAt; label: str
   useDismiss(true, onClose, root);
 
   useEffect(() => {
-    root.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    root.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
     /* Kept inside the window once its height is known. */
     const el = root.current;
     if (el) {
@@ -57,7 +58,7 @@ export function ItemMenu({ at, label, items, onClose }: { at: MenuAt; label: str
   return (
     <div
       ref={root}
-      className="wlv-menu dcv-menu"
+      className="wlv-menu"
       role="menu"
       aria-label={label}
       style={style}
@@ -65,7 +66,7 @@ export function ItemMenu({ at, label, items, onClose }: { at: MenuAt; label: str
       onKeyDown={(e) => {
         if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
         e.preventDefault();
-        const list = [...(root.current?.querySelectorAll<HTMLButtonElement>("button") ?? [])];
+        const list = [...(root.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])];
         const i = list.indexOf(document.activeElement as HTMLButtonElement);
         list[(i + (e.key === "ArrowDown" ? 1 : list.length - 1)) % list.length]?.focus();
       }}
@@ -76,6 +77,7 @@ export function ItemMenu({ at, label, items, onClose }: { at: MenuAt; label: str
           type="button"
           role="menuitem"
           className={`wlv-menu-item${item.danger ? " is-danger" : ""}`}
+          disabled={item.disabled}
           onClick={() => {
             item.onSelect();
             onClose();

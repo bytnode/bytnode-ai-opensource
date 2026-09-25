@@ -15,7 +15,7 @@ import { ColumnHandle } from "../column-handle";
 import { act, usePluginData, viewTransport } from "../use-plugin-data";
 import { useAwakeInterval, useOnWake } from "../view-activity";
 import { ConfigHead, DcaConfig } from "./config";
-import { ItemMenu, useItemMenu, type MenuItem } from "./menu";
+import { ItemMenu, useItemMenu, type MenuItem } from "../item-menu";
 import { Sheet, planTitle, type Shown } from "./sheet";
 import { Side } from "./side";
 import "../watchlist/watchlist.css";
@@ -119,10 +119,15 @@ export function DcaView({ settings }: ViewProps) {
     }
   };
 
-  /* A group's right click. */
+  /* A right click: on a DCA, or on a group. */
   const menuItems = (): MenuItem[] => {
     const at = menu.at;
     if (!at) return [];
+    if (at.kind === "plan")
+      return [
+        { label: "Edit the DCA", icon: <Pencil />, onSelect: () => setScope({ kind: "config", planId: at.id }) },
+        { label: "Delete the DCA", icon: <Trash />, danger: true, onSelect: () => setConfirm({ kind: "plan", id: at.id }) },
+      ];
     return [
       { label: "Add a DCA", icon: <Plus />, onSelect: () => setScope({ kind: "config", groupId: at.id }) },
       { label: "Rename", icon: <Pencil />, onSelect: () => setScope({ kind: "group", id: at.id, rename: true }) },
@@ -139,7 +144,7 @@ export function DcaView({ settings }: ViewProps) {
   return (
     <div className="wlv dcv">
       <div className="wlv-panel" ref={panel} style={{ "--wlv-list": `${ui.dcaWidth}px` } as CSSProperties}>
-        <Side groups={groups} plans={plans} figures={figures} unit={unit} accounts={accounts} open={openGroup ?? null} openPlan={scope?.kind === "plan" ? scope.id : null} onOpen={(id) => setScope({ kind: "group", id })} onPlan={(id) => setScope({ kind: "plan", id })} onMenu={(e, id) => menu.open(e, { kind: "group", id })} onCreateGroup={createGroup} />
+        <Side groups={groups} plans={plans} figures={figures} unit={unit} accounts={accounts} open={openGroup ?? null} openPlan={scope?.kind === "plan" ? scope.id : null} onOpen={(id) => setScope({ kind: "group", id })} onPlan={(id) => setScope({ kind: "plan", id })} onMenu={(e, id) => menu.open(e, { kind: "group", id })} onPlanMenu={(e, id) => menu.open(e, { kind: "plan", id })} onCreateGroup={createGroup} />
         <ColumnHandle panel={panel} cssVar="--wlv-list" width={ui.dcaWidth} min={DCA_MIN} max={DCA_MAX} reset={DCA_DEFAULT} clamp={clampDcaWidth} onCommit={(w) => updateUiPrefs({ dcaWidth: w })} label="Width of the groups column" />
         {scope?.kind === "config" && groups ? (
           <main className="wlv-pane wlv-sheet dcv-sheet">
@@ -176,7 +181,7 @@ export function DcaView({ settings }: ViewProps) {
           </main>
         )}
       </div>
-      {menu.at && <ItemMenu at={menu.at} label="Group actions" items={menuItems()} onClose={menu.close} />}
+      {menu.at && <ItemMenu at={menu.at} label={menu.at.kind === "plan" ? "DCA actions" : "Group actions"} items={menuItems()} onClose={menu.close} />}
       {confirmedPlan && (
         <ConfirmDialog
           title={`Delete ${planTitle(confirmedPlan)}?`}

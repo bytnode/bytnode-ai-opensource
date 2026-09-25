@@ -84,12 +84,22 @@ export const AGENT_SOURCES: Record<AcpAgentId, AgentSource> = {
 
 type InstallManifest = { private: true; dependencies: Record<string, string>; overrides?: Record<string, string> };
 
-/** The package.json written into `~/.bytnode-ai/agents/<id>/` before `npm install`. */
-export function installPackageJson(src: NpmSource): InstallManifest {
-  const out: InstallManifest = { private: true, dependencies: { [src.pkg]: src.version } };
-  if (src.overrides && Object.keys(src.overrides).length) out.overrides = src.overrides;
+/** The package.json written into `~/.bytnode-ai/agents/<id>/` before `npm
+    install`. `pins` (package → exact version) replace a range: that is how
+    an update within the range happens — with the range alone, npm keeps
+    what its lock file already holds. */
+export function installPackageJson(src: NpmSource, pins: Record<string, string> = {}): InstallManifest {
+  const pin = (pkg: string, range: string) => pins[pkg] ?? range;
+  const out: InstallManifest = { private: true, dependencies: { [src.pkg]: pin(src.pkg, src.version) } };
+  if (src.overrides && Object.keys(src.overrides).length) {
+    out.overrides = Object.fromEntries(Object.entries(src.overrides).map(([pkg, range]) => [pkg, pin(pkg, range)]));
+  }
   return out;
 }
+
+/** The packages an install resolves by range: the agent's own, then its
+    overrides (the Claude SDK, which carries the model list). */
+export const trackedPackages = (src: NpmSource): [pkg: string, range: string][] => [[src.pkg, src.version], ...Object.entries(src.overrides ?? {})];
 
 const parse = (v: string): [number, number, number] | null => {
   const m = v.match(/^(\d+)\.(\d+)\.(\d+)/);
@@ -111,4 +121,24 @@ export function satisfiesCaret(installed: string, range: string): boolean {
   const cmp = y !== b ? y - b : z - c;
   if (cmp !== 0) return cmp > 0;
   return !pre;
+}
+
+/** Is `a` a later version than `b`? Plain `x.y.z` comparison. */
+export function isNewer(a: string, b: string): boolean {
+  const x = parse(a);
+  const y = parse(b);
+  if (!x || !y) return false;
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i];
+  return false;
+}
+
+/** The latest release (no pre-release) among `versions` that satisfies the
+    `^a.b.c` range, or null. */
+export function highestInCaret(versions: string[], range: string): string | null {
+  let best: string | null = null;
+  for (const v of versions) {
+    if (!/^\d+\.\d+\.\d+$/.test(v) || !satisfiesCaret(v, range)) continue;
+    if (!best || isNewer(v, best)) best = v;
+  }
+  return best;
 }

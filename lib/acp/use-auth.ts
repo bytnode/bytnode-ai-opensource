@@ -42,6 +42,9 @@ function schedulePoll(agents: AcpAuthStatus[]) {
   if (poll) clearTimeout(poll);
   poll = null;
   if (agents.some((a) => a.connecting || a.installing || a.checking)) poll = setTimeout(() => void loadAcpAuth(), 2000);
+  /* An update waiting for its agent to be idle starts on the server on its
+     own: a slower read notices it, and the catalog then takes the new models. */
+  else if (agents.some((a) => a.outdated)) poll = setTimeout(() => void loadAcpAuth(), 60_000);
 }
 
 export function useAcpAuth(): AcpAuth {
@@ -76,7 +79,7 @@ export async function acpInstall(agent: AcpAgentId): Promise<string | null> {
   const json = (await res.json()) as { status?: AcpAuthStatus; error?: { message?: string } };
   if (!res.ok) return json.error?.message ?? "Could not install.";
   if (json.status) {
-    const agents = store.get().agents.map((a) => (a.agent === agent ? { ...json.status!, installing: !json.status!.available } : a));
+    const agents = store.get().agents.map((a) => (a.agent === agent ? { ...json.status!, installing: true } : a));
     store.set({ status: "ready", agents });
     schedulePoll(agents);
   }

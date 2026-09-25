@@ -8,7 +8,7 @@ import { Check } from "@/components/ui/icons";
 import { fmt } from "../bits";
 import { act } from "../use-plugin-data";
 import { useViewActive } from "../view-activity";
-import { CASH, baseOf, dayOf, pct, price, toneOf, usdt, type PaperState } from "./format";
+import { CASH, baseOf, dayOf, pct, price, toneOf, usdt, type Focus, type PaperState } from "./format";
 import { useNoteField } from "./note-field";
 import { PairField } from "./pair-field";
 
@@ -95,7 +95,9 @@ type TicketProps = {
   quote: Priced | null;
   pairs: Listed[] | null;
   pairsUnavailable: string | null;
-  onPlaced: () => void;
+  /** An order went in: what it opened or bought, to show under its
+      portfolio — nothing for a limit order (not filled yet) or a spot sale. */
+  onPlaced: (opened?: Focus) => void;
 };
 
 export function Ticket({ data, portfolio, settings, symbol, onSymbol, quote: q, pairs, pairsUnavailable, onPlaced }: TicketProps) {
@@ -160,7 +162,7 @@ export function Ticket({ data, portfolio, settings, symbol, onSymbol, quote: q, 
     setSize("");
     const said = side === "buy" ? (market === "futures" ? "Long opened" : "Bought") : market === "futures" ? "Short opened" : "Sold";
     setDone(kind === "limit" ? `Limit order placed: ${verb.toLowerCase()} ${fmt(qty)} ${base} at ${price(num(limit))}.` : `${said}: about ${fmt(qty)} ${base} at ${price(at)}.`);
-    onPlaced();
+    onPlaced(kind === "limit" ? undefined : market === "futures" ? { kind: "position", symbol } : side === "buy" ? { kind: "holding", asset: base } : undefined);
   };
 
   const quick = [...new Set([...(data?.valuation.holdings.map((h) => h.asset) ?? []), ...(data?.valuation.positions.map((p) => baseOf(p.symbol)) ?? []), ...QUICK])].slice(0, 5);

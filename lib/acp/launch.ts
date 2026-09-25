@@ -82,9 +82,14 @@ export const isInstalled = (agent: AcpAgentId): boolean => resolveAcp(agent) !==
 /** The version of the package we installed, or null (absent, or global CLI). */
 export function installedVersion(agent: AcpAgentId): string | null {
   const src = AGENT_SOURCES[agent];
-  if (src.kind !== "npm") return null;
+  return src.kind === "npm" ? packageVersion(agent, src.pkg) : null;
+}
+
+/** The version of any package in the agent's installation (an override
+    such as the Claude SDK included), or null. */
+export function packageVersion(agent: AcpAgentId, pkg: string): string | null {
   try {
-    const json = JSON.parse(fs.readFileSync(installed(agent, src.pkg, ["package.json"]), "utf8")) as { version?: string };
+    const json = JSON.parse(fs.readFileSync(installed(agent, pkg, ["package.json"]), "utf8")) as { version?: string };
     return json.version ?? null;
   } catch {
     return null;

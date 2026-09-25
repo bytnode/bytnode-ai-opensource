@@ -162,6 +162,14 @@ html[data-theme="light"] .wlv-menu {
   background: color-mix(in srgb, var(--down) 14%, transparent);
 }
 
+/* An action said but not possible (the last paper portfolio). */
+.wlv-menu-item:disabled,
+.wlv-menu-item:disabled svg {
+  color: var(--label-3, rgba(var(--ink), 0.4));
+  background: none;
+  cursor: default;
+}
+
 /* --- The list (left) ---------------------------------------------------------- */
 
 .wlv-side {

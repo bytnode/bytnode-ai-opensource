@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { resolveWorkspace } from "@/lib/server/workspace";
 import type { Transport } from "@/lib/tools/transport";
 import { definePlugin } from "../core/contract";
@@ -17,6 +18,7 @@ import { readHistory } from "./ledger";
 import type { Access } from "./permissions";
 import { addBalances, savingsByDay, tradingPart } from "./savings";
 import { STABLES } from "./aggregate";
+import { addGroup, editGroup, removeGroup, type AccountGroup } from "./groups";
 
 /* The consolidated portfolio: two read-only tools, a daily snapshot of the
    total while the app is open (when the scheduler runs), and the view's
@@ -24,6 +26,8 @@ import { STABLES } from "./aggregate";
    the report export runs). */
 
 const SNAPSHOTS = "snapshots.jsonl";
+/** The user's groups of accounts (ids only — `groups.ts`). */
+const GROUPS = "groups.json";
 const MAX_SNAPSHOTS = 3650;
 
 export const portfolioPlugin = definePlugin({
@@ -56,6 +60,32 @@ export const portfolioPlugin = definePlugin({
     };
 
     ctx.api("summary", async (params, { transport, signal }) => current(params.currency, transport, signal));
+    /* The groups of accounts: the view's navigator lists them, the view
+       cuts the summary and the history to each (`groups.ts`). */
+    ctx.api("groups", async () => ctx.store.read<AccountGroup[]>(GROUPS, []));
+    ctx.api("group", async (params) => {
+      const id = typeof params.id === "string" ? params.id : "";
+      let failed: string | null = null;
+      let group: AccountGroup | undefined;
+      await ctx.store.update<AccountGroup[]>(GROUPS, [], (list) => {
+        const r: { groups: AccountGroup[]; group?: AccountGroup } | { error: string } =
+          params.action === "create"
+            ? addGroup(list, params.name, params.accountIds, randomUUID().slice(0, 8), new Date())
+            : params.action === "edit"
+              ? editGroup(list, id, { name: params.name, accountIds: params.accountIds })
+              : params.action === "delete"
+                ? removeGroup(list, id)
+                : { error: "Expected `action`: create, edit or delete." };
+        if ("error" in r) {
+          failed = r.error;
+          return list;
+        }
+        group = r.group;
+        return r.groups;
+      });
+      if (failed) throw new Error(failed);
+      return group ?? { deleted: id };
+    });
     ctx.api("history", async (params) => {
       const days = typeof params.days === "number" ? params.days : 90;
       return { points: history(await snapshots(), days, new Date()) };

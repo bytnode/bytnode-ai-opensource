@@ -1,6 +1,7 @@
 import { isAcpAgentId } from "@/lib/acp/agents";
 import { allAuthStatus, authStatus, logout, startLogin } from "@/lib/acp/auth";
-import { installAgent, uninstallAgent } from "@/lib/acp/install";
+import { uninstallAgent } from "@/lib/acp/install";
+import { updateAgent } from "@/lib/acp/updates";
 
 /* The state of the accounts behind the subscription agents, and the two
    possible actions: log in (the response comes back right away, the state
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
          away. In both cases we answer without waiting. */
       void startLogin(body.agent).catch(() => {});
     } else if (body.action === "logout") await logout(body.agent);
-    else if (body.action === "install") void installAgent(body.agent).catch(() => {});
+    else if (body.action === "install") void updateAgent(body.agent).catch(() => {});
     else if (body.action === "uninstall") await uninstallAgent(body.agent);
     else return Response.json({ error: { message: "Unknown action." } }, { status: 400 });
     return Response.json({ status: await authStatus(body.agent) });

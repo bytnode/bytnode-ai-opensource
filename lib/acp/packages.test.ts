@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AGENT_SOURCES, installPackageJson, satisfiesCaret } from "./packages";
+import { AGENT_SOURCES, highestInCaret, installPackageJson, isNewer, satisfiesCaret, trackedPackages } from "./packages";
 
 describe("installPackageJson", () => {
   it("pins the package and copies the overrides", () => {
@@ -15,6 +15,40 @@ describe("installPackageJson", () => {
     const src = AGENT_SOURCES.gemini;
     if (src.kind !== "npm") throw new Error("gemini is an npm package");
     expect(installPackageJson(src)).toEqual({ private: true, dependencies: { "@google/gemini-cli": src.version } });
+  });
+  it("an update pins the exact versions it found, the rest keeps its range", () => {
+    const src = AGENT_SOURCES.claude;
+    if (src.kind !== "npm") throw new Error("claude is an npm package");
+    expect(installPackageJson(src, { "@anthropic-ai/claude-agent-sdk": "0.3.282" })).toEqual({
+      private: true,
+      dependencies: { "@zed-industries/claude-agent-acp": src.version },
+      overrides: { "@anthropic-ai/claude-agent-sdk": "0.3.282" },
+    });
+  });
+});
+
+describe("trackedPackages", () => {
+  it("lists the agent's package, then its overrides", () => {
+    const src = AGENT_SOURCES.claude;
+    if (src.kind !== "npm") throw new Error("claude is an npm package");
+    expect(trackedPackages(src)).toEqual([
+      ["@zed-industries/claude-agent-acp", src.version],
+      ["@anthropic-ai/claude-agent-sdk", "^0.3.270"],
+    ]);
+  });
+});
+
+describe("highestInCaret / isNewer", () => {
+  const versions = ["0.3.270", "0.3.278", "0.3.282", "0.3.283-beta.1", "0.4.0", "0.2.99", "junk"];
+  it("takes the latest release in the range, never a pre-release or the next 0.x minor", () => {
+    expect(highestInCaret(versions, "^0.3.270")).toBe("0.3.282");
+    expect(highestInCaret(versions, "^0.5.0")).toBeNull();
+  });
+  it("compares x.y.z numerically", () => {
+    expect(isNewer("0.3.282", "0.3.278")).toBe(true);
+    expect(isNewer("0.3.100", "0.3.99")).toBe(true);
+    expect(isNewer("0.3.278", "0.3.278")).toBe(false);
+    expect(isNewer("1.0.0", "junk")).toBe(false);
   });
 });
 

@@ -105,10 +105,13 @@ export type AcpAuthStatus = {
   /** Where it comes from, when it is available. */
   source?: "installed" | "global";
   /** The installed version no longer satisfies the range this version of
-      BytNode-AI expects: « Update ». */
+      BytNode-AI expects, or a newer release within it is out: « Update ». */
   outdated?: boolean;
-  /** An installation is in progress. */
+  /** An installation (or an update) is in progress. */
   installing?: boolean;
+  /** The installed packages and their versions: it changes with an update,
+      and the model catalog reloads when it does. */
+  build?: string;
   /** The account state is not known yet: it is being read in the
       background (agents with no status command line, which have to be
       probed through the protocol). */

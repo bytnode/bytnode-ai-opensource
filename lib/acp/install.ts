@@ -14,7 +14,8 @@ import { AGENT_SOURCES, installPackageJson, type NpmSource } from "./packages";
    Two paths, according to `packages.ts`. An npm package: we write a
    package.json (pinned dependency, overrides) and run `npm install` in it —
    that is where the Claude SDK override applies, and the same path serves
-   « Update » when the range has been raised. A binary (Mistral Vibe): we
+   « Update »: when the range has been raised, and when a newer release
+   within it is out (`updates.ts`, which pins its exact version). A binary (Mistral Vibe): we
    read the ACP registry entry (github.com/agentclientprotocol/registry) to
    get the latest version, take this machine's archive, download and
    extract it. If the registry does not answer, a known version is the
@@ -55,25 +56,30 @@ const failures = new Map<AcpAgentId, string>();
 export const isInstalling = (agent: AcpAgentId) => installing.has(agent);
 export const installFailure = (agent: AcpAgentId) => failures.get(agent) ?? null;
 
-export function installAgent(agent: AcpAgentId): Promise<void> {
+/** Resolves once no installation of this agent is running (at once if
+    none is); never rejects. */
+export const installDone = (agent: AcpAgentId): Promise<void> => (installing.get(agent) ?? Promise.resolve()).catch(() => {});
+
+/** `pins`: the exact versions an update brings (`updates.ts`). */
+export function installAgent(agent: AcpAgentId, pins: Record<string, string> = {}): Promise<void> {
   const running = installing.get(agent);
   if (running) return running;
   failures.delete(agent);
   const src = AGENT_SOURCES[agent];
-  const p = src.kind === "npm" ? installNpm(agent, src) : installDownload(agent);
+  const p = src.kind === "npm" ? installNpm(agent, src, pins) : installDownload(agent);
   installing.set(agent, p);
   p.catch((e) => failures.set(agent, e instanceof Error ? e.message : String(e))).finally(() => installing.delete(agent));
   return p;
 }
 
-async function installNpm(agent: AcpAgentId, src: NpmSource): Promise<void> {
+async function installNpm(agent: AcpAgentId, src: NpmSource, pins: Record<string, string>): Promise<void> {
   const dir = agentDir(agent);
   await fs.mkdir(dir, { recursive: true });
   /* An interrupted installation starts over: a half-extracted package has
      no package.json, npm picks it up again, but a truncated binary that
      has one would stay. */
   if (brokenInstall(agent)) await fs.rm(path.join(dir, "node_modules"), { recursive: true, force: true });
-  await fs.writeFile(path.join(dir, "package.json"), JSON.stringify(installPackageJson(src), null, 2) + "\n");
+  await fs.writeFile(path.join(dir, "package.json"), JSON.stringify(installPackageJson(src, pins), null, 2) + "\n");
   const npm = npmCli();
   const r = await runCommand(npm.command, [...npm.args, "install", "--no-audit", "--no-fund", "--package-lock=true", "--loglevel=error"], 15 * 60_000, { cwd: dir, shell: npm.shell });
   /* `npm.command === "npm"` is `npmCli`'s last resort: it located no

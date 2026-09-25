@@ -2,10 +2,11 @@
 
 import { useRef, useState, type CSSProperties } from "react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Close } from "@/components/ui/icons";
+import { Close, Trash } from "@/components/ui/icons";
 import { PAPER_NAV_DEFAULT, PAPER_NAV_MAX, PAPER_NAV_MIN, PAPER_TRADE_DEFAULT, PAPER_TRADE_MAX, PAPER_TRADE_MIN, clampPaperNavWidth, clampPaperTradeWidth, updateUiPrefs, useUiPrefs } from "@/lib/state/ui";
 import type { ViewProps } from "../views";
 import { ColumnHandle } from "../column-handle";
+import { ItemMenu, useItemMenu } from "../item-menu";
 import { callPlugin } from "@/lib/plugins/client";
 import { act, usePluginData, viewTransport } from "../use-plugin-data";
 import { useAwakeInterval, useOnWake } from "../view-activity";
@@ -35,7 +36,10 @@ import "./paper-trading.css";
    A portfolio opens in place in the left column (its positions and
    holdings under it); a click on one of them shows it alone in the middle
    sheet (`focus`), and its pair becomes the ticket's; a click on the
-   portfolio itself shows the whole again.
+   portfolio itself shows the whole again. The portfolio shown is open
+   unless folded by hand, and an order placed from the ticket shows what
+   it opened or bought under it, alone in the sheet — its own page. A
+   right click on a portfolio deletes it (never the last one).
 
    The portfolio shown is the one clicked, else the one a notification
    opened the tab on (`params.portfolio`), else the default one. The list is
@@ -83,7 +87,8 @@ export function PaperTradingView({ settings, params }: ViewProps) {
     if (ui.paperTradeClosed) updateUiPrefs({ paperTradeClosed: false });
   };
   const [problem, setProblem] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<string[]>([]);
+  /* Opened or folded by hand; else the portfolio shown is open. */
+  const [unfold, setUnfold] = useState<Record<string, boolean>>({});
   const [focused, setFocused] = useState<{ portfolio: string; focus: Focus } | null>(null);
   /* Only while it is still held: a position closed meanwhile (here, by a
      liquidation or by an agent) gives the whole portfolio back. */
@@ -91,7 +96,8 @@ export function PaperTradingView({ settings, params }: ViewProps) {
     focused && data && focused.portfolio === data.id && (focused.focus.kind === "position" ? data.valuation.positions.some((p) => focused.focus.kind === "position" && p.symbol === focused.focus.symbol) : data.valuation.holdings.some((h) => focused.focus.kind === "holding" && h.asset === focused.focus.asset))
       ? focused.focus
       : null;
-  const [confirm, setConfirm] = useState<"reset" | "delete" | null>(null);
+  const [confirm, setConfirm] = useState<{ kind: "reset" } | { kind: "delete"; id: string; name: string } | null>(null);
+  const menu = useItemMenu();
 
   const reload = () => {
     state.reload();
@@ -108,15 +114,38 @@ export function PaperTradingView({ settings, params }: ViewProps) {
     setFocused(null);
     setPick({ focus: focus0, id: next });
   };
+  const shown = data?.id ?? id;
+  const isOpen = (book: string) => unfold[book] ?? book === shown;
+  const expanded = (list ?? []).map((b) => b.id).filter(isOpen);
   /* Opening another portfolio shows it too: only the one shown has its
      positions read. */
   const expand = (book: string) => {
-    if (book !== (data?.id ?? id)) {
+    if (book !== shown) {
       choose(book);
-      setExpanded((e) => (e.includes(book) ? e : [...e, book]));
+      setUnfold((u) => ({ ...u, [book]: true }));
       return;
     }
-    setExpanded((e) => (e.includes(book) ? e.filter((x) => x !== book) : [...e, book]));
+    setUnfold((u) => ({ ...u, [book]: !isOpen(book) }));
+  };
+  /* A click on a portfolio: another one is shown, open; the one shown
+     with one of its positions alone comes back to the whole; else it
+     opens or closes, like its chevron. */
+  const pickBook = (book: string) => {
+    if (book !== shown) {
+      choose(book);
+      setUnfold((u) => ({ ...u, [book]: true }));
+    } else if (focus) setFocused(null);
+    else setUnfold((u) => ({ ...u, [book]: !isOpen(book) }));
+  };
+  /* An order placed: its portfolio opens, and what it opened or bought is
+     shown on its own (once the next reading holds it). */
+  const placed = (opened?: Focus) => {
+    reload();
+    setUnfold((u) => ({ ...u, [id]: true }));
+    if (opened) {
+      setFocused({ portfolio: id, focus: opened });
+      showPair(focusSymbol(opened));
+    }
   };
   const show = (f: Focus) => {
     if (!data) return;
@@ -146,13 +175,14 @@ export function PaperTradingView({ settings, params }: ViewProps) {
           books={list}
           selected={data?.id ?? (id || null)}
           defaultCapital={defaultCapital}
-          onPick={choose}
+          onPick={pickBook}
           expanded={expanded}
           onExpand={expand}
           data={data}
           focus={focus}
           onFocus={show}
           onCreate={create}
+          onMenu={(e, book) => menu.open(e, { kind: "portfolio", id: book })}
         />
         <ColumnHandle
           panel={panel}
@@ -174,8 +204,8 @@ export function PaperTradingView({ settings, params }: ViewProps) {
           exportButton={report.button(!data)}
           exportResult={report.result}
           onReload={reload}
-          onReset={() => setConfirm("reset")}
-          onDelete={() => setConfirm("delete")}
+          onReset={() => setConfirm({ kind: "reset" })}
+          onDelete={() => data && setConfirm({ kind: "delete", id: data.id, name: data.name })}
           onOpenTrade={() => updateUiPrefs({ paperTradeClosed: false })}
           onRename={(name) => run("rename", { name })}
           onAct={run}
@@ -208,12 +238,34 @@ export function PaperTradingView({ settings, params }: ViewProps) {
                 </button>
               </header>
               <Card data={data} />
-              <Ticket data={data} portfolio={id} settings={settings} symbol={symbol} onSymbol={setSymbol} quote={live} pairs={pairs} pairsUnavailable={pairsUnavailable} onPlaced={reload} />
+              <Ticket data={data} portfolio={id} settings={settings} symbol={symbol} onSymbol={setSymbol} quote={live} pairs={pairs} pairsUnavailable={pairsUnavailable} onPlaced={placed} />
             </section>
           </>
         )}
       </div>
-      {confirm === "reset" && (
+      {menu.at && (
+        <ItemMenu
+          at={menu.at}
+          label="Portfolio actions"
+          items={
+            (list?.length ?? 0) > 1
+              ? [
+                  {
+                    label: "Delete the portfolio",
+                    icon: <Trash />,
+                    danger: true,
+                    onSelect: () => {
+                      const book = list?.find((b) => b.id === menu.at?.id);
+                      if (book) setConfirm({ kind: "delete", id: book.id, name: book.name });
+                    },
+                  },
+                ]
+              : [{ label: "The last portfolio cannot be deleted", icon: <Trash />, disabled: true, onSelect: () => {} }]
+          }
+          onClose={menu.close}
+        />
+      )}
+      {confirm?.kind === "reset" && (
         <ConfirmDialog
           title={`Start "${data?.name ?? "this portfolio"}" again?`}
           body={`Every paper holding, position, order and fill of this portfolio is erased, and its cash goes back to its starting ${data ? `${data.capital.toLocaleString("en-US")} USDT` : "capital"}. Nothing real is touched.`}
@@ -225,14 +277,15 @@ export function PaperTradingView({ settings, params }: ViewProps) {
           onCancel={() => setConfirm(null)}
         />
       )}
-      {confirm === "delete" && (
+      {confirm?.kind === "delete" && (
         <ConfirmDialog
-          title={`Delete "${data?.name ?? "this portfolio"}"?`}
+          title={`Delete "${confirm.name}"?`}
           body="The portfolio and its whole history are erased. The other paper portfolios are not touched, and nothing real is."
           confirmLabel="Delete"
           onConfirm={() => {
+            const gone = confirm.id;
             setConfirm(null);
-            void run("delete", {}).then((p) => !p && setPick({ focus: focus0, id: null }));
+            void run("delete", { portfolio: gone }).then((p) => !p && gone === shown && setPick({ focus: focus0, id: null }));
           }}
           onCancel={() => setConfirm(null)}
         />

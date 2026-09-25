@@ -22,5 +22,5 @@ export const portfolioManifest: PluginManifest = {
     },
   },
   views: [{ id: "portfolio", title: "Portfolio", description: "Total value, evolution, split by asset and by account, open positions." }],
-  data: "One snapshot a day: the date, the total, the split by asset and each live account's total (under its internal id) in USD — no key, no account name.",
+  data: "One snapshot a day: the date, the total, the split by asset and each live account's total (under its internal id) in USD — no key, no account name. The groups of accounts you make: a name and the accounts' internal ids.",
 };

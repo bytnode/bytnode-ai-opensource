@@ -290,6 +290,220 @@ html[data-theme="light"] .pfv-currency-list {
   background: var(--alloc-0);
 }
 
+/* A group of accounts: an account's tile, its folder before the name. */
+.pfv-group-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  margin-right: 8px;
+  color: var(--alloc-0);
+}
+
+.pfv-group-icon svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.9;
+}
+
+/* A folder: the group's tile, its chevron on the right; open, its
+   accounts under it, set in. */
+.pfv-group-block {
+  position: relative;
+  display: grid;
+  gap: var(--tile-gap);
+}
+
+.pfv-group-block .pfv-group {
+  padding-right: 48px;
+}
+
+.pfv-group.is-parent:not(.is-on) {
+  background: color-mix(in srgb, var(--alloc-0) 7%, var(--tile));
+}
+
+.pfv-fold {
+  position: absolute;
+  top: 12px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--label-3);
+  cursor: pointer;
+}
+
+.pfv-fold:hover {
+  background: var(--fill);
+  color: var(--label);
+}
+
+.pfv-fold:focus-visible {
+  outline: 2px solid var(--alloc-0);
+  outline-offset: 1px;
+}
+
+.pfv-fold svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transform: rotate(-90deg);
+  transition: transform 160ms var(--ease);
+}
+
+.pfv-group-block.is-open .pfv-fold svg {
+  transform: none;
+}
+
+.pfv-subs .pfv-account {
+  padding-left: 46px;
+  background: color-mix(in srgb, var(--tile) 70%, transparent);
+}
+
+.pfv-subs .pfv-account:hover {
+  background: var(--tile-today);
+}
+
+.pfv-subs .pfv-account.is-on {
+  background: color-mix(in srgb, var(--alloc-0) 14%, var(--tile));
+}
+
+/* "New group", under the block; its form in place. */
+.pfv-new-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: calc(100% - 28px);
+  height: 40px;
+  margin: -10px 14px 22px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--label-2);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.pfv-new-group:hover {
+  background: var(--fill);
+  color: var(--label);
+}
+
+.pfv-new-group svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.pfv-group-form {
+  display: grid;
+  gap: 10px;
+  margin: -10px 14px 22px;
+  padding: 12px;
+  border-radius: var(--r-block);
+  background: var(--tile);
+}
+
+.pfv-group-pick {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.pfv-group-pick legend {
+  margin-bottom: 6px;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.pfv-group-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: var(--r-sm);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.pfv-group-option:hover {
+  background: var(--fill);
+}
+
+.pfv-group-option input {
+  flex: none;
+  margin: 0;
+  accent-color: var(--alloc-0);
+}
+
+.pfv-group-option b {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pfv-group-option small {
+  flex: none;
+  font-size: 12px;
+  color: var(--label-3);
+}
+
+.pfv-group-problem {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--down);
+}
+
+.pfv-group-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.pfv-group-button {
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pfv-group-button:hover:not(:disabled) {
+  background: rgba(var(--ink), 0.12);
+}
+
+.pfv-group-button.is-primary {
+  background: var(--alloc-0);
+  color: #fff;
+}
+
+.pfv-group-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 /* --- The report (right) -------------------------------------------------------- */
 
 .pfv-title-badge {

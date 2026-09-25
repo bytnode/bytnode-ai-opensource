@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type MouseEvent as ReactMouseEvent } from "react";
 import { ChevronDown, Plus } from "@/components/ui/icons";
 import { fmt } from "../bits";
 import { CASH, baseOf, pct, sameFocus, signed, toneOf, usdt, type BookRow, type Focus, type PaperState } from "./format";
@@ -14,8 +14,11 @@ import { CASH, baseOf, pct, sameFocus, signed, toneOf, usdt, type BookRow, type 
    each thing it holds — its futures positions, then its spot holdings —
    with its result; a click shows that one alone in the middle sheet.
    Only the portfolio shown can be opened (its figures are the ones read):
-   opening another shows it first. Under the list, "New portfolio" opens
-   a small form in place: a name, a starting capital.
+   opening another shows it first; the one shown is open unless folded by
+   hand — a click on it folds or unfolds it too (once back on the whole,
+   when one of its positions was shown alone) — so a trade placed in it appears under it at once. A right click
+   on a portfolio offers to delete it. Under the list, "New portfolio"
+   opens a small form in place: a name, a starting capital.
 --------------------------------------------------------------------------- */
 
 type Props = {
@@ -32,9 +35,10 @@ type Props = {
   onFocus: (focus: Focus) => void;
   /** Creates a portfolio; answers why not, or null. */
   onCreate: (name: string, capital: number) => Promise<string | null>;
+  onMenu: (e: ReactMouseEvent<HTMLElement>, id: string) => void;
 };
 
-export function Books({ books, selected, defaultCapital, onPick, expanded, onExpand, data, focus, onFocus, onCreate }: Props) {
+export function Books({ books, selected, defaultCapital, onPick, expanded, onExpand, data, focus, onFocus, onCreate, onMenu }: Props) {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [capital, setCapital] = useState("");
@@ -74,7 +78,7 @@ export function Books({ books, selected, defaultCapital, onPick, expanded, onExp
               <button type="button" className="ptv-book-toggle" onClick={() => onExpand(b.id)} aria-expanded={expanded.includes(b.id)} aria-label={`${expanded.includes(b.id) ? "Hide" : "Show"} the positions of ${b.name}`} title={expanded.includes(b.id) ? "Hide the positions" : "Show the positions"}>
                 <ChevronDown />
               </button>
-              <button type="button" className={`wlv-row ptv-book${on && !focus ? " is-selected" : ""}${on && focus ? " is-parent" : ""}`} aria-current={(on && !focus) || undefined} onClick={() => onPick(b.id)}>
+              <button type="button" className={`wlv-row ptv-book${on && !focus ? " is-selected" : ""}${on && focus ? " is-parent" : ""}`} aria-current={(on && !focus) || undefined} onClick={() => onPick(b.id)} onContextMenu={(e) => onMenu(e, b.id)}>
                 <span className="wlv-row-name">
                   <b>{b.name}</b>
                   <small>

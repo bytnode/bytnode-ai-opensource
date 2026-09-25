@@ -1,6 +1,10 @@
 "use client";
 
 import { useRef, useState, type CSSProperties } from "react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Pencil, Trash } from "@/components/ui/icons";
+import { callPlugin } from "@/lib/plugins/client";
+import { groupPoints, groupSummary, type AccountGroup } from "@/lib/plugins/portfolio/groups";
 import type { Snapshot, Summary } from "@/lib/plugins/portfolio/aggregate";
 import { performance, slicePeriod, type Period } from "@/lib/plugins/portfolio/performance";
 import type { Money } from "@/lib/plugins/portfolio/present";
@@ -15,11 +19,12 @@ import { PORTFOLIO_DEFAULT, PORTFOLIO_MAX, PORTFOLIO_MIN, clampPortfolioWidth, u
 import { Refresh } from "@/components/ui/icons";
 import type { ViewProps } from "../views";
 import { ColumnHandle } from "../column-handle";
-import { usePluginData } from "../use-plugin-data";
+import { usePluginData, viewTransport } from "../use-plugin-data";
+import { ItemMenu, useItemMenu } from "../item-menu";
 import { useAwakeInterval } from "../view-activity";
 import { useReportExport } from "../use-report-export";
 import { Dashboard } from "./dashboard";
-import { ALL, Side, accountKey } from "./side";
+import { ALL, Side, accountKey, groupKey, type Editing } from "./side";
 import "../watchlist/watchlist.css";
 import "./portfolio.css";
 
@@ -28,8 +33,10 @@ import "./portfolio.css";
    veil and the sheet are the bare views', worn through the watchlist's
    sheet, `../watchlist/watchlist.css`; the report is `./portfolio.css`).
    Left, a navigator: the currency beside the tab's name, "All portfolios"
-   — the whole — and each account, to see it on its own. Right, the report
-   for what is chosen (`./dashboard.tsx`).
+   — the whole — the user's groups of accounts, and each account, to see
+   it on its own. Right, the report for what is chosen (`./dashboard.tsx`):
+   a group's is the whole's cut to its accounts (`groups.ts` — the same
+   summary shape, its own daily curve), drawn by the same dashboard.
 
    Every open tab stays mounted: the summary is read again every two
    minutes while in front (it asks every exchange), and at once when the
@@ -68,6 +75,10 @@ export function PortfolioView({ settings }: ViewProps) {
     .map((a) => ({ id: a.id as string, assets: a.assets.map((x) => ({ asset: x.asset, amount: Number(x.amount.toPrecision(6)) })) }));
   const backfill = usePluginData<{ points: Estimated[]; missing: string[]; sources: Record<string, "ledger" | "estimate">; coverage?: Record<string, Record<string, Coverage>>; activity?: Activity[]; access?: Record<string, Access> }>("portfolio", "backfill", settings, { holdings, days: HISTORY_DAYS - 1 }, { keep: "latest" });
   const report = useReportExport("portfolio", settings, { currency });
+  const groupsData = usePluginData<AccountGroup[]>("portfolio", "groups", settings, {}, { keep: "latest" });
+  const [editing, setEditing] = useState<Editing | null>(null);
+  const [deleting, setDeleting] = useState<AccountGroup | null>(null);
+  const menu = useItemMenu();
   const ui = useUiPrefs();
   const panel = useRef<HTMLDivElement>(null);
 
@@ -75,26 +86,71 @@ export function PortfolioView({ settings }: ViewProps) {
   const s = sample ? sample.summary : noAccount ? null : (data?.summary ?? null);
   const m: Money | null = sample ? (data?.money.currency === currency ? data.money : { currency: "USD", perUsd: 1, rateNote: "" }) : (data?.money ?? null);
   const value = (usd: number | undefined) => (m && typeof usd === "number" ? `${(usd * m.perUsd).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${m.currency}` : "—");
-  /* An account that is no longer there sends back to the whole. */
+  /* An account or a group that is no longer there sends back to the whole. */
   const account = s && scope !== ALL ? (s.accounts.find((a) => accountKey(a) === scope) ?? null) : null;
+  /* The groups are the user's accounts': never over the sample. */
+  const groups = sample || noAccount ? [] : Array.isArray(groupsData.data) ? groupsData.data : [];
+  const group = groups.find((g) => groupKey(g.id) === scope) ?? null;
+  const shown = s && group ? groupSummary(s, group.accountIds) : s;
+  const inGroup = (id: string | undefined) => !group || (!!id && group.accountIds.includes(id));
+  /* Per-account records cut to the group shown (all of them otherwise). */
+  const only = <T,>(byId: Record<string, T> | undefined): Record<string, T> | null => (byId ? Object.fromEntries(Object.entries(byId).filter(([id]) => inGroup(id))) : null);
   /* The whole's series (the navigator shows its move), and the one of
      what is shown: the whole, or the account's own (filed under its id —
      an account without one has no curve). */
   const points = sample ? sample.points : mergeHistory(history.data?.points ?? [], backfill.data?.points ?? []);
   /* Where the curve's past comes from, for what is shown. */
   const sources = sample ? {} : (backfill.data?.sources ?? {});
-  const kinds = new Set(account ? (account.id && sources[account.id] ? [sources[account.id]] : []) : Object.values(sources));
+  const kinds = new Set(account ? (account.id && sources[account.id] ? [sources[account.id]] : []) : Object.entries(sources).filter(([id]) => inGroup(id)).map(([, k]) => k));
   const origin: "ledger" | "mixed" | "estimate" | null = !(backfill.data?.points.length ?? 0) || sample ? null : kinds.size > 1 ? "mixed" : kinds.has("ledger") ? "ledger" : kinds.has("estimate") ? "estimate" : null;
   const wholeSeries = m ? slicePeriod(dailySeries(points, m.perUsd), period) : [];
-  const series = !m ? [] : !account ? wholeSeries : account.id ? slicePeriod(dailySeries(points, m.perUsd, account.id), period) : [];
+  const series = !m ? [] : group ? slicePeriod(dailySeries(groupPoints(points, group.accountIds), m.perUsd), period) : !account ? wholeSeries : account.id ? slicePeriod(dailySeries(points, m.perUsd, account.id), period) : [];
   const perf = performance(wholeSeries);
   const move = perf ? { text: `${perf.pct >= 0 ? "+" : "−"}${Math.abs(perf.pct).toFixed(2)} %`, tone: perf.pct > 0 ? "is-up" : perf.pct < 0 ? "is-down" : "is-flat" } : null;
+  const saveGroup = async (draft: { id?: string; name: string; accountIds: string[] }) => {
+    try {
+      const saved = await callPlugin<AccountGroup>("portfolio", "group", { action: draft.id ? "edit" : "create", ...draft }, viewTransport(settings));
+      groupsData.reload();
+      setEditing(null);
+      setScope(groupKey(saved.id));
+      return null;
+    } catch (e) {
+      return (e as Error).message;
+    }
+  };
+  const deleteGroup = async (g: AccountGroup) => {
+    setDeleting(null);
+    try {
+      await callPlugin("portfolio", "group", { action: "delete", id: g.id }, viewTransport(settings));
+      if (scope === groupKey(g.id)) setScope(ALL);
+      if (editing?.kind === "edit" && editing.id === g.id) setEditing(null);
+    } finally {
+      groupsData.reload();
+    }
+  };
+
   const status = sample ? "" : noAccount ? "" : loading ? "Updating…" : data ? `Updated ${new Date(data.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : "Reading your accounts…";
 
   return (
     <div className="wlv pfv">
       <div className="wlv-panel" ref={panel} style={{ "--wlv-list": `${ui.portfolioWidth}px` } as CSSProperties}>
-        <Side summary={s} known={noAccount || sample ? [] : settings.keys.exchanges.map((a) => ({ id: a.id, label: a.label, exchange: a.exchange, testnet: a.testnet }))} problem={error ?? null} scope={account ? scope : ALL} onScope={setScope} currency={currency} onCurrency={setCurrency} value={value} move={move} />
+        <Side
+          summary={s}
+          known={noAccount || sample ? [] : settings.keys.exchanges.map((a) => ({ id: a.id, label: a.label, exchange: a.exchange, testnet: a.testnet }))}
+          problem={error ?? null}
+          scope={account || group ? scope : ALL}
+          onScope={setScope}
+          currency={currency}
+          onCurrency={setCurrency}
+          value={value}
+          move={move}
+          groups={groups}
+          groupTotal={(g) => (s ? groupSummary(s, g.accountIds).totalUsd : null)}
+          onGroupMenu={(e, id) => menu.open(e, { kind: "group", id })}
+          editing={editing}
+          onEditing={setEditing}
+          onSaveGroup={saveGroup}
+        />
         <ColumnHandle
           panel={panel}
           cssVar="--wlv-list"
@@ -111,7 +167,7 @@ export function PortfolioView({ settings }: ViewProps) {
             <div className="wlv-title-block">
               <h2 className="wlv-sheet-title">
                 {account && <span className={`xch-badge pfv-title-badge${account.testnet ? "" : " is-live"}`}>{account.testnet ? "TESTNET" : "LIVE"}</span>}
-                <span className="pv-ink">{noAccount && !sample ? "No account yet" : account ? account.label : "All portfolios"}</span>
+                <span className="pv-ink">{noAccount && !sample ? "No account yet" : account ? account.label : group ? group.name : "All portfolios"}</span>
               </h2>
               <p className="wlv-sheet-sub">
                 {noAccount && !sample
@@ -120,7 +176,9 @@ export function PortfolioView({ settings }: ViewProps) {
                     ? account.error
                       ? `${account.exchange} · could not be read: ${account.error}`
                       : `${account.exchange}${account.testnet ? " · testnet, not counted in the whole" : ""}`
-                    : s
+                    : group && shown
+                      ? `${shown.accounts.length ? shown.accounts.map((a) => a.label).join(", ") : "None of its accounts is here any more"}${m?.rateNote ? ` · ${m.rateNote}` : ""}`
+                      : s
                       ? `${s.accounts.filter((a) => !a.testnet).length} live accounts${s.testnetUsd > 0 ? " · testnet shown apart, never counted" : ""}${m?.rateNote ? ` · ${m.rateNote}` : ""}`
                       : "Reading the balances of every wallet…"}
               </p>
@@ -177,12 +235,32 @@ export function PortfolioView({ settings }: ViewProps) {
                   )}
                 </div>
               ) : (
-                <Dashboard summary={s} account={account} series={series} period={period} onPeriod={setPeriod} value={value} perUsd={m.perUsd} currency={m.currency} onScope={setScope} origin={origin} activity={sample ? null : (backfill.data?.activity ?? null)} coverage={sample ? null : (backfill.data?.coverage ?? null)} reading={!sample && backfill.loading && !backfill.data} access={sample ? null : (backfill.data?.access ?? null)} />
+                <Dashboard summary={shown ?? s} account={account} series={series} period={period} onPeriod={setPeriod} value={value} perUsd={m.perUsd} currency={m.currency} onScope={setScope} origin={origin} activity={sample ? null : (backfill.data?.activity?.filter((a) => inGroup(a.account)) ?? null)} coverage={sample ? null : only(backfill.data?.coverage)} reading={!sample && backfill.loading && !backfill.data} access={sample ? null : only(backfill.data?.access)} />
               )
             )}
           </div>
         </main>
       </div>
+      {menu.at && (
+        <ItemMenu
+          at={menu.at}
+          label="Group actions"
+          items={[
+            { label: "Edit the group", icon: <Pencil />, onSelect: () => menu.at && setEditing({ kind: "edit", id: menu.at.id }) },
+            { label: "Delete the group", icon: <Trash />, danger: true, onSelect: () => setDeleting(groups.find((g) => g.id === menu.at?.id) ?? null) },
+          ]}
+          onClose={menu.close}
+        />
+      )}
+      {deleting && (
+        <ConfirmDialog
+          title={`Delete the group "${deleting.name}"?`}
+          body="Only the group goes: its accounts, their balances and their history are not touched."
+          confirmLabel="Delete"
+          onConfirm={() => void deleteGroup(deleting)}
+          onCancel={() => setDeleting(null)}
+        />
+      )}
     </div>
   );
 }

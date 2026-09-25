@@ -112,7 +112,9 @@ export function Subscriptions({ error }: { error?: string }) {
                   {loading
                     ? "Reading…"
                     : s.installing
-                      ? `Installing ${a.product}… (a few minutes)`
+                      ? s.available
+                        ? `Updating ${a.product} to its latest version…`
+                        : `Installing ${a.product}… (a few minutes)`
                       : !s.available
                         ? (s.message ?? `${a.plan} · via ${a.product}, to install`)
                         : s.loggedIn

@@ -11,8 +11,9 @@ import {
 } from "./agents";
 import { AcpConnection } from "./connection";
 import { installFailure, isInstalling } from "./install";
-import { acpLaunch, brokenInstall, cliLaunch, installedVersion, isInstalled, openTerminal, openTerminalWith, resolveAcp, runCli, subscriptionEnv } from "./launch";
-import { AGENT_SOURCES, satisfiesCaret } from "./packages";
+import { acpLaunch, brokenInstall, cliLaunch, installedVersion, isInstalled, openTerminal, openTerminalWith, packageVersion, resolveAcp, runCli, subscriptionEnv } from "./launch";
+import { AGENT_SOURCES, satisfiesCaret, trackedPackages } from "./packages";
+import { keepAgentsCurrent, updateAvailable } from "./updates";
 import { prepareWorkspace, scratchWorkspace } from "./prepare";
 
 /* ---------------------------------------------------------------------------
@@ -48,28 +49,50 @@ export async function authStatus(agent: AcpAgentId): Promise<AcpAuthStatus> {
   /* A launch that fails (unreadable binary, ENOENT) is a state to display,
      not an exception: otherwise the background fill crashes and the page
      stays on « checking ». */
+  const known = { agent, available: true, source: resolved.source, outdated: isOutdated(agent) || updateAvailable(agent), build: buildOf(agent) } as const;
+  /* During an update the agent is not launched to read its account: the
+     binary is being replaced. Its last known state stands in. */
+  if (isInstalling(agent)) return { ...(last.get(agent) ?? { loggedIn: false }), ...known, installing: true };
   let base: Partial_;
   try {
     base = await (STATUS[agent] ?? genericStatus(agent))();
   } catch (e) {
     base = { loggedIn: false, message: `Could not verify: ${e instanceof Error ? e.message : String(e)}` };
   }
-  const status: AcpAuthStatus = { agent, available: true, source: resolved.source, outdated: isOutdated(agent), ...base };
+  const status: AcpAuthStatus = { ...known, ...base };
   if (status.loggedIn) connecting.delete(agent);
   else status.connecting = isConnecting(agent);
+  last.set(agent, status);
   return status;
 }
 
+const last = new Map<AcpAgentId, AcpAuthStatus>();
+
+/** The versions of what we installed for this agent: it changes with an
+    update, and the model catalog reloads on that change. */
+function buildOf(agent: AcpAgentId): string | undefined {
+  const src = AGENT_SOURCES[agent];
+  if (src.kind !== "npm") return undefined;
+  return trackedPackages(src).map(([pkg]) => `${pkg}@${packageVersion(agent, pkg) ?? "-"}`).join(" ");
+}
+
 /* The expected range was raised by a version of BytNode-AI (new models,
-   efforts): the button becomes « Update ». */
+   efforts): the button becomes « Update ». A newer release within the
+   range shows it too (`updateAvailable`), while it waits for the agent to
+   be idle. */
 const isOutdated = (agent: AcpAgentId): boolean => {
   const src = AGENT_SOURCES[agent];
   const got = installedVersion(agent);
   return src.kind === "npm" && got !== null && !satisfiesCaret(got, src.version);
 };
 
-export const allAuthStatus = () =>
-  Promise.all(ACP_AGENTS.map((a) => authStatus(a.id)));
+/* The status read is also when the installed agents are brought up to
+   date (`updates.ts`): an update it starts shows as `installing`, which
+   keeps the page polling until the new version answers. */
+export async function allAuthStatus() {
+  await keepAgentsCurrent();
+  return Promise.all(ACP_AGENTS.map((a) => authStatus(a.id)));
+}
 
 type Partial_ = {
   loggedIn: boolean;

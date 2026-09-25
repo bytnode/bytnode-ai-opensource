@@ -121,9 +121,11 @@ function watchAuth() {
   watching = true;
   let known = "";
   onAcpAuthChange((agents) => {
+    /* A new version of an agent (`build`, after an update) brings its
+       new models: that is a change too. */
     const now = agents
       .filter((a) => a.loggedIn)
-      .map((a) => a.agent)
+      .map((a) => `${a.agent}:${a.build ?? ""}`)
       .join(",");
     if (now !== known) {
       known = now;

@@ -12,9 +12,9 @@ import { planTitle } from "./sheet";
    The left column: the groups, and nothing else — one block of tiles, as
    the portfolio's. A group says how many DCAs it holds, what went in, when
    the next purchase is and its result; the one open is lit. A right click
-   renames or deletes it. Its chevron unfolds it in place: its DCAs, one
+   renames or deletes it — on a DCA, edits or deletes that DCA. Its chevron unfolds it in place: its DCAs, one
    row each (badge, next purchase, result), a click opens that DCA straight
-   away. The group open — or the one of the DCA shown — is unfolded unless
+   away; a click on the group shown folds or unfolds it, like its chevron. The group open — or the one of the DCA shown — is unfolded unless
    folded by hand. Above the block, "New group" — its name typed in place.
 --------------------------------------------------------------------------- */
 
@@ -30,11 +30,12 @@ type Props = {
   onOpen: (id: string) => void;
   onPlan: (id: string) => void;
   onMenu: (e: ReactMouseEvent<HTMLElement>, id: string) => void;
+  onPlanMenu: (e: ReactMouseEvent<HTMLElement>, id: string) => void;
   /** Makes a group; answers why not, or null. */
   onCreateGroup: (name: string) => Promise<string | null>;
 };
 
-export function Side({ groups, plans, figures, unit, accounts, open, openPlan, onOpen, onPlan, onMenu, onCreateGroup }: Props) {
+export function Side({ groups, plans, figures, unit, accounts, open, openPlan, onOpen, onPlan, onMenu, onPlanMenu, onCreateGroup }: Props) {
   const [naming, setNaming] = useState(false);
   /* Unfolded by hand, or folded: else the open group is unfolded. */
   const [unfolded, setUnfolded] = useState<Record<string, boolean>>({});
@@ -117,6 +118,8 @@ export function Side({ groups, plans, figures, unit, accounts, open, openPlan, o
                   className={`dcv-item dcv-group${on ? " is-on" : ""}${open === g.id && openPlan ? " is-parent" : ""}`}
                   aria-pressed={on}
                   onClick={() => {
+                    /* The group shown opens or closes; another one is shown, open. */
+                    if (on) return setUnfolded((u) => ({ ...u, [g.id]: !isUnfolded(g.id) }));
                     onOpen(g.id);
                     setUnfolded((u) => ({ ...u, [g.id]: true }));
                   }}
@@ -148,7 +151,7 @@ export function Side({ groups, plans, figures, unit, accounts, open, openPlan, o
                       const lit = openPlan === p.id;
                       return (
                         <li key={p.id}>
-                          <button type="button" className={`dcv-sub${lit ? " is-on" : ""}${p.status !== "active" ? " is-idle" : ""}`} aria-current={lit || undefined} onClick={() => onPlan(p.id)}>
+                          <button type="button" className={`dcv-sub${lit ? " is-on" : ""}${p.status !== "active" ? " is-idle" : ""}`} aria-current={lit || undefined} onClick={() => onPlan(p.id)} onContextMenu={(e) => onPlanMenu(e, p.id)}>
                             <span className="dcv-sub-main">
                               <span className="dcv-item-top">
                                 <b>{planTitle(p)}</b>

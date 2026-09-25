@@ -17,6 +17,7 @@ import {
   type Stream,
 } from "@agentclientprotocol/sdk";
 import type { AcpAgentId } from "./agents";
+import { installDone } from "./install";
 import { spawnAcp } from "./launch";
 
 /* ---------------------------------------------------------------------------
@@ -59,6 +60,18 @@ function withoutStrayResponses(stream: Stream): Stream {
   };
 }
 
+/* The agent processes alive, per agent. An update never replaces an
+   agent's files while one runs: on Windows a running `claude.exe` cannot
+   be overwritten, and npm would leave a half-replaced install. */
+const running = new Map<AcpAgentId, number>();
+export const runningProcesses = (agent: AcpAgentId) => running.get(agent) ?? 0;
+const idleListeners = new Set<(agent: AcpAgentId) => void>();
+/** Called when an agent's last process exits: an update waiting for it
+    can run. */
+export function onAgentIdle(listener: (agent: AcpAgentId) => void): void {
+  idleListeners.add(listener);
+}
+
 export class AcpConnection {
   private readonly updates = new Map<string, UpdateListener>();
   private readonly permissions = new Map<string, PermissionHandler>();
@@ -75,12 +88,25 @@ export class AcpConnection {
     private readonly conn: ClientSideConnection,
   ) {
     this.exited = new Promise((resolve) => child.once("exit", () => resolve()));
+    running.set(agent, runningProcesses(agent) + 1);
+    let counted = true;
+    const gone = () => {
+      if (!counted) return;
+      counted = false;
+      running.set(agent, Math.max(0, runningProcesses(agent) - 1));
+      if (runningProcesses(agent) === 0) for (const l of idleListeners) l(agent);
+    };
+    child.once("exit", gone);
+    child.once("error", gone);
     child.stderr?.on("data", (b: Buffer) => {
       this.stderr = (this.stderr + b.toString("utf8")).slice(-4000);
     });
   }
 
   static async open(agent: AcpAgentId, cwd: string): Promise<AcpConnection> {
+    /* An update in progress: wait for it rather than launch a package npm
+       is replacing. */
+    await installDone(agent);
     const child = spawnAcp(agent, cwd);
     if (!child.stdin || !child.stdout)
       throw new Error("Could not open the agent's channels.");

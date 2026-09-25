@@ -146,6 +146,13 @@ export const Folder = (p: P) => (
   </svg>
 );
 
+export const FolderOpen = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M3 17V7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v1" />
+    <path d="M3 17l2.2-6a1.5 1.5 0 0 1 1.4-1H20a1 1 0 0 1 1 1.3l-2 6.4a1.8 1.8 0 0 1-1.7 1.3H5a2 2 0 0 1-2-2Z" />
+  </svg>
+);
+
 export const File = (p: P) => (
   <svg {...base(p)}>
     <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" />
