@@ -1,6 +1,6 @@
 # The page of a plugin
 
-`view/index.html` is shown in the plugin's own tab. The app injects the **BytNode kit** before your code: the app's colours, fonts, light and dark themes, and the classes below. Build the page from them and it looks like the app's own tabs (the watchlist, the portfolio).
+`view/index.html` is shown in the plugin's own tab. The app injects the **BytNode kit** before your code: the app's colours, fonts, light and dark themes, the backdrop veil, the centring, and the classes below. Build the page from them and it looks like the app's own tabs (the watchlist, the portfolio).
 
 ## How the page lives
 
@@ -23,6 +23,8 @@
 | `bn.theme()`, `bn.onTheme((theme) => …)` | `"dark"` or `"light"`, followed live. |
 
 ## Layout
+
+The page has a translucent veil over the app's backdrop (`--page-veil`, on `html`) and its content is centred: the sheet alone at `--bn-width` (1080 px), `bn-app` at most `--bn-app-width` (1400 px), `bn-page` as one centred column. Keep both (see the plugin-design skill).
 
 A left column and a sheet — or the sheet alone:
 
@@ -62,24 +64,39 @@ A left column and a sheet — or the sheet alone:
 
 | Class | For |
 |---|---|
-| `bn-app` | The whole tab (flex row, full height). |
+| `bn-app` | The whole tab (flex row, full height), centred at `--bn-app-width`. With the sheet alone inside, the sheet is centred at `--bn-width` with a margin all round. |
+| `bn-page` | A centred column (`--bn-width`) for a page without the column / sheet structure. |
 | `bn-side`, `bn-side-head`, `bn-side-title`, `bn-count` | The left column: a light veil, 340 px (`style="--bn-side: 300px"` to change). |
 | `bn-sheet` | The main sheet: denser veil, round corners. Alone in `bn-app`, it fills the tab. |
 | `bn-head`, `bn-head-text`, `bn-title`, `bn-sub`, `bn-actions` | The sheet's header. `bn-title` wears BytNode's metal ink — the sheet's title only. |
 | `bn-body` | The scrolling part of the sheet. |
 | `bn-section`, `bn-section-title` (+ `<small>`) | A block of the sheet, aligned on the sheet's margin. |
-| `bn-figure`, `bn-figure-value`, `bn-figure-unit` | One big figure at the top. |
+| `bn-figure`, `bn-figure-value`, `bn-figure-unit` | One big figure at the top (display font — never `bn-mono`), followed by a `bn-pill` and a `bn-muted` sentence. |
+| `bn-stack` | Blocks one under the other, 16 px apart. |
+| `bn-block`, `bn-block-title` | A rounded panel on the sheet: a chart, a timeline, a form. Every group of things sits in a block. |
+| `bn-items`, `bn-item`, `bn-item-main`, `bn-item-title`, `bn-item-sub`, `bn-item-aside` | Rows grouped in ONE block, 2 px apart — the Tasks and Alerts lists. `button.bn-item` / `a.bn-item` are clickable. |
+| `bn-add` | The block-wide blue "+ New …" row (with a plus `<svg>`). |
+| `bn-chip` | A quiet label in a pill: "Once", "Every time". |
+| `bn-dot` (+ `is-on`/`is-up`, `is-down`, `is-warn`) | A state: green, red, orange; grey when off. |
+| `bn-status` | "● Updated 17:12" beside the head's actions (a `bn-dot` inside). |
+| `bn-switch` | `<label class="bn-switch"><input type="checkbox"></label>` — on / off. |
+| `bn-facts` | `<dl class="bn-facts"><div><dt>Fee</dt><dd>0.1 %</dd></div>…</dl>` — labelled values in a panel. |
+| `bn-form-grid` (+ `is-wide` on a field) | Fields side by side, wrapping. |
+| `bn-link` (+ `is-danger`) | A blue text action ("Edit", "Max 9,853.12"). |
+| `bn-footnote` | The page's closing words, small and faint. |
 | `bn-tiles` (`--cols: 2..4`), `bn-tile`, `bn-tile-label`, `bn-tile-value`, `bn-tile-sub` | Figures on square tiles, one round block. `button.bn-tile` is clickable; `is-selected`. |
 | `bn-list`, `bn-row`, `bn-row-name` (`<b>` + `<small>`), `bn-row-value` | A list of rows; `button.bn-row` is clickable; `is-selected`. |
 | `bn-pill` + `is-up` / `is-down` / `is-flat` | A move, as a coloured pill. |
 | `bn-table` (+ `is-num` on numeric cells, `is-up`/`is-down` on a cell) | A table of rows on tiles. |
 | `bn-chart` (`--bn-chart-height`) | The box `bn.chart` draws in. |
-| `bn-button` (+ `is-primary`, `is-danger`), `bn-icon` (round, holds an `<svg>`) | Buttons. |
+| `bn-button` (+ `is-primary` = THE blue action, one per place; `is-danger`), `bn-icon` (round, holds an `<svg>`) | Buttons; a `<svg>` inside a `bn-button` is sized for you ("+ New alert"). |
 | `bn-form`, `bn-form-row`, `bn-field` (a `<label>`), `bn-input`, `bn-select`, `bn-textarea` | Forms. |
 | `bn-segments` (buttons inside, `is-on`) | A choice of two to four: 7D / 30D / 1Y. |
 | `bn-badge` (+ `is-live`, `is-testnet`, `is-paper`) | LIVE / TESTNET / PAPER — on every account and every figure about one. |
 | `bn-note`, `bn-error`, `bn-empty` (`<b>` + text + a button), `bn-loading` | A remark, an error, an empty state, a loading line. |
-| `bn-up`, `bn-down`, `bn-muted`, `bn-mono`, `bn-ink` | Text colours; tabular figures; the metal ink. |
+| `bn-up`, `bn-down`, `bn-muted`, `bn-mono`, `bn-ink` | Text colours; monospace for ids and codes only (never figures); the metal ink. |
+
+Layout variables: `--page-veil` (the backdrop veil, translucent — never opaque), `--bn-width` (the centred sheet or page, 1080 px), `--bn-app-width` (the column + sheet, 1400 px). `html.bn-clear` removes the veil (rarely right).
 
 CSS variables if you need your own rules: `--label`, `--label-2`, `--label-3` (text, strong to faint), `--fill`, `--tile`, `--tile-strong`, `--sep`, `--up`, `--down`, `--blue`, `--orange`, `--purple`, `--r`, `--r-sm`, `--r-block`, `--side`, `--font-display`, `--font-text`, `--font-mono`. They follow the theme.
 

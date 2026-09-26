@@ -1,15 +1,22 @@
-import { manifestOf, readFiles, writeDraftFile } from "@/lib/plugins/user/files";
+import { reloadUserPlugins } from "@/lib/plugins/core/active";
+import { checkUserPlugin } from "@/lib/plugins/user/check";
+import { activate, manifestOf, readFiles, readGrant, readRequest, writeDraftFile } from "@/lib/plugins/user/files";
+import { covers } from "@/lib/plugins/user/permissions";
 import type { Tool } from "../types";
 import { fail, ok } from "../types";
-import { PLUGIN_PROP, pluginArg } from "./common";
+import { PLUGIN_PROP, pluginArg, takenToolNames } from "./common";
 
 /* ---------------------------------------------------------------------------
-   PluginWrite: writes one file of a plugin's DRAFT — never what runs.
+   PluginWrite: writes one file of a plugin's DRAFT.
 
-   The draft only becomes the running plugin through PluginActivate, after
-   PluginCheck passed and, when it asks for new permissions, after the
-   user's approval. So a half-written plugin never runs, and what runs is
-   exactly what was reviewed. `plugin.json` is read at once and its
+   A plugin the user already approved is updated LIVE: when the draft, with
+   this file, passes the whole check and asks for nothing beyond what was
+   granted, it becomes what runs at once — the open tab reloads within
+   seconds, the tools change at the agents' next message. Otherwise the
+   draft waits: a failing check says why; a new permission needs
+   PluginActivate and the user's approval in the conversation. A
+   half-written plugin never runs, and what runs always passed the check
+   under what the user granted. `plugin.json` is read at once and its
    problems said in the answer.
 --------------------------------------------------------------------------- */
 
@@ -19,7 +26,7 @@ export const pluginWriteTool: Tool<Args> = {
   name: "PluginWrite",
   policy: { gated: true, subagent: false },
   description:
-    "Writes (or deletes) one file of a BytNode-AI plugin you are writing for the user — load the create-plugin skill first: it gives the method, the ctx API, the page kit and the art direction. Files: plugin.json (manifest and permissions), server.js (export default { setup(ctx) { … } }), tests.js (required), view/index.html and view/*.css|js (its tab, optional). It writes the DRAFT: nothing runs until PluginCheck passes and PluginActivate is called. A new id creates the plugin.",
+    "Writes (or deletes) one WHOLE file of a BytNode-AI plugin you are writing for the user — there is no partial edit: PluginRead the file, then write it complete. A plugin's files are not in your workspace: never use Read, Edit or Write on them. Before anything, load the create-plugin skill (the method, the ctx API, tests, activation) and, for view/ files, the plugin-design skill (layout, backdrop, centring, kit, art direction). Files: plugin.json (manifest and permissions), server.js (export default { setup(ctx) { … } }), tests.js (required), view/index.html and view/*.css|js (its tab, optional). A new plugin stays a draft until PluginActivate and the user's approval. An already approved plugin is updated LIVE as soon as the draft passes the check and asks for no new permission: the answer says whether it went live.",
   parameters: {
     type: "object",
     properties: {
@@ -45,6 +52,23 @@ export const pluginWriteTool: Tool<Args> = {
       const m = await manifestOf(p.id, await readFiles(p.id, "draft"));
       if (!m.ok) return ok(`${done}\nplugin.json has problems to fix:\n${m.errors.map((e) => `- ${e}`).join("\n")}`);
     }
-    return ok(`${done} This is the draft: the user sees no change until PluginCheck passes and PluginActivate is called.`);
+    return ok(`${done} ${await goLive(p.id)}`);
   },
 };
+
+/** An approved plugin whose draft passes and asks nothing new: it runs now. */
+async function goLive(id: string): Promise<string> {
+  const grant = await readGrant(id);
+  if (!grant) return "Draft only (never activated): when it is complete, PluginCheck then PluginActivate.";
+  const report = await checkUserPlugin(id, { taken: await takenToolNames() });
+  if (!report.ok || !report.manifest) {
+    const failed = report.steps.find((s) => !s.ok);
+    return `Not live yet — the draft does not pass the check${failed ? ` (${failed.name}: ${failed.lines[0] ?? "failed"})` : ""}. The user still sees the previous version. Run PluginCheck for the details.`;
+  }
+  if (!covers(grant.permissions, report.manifest.permissions)) return "Not live: it asks for a new permission. PluginActivate — the user approves it in the conversation.";
+  if (report.digest === grant.digest) return "Live already: this is the version that runs.";
+  if (await readRequest(id)) return "Not live: an approval is pending for this plugin. PluginActivate again once done.";
+  await activate(id, { ...grant, permissions: grant.permissions, digest: report.digest, at: new Date().toISOString() });
+  await reloadUserPlugins();
+  return "LIVE: the running plugin is updated — its open tab reloads within seconds, its tools change at the agents' next message.";
+}

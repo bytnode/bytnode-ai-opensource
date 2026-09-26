@@ -58,3 +58,21 @@ describe("the page of a plugin written by an agent", () => {
     expect(r.notes.join()).toMatch(/BytNode kit/);
   });
 });
+
+describe("the kit is not overridden", () => {
+  it("refuses !important and rules on the page's frame", async () => {
+    const r = await viewProblems({ "view/index.html": '<style>.bn-sheet { background: transparent !important; } html, body { background: #000; }</style><div class="bn-app"></div><script>bn.call("x")</script>' }, true);
+    expect(r.errors.join(" ")).toMatch(/uses !important/);
+    expect(r.errors.join(" ")).toMatch(/restyles (html|\.bn-sheet)/);
+  });
+
+  it("lets a page style its own classes", async () => {
+    const r = await viewProblems({ "view/index.html": '<style>.tj-note { color: var(--label-2); } .bn-sheet .tj-row { gap: 4px; }</style><div class="bn-app"></div><script>bn.call("x")</script>' }, true);
+    expect(r.errors).toEqual([]);
+  });
+
+  it("notes figures set in monospace", async () => {
+    const r = await viewProblems({ "view/index.html": '<span class="bn-figure-value bn-mono">1</span><script>bn.call("x")</script>' }, true);
+    expect(r.notes.join()).toMatch(/monospace/);
+  });
+});

@@ -103,9 +103,10 @@ function checkOps(p: Permissions, registered: Registered, mocks: Mock[], record:
       case "exchange.positions":
       case "exchange.orders":
       case "exchange.ticker":
-      case "exchange.trades": {
+      case "exchange.trades":
+      case "exchange.read": {
         if (p.exchange === "none") refuse("the exchange accounts", '"exchange": "read"');
-        const method = op.slice("exchange.".length);
+        const method = op === "exchange.read" ? String(a[1]) : op.slice("exchange.".length);
         const m = mocked("exchange", method);
         if (!m) throw new Error(`No exchange in a check: mock it in tests.js — mock.exchange("${method}", …).`);
         return m.value;

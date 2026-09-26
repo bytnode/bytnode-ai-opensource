@@ -87,11 +87,13 @@ ctx.tool({
 });
 ```
 
-`run` returns what the agent reads:
+`run` returns what the agent reads — exactly one of:
 - a **string**;
 - or `{ text, facts }` — `facts: { title, rows: [["Label", "value"], …] }` — a card of figures in the thread;
 - or `{ text, table }` — `table: { title, columns: […], rows: [[…], …] }` (30 rows shown);
 - or `{ error: "what went wrong, and what to do" }` — the call fails with that message.
+
+⚠️ **One card per result**: `facts` OR `table`, never both — with both, only `facts` shows. ⚠️ A `run` that throws is the same as `{ error }`: the caller gets a failed result (`ok: false`), never an exception.
 
 Arguments arrive already checked against `parameters`. Say in `description` what the tool does AND when to use it: that is how agents decide.
 
@@ -130,6 +132,7 @@ ctx.action("add", async ({ symbol, amount }) => {
 | `ctx.exchange.positions(account)` | `[{ symbol, side, contracts, entryPrice, markPrice, unrealizedPnl, leverage, liquidationPrice }]` | `exchange` |
 | `ctx.exchange.orders(account, symbol, market)` | Open orders: `[{ id, symbol, side, type, price, amount, filled, status, at }]` | `exchange` |
 | `ctx.exchange.ticker(account, symbol, market)` | `{ symbol, last, bid, ask, change24h, at }` | `exchange` |
+| `ctx.exchange.read(account, "fetchDeposits", [args…], { market })` | Any other READING of the account that ccxt offers for its exchange: `fetchDeposits`, `fetchWithdrawals`, `fetchLedger`, `fetchFundingHistory`, `fetchOpenInterest`, `fetchMyLiquidations`… — the method's own arguments in order, its answer as data (without the raw `info`), 2 MB at most. Only `fetch…` methods: nothing that acts. | `exchange` |
 | `ctx.exchange.trades(account, { symbol, since, limit, market })` | The trades executed on the account, newest first: `{ account, testnet, trades: [{ id, orderId, symbol, side, price, amount, cost, fee: { cost, currency }, at, takerOrMaker }], note }`. Default: the last 30 days (90 at most), 100 trades (500 at most). Without `symbol`, some exchanges (Binance…) are read pair by pair on the pairs held today against USDT/USDC — `note` says so; give a `symbol` for another pair. | `exchange` |
 | `ctx.notify({ title, body, level })` | — (`level`: info, success, warning, error). Clicking it opens the plugin's tab. | `notify` |
 | `ctx.confirm({ tool, account, args, title, reason, payload })` | `{ id, status: "pending" }` — see below. | `exchange: "orders"` |
@@ -177,8 +180,9 @@ test("refuses an empty symbol", async () => {
 });
 ```
 
+- ⚠️ `plugin.tool(name, args)` **never throws**: it resolves to `{ ok, output, card }` — a failing tool gives `ok: false` and its message in `output` (test it with `assertEqual(r.ok, false)` and `assertIncludes(r.output, "…")`). `plugin.action(name, params)` **rejects** when the handler throws (test it with `await assertThrows(() => plugin.action(…), "…")`).
 - Calls: `plugin.tool(name, args)`, `plugin.action(name, params)`, `plugin.job(id)`, `plugin.prompt()`, `plugin.notifications()`, `plugin.confirmations()`, `plugin.confirm(id, "allowed" | "denied")` (calls your `onConfirmed`).
-- Mocks: `mock.fetch(urlPrefix, { json | text, status })`, `mock.bytnode(tool, answer)`, `mock.price(symbol, price)`, `mock.exchange("balance" | "positions" | "orders" | "ticker" | "trades", answer)`, `mock.accounts([{ id, label, exchange, testnet }])` (default: one testnet account `test-account`).
+- Mocks: `mock.fetch(urlPrefix, { json | text, status })`, `mock.bytnode(tool, answer)`, `mock.price(symbol, price)`, `mock.exchange("balance" | "positions" | "orders" | "ticker" | "trades" | "fetchDeposits"…, answer)` (for `ctx.exchange.read`, the method's name), `mock.accounts([{ id, label, exchange, testnet }])` (default: one testnet account `test-account`).
 - Assertions: `assert(cond, message)`, `assertEqual(actual, expected)` (deep, by JSON), `assertIncludes(text, part)`, `await assertThrows(fn, partOfMessage)`.
 - A permission used but not declared fails the call with "without declaring": the check catches it before the user does.
 

@@ -213,6 +213,19 @@ describe("cardOf", () => {
     expect(cardOf({ rawOutput: [{ type: "resource", resource: { uri: "bytnode-ai://card", text: "not json" } }] })).toBeUndefined();
     expect(cardOf({})).toBeUndefined();
   });
+
+  it("finds it when the agent turned the resource into text (Claude Code), or on the marker line", () => {
+    const card = { kind: "plugin-review", data: { pluginId: "u-journal", name: "Journal", digest: "abc" } };
+    const resource = { type: "resource", resource: { uri: "bytnode-ai://card", mimeType: "application/json", text: JSON.stringify(card) } };
+    /* Claude Code's adapter: an unknown block becomes its JSON, as text. */
+    expect(cardOf({ content: [{ type: "content", content: { type: "text", text: JSON.stringify(resource) } }] })).toEqual(card);
+    /* The marker line the MCP server adds. */
+    expect(cardOf({ content: [{ type: "content", content: { type: "text", text: `bytnode-ai://card ${JSON.stringify(card)}` } }] })).toEqual(card);
+    expect(cardOf({ rawOutput: `Done.\nbytnode-ai://card ${JSON.stringify(card)}` })).toEqual(card);
+    /* The carrier never shows as the output. */
+    const update = { toolCallId: "t", status: "completed" as const, content: [{ type: "content" as const, content: { type: "text" as const, text: "Activated." } }, { type: "content" as const, content: { type: "text" as const, text: JSON.stringify(resource) } }, { type: "content" as const, content: { type: "text" as const, text: `bytnode-ai://card ${JSON.stringify(card)}` } }] };
+    expect(toolOutputOf(update)).toBe("Activated.");
+  });
   it("rides on the result event", () => {
     const events = eventsOfUpdate({ sessionUpdate: "tool_call_update", toolCallId: "t1", status: "completed", content: [{ type: "content", content: resource as never }] });
     expect(events[0]).toMatchObject({ type: "tool_result", card });

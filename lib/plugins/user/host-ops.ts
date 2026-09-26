@@ -150,6 +150,22 @@ const STABLES = new Set(["USDT", "USDC", "USD", "EUR", "FDUSD", "DAI", "BUSD", "
 
 type RawTrade = { id?: string; order?: string; symbol?: string; side?: string; price?: number; amount?: number; cost?: number; fee?: { cost?: number; currency?: string }; timestamp?: number; datetime?: string; takerOrMaker?: string };
 
+/** A read of an exchange account beyond the usual five: any of ccxt's
+    `fetch…` methods (Earn, deposits, withdrawals, ledger, funding…) that
+    the exchange has. ⚠️ Reading only: the name must start with `fetch` and
+    a capital (not the raw `fetch`), be a method of the client and be
+    declared in its `has`; the answer is data, bounded, without the raw
+    `info` blocks. Orders never go this way. */
+export async function readMethod(ex: Exchange, method: string, args: unknown[]): Promise<unknown> {
+  if (!/^fetch[A-Z][A-Za-z0-9]*$/.test(method)) throw new Error(`${method} is not a reading method: only ccxt's fetch… methods (fetchDeposits, fetchLedger, fetchFundingHistory…).`);
+  const fn = (ex as unknown as Record<string, unknown>)[method];
+  if (typeof fn !== "function" || !ex.has[method]) throw new Error(`${ex.id} has no ${method}.`);
+  const out = await (fn as (...a: unknown[]) => Promise<unknown>).apply(ex, args.slice(0, 4));
+  const clean = JSON.parse(JSON.stringify(out ?? null, (key, value: unknown) => (key === "info" ? undefined : value))) as unknown;
+  if (JSON.stringify(clean).length > MAX_STORED) throw new Error(`${method} answered more than ${MAX_STORED / 1024} kB: narrow it (a symbol, a since, a limit).`);
+  return clean;
+}
+
 export type TradeOptions = { symbol?: string; since?: string | number; limit?: number; market?: Market };
 
 /** The trades executed on an account (read-only, like the portfolio's
@@ -288,6 +304,13 @@ export function liveOps(deps: LiveDeps): (op: string, args: unknown[]) => Promis
         const opts = (a[1] && typeof a[1] === "object" ? a[1] : {}) as TradeOptions;
         const r = await onExchange(account, opts.market === "futures" ? "futures" : "spot", (ex) => readTrades(ex, opts));
         return { account: account.label, testnet: account.testnet, ...r };
+      }
+
+      case "exchange.read": {
+        const account = accountFor(deps, a[0]);
+        const method = str(a[1], "The method", 60);
+        const opts = (a[3] && typeof a[3] === "object" ? a[3] : {}) as { market?: string };
+        return onExchange(account, opts.market === "futures" ? "futures" : "spot", (ex) => readMethod(ex, method, Array.isArray(a[2]) ? a[2] : []));
       }
 
       case "exchange.ticker": {

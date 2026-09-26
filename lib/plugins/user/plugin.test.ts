@@ -138,8 +138,11 @@ describe("a plugin written by an agent", { timeout: 30_000 }, () => {
     await writeAll();
     const asked = await pluginActivateTool.execute({ plugin: "dividends" }, ctx());
     expect(asked.output).toContain("waits for the user's approval");
-    expect(asked.card).toEqual({ kind: "plugin-review", data: { pluginId: "u-dividends", name: "Dividend tracker" } });
-    expect((await listNotifications())[0].action).toEqual({ kind: "review-plugin", pluginId: "u-dividends" });
+    /* The consent block in the conversation, tied to the version checked —
+       no notification to go and open. */
+    expect(asked.card).toEqual({ kind: "plugin-review", data: { pluginId: "u-dividends", name: "Dividend tracker", digest: expect.stringMatching(/^[0-9a-f]{32}$/) } });
+    expect(asked.output).toContain("right under this call");
+    expect(await listNotifications()).toEqual([]);
     expect((await activePlugins()).plugins).toEqual([]);
     expect((await pluginReadTool.execute({ plugin: "dividends" }, ctx())).output).toContain("waiting for the user's approval");
 
@@ -176,9 +179,13 @@ describe("a plugin written by an agent", { timeout: 30_000 }, () => {
     const request = (await readRequest("u-dividends"))!;
     await activate("u-dividends", { permissions: request.permissions, accounts: [], digest: request.digest, at: new Date().toISOString() });
 
+    /* An approved plugin changes LIVE with the write that makes the draft
+       pass — no PluginActivate needed when it asks nothing new. */
+    const written = await write("server.js", SERVER.replace("No dividend followed.", "Nothing followed yet."));
+    expect(written.output).toContain("LIVE: the running plugin is updated");
+    const broken = await write("server.js", "export function setup(ctx) { ctx.tool( }");
+    expect(broken.output).toMatch(/Not live yet — the draft does not pass the check \(server\.js: SyntaxError/);
     await write("server.js", SERVER.replace("No dividend followed.", "Nothing followed yet."));
-    const updated = await pluginActivateTool.execute({ plugin: "dividends" }, ctx());
-    expect(updated.output).toContain("is updated and running");
     const { definitions } = await userDefinitions();
     h = await harness(definitions);
     expect((await h.tool("DividendList").execute({}, h.ctx())).output).toBe("Nothing followed yet.");

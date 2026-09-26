@@ -8,8 +8,9 @@
    titles in BytNode's metal ink, figures on square tiles parted by 2 px
    whose block only is round, colour for the data only (up, down).
 
-   Reference for the agents: professions/_commun/skills/create-plugin/
-   reference/kit.md — a class added here is documented there.
+   Reference for the agents: the plugin-design skill
+   (professions/_commun/skills/plugin-design/, reference/kit.md) — a class
+   added here is documented there.
 --------------------------------------------------------------------------- */
 
 :root {
@@ -41,6 +42,13 @@
   --font-display: "Geist", "Inter", system-ui, sans-serif;
   --font-text: "Inter", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  /* The page's own backdrop: the app's beams show through, dimmed — the
+     tab melts into the app instead of floating on its brightest light. */
+  --page-veil: linear-gradient(180deg, rgba(var(--voile), 0.5) 0%, rgba(var(--voile), 0.66) 100%);
+  /* How wide the content may go before it is centred. */
+  --bn-width: 980px;
+  --bn-app-width: 1400px;
+  --block: rgba(var(--ink), 0.04);
 }
 
 :root[data-theme="light"] {
@@ -61,6 +69,7 @@
   --blue: #007aff;
   --orange: #ff9500;
   --purple: #af52de;
+  --page-veil: linear-gradient(180deg, rgba(var(--voile), 0.55) 0%, rgba(var(--voile), 0.72) 100%);
 }
 
 * {
@@ -71,6 +80,15 @@
 html {
   zoom: 0.9;
   height: 100%;
+  /* ⚠️ Semi-transparent, never opaque: the app shows through, softened.
+     `html.bn-clear` drops it for a page that wants the raw backdrop. */
+  background: var(--page-veil);
+}
+
+/* A page built on the app's panes: the panes are the veil (the column's
+   light one, the sheet's denser one), exactly as in the shipped tabs. */
+html:has(.bn-app),
+html.bn-clear {
   background: transparent;
 }
 
@@ -116,11 +134,21 @@ body {
 /* --- Layout ----------------------------------------------------------------- */
 
 /* The whole tab: a left column and a sheet, or the sheet alone. */
+/* Centred: never stretched edge to edge on a wide screen. */
 .bn-app {
   display: flex;
   height: 100%;
   min-height: 0;
+  max-width: var(--bn-app-width);
+  margin: 0 auto;
   overflow: hidden;
+}
+
+/* A page without the column / sheet structure: one centred column. */
+.bn-page {
+  max-width: var(--bn-width);
+  margin: 0 auto;
+  padding: 28px 28px 40px;
 }
 
 .bn-side {
@@ -171,9 +199,27 @@ body {
   backdrop-filter: blur(24px) saturate(1.15);
 }
 
-/* The sheet alone in its tab: round everywhere but the top-left. */
+/* The sheet alone in its tab — Scheduled tasks, Alerts: ONE sheet over
+   the whole tab (slightly round under the tab bar, fully round below),
+   its head and its content centred at a reading width. */
+.bn-app:has(> .bn-sheet:only-child) {
+  max-width: none;
+}
+
 .bn-app > .bn-sheet:only-child {
-  border-radius: var(--r-sm) var(--r-panel) var(--r-panel) var(--r-panel);
+  border-radius: var(--r-sm) var(--r-sm) var(--r-panel) var(--r-panel);
+}
+
+.bn-app > .bn-sheet:only-child > .bn-head,
+.bn-app > .bn-sheet:only-child > .bn-body > * {
+  width: min(var(--bn-width), 100%);
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.bn-app > .bn-sheet:only-child > .bn-body > :not(.bn-section):not(.bn-figure):not(.bn-head) {
+  padding-right: var(--side);
+  padding-left: var(--side);
 }
 
 .bn-head {
@@ -219,6 +265,7 @@ body {
   overflow-y: auto;
   padding-bottom: 30px;
   scrollbar-width: thin;
+  scrollbar-color: rgba(var(--ink), 0.22) transparent;
 }
 
 .bn-section {
@@ -485,13 +532,26 @@ button.bn-row:hover {
   background: rgba(var(--ink), 0.11);
 }
 
+/* THE action of a page (+ New alert, + Add a DCA): Apple's system blue,
+   one per place. */
 .bn-button.is-primary {
-  background: rgba(var(--ink), 0.9);
-  color: rgb(var(--voile));
+  background: var(--blue);
+  color: #fff;
 }
 
 .bn-button.is-primary:hover:not(:disabled) {
-  background: rgb(var(--ink));
+  background: var(--blue);
+  filter: brightness(1.1);
+}
+
+.bn-button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .bn-button.is-danger {
@@ -592,6 +652,7 @@ button.bn-row:hover {
 /* A two- or three-way choice (7D / 30D / 1Y), as the watchlist's windows. */
 .bn-segments {
   display: inline-flex;
+  justify-self: start;
   gap: 2px;
   padding: 3px;
   border-radius: 999px;
@@ -698,4 +759,285 @@ button.bn-row:hover {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* --- The shipped tabs' pieces ----------------------------------------------------
+   Copied from the Scheduled tasks, Alerts, DCA and Paper trading tabs. */
+
+/* A vertical rhythm for blocks: 16 px between them. */
+.bn-stack {
+  display: grid;
+  gap: 16px;
+}
+
+/* A block: one rounded panel on the sheet — a chart, a timeline, a form. */
+.bn-block {
+  padding: 18px 20px 20px;
+  border-radius: var(--r-block);
+  background: var(--block);
+}
+
+.bn-block-title {
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+/* Rows grouped in ONE block (Tasks, Alerts): 2 px apart, round only at
+   the block's outer corners. */
+.bn-items {
+  display: grid;
+  gap: var(--tile-gap);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+  border-radius: var(--r-block);
+}
+
+.bn-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 18px 10px 20px;
+  border: 0;
+  background: var(--block);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+button.bn-item,
+a.bn-item {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+button.bn-item:hover,
+a.bn-item:hover {
+  background: var(--fill);
+}
+
+.bn-item-main {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bn-item-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 16.5px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.bn-item-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 13.5px;
+  color: var(--label-2);
+}
+
+.bn-item-aside {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 14px;
+  font-size: 13.5px;
+  color: var(--label-2);
+}
+
+/* "+ New scheduled task": a block-wide row in blue. */
+.bn-add {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--r-block);
+  background: var(--block);
+  color: var(--blue);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bn-add:hover {
+  background: var(--fill);
+}
+
+.bn-add svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+/* A quiet label in a pill: "Once", "Every time", "Spot". */
+.bn-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* A state: green on, grey off, red failed, orange waiting. */
+.bn-dot {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--label-3);
+}
+
+.bn-dot.is-up,
+.bn-dot.is-on {
+  background: var(--up);
+}
+
+.bn-dot.is-down {
+  background: var(--down);
+}
+
+.bn-dot.is-warn {
+  background: var(--orange);
+}
+
+/* "● Updated 23:40:52", beside the head's actions. */
+.bn-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: var(--label-2);
+  white-space: nowrap;
+}
+
+/* A switch: <label class="bn-switch"><input type="checkbox"></label>. */
+.bn-switch {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  width: 38px;
+  height: 22px;
+}
+
+.bn-switch input {
+  appearance: none;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border-radius: 999px;
+  background: rgba(var(--ink), 0.2);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.bn-switch input::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(var(--ink), 0.7);
+  transition: transform 0.15s;
+}
+
+.bn-switch input:checked {
+  background: rgb(var(--ink));
+}
+
+.bn-switch input:checked::after {
+  background: rgb(var(--voile));
+  transform: translateX(16px);
+}
+
+/* Labelled values in a panel: Quantity / Fee / Available. */
+.bn-facts {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: var(--r-block);
+  background: var(--block);
+}
+
+.bn-facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.bn-facts dt {
+  color: var(--label-2);
+}
+
+.bn-facts dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* Fields side by side, as wide as they need, wrapping on a narrow sheet. */
+.bn-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 14px 12px;
+}
+
+.bn-form-grid .is-wide {
+  grid-column: 1 / -1;
+}
+
+/* A link-like action in blue ("Max 9,853.12", "Edit"). */
+.bn-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--blue);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bn-link.is-danger {
+  color: var(--down);
+}
+
+/* The page's closing words: times, sources, what is not real. */
+.bn-footnote {
+  margin: 30px 2px 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--label-3);
 }

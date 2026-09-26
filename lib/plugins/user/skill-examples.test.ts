@@ -48,3 +48,23 @@ describe("the create-plugin skill's examples", { timeout: 30_000 }, async () => 
     expect(report.ok, reportText(report)).toBe(true);
   });
 });
+
+/* The two skills point at each other's files (`Skill(name, file)`): every
+   file they name must exist, or an agent reads "no such file" mid-task. */
+describe("the plugin skills' references", () => {
+  const SKILLS = path.join(process.cwd(), "professions", "_commun", "skills");
+
+  it.each(["create-plugin", "plugin-design"])("every file %s names exists", async (skill) => {
+    const text = await fs.readFile(path.join(SKILLS, skill, "SKILL.md"), "utf8");
+    const named = [...text.matchAll(/Skill\(name: "([a-z-]+)", file: "([^"]+)"\)/g)].map((m) => [m[1], m[2]] as const);
+    expect(named.length).toBeGreaterThan(0);
+    for (const [name, file] of named) await expect(fs.access(path.join(SKILLS, name, file)), `${name}/${file}`).resolves.toBeUndefined();
+  });
+
+  it("the engineering skill sends to the design skill for the tab", async () => {
+    const text = await fs.readFile(path.join(SKILLS, "create-plugin", "SKILL.md"), "utf8");
+    expect(text).toContain("plugin-design");
+    const design = await fs.readFile(path.join(SKILLS, "plugin-design", "SKILL.md"), "utf8");
+    expect(design).toMatch(/^---\r?\nname: plugin-design\r?\n/);
+  });
+});

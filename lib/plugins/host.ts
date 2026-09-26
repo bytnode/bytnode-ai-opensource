@@ -40,7 +40,12 @@ export type Host = {
   definitions: typeof PLUGINS;
   /** The plugins written by agents, as last loaded (`userPluginsVersion`). */
   userVersion: string;
+  /** Looks at them every `WATCH_MS`: one activated by a subscription
+      agent's MCP server (another process) runs here within seconds. */
+  watch?: ReturnType<typeof setInterval>;
 };
+
+const WATCH_MS = 2_000;
 
 const mirrorFile = () => path.join(pluginsDir(), "state.json");
 
@@ -71,7 +76,10 @@ export function pluginHost(): Host {
   if (current?.definitions === PLUGINS) return current;
   /* First call — or, in development, the plugin modules were reloaded: the
      old runtime stops (its timers with it), the session's keys are kept. */
-  if (current) void current.runtime.shutdown();
+  if (current) {
+    if (current.watch) clearInterval(current.watch);
+    void current.runtime.shutdown();
+  }
   const session = current?.session ?? new SessionHolder();
   const runtime = new PluginRuntime(PLUGINS, env(true, () => session.get()));
   setActiveRuntime(runtime);
@@ -83,6 +91,8 @@ export function pluginHost(): Host {
     .then(() => readJson<PluginsState>(mirrorFile(), {}))
     .then((state) => runtime.apply(state));
   setUserPluginsReloader(() => loadUser(host, true));
+  host.watch = setInterval(() => void host.ready.then(() => loadUser(host)).catch(() => {}), WATCH_MS);
+  host.watch.unref?.();
   holder[KEY] = host;
   return host;
 }

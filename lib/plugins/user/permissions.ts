@@ -113,8 +113,8 @@ export function describePermissions(p: Permissions): PermissionLine[] {
   const out: PermissionLine[] = [];
   if (p.network.length) out.push({ key: "network", text: `Call ${p.network.join(", ")} on the internet` });
   if (p.bytnode) out.push({ key: "bytnode", text: "Read BytNode's market data with your key (it never sees the key)" });
-  if (p.exchange === "read") out.push({ key: "exchange", text: "Read the exchange accounts you choose: balances, positions, open orders, trade history" });
-  if (p.exchange === "orders") out.push({ key: "exchange", text: "Read the exchange accounts you choose (balances, positions, orders, trade history), and propose orders — each one waits for your confirmation", danger: true });
+  if (p.exchange === "read") out.push({ key: "exchange", text: "Read the exchange accounts you choose (test or real): balances, positions, orders, history — never your keys" });
+  if (p.exchange === "orders") out.push({ key: "exchange", text: "Read the exchange accounts you choose (test or real), and propose orders — each one waits for your confirmation", danger: true });
   if (p.schedule) out.push({ key: "schedule", text: "Run on a schedule while BytNode-AI is open" });
   if (p.notify) out.push({ key: "notify", text: "Send you notifications" });
   return out;

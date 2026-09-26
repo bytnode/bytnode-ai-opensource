@@ -74,6 +74,7 @@ globalThis.ctx = Object.freeze({
     orders: (account, symbol, market) => __call("exchange.orders", [account, symbol || null, market || "spot"]),
     ticker: (account, symbol, market) => __call("exchange.ticker", [account, symbol, market || "spot"]),
     trades: (account, options) => __call("exchange.trades", [account, options || {}]),
+    read: (account, method, args, options) => __call("exchange.read", [account, method, args || [], options || {}]),
   }),
   store: Object.freeze({
     get: (name, fallback) => __call("store.get", [name, fallback === undefined ? null : fallback]),

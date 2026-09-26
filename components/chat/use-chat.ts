@@ -120,7 +120,7 @@ type ToolStep = Extract<Step, { type: "tool" }>;
 
 /** What goes with a message: dropped attachments, and the deep research
     request. */
-export type SendOptions = { attachments?: Attachment[]; research?: boolean };
+export type SendOptions = { attachments?: Attachment[]; research?: boolean; resume?: boolean };
 
 /** What a chained turn knows beyond `send`: who requested the compaction,
     whether to prune hard, whether this is already a recovery (only one),
@@ -130,6 +130,9 @@ type TurnOptions = SendOptions & {
   hardPrune?: boolean;
   recovered?: boolean;
   thenReplay?: { text: string; opts: TurnOptions };
+  /** Retry after an interrupted reply: no new message — the agent goes on
+      IN the reply it had started, from where it stopped. */
+  resume?: boolean;
 };
 
 /* Pruning: the 6 most recent tool results stay whole, older ones are cut to
@@ -137,6 +140,10 @@ type TurnOptions = SendOptions & {
 const SOFT_PRUNE = { keep: 6, head: 400 };
 const HARD_PRUNE = { keep: 0, head: 200 };
 const CONTINUE_PROMPT = "Continue: pick the task up where it stopped, relying on the summary above.";
+/* What the model reads (never shown) when the user retries an interrupted
+   reply: it sees its own reply so far, and goes on from there. */
+const RESUME_PROMPT =
+  "Your previous reply was interrupted (connection lost). Continue it from exactly where it stopped: do not repeat what you already wrote, and do not redo a tool call that already has a result — rerun only the ones marked interrupted, if still needed.";
 const COMPACT_HINT = "Type /compact to summarise the thread, or open a new conversation.";
 
 const STORED_OUTPUT = 12_000;
@@ -229,6 +236,9 @@ export function useChat({
         const base: Conversation = stored
           ? { ...stored, messages: stored.messages.filter((m) => !m.compacting) }
           : blank(agent.id, modelId, now);
+        const resume = opts.resume === true && base.messages[base.messages.length - 1]?.role === "assistant";
+        /* The reply being resumed: its steps so far, its error cleared. */
+        const resumed = resume ? base.messages[base.messages.length - 1] : null;
         const user: Message = {
           id: newId(),
           role: "user",
@@ -256,7 +266,11 @@ export function useChat({
           modelId,
           effort,
           updatedAt: now,
-          messages: compact ? [...base.messages, reply] : [...base.messages, user, reply],
+          messages: resumed
+            ? [...base.messages.slice(0, -1), { ...resumed, error: undefined }]
+            : compact
+              ? [...base.messages, reply]
+              : [...base.messages, user, reply],
         };
         saveConversation(conversation);
         if (!conversationId) onConversationCreated(conversation.id);
@@ -267,8 +281,11 @@ export function useChat({
         setStreamingId(conversation.id);
 
         /* The steps of the current message, held here and applied per
-           frame. */
-        const steps: Step[] = [];
+           frame — a resumed reply starts from the ones it has. */
+        const steps: Step[] = (resumed?.steps ?? []).map((s) => (s.type === "tool" ? { ...s, lines: s.lines?.slice() } : { ...s }));
+        /* New text after a resume opens its own block, never glued to the
+           last sentence before the cut. */
+        const kept = steps.length;
         let dirty = false;
         let frame = 0;
         /* The reserve of text not yet revealed, and its pace. */
@@ -286,7 +303,7 @@ export function useChat({
               );
           const piece = reserve.slice(0, n);
           reserve = reserve.slice(n);
-          const last = steps[steps.length - 1];
+          const last = steps.length > kept ? steps[steps.length - 1] : undefined;
           if (last?.type === "text") last.text += piece;
           else steps.push({ type: "text", text: piece });
           dirty = true;
@@ -467,7 +484,7 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
               .join("\n\n");
             /* What precedes this turn: without the reply in progress, nor
                the user's message (a compaction has none). */
-            const previous = conversation.messages.slice(0, compact ? -1 : -2);
+            const previous = resume ? conversation.messages : conversation.messages.slice(0, compact ? -1 : -2);
             /* The tools that always ask beyond the core's floor, to
                recognise them in an external agent's call title. */
             const critical = Object.entries(toolset.policies ?? {})
@@ -535,7 +552,7 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
                 workspace: agent.workspace ?? "",
                 profession: agent.profession,
                 system,
-                text: prompt,
+                text: resume ? RESUME_PROMPT : prompt,
                 images: joints.filter((a) => a.kind === "image" && a.dataUrl).map((a) => a.dataUrl as string),
                 modelId: acpModelId(modelId),
                 effort,
@@ -572,8 +589,7 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
               .join("\n\n");
             const history: ProviderMessage[] = [
               { role: "system", content: system },
-              ...conversation.messages
-                .slice(0, -1)
+              ...(resume ? conversation.messages : conversation.messages.slice(0, -1))
                 .filter((m) => m.content.length > 0 || (m.steps?.length ?? 0) > 0)
                 .flatMap(stepsToMessages),
             ];
@@ -584,6 +600,7 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
                additionally carries the paths note and the directive. The
                images, for their part, stay. */
             if (compact) history.push({ role: "user", content: prompt });
+            else if (resume) history.push({ role: "user", content: RESUME_PROMPT });
             else if (prompt !== content) {
               const dernier = history[history.length - 1];
               if (dernier?.role === "user") {
@@ -789,15 +806,22 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
     ],
   );
 
-  /* Resume after an error: the last exchange (question, failed reply) is
-     removed from the thread and the question is sent again as is. */
+  /* Retry after an error, like Claude: a reply that had started stays on
+     screen and the agent goes on IN it, from where it stopped (it reads
+     its own partial reply). A reply that had produced nothing is removed
+     and the question sent again. */
   const retry = useCallback(() => {
     if (!conversationId || streamingId) return;
     const c = getConversation(conversationId);
     if (!c) return;
     const last = c.messages[c.messages.length - 1];
+    if (!last?.error || last.role !== "assistant") return;
+    if (last.content.trim() || (last.steps?.length ?? 0) > 0) {
+      void send(RESUME_PROMPT, { resume: true });
+      return;
+    }
     const question = c.messages[c.messages.length - 2];
-    if (!last?.error || question?.role !== "user") return;
+    if (question?.role !== "user") return;
     saveConversation({ ...c, messages: c.messages.slice(0, -2) });
     void send(question.content, { attachments: question.attachments, research: question.research });
   }, [conversationId, streamingId, send]);

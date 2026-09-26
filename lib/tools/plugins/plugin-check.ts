@@ -18,7 +18,7 @@ export const pluginCheckTool: Tool<Args> = {
   name: "PluginCheck",
   policy: { readOnly: true, subagent: false },
   description:
-    "Checks the draft of a BytNode-AI plugin you are writing: plugin.json, server.js, a dry run of setup(ctx) (what it registers), its tests.js with mocks (no real network, account or notification), and its page. Answers a report: ✓ per step, or the exact error and what to fix. Run it after writing, fix, run it again until everything passes — then PluginActivate.",
+    "Checks the draft of a BytNode-AI plugin you are writing: plugin.json, server.js, a dry run of setup(ctx) (what it registers), its tests.js with mocks (no real network, account or notification), and its page. Answers a report: ✓ per step, or the exact error and what to fix. Run it after writing; after a failure, FIX the file it names with PluginWrite before running it again (never re-run unchanged); repeat until everything passes — then PluginActivate.",
   parameters: { type: "object", properties: { plugin: PLUGIN_PROP }, required: ["plugin"], additionalProperties: false },
   async execute(args) {
     const p = pluginArg(args.plugin);

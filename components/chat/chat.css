@@ -663,41 +663,9 @@ body.is-resizing {
   color: var(--label);
 }
 
-/* The sheet's two left corners are drawn — the rule follows each curve and
-   runs along the left edge to the middle, fading to half as it goes: the
-   two meet there, at their faintest but still drawn, so the corners carry
-   the rule and the middle of the meeting of the two blocks is quieter. The radii are the sheet's
-   (11 px at the top, 25 px at the bottom). */
-.chat-main::before,
-.chat-main::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  z-index: 3;
-  border: 0 solid rgba(var(--ink), 0.2);
-  border-left-width: 1.5px;
-  pointer-events: none;
-}
-
-.chat-main::before {
-  top: 0;
-  width: 11px;
-  height: 50%;
-  border-top-width: 1.5px;
-  border-top-left-radius: 11px;
-  -webkit-mask-image: linear-gradient(to bottom, #000 55%, rgba(0, 0, 0, 0.5));
-  mask-image: linear-gradient(to bottom, #000 55%, rgba(0, 0, 0, 0.5));
-}
-
-.chat-main::after {
-  bottom: 0;
-  width: 25px;
-  height: 50%;
-  border-bottom-width: 1.5px;
-  border-bottom-left-radius: 25px;
-  -webkit-mask-image: linear-gradient(to top, #000 55%, rgba(0, 0, 0, 0.5));
-  mask-image: linear-gradient(to top, #000 55%, rgba(0, 0, 0, 0.5));
-}
+/* No rule between the column and the sheet (the user asked for none):
+   the two blocks meet on the column's ground alone, which still shows
+   the sheet's round corners (`.chat`'s corner cuts). */
 
 /* The head, like a plugin sheet's: the conversation as the title, in
    BytNode's ink; who answers on the line under it; the mode on the

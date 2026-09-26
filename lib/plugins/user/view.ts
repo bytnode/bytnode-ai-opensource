@@ -72,7 +72,15 @@ export async function viewProblems(files: Record<string, string>, declared: bool
     if (bad) errors.push(`${name}: ${bad}`);
   }
 
+  /* What breaks the kit: an !important, or a rule on the page's own
+     frame (html, body, the app's panes). The look is the kit's. */
+  const styles = [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => m[1]).concat(view.filter((f) => f.endsWith(".css")).map((f) => files[f])).join("\n");
+  if (/!important/i.test(styles)) errors.push("The page's CSS uses !important: it overrides the BytNode kit. Remove it — use the kit's classes and variables (plugin-design skill).");
+  const frame = /(^|[\s,}])(html|body|\.bn-app|\.bn-sheet|\.bn-side)\s*(\{|,)/m.exec(styles);
+  if (frame) errors.push(`The page's CSS restyles ${frame[2]}: the frame of the page is the kit's (the veil, the panes, the centring). Remove that rule.`);
+
   const all = view.map((f) => files[f]).join("\n");
+  if (/bn-(figure|tile)-value[^"']*bn-mono|bn-mono[^"']*bn-(figure|tile)-value/.test(all)) notes.push("Figures are set in monospace (bn-mono on a bn-figure-value / bn-tile-value): the shipped tabs use the display font — bn-mono is for ids and codes.");
   if (!/\bbn\.call\s*\(/.test(all)) notes.push("The page never calls bn.call: it shows nothing of its plugin.");
   if (!/class\s*=\s*["'][^"']*\bbn-/.test(all) && !/classList|className/.test(all)) notes.push("The page does not use the BytNode kit's classes (bn-app, bn-sheet, bn-tiles…): it will not look like the app.");
   return { errors, notes };

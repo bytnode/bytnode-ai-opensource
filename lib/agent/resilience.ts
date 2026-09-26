@@ -84,10 +84,14 @@ export class RepetitionGuard {
     );
   }
 
-  /** A call that succeeded: its counter starts again from zero (a command
-      can legitimately be run again later). */
+  /** A call that succeeded: every counter starts again from zero. Not only
+      its own — something happened between two identical calls (a file
+      written, a plugin fixed with PluginWrite), so running PluginCheck or a
+      test command again is progress, not a loop. What stays caught is the
+      same call failing again and again with nothing succeeding between. */
   succeeded(call: CallLike): void {
-    this.counts.delete(callSignature(call));
+    void call;
+    this.counts.clear();
   }
 }
 

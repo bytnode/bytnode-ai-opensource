@@ -4,7 +4,8 @@ BytNode-AI has one look, and a plugin's tab is part of the app, not a website in
 
 ## The look
 
-- **The backdrop is the app's.** The page is transparent: the app's night-blue beams show through. Never paint a background on `body`, never add a frame, a card with a shadow, a gradient behind content.
+- **The backdrop is the app's, softened.** The app's night-blue beams show through the page, dimmed by the kit's translucent veil (`--page-veil`): the tab melts into the app. Never paint an opaque background on `html` or `body`, never add a frame, a card with a shadow, a gradient behind content.
+- **Centred, never edge to edge.** The content sits in the middle of the tab at a readable width (the kit does it: `--bn-width`, `--bn-app-width`); everything inside aligns on the sheet's margin.
 - **One layer per place.** The left column is a light veil (`bn-side`), the right one a single denser sheet (`bn-sheet`). Nothing laid over them: no boxes inside boxes.
 - **Figures sit on tiles.** Numbers go in `bn-tiles` — square tiles parted by 2 px, one block whose outer corners only are round. Not in sentences, not in cards.
 - **The metal ink is for the sheet's title only** (`bn-title`). Everything else is the label colours.

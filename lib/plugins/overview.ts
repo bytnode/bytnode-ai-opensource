@@ -94,7 +94,7 @@ function mainSection({ engine, on, absent }: PluginsPromptInput): string {
   if (tabs) lines.push("- After a change the user will want to see, offer to open the plugin's tab; OpenView opens it for them.");
   lines.push("- A request that needs a plugin you do not have: name the plugin and say where the user switches it on. Do not improvise a substitute.");
   lines.push(
-    "- A request no plugin covers — a new tool, a new tab, a watch that warns them: you can WRITE a plugin for the user. Load the `create-plugin` skill first; it starts with questions to the user. Plugins written by agents are listed here like the others once the user approved them.",
+    "- A request no plugin covers — a new tool, a new tab, a watch that warns them: you can WRITE a plugin for the user. Load the `create-plugin` skill first (it starts with questions to the user), and `plugin-design` before writing its tab. Plugins written by agents are listed here like the others once the user approved them.",
   );
   if (engine === "mcp") {
     lines.push(

@@ -139,19 +139,46 @@ export function cardOf(update: Pick<ToolCallUpdate, "content" | "rawOutput">): T
   const blocks: unknown[] = [
     ...(update.content ?? []).map((c) => (c.type === "content" ? c.content : null)),
     ...(Array.isArray(update.rawOutput) ? update.rawOutput : isRecord(update.rawOutput) && Array.isArray(update.rawOutput.content) ? update.rawOutput.content : []),
+    ...(typeof update.rawOutput === "string" ? [{ type: "text", text: update.rawOutput }] : []),
   ];
   for (const b of blocks) {
-    const resource = isRecord(b) && b.type === "resource" && isRecord(b.resource) ? b.resource : null;
-    if (resource?.uri !== CARD_URI || typeof resource.text !== "string") continue;
-    try {
-      const card = JSON.parse(resource.text) as unknown;
-      if (isRecord(card) && typeof card.kind === "string" && isRecord(card.data)) return { kind: card.kind, data: card.data };
-    } catch {
-      /* not ours after all */
-    }
+    const card = isRecord(b) && b.type === "resource" ? cardOfResource(b.resource) : isRecord(b) && b.type === "text" && typeof b.text === "string" ? cardInText(b.text) : undefined;
+    if (card) return card;
   }
   return undefined;
 }
+
+const parseCard = (text: string): ToolCard | undefined => {
+  try {
+    const card = JSON.parse(text) as unknown;
+    if (isRecord(card) && typeof card.kind === "string" && isRecord(card.data)) return { kind: card.kind, data: card.data };
+  } catch {
+    /* not ours after all */
+  }
+  return undefined;
+};
+
+const cardOfResource = (resource: unknown): ToolCard | undefined =>
+  isRecord(resource) && resource.uri === CARD_URI && typeof resource.text === "string" ? parseCard(resource.text) : undefined;
+
+/** The card, when the agent turned our resource block into text: Claude
+    Code's adapter writes an unknown block as its JSON (`{"type":"resource",
+    …}`), and the MCP server also adds a `bytnode-ai://card {…}` line as a
+    fallback (`lib/mcp/finance-server.ts`). */
+function cardInText(text: string): ToolCard | undefined {
+  if (!text.includes(CARD_URI)) return undefined;
+  try {
+    const block = JSON.parse(text) as unknown;
+    if (isRecord(block) && block.type === "resource") return cardOfResource(block.resource);
+  } catch {
+    /* not a whole block: the marker line */
+  }
+  for (const line of text.split("\n")) if (line.startsWith(`${CARD_URI} `)) return parseCard(line.slice(CARD_URI.length + 1));
+  return undefined;
+}
+
+/** A text part that only carries the card: not shown as the output. */
+const carriesCard = (text: string) => text.includes(CARD_URI) && cardInText(text) !== undefined;
 
 /** What we show as a call's output: its text contents, a diff summarised
     by its path and its new text, otherwise the raw output. */
@@ -160,7 +187,10 @@ export function toolOutputOf(update: Pick<ToolCallUpdate, "toolCallId" | "conten
      nothing. */
   if (update.status === "failed" && typeof update.rawOutput === "string" && update.rawOutput.trim()) return update.rawOutput;
   const parts: string[] = [];
-  for (const c of update.content ?? []) parts.push(contentText(c));
+  for (const c of update.content ?? []) {
+    const text = contentText(c);
+    if (!carriesCard(text)) parts.push(text);
+  }
   const text = parts.filter(Boolean).join("\n").trim();
   if (text) return text;
   const raw = update.rawOutput;

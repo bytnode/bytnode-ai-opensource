@@ -84,3 +84,21 @@ describe("ctx.exchange.trades", () => {
     expect(r.trades).toHaveLength(1);
   });
 });
+
+describe("ctx.exchange.read", () => {
+  it("any fetch… method the exchange has, its raw info blocks dropped", async () => {
+    const { readMethod } = await import("./host-ops");
+    const fetchDeposits = vi.fn(async () => [{ id: "d1", amount: 50, currency: "USDT", info: { secret: "raw" } }]);
+    const ex = { id: "kraken", has: { fetchDeposits: true }, fetchDeposits } as unknown as Exchange;
+    expect(await readMethod(ex, "fetchDeposits", ["USDT"])).toEqual([{ id: "d1", amount: 50, currency: "USDT" }]);
+    expect(fetchDeposits).toHaveBeenCalledWith("USDT");
+  });
+
+  it("never a method that acts, the raw fetch, or one the exchange lacks", async () => {
+    const { readMethod } = await import("./host-ops");
+    const ex = { id: "kraken", has: { createOrder: true, fetchLedger: false }, createOrder: vi.fn(), fetch: vi.fn(), fetchLedger: vi.fn() } as unknown as Exchange;
+    await expect(readMethod(ex, "createOrder", [])).rejects.toThrow(/not a reading method/);
+    await expect(readMethod(ex, "fetch", ["https://x"])).rejects.toThrow(/not a reading method/);
+    await expect(readMethod(ex, "fetchLedger", [])).rejects.toThrow(/has no fetchLedger/);
+  });
+});

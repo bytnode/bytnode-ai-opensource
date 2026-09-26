@@ -102,7 +102,13 @@ server.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
     }
     /* The plugin's card for the thread, as a resource the translation
        picks up (`lib/acp/translate.ts`, `cardOf`). */
-    if (result.card) content.push({ type: "resource", resource: { uri: CARD_URI, mimeType: "application/json", text: JSON.stringify(result.card) } });
+    if (result.card) {
+      content.push({ type: "resource", resource: { uri: CARD_URI, mimeType: "application/json", text: JSON.stringify(result.card) } });
+      /* ⚠️ Some agents drop or rewrite a resource block (Claude Code turns
+         it into text, or into the resource's own text): the same card on a
+         marked line, which the translation finds in any text. */
+      content.push({ type: "text", text: `${CARD_URI} ${JSON.stringify(result.card)}` });
+    }
     return { content, isError: !result.ok };
   } catch (e) {
     return { content: [{ type: "text", text: `The tool failed: ${e instanceof Error ? e.message : String(e)}` }], isError: true };

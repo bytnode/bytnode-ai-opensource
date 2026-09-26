@@ -78,6 +78,20 @@ describe("RepetitionGuard", () => {
     expect(g.check(a)).not.toBeNull();
   });
 
+  it("the same failing check may run again once something else succeeded between (a fix was written)", () => {
+    const g = new RepetitionGuard();
+    const check = call("PluginCheck", { plugin: "journal" });
+    const fix = call("PluginWrite", { plugin: "journal", file: "server.js", content: "…" });
+    expect(g.check(check)).toBeNull();
+    expect(g.check(check)).toBeNull();
+    expect(g.check(fix)).toBeNull();
+    g.succeeded(fix);
+    expect(g.check(check)).toBeNull();
+    expect(g.check(check)).toBeNull();
+    /* Nothing succeeded since: a loop again. */
+    expect(g.check(check)).not.toBeNull();
+  });
+
   it("counts two distinct calls separately", () => {
     const g = new RepetitionGuard();
     const a = call("Bash", { command: "a" });

@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Settings } from "@/lib/domain/types";
 import type { ViewEntry } from "@/lib/plugins/catalog";
 import { callPlugin, reportViewError } from "@/lib/plugins/client";
 import { openView } from "@/lib/state/tabs";
-import { useUserPlugins } from "@/lib/state/user-plugins";
+import { refreshUserPlugins, useUserPlugins } from "@/lib/state/user-plugins";
 import { Close, Refresh } from "@/components/ui/icons";
 import { viewTransport } from "./use-plugin-data";
+import { useAwakeInterval } from "./view-activity";
 
 /* ---------------------------------------------------------------------------
    The tab of a plugin written by an agent: its page, in a frame.
@@ -101,7 +102,24 @@ export function UserPluginView({ entry, settings }: { entry: ViewEntry; settings
   const [src] = useState(() => `/api/user-plugins/${encodeURIComponent(id)}/view?theme=${theme}`);
   /* The version that runs: a new activation (the agent changed the
      plugin) reloads the page — an open tab would keep the old one. */
-  const version = useUserPlugins().find((p) => p.id === id)?.granted?.at ?? "";
+  const known = useUserPlugins().find((p) => p.id === id)?.granted?.at ?? "";
+  const [running, setRunning] = useState(known);
+  const version = running || known;
+  /* Every 2 s while the tab is in front: which version runs? A new one
+     (the agent changed the plugin) reloads the page, live. */
+  const seen = useRef("");
+  const poll = useCallback(() => {
+    void fetch(`/api/user-plugins/${encodeURIComponent(id)}/version`)
+      .then((r) => (r.ok ? (r.json() as Promise<{ at: string }>) : null))
+      .then((v) => {
+        if (!v?.at) return;
+        if (seen.current && seen.current !== v.at) void refreshUserPlugins();
+        seen.current = v.at;
+        setRunning(v.at);
+      })
+      .catch(() => {});
+  }, [id]);
+  useAwakeInterval(poll, 2_000);
   const latest = useRef({ settings, theme });
 
   useEffect(() => {
