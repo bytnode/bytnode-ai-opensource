@@ -65,8 +65,10 @@ export type PluginManifest = {
   id: string;
   name: string;
   version: string;
-  /** `core`: shipped and loaded with the app; can be disabled, not removed. */
-  tier: "core";
+  /** `core`: shipped and loaded with the app; can be disabled, not removed.
+      `user`: written by one of the user's agents, run in a sandbox with the
+      permissions the user granted (`lib/plugins/user/`); can be removed. */
+  tier: "core" | "user";
   category: PluginCategory;
   /** One line, for the library list. */
   summary: string;
@@ -112,7 +114,9 @@ export type NotificationLevel = "info" | "success" | "warning" | "error";
 export type NotificationAction =
   | { kind: "open-view"; view: string; params?: Record<string, unknown> }
   | { kind: "confirm"; confirmationId: string }
-  | { kind: "open-conversation"; conversationId: string };
+  | { kind: "open-conversation"; conversationId: string }
+  /** A plugin written by an agent waits for the user to review its permissions. */
+  | { kind: "review-plugin"; pluginId: string };
 
 export type AppNotification = {
   id: string;

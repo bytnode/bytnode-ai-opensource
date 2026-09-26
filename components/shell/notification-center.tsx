@@ -6,6 +6,7 @@ import type { Settings } from "@/lib/domain/types";
 import { pluginManifest } from "@/lib/plugins/catalog";
 import { changeNotifications, refreshNotifications, useNotifications } from "@/lib/state/plugins";
 import { openView } from "@/lib/state/tabs";
+import { openReview, useUserPlugins } from "@/lib/state/user-plugins";
 import { Bell, Close } from "@/components/ui/icons";
 import { ConfirmationPrompt } from "./confirmation-prompt";
 
@@ -28,6 +29,7 @@ type Props = { settings: Settings; onOpenConversation: (conversationId: string) 
 
 export function NotificationCenter({ settings, onOpenConversation }: Props) {
   const list = useNotifications();
+  const mine = useUserPlugins();
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState<string | null>(null);
   const unread = list.filter((n) => !n.read).length;
@@ -39,6 +41,7 @@ export function NotificationCenter({ settings, onOpenConversation }: Props) {
     setOpen(false);
     if (n.action.kind === "open-view") openView(n.action.view, n.action.params);
     else if (n.action.kind === "open-conversation") onOpenConversation(n.action.conversationId);
+    else if (n.action.kind === "review-plugin") openReview(n.action.pluginId);
     else setConfirming(n.action.confirmationId);
   };
 
@@ -91,7 +94,7 @@ export function NotificationCenter({ settings, onOpenConversation }: Props) {
                       <span className="nc-title">{n.title}</span>
                       <span className="nc-body">{n.body}</span>
                       <span className="nc-meta">
-                        {pluginManifest(n.plugin)?.name ?? n.plugin} · {when(n.at)}
+                        {pluginManifest(n.plugin)?.name ?? mine.find((p) => p.id === n.plugin)?.name ?? n.plugin} · {when(n.at)}
                         {n.action?.kind === "confirm" && <strong> · Review and confirm</strong>}
                       </span>
                     </button>

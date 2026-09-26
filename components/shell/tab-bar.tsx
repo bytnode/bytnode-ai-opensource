@@ -1,5 +1,6 @@
 "use client";
 
+import type { PluginManifest } from "@/lib/domain/plugins";
 import type { Settings } from "@/lib/domain/types";
 import { viewEntry, type ViewEntry } from "@/lib/plugins/catalog";
 import { goToConversation } from "@/lib/state/navigation";
@@ -26,9 +27,10 @@ import { ViewsMenu } from "./views-menu";
    reads a notch brighter than the other tabs.
 --------------------------------------------------------------------------- */
 
-type Props = { settings: Settings; views: ViewEntry[]; tabs: ViewTab[]; active: string };
+/** `extra`: the plugins written by agents that run (their tabs). */
+type Props = { settings: Settings; views: ViewEntry[]; extra: PluginManifest[]; tabs: ViewTab[]; active: string };
 
-export function TabBar({ settings, views, tabs, active }: Props) {
+export function TabBar({ settings, views, extra, tabs, active }: Props) {
   const { sidebarWidth } = useUiPrefs();
   /* The preview under a tab the hand rests on (`tab-preview.tsx`). */
   const preview = useTabPreview();
@@ -37,7 +39,7 @@ export function TabBar({ settings, views, tabs, active }: Props) {
     onMouseLeave: preview.leave,
     onMouseDown: preview.hide,
   });
-  const peeked = preview.peek ? (preview.peek.view === HOME ? { title: "Conversations", description: "Your agents and their conversations" } : viewEntry(preview.peek.view)) : null;
+  const peeked = preview.peek ? (preview.peek.view === HOME ? { title: "Conversations", description: "Your agents and their conversations" } : viewEntry(preview.peek.view, extra)) : null;
   return (
     <div className="tb" style={{ "--tb-home": `${sidebarWidth}px` } as React.CSSProperties}>
       <div className="tb-tabs" role="tablist" aria-label="Open pages" onScroll={preview.hide}>
@@ -50,7 +52,7 @@ export function TabBar({ settings, views, tabs, active }: Props) {
           </button>
         </div>
         {tabs.map((t) => {
-          const entry = viewEntry(t.view);
+          const entry = viewEntry(t.view, extra);
           if (!entry) return null;
           const on = active === t.view;
           return (

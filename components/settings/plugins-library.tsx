@@ -4,7 +4,10 @@ import { useEffect, useState, type ReactNode } from "react";
 import { NEED_LABELS, PLUGIN_CATEGORIES, type ConfigProperty, type PluginManifest, type PluginsState, type PluginStatus } from "@/lib/domain/plugins";
 import type { Settings } from "@/lib/domain/types";
 import { PLUGIN_MANIFESTS, pluginManifest, unmetNeeds } from "@/lib/plugins/catalog";
-import { clearPluginData } from "@/lib/plugins/client";
+import { clearPluginData, deleteUserPlugin, revokeUserPlugin } from "@/lib/plugins/client";
+import { describePermissions } from "@/lib/plugins/user/permissions";
+import type { UserPluginInfo } from "@/lib/plugins/user/types";
+import { openReview, refreshUserPlugins, runningManifests, useUserPlugins } from "@/lib/state/user-plugins";
 import { requiredBy } from "@/lib/plugins/core/graph";
 import { pluginSettings, resolveConfig, setPluginAgents, setPluginConfig, togglePlugin, validValue } from "@/lib/plugins/core/state";
 import { describePolicy } from "@/lib/tools/policy";
@@ -30,6 +33,11 @@ import type { SettingsTab } from "./settings-panel";
    Every change saves at once. Switching one off also switches off what
    requires it, switching one on what it requires: a confirmation lists
    them first. Shipped plugins switch off; they are never removed.
+
+   Below them, the plugins the user's agents WROTE (`lib/plugins/user/`):
+   the same blocks, plus their state in the review (draft, waiting for
+   the user, active), and on their page what they were granted, their
+   recent problems, and the way to review, revoke or delete them.
 --------------------------------------------------------------------------- */
 
 type Props = {
@@ -42,39 +50,42 @@ type Props = {
 
 type Pending = { id: string; on: boolean; state: PluginsState; also: string[] };
 
-const nameOf = (id: string) => pluginManifest(id)?.name ?? id;
-const names = (ids: string[]) => ids.map(nameOf).join(", ");
-
 export function PluginsLibrary({ settings, initial, onUpdate, onGo }: Props) {
-  const [selected, setSelected] = useState<string | null>(initial && pluginManifest(initial) ? initial : null);
+  const mine = useUserPlugins();
+  const extra = runningManifests(mine);
+  const nameOf = (id: string) => pluginManifest(id, extra)?.name ?? id;
+  const names = (ids: string[]) => ids.map(nameOf).join(", ");
+  const [selected, setSelected] = useState<string | null>(initial ?? null);
   const [pending, setPending] = useState<Pending | null>(null);
   const { status } = usePlugins();
 
   useEffect(() => {
     void refreshPlugins();
+    void refreshUserPlugins();
   }, []);
 
   const apply = (p: Pending) => {
     onUpdate({ plugins: p.state });
-    if (!p.on) closeViews([p.id, ...p.also].flatMap((id) => pluginManifest(id)?.views.map((v) => v.id) ?? []));
+    if (!p.on) closeViews([p.id, ...p.also].flatMap((id) => pluginManifest(id, extra)?.views.map((v) => v.id) ?? []));
   };
 
   const toggle = (id: string, on: boolean) => {
-    const { state, also } = togglePlugin(PLUGIN_MANIFESTS, settings.plugins, id, on);
+    const { state, also } = togglePlugin([...PLUGIN_MANIFESTS, ...extra], settings.plugins, id, on);
     const next = { id, on, state, also };
     if (also.length) setPending(next);
     else apply(next);
   };
 
   const statusOf = (id: string): PluginStatus => status.find((s) => s.id === id) ?? { id, state: pluginSettings(settings.plugins, id).enabled ? "active" : "disabled" };
-  const manifest = selected ? pluginManifest(selected) : undefined;
+  const user = selected ? mine.find((p) => p.id === selected) : undefined;
+  const manifest = selected ? (pluginManifest(selected) ?? user?.manifest ?? undefined) : undefined;
 
   return (
     <>
       {manifest ? (
-        <PluginPage key={manifest.id} manifest={manifest} settings={settings} status={statusOf(manifest.id)} onBack={() => setSelected(null)} onToggle={toggle} onUpdate={onUpdate} onGo={onGo} />
+        <PluginPage key={manifest.id} manifest={manifest} user={user} settings={settings} status={statusOf(manifest.id)} names={names} onBack={() => setSelected(null)} onToggle={toggle} onUpdate={onUpdate} onGo={onGo} />
       ) : (
-        <PluginList settings={settings} statusOf={statusOf} onOpen={setSelected} onToggle={toggle} />
+        <PluginList settings={settings} mine={mine} statusOf={statusOf} onOpen={setSelected} onToggle={toggle} />
       )}
       {pending && (
         <ConfirmDialog
@@ -119,21 +130,24 @@ function StateTag({ on, status }: { on: boolean; status: PluginStatus }) {
   );
 }
 
-function PluginList({ settings, statusOf, onOpen, onToggle }: { settings: Settings; statusOf: (id: string) => PluginStatus; onOpen: (id: string) => void; onToggle: (id: string, on: boolean) => void }) {
+type ListProps = { settings: Settings; mine: UserPluginInfo[]; statusOf: (id: string) => PluginStatus; onOpen: (id: string) => void; onToggle: (id: string, on: boolean) => void };
+
+function PluginList({ settings, mine, statusOf, onOpen, onToggle }: ListProps) {
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
   const shown = PLUGIN_MANIFESTS.filter((m) => !q || `${m.name} ${m.summary} ${m.description}`.toLowerCase().includes(q));
+  const written = mine.filter((p) => !q || `${p.name} ${p.summary}`.toLowerCase().includes(q));
   return (
     <>
       <h1 id="st-title" className="st-title">
         Plugins
       </h1>
-      <p className="st-lede">Plugins give your agents tools, views and background work. The ones shipped with BytNode-AI can be switched off, never removed.</p>
+      <p className="st-lede">Plugins give your agents tools, views and background work. The ones shipped with BytNode-AI can be switched off, never removed. Your agents can also write new ones: ask them.</p>
       <label className="pl-search">
         <Search />
         <input type="search" placeholder="Search the plugins" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search the plugins" />
       </label>
-      {shown.length === 0 && <p className="st-empty">No plugin matches “{query}”.</p>}
+      {shown.length === 0 && written.length === 0 && <p className="st-empty">No plugin matches “{query}”.</p>}
       {PLUGIN_CATEGORIES.map((cat) => {
         const inCat = shown.filter((m) => m.category === cat.id);
         if (inCat.length === 0) return null;
@@ -176,6 +190,53 @@ function PluginList({ settings, statusOf, onOpen, onToggle }: { settings: Settin
           </section>
         );
       })}
+      {written.length > 0 && (
+        <section className="st-section">
+          <h2 className="st-section-title">
+            Written by your agents
+            <span className="pl-count">{written.length}</span>
+          </h2>
+          <ul className="pl-grid">
+            {written.map((p) => {
+              const on = pluginSettings(settings.plugins, p.id).enabled;
+              return (
+                <li key={p.id} className={`pl-card${p.state === "active" && on ? "" : " is-disabled"}`}>
+                  <button type="button" className="pl-open" onClick={() => onOpen(p.id)}>
+                    <span className="pl-name">
+                      {p.name}
+                      <ArrowRight />
+                    </span>
+                    <span className="pl-summary">{p.summary || "Not described yet."}</span>
+                  </button>
+                  <div className="pl-foot">
+                    {p.state === "pending" ? (
+                      <>
+                        <span className="pl-state is-wait">
+                          <i aria-hidden="true" />
+                          Waiting for your review
+                        </span>
+                        <button type="button" className="btn btn-sm" onClick={() => openReview(p.id)}>
+                          Review
+                        </button>
+                      </>
+                    ) : p.state === "draft" ? (
+                      <span className="pl-state is-off">
+                        <i aria-hidden="true" />
+                        Draft
+                      </span>
+                    ) : (
+                      <>
+                        <StateTag on={on} status={p.state === "error" ? { id: p.id, state: "error", message: p.message } : statusOf(p.id)} />
+                        <Switch on={on} onChange={(v) => onToggle(p.id, v)} label={`${on ? "Switch off" : "Switch on"} ${p.name}`} />
+                      </>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
     </>
   );
 }
@@ -193,18 +254,24 @@ function Block({ title, children }: { title: string; children: ReactNode }) {
 
 type PageProps = {
   manifest: PluginManifest;
+  /** Set when an agent wrote it. */
+  user?: UserPluginInfo;
   settings: Settings;
   status: PluginStatus;
+  names: (ids: string[]) => string;
   onBack: () => void;
   onToggle: (id: string, on: boolean) => void;
   onUpdate: (patch: Partial<Settings>) => void;
   onGo: (tab: SettingsTab) => void;
 };
 
-function PluginPage({ manifest: m, settings, status, onBack, onToggle, onUpdate, onGo }: PageProps) {
+function PluginPage({ manifest: m, user, settings, status, names, onBack, onToggle, onUpdate, onGo }: PageProps) {
   const { tools } = usePlugins();
   const [clearing, setClearing] = useState(false);
   const [cleared, setCleared] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<"revoke" | "delete" | null>(null);
+  /* A plugin written by an agent runs only once the user granted it. */
+  const runs = !user || Boolean(user.granted);
   const own = pluginSettings(settings.plugins, m.id);
   const config = resolveConfig(m, own.config);
   const users = requiredBy(PLUGIN_MANIFESTS, m.id);
@@ -224,10 +291,11 @@ function PluginPage({ manifest: m, settings, status, onBack, onToggle, onUpdate,
         <h1 id="st-title" className="st-title">
           {m.name}
         </h1>
-        <Switch on={own.enabled} onChange={(v) => onToggle(m.id, v)} label={`${own.enabled ? "Switch off" : "Switch on"} ${m.name}`} />
+        {runs && <Switch on={own.enabled} onChange={(v) => onToggle(m.id, v)} label={`${own.enabled ? "Switch off" : "Switch on"} ${m.name}`} />}
       </div>
       <p className="st-lede">{m.summary}</p>
-      {status.state === "error" && (
+      {user && <UserPluginBlock user={user} settings={settings} onRemove={setRemoving} />}
+      {status.state === "error" && !user?.message && (
         <div className="notice pl-notice" role="alert">
           <p>It could not start: {status.message}</p>
         </div>
@@ -255,7 +323,7 @@ function PluginPage({ manifest: m, settings, status, onBack, onToggle, onUpdate,
               <p className="st-row-hint">{v.description}</p>
             </div>
             <div className="st-row-control pl-right">
-              <button type="button" className="btn btn-sm" onClick={() => openView(v.id)} disabled={!own.enabled}>
+              <button type="button" className="btn btn-sm" onClick={() => openView(v.id)} disabled={!own.enabled || !runs}>
                 Open the view
                 <ArrowRight />
               </button>
@@ -337,6 +405,32 @@ function PluginPage({ manifest: m, settings, status, onBack, onToggle, onUpdate,
         )}
       </Block>
 
+      {removing && user && (
+        <ConfirmDialog
+          title={removing === "revoke" ? `Revoke ${m.name}?` : `Delete ${m.name}?`}
+          body={
+            removing === "revoke"
+              ? "It stops now and loses what you granted it. Its files and data stay: an agent can ask you to review it again."
+              : "Its files and everything it stored are deleted. This cannot be undone."
+          }
+          confirmLabel={removing === "revoke" ? "Revoke" : "Delete"}
+          onConfirm={() => {
+            const what = removing;
+            setRemoving(null);
+            (what === "revoke" ? revokeUserPlugin(m.id) : deleteUserPlugin(m.id, true)).then(
+              () => {
+                closeViews(m.views.map((v) => v.id));
+                void refreshUserPlugins();
+                void refreshPlugins();
+                if (what === "delete") onBack();
+              },
+              (e: Error) => setCleared(`Could not ${what}: ${e.message}`),
+            );
+          }}
+          onCancel={() => setRemoving(null)}
+        />
+      )}
+
       {clearing && m.data !== null && (
         <ConfirmDialog
           title={`Clear the data of ${m.name}?`}
@@ -352,6 +446,87 @@ function PluginPage({ manifest: m, settings, status, onBack, onToggle, onUpdate,
           onCancel={() => setClearing(false)}
         />
       )}
+    </>
+  );
+}
+
+/* --- What only a plugin written by an agent has ---------------------------
+
+   Who wrote it, what it waits for, what it was granted (and on which
+   accounts), what went wrong lately in its code or its page, and the ways
+   out: revoke (it stops, the draft stays) and delete. */
+
+function UserPluginBlock({ user, settings, onRemove }: { user: UserPluginInfo; settings: Settings; onRemove: (what: "revoke" | "delete") => void }) {
+  const agent = (id: string) => settings.agents.find((a) => a.id === id)?.name || "an agent";
+  const granted = user.granted ? describePermissions(user.granted.permissions) : [];
+  const accounts = user.granted?.accounts.map((id) => settings.keys.exchanges.find((a) => a.id === id)?.label ?? "an account no longer configured") ?? [];
+  const when = (iso: string) => (iso ? new Date(iso).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" }) : "");
+  return (
+    <>
+      {user.state === "pending" && (
+        <div className="notice pl-notice">
+          <p>{user.granted ? "An update waits for your review: it asks for more than you granted." : "It waits for your review before it runs."}</p>
+          <button type="button" className="btn btn-sm" onClick={() => openReview(user.id)}>
+            Review
+          </button>
+        </div>
+      )}
+      {user.state === "error" && user.message && (
+        <div className="notice pl-notice" role="alert">
+          <p>It could not start: {user.message}</p>
+        </div>
+      )}
+      <Block title="Written by an agent">
+        <p className="pl-text">
+          Written by {agent(user.createdBy)}
+          {user.createdAt ? ` on ${when(user.createdAt)}` : ""}
+          {user.updatedAt && user.updatedAt !== user.createdAt ? `, last changed by ${agent(user.updatedBy)} on ${when(user.updatedAt)}` : ""}. It runs in a closed box: it reaches only what you granted it, never your keys.
+        </p>
+        {user.granted ? (
+          <ul className="pl-tools">
+            {granted.length === 0 ? (
+              <li>
+                <span className="pl-tool-desc">Granted nothing outside itself.</span>
+              </li>
+            ) : (
+              granted.map((l) => (
+                <li key={l.key}>
+                  <span className={`pl-policy${l.danger ? " is-strong" : ""}`}>{l.text}</span>
+                  {l.key === "exchange" && accounts.length > 0 && <span className="pl-tool-desc">{accounts.join(", ")}</span>}
+                </li>
+              ))
+            )}
+          </ul>
+        ) : (
+          <p className="pl-text pl-muted">Nothing granted yet: it has never run.</p>
+        )}
+        {user.log.length > 0 && (
+          <>
+            <p className="pl-text">Recent problems, which its agent reads at its next check:</p>
+            <ul className="pl-tools">
+              {user.log
+                .slice(-5)
+                .reverse()
+                .map((l) => (
+                  <li key={`${l.at}${l.message}`}>
+                    <span className="pl-tool mono">{l.source}</span>
+                    <span className="pl-tool-desc">{l.message}</span>
+                  </li>
+                ))}
+            </ul>
+          </>
+        )}
+        <div className="pl-user-actions">
+          {user.granted && (
+            <button type="button" className="btn btn-sm" onClick={() => onRemove("revoke")}>
+              Revoke
+            </button>
+          )}
+          <button type="button" className="btn btn-sm pl-delete" onClick={() => onRemove("delete")}>
+            Delete
+          </button>
+        </div>
+      </Block>
     </>
   );
 }

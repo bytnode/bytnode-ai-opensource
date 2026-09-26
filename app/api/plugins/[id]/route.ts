@@ -6,8 +6,8 @@ import { readyRuntime } from "@/lib/plugins/host";
    asked for a confirmation first. */
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!pluginManifest(id)) return Response.json({ error: { message: `Unknown plugin: ${id}` } }, { status: 404 });
   const runtime = await readyRuntime();
+  if (!pluginManifest(id) && !runtime.manifests.some((m) => m.id === id)) return Response.json({ error: { message: `Unknown plugin: ${id}` } }, { status: 404 });
   await runtime.clearData(id);
   return Response.json({ ok: true });
 }

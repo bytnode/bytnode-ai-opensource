@@ -23,11 +23,15 @@ import { portfolioManifest } from "./portfolio/manifest";
 
 export const PLUGIN_MANIFESTS: PluginManifest[] = [positionCalcManifest, financeToolsManifest, watchlistManifest, reportExportManifest, paperTradingManifest, schedulerManifest, calendarManifest, alertsManifest, dcaManifest, portfolioManifest];
 
-export const pluginManifest = (id: string): PluginManifest | undefined => PLUGIN_MANIFESTS.find((m) => m.id === id);
+/* `extra`: the plugins written by agents that run (`lib/state/user-plugins.ts`
+   `runningManifests`) — the browser passes them, the shipped list never
+   changes. */
+
+export const pluginManifest = (id: string, extra: PluginManifest[] = []): PluginManifest | undefined => PLUGIN_MANIFESTS.find((m) => m.id === id) ?? extra.find((m) => m.id === id);
 
 /** The plugins an agent may use, from the settings: they travel with its
     requests (`x-plugins`). */
-export const agentPlugins = (settings: Settings, agentId: string): string[] => pluginsForAgent(PLUGIN_MANIFESTS, settings.plugins, agentId);
+export const agentPlugins = (settings: Settings, agentId: string, extra: PluginManifest[] = []): string[] => pluginsForAgent([...PLUGIN_MANIFESTS, ...extra], settings.plugins, agentId);
 
 /** The prerequisites of a plugin the user has not configured at all (an
     agent may still lack them: they are checked per agent). */
@@ -37,15 +41,15 @@ export const unmetNeeds = (settings: Settings, manifest: PluginManifest): Plugin
 export type ViewEntry = PluginView & { plugin: PluginManifest };
 
 /** The views of the plugins that run, for the tab bar's "+". */
-export const enabledViews = (settings: Settings): ViewEntry[] =>
-  enabledPlugins(PLUGIN_MANIFESTS, settings.plugins).flatMap((id) => {
-    const plugin = pluginManifest(id)!;
+export const enabledViews = (settings: Settings, extra: PluginManifest[] = []): ViewEntry[] =>
+  enabledPlugins([...PLUGIN_MANIFESTS, ...extra], settings.plugins).flatMap((id) => {
+    const plugin = pluginManifest(id, extra)!;
     return plugin.views.map((v) => ({ ...v, plugin }));
   });
 
 /** A view by its id, whatever the plugins' state. */
-export const viewEntry = (id: string): ViewEntry | undefined => {
-  for (const plugin of PLUGIN_MANIFESTS) {
+export const viewEntry = (id: string, extra: PluginManifest[] = []): ViewEntry | undefined => {
+  for (const plugin of [...PLUGIN_MANIFESTS, ...extra]) {
     const v = plugin.views.find((x) => x.id === id);
     if (v) return { ...v, plugin };
   }

@@ -33,6 +33,7 @@ import { openView } from "@/lib/state/tabs";
 import { mustAsk, policyIn } from "@/lib/tools/policy";
 import { agentTransport } from "@/lib/tools/transport";
 import { agentPlugins } from "@/lib/plugins/catalog";
+import { currentUserPlugins, runningManifests } from "@/lib/state/user-plugins";
 import { fetchPluginPrompt } from "@/lib/plugins/client";
 import {
   getConversation,
@@ -436,7 +437,7 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
         try {
           /* What THIS agent's requests carry: the keys, the exchange
              accounts it may drive (they decide which tools it sees). */
-          const transport = agentTransport(settings, agent, agentPlugins(settings, agent.id));
+          const transport = agentTransport(settings, agent, agentPlugins(settings, agent.id, runningManifests(currentUserPlugins())));
           const exchangeAccounts = transport.exchangeAccounts;
           const unattachedExchanges = settings.keys.exchanges.length - exchangeAccounts.length;
           /* What the agent's plugins add to its prompt (its watchlist, the

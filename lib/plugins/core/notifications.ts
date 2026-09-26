@@ -47,3 +47,9 @@ export async function readConfirmationNotices(confirmationId: string): Promise<v
     list.map((n) => (n.action?.kind === "confirm" && n.action.confirmationId === confirmationId ? { ...n, read: true } : n)),
   );
 }
+
+/** The notifications asking to review a plugin written by an agent: read
+    once the user decided. */
+export async function readPluginReviewNotices(pluginId: string): Promise<void> {
+  await updateJson<AppNotification[]>(file(), [], (list) => list.map((n) => (n.action?.kind === "review-plugin" && n.action.pluginId === pluginId ? { ...n, read: true } : n)));
+}

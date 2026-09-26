@@ -61,14 +61,18 @@ type Instance = {
 
 export class PluginRuntime {
   readonly bus: EventBus;
-  private readonly defs = new Map<string, PluginDefinition>();
-  private readonly order: string[];
+  private defs = new Map<string, PluginDefinition>();
+  private order: string[];
   private readonly running = new Map<string, Instance>();
   /** The plugins that could not start, and on what: they are retried only
       when that changes. */
   private readonly failures = new Map<string, { status: PluginStatus; key: string }>();
   private state: PluginsState = {};
+  /** A state was applied once: before that, swapping definitions starts
+      nothing (the host swaps them before its first `apply`). */
+  private applied = false;
   private queue: Promise<void> = Promise.resolve();
+  private closed = false;
 
   constructor(
     definitions: PluginDefinition[],
@@ -94,18 +98,49 @@ export class PluginRuntime {
 
   /** Brings the running plugins in line with this state. */
   apply(state: PluginsState): Promise<void> {
+    /* ⚠️ Shut down is final. A request that picked this runtime before it
+       was replaced (a reload in development) would otherwise start its
+       plugins again — a second scheduler clock, every job run twice. */
+    if (this.closed) return this.queue;
     const run = this.queue.then(() => this.reconcile(state));
     this.queue = run.catch(() => {});
     return run;
   }
 
-  /** Stops everything (end of process, tests). */
+  /** Swaps the plugins it knows — one written by an agent was activated,
+      changed or removed. The ones gone or changed stop, with everything
+      that uses them; then the running set is brought in line with the
+      last state again, so a new one starts and a changed one restarts. */
+  replaceDefinitions(definitions: PluginDefinition[]): Promise<void> {
+    if (this.closed) return this.queue;
+    const run = this.queue.then(async () => {
+      const next = new Map(definitions.map((d) => [d.manifest.id, d]));
+      const before = this.manifests;
+      const stopping = new Set<string>();
+      for (const [id, d] of this.defs) if (next.get(id) !== d) stopping.add(id);
+      for (const id of [...stopping]) for (const user of affectedBy(before, id)) stopping.add(user);
+      for (const id of [...this.order].reverse()) if (stopping.has(id)) await this.stop(id);
+      /* A changed plugin gets a fresh attempt, whatever failed before. */
+      for (const id of stopping) this.failures.delete(id);
+      for (const id of this.failures.keys()) if (!next.has(id)) this.failures.delete(id);
+      this.defs = next;
+      this.order = startOrder(this.manifests);
+      if (this.applied) await this.reconcile(this.state);
+    });
+    this.queue = run.catch(() => {});
+    return run;
+  }
+
+  /** Stops everything, for good (replaced, end of process, tests). */
   shutdown(): Promise<void> {
-    return this.apply(Object.fromEntries(this.order.map((id) => [id, { enabled: false, config: {}, agentIds: null }])));
+    const run = this.apply(Object.fromEntries(this.order.map((id) => [id, { enabled: false, config: {}, agentIds: null }])));
+    this.closed = true;
+    return run;
   }
 
   private async reconcile(state: PluginsState): Promise<void> {
     this.state = state;
+    this.applied = true;
     const manifests = this.manifests;
     const wanted = new Set(enabledPlugins(manifests, state));
     const configOf = (id: string) => resolveConfig(this.defs.get(id)!.manifest, pluginSettings(state, id).config);

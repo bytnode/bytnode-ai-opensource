@@ -1,3 +1,4 @@
+import { PLUGIN_WRITING } from "./plugin-writing";
 import { bytnodeGuidance } from "./bytnode-guidance";
 import type { SkillInfo } from "@/lib/tools/skills/skill";
 import type { ExchangeAccount } from "@/lib/domain/types";
@@ -59,6 +60,7 @@ export function buildToolsPrompt(
     "BytNode-AI's core tools, always there:",
     "- Memory: your memory across conversations (add / list / search / remove).",
   );
+  if (!subagent) lines.push(PLUGIN_WRITING);
   if (bytnode) {
     lines.push(
       "",

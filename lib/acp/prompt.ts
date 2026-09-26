@@ -1,3 +1,4 @@
+import { PLUGIN_WRITING } from "@/lib/agent/plugin-writing";
 import { bytnodeGuidance } from "@/lib/agent/bytnode-guidance";
 import type { SkillInfo } from "@/lib/tools/skills/skill";
 import type { ExchangeAccount } from "@/lib/domain/types";
@@ -58,6 +59,7 @@ export function buildAcpPrompt(
   lines.push(...bytnodeGuidance(subagent));
   lines.push("", "## BytNode-AI's core tools", "", "Always there, whatever the plugins:", "- Memory: your memory across conversations (add / list / search / remove).");
   if (!subagent) {
+    lines.push(PLUGIN_WRITING);
     lines.push(
       "- Workflow: hands independent tasks to BytNode-AI sub-agents that work in parallel (your own subscription, one session per task) and returns their reports. Each sub-agent is one of BytNode-AI's four professions — standard, analyste, strategique, quantitatif — pick it by the task, and its model by the difficulty (the list is in the tool). It does not see the conversation: give it all the useful context. Prefer it to your own native sub-agents: BytNode-AI's have BytNode-AI's tools, plugins and memory.",
     );

@@ -5,6 +5,7 @@ import type { Settings } from "@/lib/domain/types";
 import { syncSession } from "@/lib/plugins/client";
 import { refreshNotifications, refreshPlugins, setPluginStatus } from "@/lib/state/plugins";
 import { importRuns } from "@/lib/state/scheduled-runs";
+import { refreshUserPlugins } from "@/lib/state/user-plugins";
 
 /* ---------------------------------------------------------------------------
    The open tab keeps the server informed, and listens.
@@ -50,7 +51,7 @@ export function usePluginSession(settings: Settings) {
   useEffect(() => {
     let first = true;
     const poll = async () => {
-      const fresh = await refreshNotifications();
+      const [fresh] = await Promise.all([refreshNotifications(), refreshUserPlugins()]);
       /* The first read only fills the list: nothing "new" to announce. */
       if (first) {
         first = false;

@@ -72,16 +72,26 @@ export async function listSkills(workspace: string, extra: SkillInfo[] = []): Pr
   return [...seen.values()];
 }
 
-type Args = { name: string };
+type Args = { name: string; file?: string };
+
+/** A file of the skill's own folder (`reference/ctx.md`): never outside it. */
+function insideSkill(skillFile: string, rel: string): string | null {
+  const dir = path.dirname(skillFile);
+  const target = path.resolve(dir, rel);
+  return target.startsWith(dir + path.sep) && /\.(md|txt|js|json|html|css)$/i.test(target) ? target : null;
+}
 
 export const skillTool: Tool<Args> = {
   name: "Skill",
   policy: { readOnly: true, subagent: true },
   description:
-    "Loads a skill (a reusable set of instructions) by its name and returns its instructions, to follow for the current task. The available skills are listed in the system prompt.",
+    "Loads a skill (a reusable set of instructions) by its name and returns its instructions, to follow for the current task. The available skills are listed in the system prompt. A skill may point at files of its own (references, examples): read one with `file`.",
   parameters: {
     type: "object",
-    properties: { name: { type: "string", description: "The name of the skill." } },
+    properties: {
+      name: { type: "string", description: "The name of the skill." },
+      file: { type: "string", description: 'Optional: a file of the skill\'s folder it points at ("reference/ctx.md"), instead of its instructions.' },
+    },
     required: ["name"],
     additionalProperties: false,
   },
@@ -94,6 +104,15 @@ export const skillTool: Tool<Args> = {
           ? "No skill is installed (skills/<name>/SKILL.md folder)."
           : `Skill "${args.name}" not found. Available: ${skills.map((s) => s.name).join(", ")}.`,
       );
+    }
+    if (args.file) {
+      const target = insideSkill(skill.path, args.file);
+      if (!target) return fail(`${args.file} is not a file of the skill ${skill.name}.`);
+      try {
+        return ok(`# ${skill.name} / ${args.file}\n\n${(await fs.readFile(target, "utf8")).trim()}`);
+      } catch {
+        return fail(`The skill ${skill.name} has no file ${args.file}.`);
+      }
     }
     try {
       const { body } = parseFrontmatter(await fs.readFile(skill.path, "utf8"));

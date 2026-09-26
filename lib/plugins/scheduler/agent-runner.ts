@@ -35,10 +35,11 @@ const TURNS = 25;
 export async function runAgentInBackground(input: AgentRunInput, session: Session): Promise<AgentRunResult> {
   const agent = findAgent(session.agents, input.agentId);
   if (!agent) return { ok: false, error: `No agent "${input.agentId}" in the settings.` };
-  const plugins = pluginsForAgent(PLUGIN_MANIFESTS, session.plugins, agent.id);
+  const runtime = activeRuntime();
+  /* The runtime's manifests: the plugins written by agents are among them. */
+  const plugins = pluginsForAgent(runtime?.manifests ?? PLUGIN_MANIFESTS, session.plugins, agent.id);
   const accounts = allowedAccounts(session.exchangeAccounts, agent.exchangeAccountIds);
   const workspace = await resolveWorkspace(agent.id, agent.workspace);
-  const runtime = activeRuntime();
   const needs = { "exchange-account": accounts.length > 0, "bytnode-key": Boolean(session.bytnodeKey.trim()) };
   const [prof, extraSkills, plugged] = await Promise.all([
     loadProfession(PROJECT_ROOT, agent.profession),

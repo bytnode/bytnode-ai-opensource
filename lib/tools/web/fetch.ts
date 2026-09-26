@@ -55,7 +55,8 @@ function isPublicIp(ip: string): boolean {
   return !(v6 === "::1" || v6 === "::" || v6.startsWith("fc") || v6.startsWith("fd") || v6.startsWith("fe80") || v6.startsWith("::ffff:"));
 }
 
-async function assertPublic(url: URL) {
+/** Refuses what is not http(s) or does not resolve to a public address. */
+export async function assertPublic(url: URL) {
   if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("Only http and https are accepted.");
   const host = url.hostname;
   if (host === "localhost" || net.isIP(host)) {

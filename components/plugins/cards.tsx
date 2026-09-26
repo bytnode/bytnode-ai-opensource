@@ -4,6 +4,7 @@ import type { ToolCard } from "@/lib/tools/types";
 import type { CardBadge, FactsCard, FileCard, TableCard } from "@/lib/plugins/shared/cards";
 import { viewEntry } from "@/lib/plugins/catalog";
 import { openView } from "@/lib/state/tabs";
+import { openReview, runningManifests, useUserPlugins } from "@/lib/state/user-plugins";
 import { ArrowRight, File } from "@/components/ui/icons";
 import "./plugins.css";
 
@@ -90,12 +91,26 @@ export function ToolCardView({ card, fileUrl }: { card: ToolCard; fileUrl?: (rel
   if (card.kind === "facts") return <Facts card={card.data as FactsCard} />;
   if (card.kind === "table") return <Table card={card.data as TableCard} />;
   if (card.kind === "file") return <FileLink card={card.data as FileCard} fileUrl={fileUrl} />;
+  if (card.kind === "plugin-review") return <ReviewCard pluginId={String(card.data.pluginId)} name={String(card.data.name)} />;
   return null;
+}
+
+/** Under PluginActivate: the plugin an agent wrote waits for the user. */
+function ReviewCard({ pluginId, name }: { pluginId: string; name: string }) {
+  return (
+    <button type="button" className="pc pc-link" onClick={() => openReview(pluginId)}>
+      <span>
+        Review {name}
+        <small>Its permissions, before it runs</small>
+      </span>
+      <ArrowRight />
+    </button>
+  );
 }
 
 /** "Portfolio opened →": back to the tab the agent opened. */
 export function OpenViewCard({ view, params }: { view: string; params?: Record<string, unknown> }) {
-  const entry = viewEntry(view);
+  const entry = viewEntry(view, runningManifests(useUserPlugins()));
   if (!entry) return null;
   return (
     <button type="button" className="pc pc-link" onClick={() => openView(view, params)}>

@@ -7,6 +7,8 @@ import { ChatShell } from "@/components/chat/chat-shell";
 import { ViewFrame } from "@/components/plugins/view-frame";
 import { VIEWS } from "@/components/plugins/views";
 import { ViewActive } from "@/components/plugins/view-activity";
+import { runningManifests, useUserPlugins } from "@/lib/state/user-plugins";
+import { PluginReview } from "./plugin-review";
 import { TabBar } from "./tab-bar";
 import { usePluginSession } from "./use-plugin-session";
 import "./shell.css";
@@ -26,21 +28,23 @@ export function AppShell({ settings }: { settings: Settings }) {
   usePluginSession(settings);
   const tabs = useTabs();
   /* The views of the plugins that run and that the interface knows how to
-     draw; a tab whose plugin is off is not shown. */
-  const views = enabledViews(settings).filter((v) => VIEWS[v.id]);
+     draw — a plugin written by an agent draws its own, in a frame; a tab
+     whose plugin is off is not shown. */
+  const extra = runningManifests(useUserPlugins());
+  const views = enabledViews(settings, extra).filter((v) => VIEWS[v.id] || v.plugin.tier === "user");
   const visible = tabs.open.filter((t) => views.some((v) => v.id === t.view));
   const active = visible.some((t) => t.view === tabs.active) ? tabs.active : HOME;
 
   return (
     <div className="shell">
-      <TabBar settings={settings} views={views} tabs={visible} active={active} />
+      <TabBar settings={settings} views={views} extra={extra} tabs={visible} active={active} />
       <div className="shell-body">
         {/* `data-view`: the tab bar's preview finds the page it shows. */}
         <div className="shell-pane" data-view={HOME} hidden={active !== HOME}>
           <ChatShell settings={settings} />
         </div>
         {visible.map((tab) => {
-          const entry = viewEntry(tab.view);
+          const entry = viewEntry(tab.view, extra);
           if (!entry) return null;
           const front = tab.view === active;
           return (
@@ -52,6 +56,7 @@ export function AppShell({ settings }: { settings: Settings }) {
           );
         })}
       </div>
+      <PluginReview settings={settings} />
     </div>
   );
 }

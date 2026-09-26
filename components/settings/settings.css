@@ -1032,3 +1032,14 @@ html[data-theme="light"] .st .st-seg-btn.is-on {
     animation: none;
   }
 }
+
+/* A plugin written by an agent: revoke it, delete it. Deleting reads in red. */
+.pl-user-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.pl-delete {
+  color: #f85149;
+}

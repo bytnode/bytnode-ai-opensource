@@ -1,0 +1,701 @@
+/* ---------------------------------------------------------------------------
+   The BytNode kit: the app's art direction inside a plugin's page.
+
+   Injected first into every page a plugin written by an agent shows, so a
+   page built from these classes is indistinguishable from the shipped
+   views (the watchlist, the portfolio): the app's backdrop shows through,
+   a light veil for the left column, a denser rounded sheet on the right,
+   titles in BytNode's metal ink, figures on square tiles parted by 2 px
+   whose block only is round, colour for the data only (up, down).
+
+   Reference for the agents: professions/_commun/skills/create-plugin/
+   reference/kit.md — a class added here is documented there.
+--------------------------------------------------------------------------- */
+
+:root {
+  color-scheme: dark;
+  --ink: 255, 255, 255;
+  --voile: 6, 11, 18;
+  --label: rgba(var(--ink), 0.95);
+  --label-2: rgba(var(--ink), 0.74);
+  --label-3: rgba(var(--ink), 0.52);
+  --sep: rgba(var(--ink), 0.1);
+  --fill: rgba(var(--ink), 0.06);
+  --pane: rgba(var(--voile), 0.5);
+  --sheet: rgba(var(--voile), 0.8);
+  --tile: rgba(var(--ink), 0.04);
+  --tile-strong: rgba(var(--ink), 0.085);
+  --title-ink: linear-gradient(180deg, #f1f4f9 0%, #e1e6ee 45%, #c3cad5 100%);
+  --up: #30d158;
+  --down: #ff453a;
+  --blue: #0a84ff;
+  --orange: #ff9f0a;
+  --purple: #bf5af2;
+  --rule: 2px;
+  --r-panel: 28px;
+  --r: 16px;
+  --r-block: 16px;
+  --r-sm: 12px;
+  --tile-gap: 2px;
+  --side: 30px;
+  --font-display: "Geist", "Inter", system-ui, sans-serif;
+  --font-text: "Inter", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --ink: 22, 22, 22;
+  --voile: 246, 247, 250;
+  --label: rgba(var(--ink), 0.94);
+  --label-2: rgba(var(--ink), 0.7);
+  --label-3: rgba(var(--ink), 0.52);
+  --sep: rgba(var(--ink), 0.11);
+  --pane: rgba(255, 255, 255, 0.6);
+  --sheet: rgba(255, 255, 255, 0.8);
+  --tile: rgba(var(--ink), 0.045);
+  --tile-strong: rgba(var(--ink), 0.09);
+  --title-ink: linear-gradient(180deg, #3a4d6b 0%, #2c3e5a 55%, #22334c 100%);
+  --up: #248a3d;
+  --down: #d70015;
+  --blue: #007aff;
+  --orange: #ff9500;
+  --purple: #af52de;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Read at 90 %, like the app's own views. */
+html {
+  zoom: 0.9;
+  height: 100%;
+  background: transparent;
+}
+
+body {
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  color: var(--label);
+  font-family: var(--font-text);
+  font-size: 14.5px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+.is-up {
+  --tone: var(--up);
+}
+.is-down {
+  --tone: var(--down);
+}
+.is-flat {
+  --tone: var(--label-3);
+}
+.bn-up {
+  color: var(--up);
+}
+.bn-down {
+  color: var(--down);
+}
+.bn-muted {
+  color: var(--label-3);
+}
+.bn-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Layout ----------------------------------------------------------------- */
+
+/* The whole tab: a left column and a sheet, or the sheet alone. */
+.bn-app {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.bn-side {
+  display: flex;
+  flex: 0 0 var(--bn-side, 340px);
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--pane);
+  backdrop-filter: blur(22px) saturate(1.2);
+  scrollbar-width: thin;
+}
+
+.bn-side-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 24px 24px 16px;
+}
+
+.bn-side-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 20px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.bn-count {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 20px;
+  line-height: 1.1;
+  color: var(--label-3);
+}
+
+.bn-sheet {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  container-type: inline-size;
+  border-radius: var(--r-sm) var(--r-panel) var(--r-panel) var(--r-panel);
+  background: var(--sheet);
+  backdrop-filter: blur(24px) saturate(1.15);
+}
+
+/* The sheet alone in its tab: round everywhere but the top-left. */
+.bn-app > .bn-sheet:only-child {
+  border-radius: var(--r-sm) var(--r-panel) var(--r-panel) var(--r-panel);
+}
+
+.bn-head {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 22px 22px 0 var(--side);
+}
+
+.bn-head-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.bn-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 26px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+/* BytNode's metal ink: for the sheet's title, nothing else. */
+.bn-ink,
+.bn-title {
+  background-image: var(--title-ink);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.bn-sub {
+  margin: 4px 0 0;
+  font-size: 14.5px;
+  color: var(--label-2);
+}
+
+.bn-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 30px;
+  scrollbar-width: thin;
+}
+
+.bn-section {
+  padding: 22px var(--side) 0;
+}
+
+.bn-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.bn-section-title small {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--label-3);
+}
+
+.bn-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+/* --- Figures ---------------------------------------------------------------- */
+
+/* A big figure and its move, at the top of a sheet. */
+.bn-figure {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 18px var(--side) 0;
+}
+
+.bn-figure-value {
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.bn-figure-unit {
+  font-size: 18px;
+  color: var(--label-3);
+}
+
+/* A row of tiles of one block: square inside, round at the block's
+   outer corners only; `--cols` per row. */
+.bn-tiles {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+  gap: var(--tile-gap);
+  border-radius: var(--r-block);
+  overflow: hidden;
+}
+
+@container (max-width: 560px) {
+  .bn-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.bn-tile {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+  min-height: 96px;
+  padding: 12px 14px 13px;
+  background: var(--tile);
+}
+
+button.bn-tile {
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.bn-tile:hover,
+.bn-tile.is-selected {
+  background: var(--tile-strong);
+}
+
+.bn-tile-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.bn-tile-value {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.bn-tile-value.is-up,
+.bn-tile-value.is-down {
+  color: var(--tone);
+}
+
+.bn-tile-sub {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--label-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The move, as Stocks writes it: a pill of the move's colour. */
+.bn-pill {
+  display: inline-block;
+  min-width: 76px;
+  padding: 5px 9px;
+  border-radius: 9px;
+  background: var(--tone, var(--fill));
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.bn-pill.is-flat {
+  background: var(--fill);
+  color: var(--label-3);
+}
+
+/* --- Lists and tables --------------------------------------------------------- */
+
+.bn-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0 12px 18px;
+  list-style: none;
+}
+
+.bn-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 58px;
+  padding: 8px 10px 8px 14px;
+  border: 0;
+  border-radius: var(--r);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+button.bn-row {
+  cursor: pointer;
+}
+
+button.bn-row:hover {
+  background: var(--fill);
+}
+
+.bn-row.is-selected {
+  background: rgba(var(--ink), 0.1);
+}
+
+.bn-row-name {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bn-row-name b {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.bn-row-name small {
+  overflow: hidden;
+  font-size: 12.5px;
+  color: var(--label-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.bn-row-value {
+  font-size: 15px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.bn-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 2px;
+  font-size: 14px;
+}
+
+.bn-table th {
+  padding: 0 14px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--label-2);
+  text-align: left;
+}
+
+.bn-table td {
+  padding: 11px 14px;
+  background: var(--tile);
+  font-variant-numeric: tabular-nums;
+}
+
+.bn-table td:first-child {
+  border-radius: var(--r-sm) 0 0 var(--r-sm);
+}
+
+.bn-table td:last-child {
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+
+.bn-table .is-num {
+  text-align: right;
+}
+
+.bn-table tr.is-up td.is-tone,
+.bn-table tr.is-down td.is-tone,
+.bn-table td.is-up,
+.bn-table td.is-down {
+  color: var(--tone);
+}
+
+/* --- Controls ------------------------------------------------------------------ */
+
+.bn-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.bn-button:hover:not(:disabled) {
+  background: rgba(var(--ink), 0.11);
+}
+
+.bn-button.is-primary {
+  background: rgba(var(--ink), 0.9);
+  color: rgb(var(--voile));
+}
+
+.bn-button.is-primary:hover:not(:disabled) {
+  background: rgb(var(--ink));
+}
+
+.bn-button.is-danger {
+  color: var(--down);
+}
+
+.bn-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* A round icon button (the SVG inherits the colour). */
+.bn-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--label-2);
+  cursor: pointer;
+}
+
+.bn-icon:hover:not(:disabled) {
+  background: var(--fill);
+  color: var(--label);
+}
+
+.bn-icon svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.bn-field {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.bn-input,
+.bn-select,
+.bn-textarea {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r);
+  background: var(--fill);
+  color: var(--label);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 400;
+}
+
+.bn-textarea {
+  height: auto;
+  min-height: 90px;
+  padding: 10px 14px;
+  resize: vertical;
+}
+
+.bn-input::placeholder,
+.bn-textarea::placeholder {
+  color: var(--label-3);
+}
+
+.bn-input:focus,
+.bn-select:focus,
+.bn-textarea:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 var(--rule) rgba(var(--ink), 0.22);
+}
+
+.bn-form {
+  display: grid;
+  gap: 14px;
+  max-width: 520px;
+}
+
+.bn-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* A two- or three-way choice (7D / 30D / 1Y), as the watchlist's windows. */
+.bn-segments {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--fill);
+}
+
+.bn-segments button {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--label-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bn-segments button.is-on {
+  background: rgba(var(--ink), 0.14);
+  color: var(--label);
+}
+
+/* --- Badges, notes, states --------------------------------------------------------- */
+
+.bn-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--fill);
+  color: var(--label-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.bn-badge.is-live {
+  background: rgba(255, 69, 58, 0.16);
+  color: var(--down);
+}
+
+.bn-badge.is-testnet {
+  background: rgba(255, 159, 10, 0.16);
+  color: var(--orange);
+}
+
+.bn-badge.is-paper {
+  background: rgba(10, 132, 255, 0.16);
+  color: var(--blue);
+}
+
+.bn-note {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: var(--r-block);
+  background: var(--tile);
+  font-size: 13.5px;
+  color: var(--label-2);
+}
+
+.bn-error {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: var(--r-block);
+  background: rgba(255, 69, 58, 0.12);
+  font-size: 13.5px;
+  color: var(--down);
+}
+
+/* An empty place: what to do to fill it. */
+.bn-empty {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  margin: 26px var(--side);
+  color: var(--label-3);
+  font-size: 14.5px;
+}
+
+.bn-empty b {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--label);
+}
+
+.bn-loading {
+  padding: 26px var(--side);
+  color: var(--label-3);
+}
+
+/* --- Chart ---------------------------------------------------------------------------- */
+
+.bn-chart {
+  position: relative;
+  height: var(--bn-chart-height, 260px);
+}
+
+.bn-chart canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

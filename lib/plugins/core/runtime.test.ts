@@ -188,6 +188,18 @@ describe("PluginRuntime: stopping and changing", () => {
     expect(starts).toBe(2);
     expect(rt.isRunning("watchlist")).toBe(true);
   });
+
+  it("a runtime shut down stays down: a late apply starts nothing again", async () => {
+    let starts = 0;
+    const rt = new PluginRuntime([plugin("scheduler", () => void starts++)], env());
+    await rt.apply({});
+    const shutdown = rt.shutdown();
+    /* A request that picked this runtime before it was replaced. */
+    await rt.apply({});
+    await shutdown;
+    expect(starts).toBe(1);
+    expect(rt.isRunning("scheduler")).toBe(false);
+  });
 });
 
 describe("PluginRuntime: services, events, prompts", () => {
@@ -279,5 +291,52 @@ describe("PluginRuntime: services, events, prompts", () => {
     await rt.confirmed({ id: "c2", plugin: "ghost", status: "denied" } as Confirmation);
     expect(decided).toEqual(["c1:allowed"]);
     expect(rt.alwaysAskTools()).toEqual(["Payout"]);
+  });
+});
+
+describe("PluginRuntime: plugins added and removed while it runs", () => {
+  it("a new one starts, a changed one restarts with its users, a removed one stops — the others are left alone", async () => {
+    const events: string[] = [];
+    const track = (id: string): PluginDefinition["setup"] => (ctx) => {
+      events.push(`start ${id}`);
+      ctx.onDispose(() => void events.push(`stop ${id}`));
+    };
+    const scheduler = plugin("scheduler", track("scheduler"));
+    const watchlist = plugin("watchlist", track("watchlist"));
+    const rt = new PluginRuntime([scheduler, watchlist], env());
+    await rt.apply({});
+    events.length = 0;
+
+    const mine = plugin("u-dividends", track("u-dividends"), [], ["scheduler"]);
+    await rt.replaceDefinitions([scheduler, watchlist, mine]);
+    expect(events).toEqual(["start u-dividends"]);
+    expect(rt.isRunning("u-dividends")).toBe(true);
+
+    events.length = 0;
+    const changed = plugin("u-dividends", track("u-dividends v2"), [], ["scheduler"]);
+    await rt.replaceDefinitions([scheduler, watchlist, changed]);
+    expect(events).toEqual(["stop u-dividends", "start u-dividends v2"]);
+
+    events.length = 0;
+    await rt.replaceDefinitions([scheduler, watchlist]);
+    expect(events).toEqual(["stop u-dividends v2"]);
+    expect(rt.status().map((s) => s.id)).toEqual(["scheduler", "watchlist"]);
+  });
+
+  it("before the first apply, swapping the definitions starts nothing", async () => {
+    const started: string[] = [];
+    const rt = new PluginRuntime([], env());
+    await rt.replaceDefinitions([plugin("u-x", () => void started.push("u-x"))]);
+    expect(started).toEqual([]);
+    await rt.apply(off());
+    expect(started).toEqual(["u-x"]);
+  });
+
+  it("a plugin that failed gets a fresh attempt when its definition changes", async () => {
+    const rt = new PluginRuntime([plugin("u-x", () => Promise.reject(new Error("boom")))], env());
+    await rt.apply({});
+    expect(rt.status()[0].state).toBe("error");
+    await rt.replaceDefinitions([plugin("u-x", () => {})]);
+    expect(rt.status()[0].state).toBe("active");
   });
 });

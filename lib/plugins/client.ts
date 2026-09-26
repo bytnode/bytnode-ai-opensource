@@ -4,6 +4,7 @@ import type { AppNotification, Confirmation, PluginStatus } from "@/lib/domain/p
 import type { ToolPolicy } from "@/lib/tools/types";
 import type { Settings } from "@/lib/domain/types";
 import { transportHeaders, type Transport } from "@/lib/tools/transport";
+import type { UserPluginInfo } from "./user/types";
 
 /* ---------------------------------------------------------------------------
    The plugins, seen from the browser: every call to the server's plugin
@@ -68,4 +69,32 @@ export async function decideConfirmation(id: string, allow: boolean, transport: 
     body: JSON.stringify({ allow }),
   });
   return (await json<{ confirmation: Confirmation }>(res)).confirmation;
+}
+
+/* --- The plugins written by agents ---------------------------------------- */
+
+export const fetchUserPlugins = async (): Promise<UserPluginInfo[]> => (await json<{ plugins: UserPluginInfo[] }>(await fetch("/api/user-plugins"))).plugins;
+
+/** The user's decision on a plugin's permissions; `digest`: the version
+    the review screen showed. */
+export async function decideUserPlugin(id: string, digest: string, allow: boolean, accounts: string[]): Promise<void> {
+  const res = await fetch(`/api/user-plugins/${encodeURIComponent(id)}/approve`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ digest, allow, accounts }),
+  });
+  await json(res);
+}
+
+export async function revokeUserPlugin(id: string): Promise<void> {
+  await json(await fetch(`/api/user-plugins/${encodeURIComponent(id)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "revoke" }) }));
+}
+
+export async function deleteUserPlugin(id: string, withData: boolean): Promise<void> {
+  await json(await fetch(`/api/user-plugins/${encodeURIComponent(id)}${withData ? "?data=1" : ""}`, { method: "DELETE" }));
+}
+
+/** What a plugin's page reported (an exception): kept for its agent. */
+export function reportViewError(id: string, message: string): void {
+  void fetch(`/api/user-plugins/${encodeURIComponent(id)}/log`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ message }) }).catch(() => {});
 }

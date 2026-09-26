@@ -644,3 +644,65 @@ body.is-resizing .pv-resize + * {
     padding-right: 16px;
   }
 }
+
+/* --- A plugin written by an agent (`user-view.tsx`) -------------------------
+
+   Its page fills the tab, in a frame with nothing of its own around it:
+   the page itself draws the app's language (the kit), and shows the app's
+   backdrop through. An error it reports is a quiet band at the foot. */
+
+.pv.pv-user {
+  position: relative;
+  overflow: hidden;
+}
+
+.uv-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  /* Its colour scheme is inherited, the same as the page's (the kit
+     follows the theme): a mismatch would paint the frame opaque. */
+  background: transparent;
+}
+
+.uv-problem {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 10px 16px;
+  border-radius: 14px;
+  background: var(--veil-strong);
+  box-shadow: inset 2px 0 0 #f85149;
+  backdrop-filter: blur(20px);
+  font-size: 0.84rem;
+}
+
+.uv-problem > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.uv-problem small {
+  color: var(--fg-faint);
+}
+
+.uv-dismiss {
+  display: inline-flex;
+  padding: 4px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+
+.uv-dismiss svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.9;
+}

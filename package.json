@@ -40,6 +40,7 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.4.0",
+    "@jitl/quickjs-wasmfile-release-sync": "^0.32.0",
     "@joplin/turndown-plugin-gfm": "^1.0.68",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@resvg/resvg-js": "^2.6.2",
@@ -48,6 +49,7 @@
     "fast-glob": "^3.3.3",
     "next": "^16.2.6",
     "pdf-parse": "^2.4.5",
+    "quickjs-emscripten-core": "^0.32.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-markdown": "^10.1.0",

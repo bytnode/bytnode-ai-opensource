@@ -784,3 +784,110 @@ html[data-theme="light"] .tb-peek {
 .cf-outcome strong {
   color: var(--fg);
 }
+
+/* --- The review of a plugin written by an agent (`plugin-review.tsx`) -----
+
+   The confirmation's sheet, a little wider: what the plugin may reach
+   first — the line that commits funds in red, a new permission marked —
+   the accounts to tick, what it adds, and the one sentence of reassurance
+   that is true: the box it runs in. */
+
+.prv {
+  width: min(520px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+.prv-from {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.76rem;
+  color: var(--fg-faint);
+}
+
+.prv-block {
+  margin-top: 18px;
+}
+
+.prv-label {
+  margin: 0 0 8px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.prv-perms,
+.prv-adds {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.prv-perms li,
+.prv-adds li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 10px 12px;
+  background: var(--matter);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.prv-perms li.is-danger {
+  box-shadow: inset 2px 0 0 #f85149;
+}
+
+.prv-adds small {
+  flex-basis: 100%;
+  font-size: 0.76rem;
+  color: var(--fg-faint);
+}
+
+.prv-new {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(10, 132, 255, 0.18);
+  color: #0a84ff;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.prv-none {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--fg-muted);
+}
+
+.prv-accounts {
+  margin-top: 14px;
+}
+
+.prv-account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 2px;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.prv-account .xch-badge {
+  margin-right: 0;
+}
+
+.prv-account small {
+  color: var(--fg-faint);
+}
+
+.prv-safe {
+  margin: 18px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--fg-muted);
+}

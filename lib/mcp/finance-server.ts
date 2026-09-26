@@ -56,7 +56,7 @@ function safeJson(text: string): unknown {
 let tools: Promise<Tool[]> | null = null;
 const toolset = () =>
   (tools ??= (async () => {
-    await startToolsRuntime(pluginState);
+    await startToolsRuntime(pluginState, { bytnodeKey, accounts: exchangeAccounts });
     const { tools: own } = await allTools({ engine: "mcp", platform: process.platform, bytnodeKey, exchangeAccounts, depth, plugins });
     if (!parent) return own;
     return [...own, acpWorkflowTool(parent, await agentModels(parent), { openrouterKey: "", bytnodeKey, exchangeAccounts, plugins }) as Tool];

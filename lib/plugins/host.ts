@@ -3,13 +3,16 @@ import type { PluginsState } from "@/lib/domain/plugins";
 import { bytnodeAiTools, generalTools } from "@/lib/tools/registry";
 import { OPEN_VIEW } from "@/lib/tools/views/open-view";
 import { PLUGINS } from "./definitions";
-import { setActiveRuntime } from "./core/active";
+import { setActiveRuntime, setUserPluginsReloader } from "./core/active";
 import { requestConfirmation } from "./core/confirmations";
 import type { Session } from "./core/contract";
 import { addNotification } from "./core/notifications";
 import { PluginRuntime, type RuntimeEnv } from "./core/runtime";
 import { SessionHolder } from "./core/session";
 import { pluginStore, pluginsDir, readJson, writeJsonAtomic } from "./core/store";
+import { userPluginsVersion } from "./user/files";
+import type { Keys } from "./user/host-ops";
+import { userDefinitions } from "./user/load";
 
 /* ---------------------------------------------------------------------------
    Where the plugin runtime lives.
@@ -34,6 +37,8 @@ export type Host = {
   /** The definitions it was built from: in development, a reloaded module
       brings new ones, and the host is rebuilt around them. */
   definitions: typeof PLUGINS;
+  /** The plugins written by agents, as last loaded (`userPluginsVersion`). */
+  userVersion: string;
 };
 
 const mirrorFile = () => path.join(pluginsDir(), "state.json");
@@ -68,10 +73,26 @@ export function pluginHost(): Host {
   const session = current?.session ?? new SessionHolder();
   const runtime = new PluginRuntime(PLUGINS, env(true, () => session.get()));
   setActiveRuntime(runtime);
-  const ready = readJson<PluginsState>(mirrorFile(), {}).then((state) => runtime.apply(state));
-  const host: Host = { runtime, session, ready, definitions: PLUGINS };
+  const host: Host = { runtime, session, ready: Promise.resolve(), definitions: PLUGINS, userVersion: "" };
+  /* The plugins written by agents join before the first `apply`, so they
+     start with the others. */
+  host.ready = loadUser(host)
+    .catch((e: unknown) => console.info(`[plugins] the plugins written by agents could not be read: ${e instanceof Error ? e.message : String(e)}`))
+    .then(() => readJson<PluginsState>(mirrorFile(), {}))
+    .then((state) => runtime.apply(state));
+  setUserPluginsReloader(() => loadUser(host, true));
   holder[KEY] = host;
   return host;
+}
+
+/** Reads the approved plugins written by agents and hands the runtime the
+    whole set; skipped when nothing changed on disk (unless `force`). */
+async function loadUser(host: Host, force = false): Promise<void> {
+  const version = userPluginsVersion();
+  if (!force && version === host.userVersion) return;
+  host.userVersion = version;
+  const { definitions } = await userDefinitions();
+  await host.runtime.replaceDefinitions([...PLUGINS, ...definitions]);
 }
 
 /** The runtime, once it has started what the disk copy says. */
@@ -87,15 +108,25 @@ export async function syncSession(session: Session): Promise<void> {
   const host = pluginHost();
   await host.ready;
   host.session.set(session);
+  /* An agent's plugin activated from another process (a subscription
+     agent's MCP server) is picked up here, at the next heartbeat. */
+  await loadUser(host).catch(() => {});
   const previous = await readJson<PluginsState>(mirrorFile(), {});
   if (JSON.stringify(previous) !== JSON.stringify(session.plugins)) await writeJsonAtomic(mirrorFile(), session.plugins);
-  await host.runtime.apply(session.plugins);
+  /* The host may have been replaced meanwhile (a reload): the state goes
+     to the current one — the one replaced is shut down for good. */
+  await pluginHost().runtime.apply(session.plugins);
 }
 
-/** The runtime of an MCP server: tools only, for the state it was given. */
-export async function startToolsRuntime(state: PluginsState): Promise<PluginRuntime> {
-  const runtime = new PluginRuntime(PLUGINS, env(false, () => null));
+/** The runtime of an MCP server: tools only, for the state it was given.
+    `keys`: the agent's own (its environment) — the plugins written by
+    agents use them, since no session reaches this process. */
+export async function startToolsRuntime(state: PluginsState, keys?: Keys): Promise<PluginRuntime> {
+  const fallbackKeys = () => keys ?? null;
+  const { definitions } = await userDefinitions({ fallbackKeys }).catch(() => ({ definitions: [] }));
+  const runtime = new PluginRuntime([...PLUGINS, ...definitions], env(false, () => null));
   setActiveRuntime(runtime);
+  setUserPluginsReloader(async () => runtime.replaceDefinitions([...PLUGINS, ...(await userDefinitions({ fallbackKeys })).definitions]));
   await runtime.apply(state);
   return runtime;
 }

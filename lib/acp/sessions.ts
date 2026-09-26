@@ -36,6 +36,7 @@ import type { ExchangeAccount } from "@/lib/domain/types";
 import { isAlwaysAskTitle } from "@/lib/tools/names";
 import { activeRuntime } from "@/lib/plugins/core/active";
 import { pluginPrompt } from "@/lib/plugins/extras";
+import { userPluginsVersion } from "@/lib/plugins/user/files";
 export type { WireEvent };
 
 /** A call that commits funds, or whose tool always asks by its policy:
@@ -159,7 +160,9 @@ function toolsVersion(): string {
   } catch {
     /* no big deal: the key just will not move */
   }
-  return String(Math.floor(latest));
+  /* And the plugins written by agents: one activated or removed restarts
+     the server with its tools. */
+  return `${Math.floor(latest)}.${userPluginsVersion()}`;
 }
 
 /* Where the first turn's time goes: each step is written to the `next dev`

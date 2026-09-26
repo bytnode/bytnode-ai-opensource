@@ -6,6 +6,7 @@ import type { ViewEntry } from "@/lib/plugins/catalog";
 import type { ViewTab } from "@/lib/state/tabs";
 import { Refresh } from "@/components/ui/icons";
 import { BARE_VIEWS, VIEWS } from "./views";
+import { UserPluginView } from "./user-view";
 import "./plugins.css";
 
 /* ---------------------------------------------------------------------------
@@ -16,6 +17,8 @@ import "./plugins.css";
 --------------------------------------------------------------------------- */
 export function ViewFrame({ entry, tab, settings }: { entry: ViewEntry; tab: ViewTab; settings: Settings }) {
   const [round, setRound] = useState(0);
+  /* A plugin written by an agent: its own page, in a sandboxed frame. */
+  if (entry.plugin.tier === "user") return <UserPluginView entry={entry} settings={settings} />;
   const View = VIEWS[entry.id];
   if (View && BARE_VIEWS.has(entry.id)) {
     return (
