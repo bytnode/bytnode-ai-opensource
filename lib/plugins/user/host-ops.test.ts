@@ -59,7 +59,7 @@ describe("ctx.exchange.trades", () => {
   });
 
   it("Bybit is read by 7-day windows, as its API answers", async () => {
-    const fetchMyTrades = vi.fn(async () => []);
+    const fetchMyTrades = vi.fn<(...args: unknown[]) => Promise<unknown[]>>(async () => []);
     fake.ex = { id: "bybit", has: { fetchMyTrades: true }, markets: {}, fetchMyTrades } as never;
     await readTrades(fake.ex as Exchange, { since: now - 20 * 86_400_000 });
     expect(fetchMyTrades).toHaveBeenCalledTimes(3);
@@ -67,7 +67,7 @@ describe("ctx.exchange.trades", () => {
   });
 
   it("goes 90 days back at most, and says when the exchange has no history", async () => {
-    const fetchMyTrades = vi.fn(async () => []);
+    const fetchMyTrades = vi.fn<(...args: unknown[]) => Promise<unknown[]>>(async () => []);
     fake.ex = { id: "kraken", has: { fetchMyTrades: true }, markets: {}, fetchMyTrades } as never;
     await readTrades(fake.ex as Exchange, { symbol: "BTC/USDT", since: "2020-01-01" });
     expect(fetchMyTrades.mock.calls[0][1] as number).toBeGreaterThan(now - 91 * 86_400_000);

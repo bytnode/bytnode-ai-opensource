@@ -3,31 +3,75 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { dataDir } from "@/lib/server/data-dir";
-import { appendJsonl, pluginsDir, readJson, readJsonl, writeJsonAtomic } from "../core/store";
+import { appendJsonl, pluginStore, pluginsDir, readJson, readJsonl, writeJsonAtomic, type PluginStore } from "../core/store";
 import { isUserPluginId, readUserManifest, type UserManifest } from "./manifest";
 import type { Grant, Permissions } from "./permissions";
 
 /* ---------------------------------------------------------------------------
-   The plugins written by agents, on disk: `~/.bytnode-ai/user-plugins/<id>/`.
+   The plugins written by agents, on disk — ONE FOLDER PER PLUGIN, holding
+   everything of it: `~/.bytnode-ai/bytnode-plugin-user/<id>/`.
 
      draft/      what the agent writes and rewrites (PluginWrite): plugin.json,
                  server.js, tests.js, view/…  — the ONLY place an agent writes
      active/     the copy that runs: made at activation, never edited
+     data/       what the plugin stores (`ctx.store`) — apart, so that no
+                 file it writes can ever be `grant.json`
      grant.json  what the user granted (permissions, accounts, the digest
                  of the files that run) — written by the user's approval only
      request.json  an activation waiting for the user
      meta.json   who made it, when; who changed it last
      log.jsonl   what went wrong (setup, a call, the page), bounded
 
-   The plugin's DATA is elsewhere, like every plugin's: `plugins/<id>/`.
+   Outside the app's own folder, like every user data: npm replaces the
+   package at each update. Copy the folder and the plugin goes with it.
    SERVER-ONLY.
 --------------------------------------------------------------------------- */
 
-export const userPluginsDir = (): string => path.join(dataDir(), "user-plugins");
+export const USER_PLUGINS_FOLDER = "bytnode-plugin-user";
+
+export const userPluginsDir = (): string => path.join(dataDir(), USER_PLUGINS_FOLDER);
+
 const dirOf = (id: string) => {
   if (!isUserPluginId(id)) throw new Error(`Invalid plugin id: ${id}.`);
+  migrateLegacyLayout();
   return path.join(userPluginsDir(), id);
 };
+
+/** What a plugin written by an agent stores, in its own folder. */
+export const userPluginStore = (id: string): PluginStore => pluginStore("data", dirOf(id));
+
+let migrated = "";
+
+/** The first layout (until 2026-09-26) split a plugin in two: its files
+    in `user-plugins/<id>/`, its data in `plugins/<id>/`. Moved once into
+    the one folder, nothing lost; a move Windows refuses (a file held) is
+    tried again at the next start. */
+export function migrateLegacyLayout(): void {
+  const home = dataDir();
+  if (migrated === home) return;
+  migrated = home;
+  const root = userPluginsDir();
+  const legacy = path.join(home, "user-plugins");
+  try {
+    if (fs.existsSync(legacy)) {
+      fs.mkdirSync(root, { recursive: true });
+      for (const e of fs.readdirSync(legacy, { withFileTypes: true })) {
+        const to = path.join(root, e.name);
+        if (e.isDirectory() && isUserPluginId(e.name) && !fs.existsSync(to)) fs.renameSync(path.join(legacy, e.name), to);
+      }
+      if (fs.readdirSync(legacy).length === 0) fs.rmdirSync(legacy);
+    }
+    const oldData = pluginsDir();
+    if (fs.existsSync(oldData)) {
+      for (const e of fs.readdirSync(oldData, { withFileTypes: true })) {
+        const home = path.join(root, e.name);
+        if (e.isDirectory() && isUserPluginId(e.name) && fs.existsSync(home) && !fs.existsSync(path.join(home, "data"))) fs.renameSync(path.join(oldData, e.name), path.join(home, "data"));
+      }
+    }
+  } catch {
+    migrated = "";
+  }
+}
 
 export const MAX_FILE_BYTES = 256 * 1024;
 export const MAX_TOTAL_BYTES = 1024 * 1024;
@@ -130,10 +174,11 @@ export async function revoke(id: string): Promise<void> {
   await clearRequest(id);
 }
 
-/** Deletes the plugin, and its data if asked. */
+/** Deletes the plugin — its data too, unless asked to keep it. */
 export async function removeUserPlugin(id: string, withData: boolean): Promise<void> {
-  await fsp.rm(dirOf(id), { recursive: true, force: true });
-  if (withData) await fsp.rm(path.join(pluginsDir(), id), { recursive: true, force: true });
+  const dir = dirOf(id);
+  if (withData) return fsp.rm(dir, { recursive: true, force: true });
+  for (const name of await fsp.readdir(dir).catch(() => [] as string[])) if (name !== "data") await fsp.rm(path.join(dir, name), { recursive: true, force: true });
 }
 
 export type LogEntry = { at: string; level: "info" | "warn" | "error"; source: "setup" | "call" | "job" | "view" | "check" | "log"; message: string };
@@ -145,6 +190,7 @@ export async function appendLog(id: string, entry: Omit<LogEntry, "at">): Promis
 export const readLog = async (id: string, last = 30): Promise<LogEntry[]> => (await readJsonl<LogEntry>(path.join(dirOf(id), "log.jsonl"))).slice(-last);
 
 export const userPluginIds = async (): Promise<string[]> => {
+  migrateLegacyLayout();
   const dir = userPluginsDir();
   if (!fs.existsSync(dir)) return [];
   return (await fsp.readdir(dir, { withFileTypes: true })).filter((e) => e.isDirectory() && isUserPluginId(e.name)).map((e) => e.name).sort();
@@ -195,6 +241,7 @@ export async function activePlugins(): Promise<{ plugins: ActivePlugin[]; proble
     removal): the host reloads, a subscription session restarts its MCP
     server. Synchronous and cheap: a few `stat`s. */
 export function userPluginsVersion(): string {
+  migrateLegacyLayout();
   const dir = userPluginsDir();
   if (!fs.existsSync(dir)) return "0";
   const parts: string[] = [];

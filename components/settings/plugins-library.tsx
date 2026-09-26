@@ -393,7 +393,9 @@ function PluginPage({ manifest: m, user, settings, status, names, onBack, onTogg
           <div className="st-row">
             <div className="st-row-text">
               <span className="st-row-label">What it stores</span>
-              <p className="st-row-hint">{m.data} In ~/.bytnode-ai/plugins/{m.id}/.</p>
+              <p className="st-row-hint">
+                {m.data} In ~/.bytnode-ai/{m.tier === "user" ? `bytnode-plugin-user/${m.id}/data` : `plugins/${m.id}`}/.
+              </p>
               {cleared && <p className="st-row-hint">{cleared}</p>}
             </div>
             <div className="st-row-control pl-right">

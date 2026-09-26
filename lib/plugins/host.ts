@@ -10,7 +10,8 @@ import { addNotification } from "./core/notifications";
 import { PluginRuntime, type RuntimeEnv } from "./core/runtime";
 import { SessionHolder } from "./core/session";
 import { pluginStore, pluginsDir, readJson, writeJsonAtomic } from "./core/store";
-import { userPluginsVersion } from "./user/files";
+import { userPluginStore, userPluginsVersion } from "./user/files";
+import { isUserPluginId } from "./user/manifest";
 import type { Keys } from "./user/host-ops";
 import { userDefinitions } from "./user/load";
 
@@ -53,7 +54,8 @@ function env(background: boolean, session: () => Session | null): RuntimeEnv {
   return {
     background,
     reservedNames: coreToolNames(),
-    store: (id) => pluginStore(id),
+    /* A plugin written by an agent keeps its data in its own folder. */
+    store: (id) => (isUserPluginId(id) ? userPluginStore(id) : pluginStore(id)),
     notifications: { add: addNotification },
     confirmations: { request: requestConfirmation },
     session,
