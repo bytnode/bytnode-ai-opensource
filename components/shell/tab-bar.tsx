@@ -27,6 +27,13 @@ import { ViewsMenu } from "./views-menu";
    reads a notch brighter than the other tabs.
 --------------------------------------------------------------------------- */
 
+/** A mouse wheel turns vertically only: on Windows / Linux (no trackpad)
+    an overflowing strip could not be scrolled at all. */
+function wheelSideways(e: React.WheelEvent<HTMLDivElement>) {
+  const strip = e.currentTarget;
+  if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && strip.scrollWidth > strip.clientWidth) strip.scrollLeft += e.deltaY;
+}
+
 /** `extra`: the plugins written by agents that run (their tabs). */
 type Props = { settings: Settings; views: ViewEntry[]; extra: PluginManifest[]; tabs: ViewTab[]; active: string };
 
@@ -42,7 +49,7 @@ export function TabBar({ settings, views, extra, tabs, active }: Props) {
   const peeked = preview.peek ? (preview.peek.view === HOME ? { title: "Conversations", description: "Your agents and their conversations" } : viewEntry(preview.peek.view, extra)) : null;
   return (
     <div className="tb" style={{ "--tb-home": `${sidebarWidth}px` } as React.CSSProperties}>
-      <div className="tb-tabs" role="tablist" aria-label="Open pages" onScroll={preview.hide}>
+      <div className="tb-tabs" role="tablist" aria-label="Open pages" onScroll={preview.hide} onWheel={wheelSideways}>
         {/* Built like the others (a tab around its label); its width is
             the column's, not a share of the bar. */}
         <div className={`tb-tab tb-tab-home${active === HOME ? " is-on" : ""}`} {...hover(HOME)}>

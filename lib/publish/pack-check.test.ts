@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { containing, forbiddenPaths, isTextFile, leakedSecrets } from "./pack-check";
+import { containing, forbiddenPaths, isTextFile, leakedSecrets, machinePathNeedles } from "./pack-check";
 
 describe("forbiddenPaths", () => {
   it("refuses environment files, data and MCP keys", () => {
@@ -49,5 +49,22 @@ describe("containing", () => {
   });
   it("ignores an empty needle", () => {
     expect(containing([{ path: "a", text: "abc" }], [""])).toEqual([]);
+  });
+
+  it("catches the path in a source map's file URL and in forward slashes", () => {
+    const needles = machinePathNeedles(String.raw`C:\Users\x\proj`);
+    const files = [
+      { path: ".next/server/a.js.map", text: `{"sources":["file:///C:/Users/x/proj/lib/a.ts"]}` },
+      { path: ".next/server/b.js", text: `"[project]" /* C:/Users/x/proj */` },
+    ];
+    expect(containing(files, needles)).toEqual([".next/server/a.js.map", ".next/server/b.js"]);
+    expect(machinePathNeedles("/home/x/proj")).toEqual(["/home/x/proj", "file:///home/x/proj"]);
+  });
+});
+
+describe("the dev server's output", () => {
+  it("never goes out", () => {
+    expect(forbiddenPaths([".next/dev/lock", ".next/server/app.js"])).toEqual([".next/dev/lock"]);
+    expect(isTextFile(".next/server/a.js.map")).toBe(true);
   });
 });

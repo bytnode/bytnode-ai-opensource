@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
+import { groupSpawnOptions, killTree, trackGroup } from "@/lib/server/process-groups";
 
 /* ---------------------------------------------------------------------------
    Launch a process and collect its output.
@@ -36,11 +38,21 @@ const DEFAULT_MAX = 200_000;
    without end in memory: beyond this, it is delivered as is and the buffer
    starts over. */
 const MAX_LINE = 1_000_000;
+/* ⚠️ A COMMAND IS DONE WHEN ITS PROCESS EXITS, NOT WHEN ITS PIPES CLOSE.
+   `python server.py &` leaves a grandchild holding stdout: Node's `close`
+   never comes, and the call used to hang forever — even past its time
+   limit, since the kill skipped a process that had already exited. After
+   the exit, what the grandchild still writes is read for this long; after
+   a kill, the pipes are dropped after as long. */
+const EXIT_GRACE_MS = 1500;
 
 export function run(command: string, args: string[], opts: RunOptions): Promise<RunResult> {
   return new Promise((resolve) => {
     const started = Date.now();
-    const child = spawn(command, args, { cwd: opts.cwd, env: { ...process.env, ...opts.env }, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    /* A process group of its own on macOS / Linux, so that stopping the
+       command stops what it launched too (`process-groups.ts`). */
+    const child = spawn(command, args, { cwd: opts.cwd, env: { ...process.env, ...opts.env }, windowsHide: true, ...groupSpawnOptions(), stdio: ["ignore", "pipe", "pipe"] });
+    trackGroup(child);
     const max = opts.maxBytes ?? DEFAULT_MAX;
     let stdout = "";
     let stderr = "";
@@ -49,13 +61,23 @@ export function run(command: string, args: string[], opts: RunOptions): Promise<
     let matched = false;
     let settled = false;
 
+    let exitCode: number | null = null;
+    let dropTimer: NodeJS.Timeout | undefined;
+    /** Stop reading and settle, whoever still holds the pipes. */
+    const dropAfter = (ms: number) => {
+      if (dropTimer || settled) return;
+      dropTimer = setTimeout(() => {
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        finish(exitCode);
+      }, ms);
+    };
+
+    /* The whole group, even when the shell itself has exited (POSIX): what
+       it put in the background is still in it. */
     const kill = () => {
-      if (child.exitCode !== null || child.killed) return;
-      if (process.platform === "win32" && child.pid) {
-        spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], { windowsHide: true, stdio: "ignore" });
-      } else {
-        child.kill("SIGKILL");
-      }
+      killTree(child);
+      dropAfter(EXIT_GRACE_MS);
     };
 
     const timer = setTimeout(() => {
@@ -71,8 +93,10 @@ export function run(command: string, args: string[], opts: RunOptions): Promise<
 
     const lineReader = (stream: "stdout" | "stderr") => {
       let rest = "";
+      /* A UTF-8 character cut between two chunks stays whole. */
+      const decoder = new StringDecoder("utf8");
       return (chunk: Buffer) => {
-        const text = chunk.toString("utf8");
+        const text = decoder.write(chunk);
         if (stream === "stdout") stdout = stdout.length < max ? stdout + text : stdout;
         else stderr = stderr.length < max ? stderr + text : stderr;
         if (!opts.onLine && !opts.until) return;
@@ -99,6 +123,7 @@ export function run(command: string, args: string[], opts: RunOptions): Promise<
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      clearTimeout(dropTimer);
       opts.signal?.removeEventListener("abort", onAbort);
       resolve({ code, stdout, stderr, timedOut, aborted, matched, durationMs: Date.now() - started });
     };
@@ -106,7 +131,11 @@ export function run(command: string, args: string[], opts: RunOptions): Promise<
       stderr += `\n${e.message}`;
       finish(null);
     });
-    child.on("close", finish);
+    child.on("exit", (code) => {
+      exitCode = code;
+      dropAfter(EXIT_GRACE_MS);
+    });
+    child.on("close", (code) => finish(code ?? exitCode));
   });
 }
 

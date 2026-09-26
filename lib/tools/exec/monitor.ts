@@ -1,7 +1,7 @@
 import type { Tool } from "../types";
 import { errorText, fail, ok } from "../types";
 import { describeRun, run } from "./run";
-import { findBash } from "./shells";
+import { UTF8_ENV, bashArgs, findBash } from "./shells";
 import { findOutsideReferences, outsideMessage } from "./guard";
 
 /* ---------------------------------------------------------------------------
@@ -61,13 +61,13 @@ export const monitorTool: Tool<Args> = {
     const bash = findBash();
     if (!bash) return fail("No bash found on this machine.");
     try {
-      const r = await run(bash, ["-lc", args.command], {
+      const r = await run(bash, bashArgs(args.command), {
         cwd: ctx.workspace,
         timeoutMs,
         signal: ctx.signal,
         until,
         onLine: push,
-        env: { MSYS_NO_PATHCONV: "1" },
+        env: { MSYS_NO_PATHCONV: "1", ...UTF8_ENV },
       });
       return ok(describeRun({ ...r, stdout: lines.join("\n"), stderr: "" }, "Monitor"));
     } catch (e) {
@@ -86,6 +86,12 @@ function watchSocket(
 ) {
   return new Promise<ReturnType<typeof ok>>((resolve) => {
     const started = Date.now();
+    /* Node's own WebSocket arrived in Node 22: on Node 20 the name does
+       not exist and the call failed with a ReferenceError. */
+    if (typeof WebSocket === "undefined") {
+      resolve(fail(`Watching a WebSocket needs Node.js 22 or newer (this is ${process.versions.node}). Poll the HTTP endpoint with \`command\` instead, or update Node.`));
+      return;
+    }
     let ws: WebSocket;
     try {
       ws = new WebSocket(url);

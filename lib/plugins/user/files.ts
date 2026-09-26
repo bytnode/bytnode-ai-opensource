@@ -3,7 +3,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { dataDir } from "@/lib/server/data-dir";
-import { appendJsonl, pluginStore, pluginsDir, readJson, readJsonl, writeJsonAtomic, type PluginStore } from "../core/store";
+import { WINDOWS_RESERVED, appendJsonl, pluginStore, pluginsDir, readJson, readJsonl, renameRetry, writeJsonAtomic, writeTextAtomic, type PluginStore } from "../core/store";
 import { isUserPluginId, readUserManifest, type UserManifest } from "./manifest";
 import type { Grant, Permissions } from "./permissions";
 
@@ -80,7 +80,7 @@ const MAX_LOG = 200;
 
 /** May the agent write this file? A flat, known layout only. */
 export function allowedFile(name: string): boolean {
-  return name === "plugin.json" || name === "server.js" || name === "tests.js" || /^view\/[a-z0-9][a-z0-9-]{0,40}\.(html|css|js)$/.test(name);
+  return name === "plugin.json" || name === "server.js" || name === "tests.js" || (/^view\/[a-z0-9][a-z0-9-]{0,40}\.(html|css|js)$/.test(name) && !WINDOWS_RESERVED.test(name.slice(5)));
 }
 
 export type Which = "draft" | "active";
@@ -139,10 +139,7 @@ export async function writeDraftFile(id: string, name: string, content: string |
     const total = Object.entries(current).reduce((n, [k, v]) => n + (k === name ? 0 : Buffer.byteLength(v, "utf8")), bytes);
     if (total > MAX_TOTAL_BYTES) throw new Error(`The plugin would weigh ${Math.round(total / 1024)} kB: ${MAX_TOTAL_BYTES / 1024} kB at most.`);
     if (name.startsWith("view/") && !(name in current) && Object.keys(current).filter((k) => k.startsWith("view/")).length >= MAX_VIEW_FILES) throw new Error(`${MAX_VIEW_FILES} view files at most.`);
-    await fsp.mkdir(path.dirname(file), { recursive: true });
-    const tmp = `${file}.${randomUUID().slice(0, 8)}.tmp`;
-    await fsp.writeFile(tmp, content);
-    await fsp.rename(tmp, file);
+    await writeTextAtomic(file, content);
   }
   const now = new Date().toISOString();
   const meta = await readMeta(id);
@@ -160,9 +157,26 @@ export async function activate(id: string, grant: Grant): Promise<void> {
     await fsp.mkdir(path.dirname(path.join(staging, name)), { recursive: true });
     await fsp.writeFile(path.join(staging, name), text);
   }
-  await fsp.rm(path.join(root, "active"), { recursive: true, force: true });
-  await fsp.rename(staging, path.join(root, "active"));
+  /* The old version is moved aside BEFORE the swap and removed after: a
+     refused rename (Windows holding a file) used to leave no `active/` at
+     all while `grant.json` still named the old one. */
+  const active = path.join(root, "active");
+  const old = path.join(root, `active.old.${randomUUID().slice(0, 8)}.tmp`);
+  const hadOne = fs.existsSync(active);
+  try {
+    if (hadOne) await renameRetry(active, old);
+    try {
+      await renameRetry(staging, active);
+    } catch (e) {
+      if (hadOne) await renameRetry(old, active).catch(() => {});
+      throw e;
+    }
+  } catch (e) {
+    await fsp.rm(staging, { recursive: true, force: true });
+    throw e;
+  }
   await writeJsonAtomic(path.join(root, "grant.json"), grant);
+  await fsp.rm(old, { recursive: true, force: true }).catch(() => {});
   await clearRequest(id);
 }
 

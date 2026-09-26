@@ -1,8 +1,10 @@
 import fs from "node:fs";
+import path from "node:path";
 import type { Tool } from "../types";
 import { errorText, fail, ok } from "../types";
 import { describeRun, run } from "./run";
 import { findOutsideReferences, outsideMessage } from "./guard";
+import { findOnPath } from "@/lib/acp/detect";
 
 /* ---------------------------------------------------------------------------
    Bash and PowerShell: one command, in the agent's workspace.
@@ -23,15 +25,36 @@ const MAX_TIMEOUT = 600_000;
 
 const clampTimeout = (ms?: number) => Math.min(MAX_TIMEOUT, Math.max(1_000, ms ?? DEFAULT_TIMEOUT));
 
+/* What a script prints reaches us in UTF-8: Python on Windows otherwise
+   writes to a pipe in the ANSI code page ("é" came back as "�"). */
+export const UTF8_ENV = { PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" };
+/* Windows PowerShell 5.1 writes to a pipe in the OEM code page (pwsh 7
+   already in UTF-8): every accent of its output was lost. */
+const PS_UTF8 = "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8; ";
+
 export function findBash(): string | null {
   if (process.platform !== "win32") return "bash";
+  /* Git installed for the user alone (`%LOCALAPPDATA%\Programs\Git`),
+     through Scoop or elsewhere: its bash is next to the `git` of the PATH
+     (`<Git>\cmd\git.exe` → `<Git>\bin\bash.exe`). Never a bare `bash`
+     from the PATH: on Windows that is WSL's, another system. */
+  const git = findOnPath("git");
   const candidates = [
     "C:\\Program Files\\Git\\bin\\bash.exe",
     "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
     "C:\\Program Files (x86)\\Git\\bin\\bash.exe",
+    ...(process.env.LOCALAPPDATA ? [path.join(process.env.LOCALAPPDATA, "Programs", "Git", "bin", "bash.exe")] : []),
+    ...(git ? [path.join(path.dirname(git), "..", "bin", "bash.exe")] : []),
   ];
   return candidates.find((p) => fs.existsSync(p)) ?? null;
 }
+
+/** Bash's arguments for a command. A login shell only on Windows, where
+    Git bash needs it to set its PATH. On macOS, `-l` runs `path_helper`,
+    which puts /usr/bin back in front of Homebrew's — `python3` became
+    Apple's stub instead of the user's — and the server already carries the
+    terminal's PATH. */
+export const bashArgs = (command: string) => [process.platform === "win32" ? "-lc" : "-c", command];
 
 export function findPowerShell(): string {
   if (process.platform === "win32") {
@@ -80,11 +103,11 @@ export const bashTool: Tool<Args> = {
       if (refs.length) return fail(outsideMessage(refs));
     }
     try {
-      const r = await run(bash, ["-lc", args.command], {
+      const r = await run(bash, bashArgs(args.command), {
         cwd: ctx.workspace,
         timeoutMs: clampTimeout(args.timeout),
         signal: ctx.signal,
-        env: { MSYS: "winsymlinks:nativestrict", MSYS_NO_PATHCONV: "1" },
+        env: { MSYS: "winsymlinks:nativestrict", MSYS_NO_PATHCONV: "1", ...UTF8_ENV },
       });
       return (r.code === 0 && !r.timedOut && !r.aborted ? ok : fail)(describeRun(r, "bash"));
     } catch (e) {
@@ -105,15 +128,17 @@ export const powershellTool: Tool<Args> = {
     additionalProperties: false,
   },
   async execute(args, ctx) {
+    if (process.platform !== "win32" && !findOnPath("pwsh")) return fail("PowerShell is not installed on this system (macOS / Linux): use Bash.");
     if (ctx.scope === "workspace") {
       const refs = findOutsideReferences(args.command, ctx.workspace);
       if (refs.length) return fail(outsideMessage(refs));
     }
     try {
-      const r = await run(findPowerShell(), ["-NoProfile", "-NonInteractive", "-Command", args.command], {
+      const r = await run(findPowerShell(), ["-NoProfile", "-NonInteractive", "-Command", PS_UTF8 + args.command], {
         cwd: ctx.workspace,
         timeoutMs: clampTimeout(args.timeout),
         signal: ctx.signal,
+        env: UTF8_ENV,
       });
       return (r.code === 0 && !r.timedOut && !r.aborted ? ok : fail)(describeRun(r, "PowerShell"));
     } catch (e) {

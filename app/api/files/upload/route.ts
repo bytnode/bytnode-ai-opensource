@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     total += buf.length;
     if (total > MAX_TOTAL) return Response.json({ error: { message: "More than 60 MB at once: send them in several batches." } }, { status: 413 });
 
-    const name = uniqueName(dir, safeFileName(e.name), out);
+    const name = await uniqueName(dir, safeFileName(e.name), out, buf);
     const target = path.join(dir, name);
     if (path.dirname(path.resolve(target)) !== path.resolve(dir)) {
       return Response.json({ error: { message: "File name rejected." } }, { status: 400 });
@@ -70,10 +70,21 @@ export async function POST(req: Request) {
   return Response.json({ workspace, attachments: out });
 }
 
-/** Never overwrite: `data.csv`, `data-2.csv`… */
-function uniqueName(dir: string, name: string, deja: Attachment[]): string {
-  const prises = new Set(deja.map((a) => a.name));
-  if (!prises.has(name)) return name;
+/** Never overwrite: `data.csv`, `data-2.csv`… ⚠️ Against the files ALREADY
+    on the disk too — re-attaching `data.csv` replaced the one an earlier
+    message points to — and without regard to case: Windows and macOS
+    disks take `Data.csv` and `data.csv` for one file. The same file sent
+    again keeps its name (nothing to protect). */
+async function uniqueName(dir: string, name: string, deja: Attachment[], buf: Buffer): Promise<string> {
+  const onDisk = new Map((await fs.readdir(dir).catch(() => [] as string[])).map((n) => [n.toLowerCase(), n]));
+  const batch = new Set(deja.map((a) => a.name.toLowerCase()));
+  const same = async (n: string) => {
+    const existing = onDisk.get(n.toLowerCase());
+    return existing === n && (await fs.readFile(path.join(dir, n)).catch(() => null))?.equals(buf) === true;
+  };
+  const free = (n: string) => !batch.has(n.toLowerCase()) && !onDisk.has(n.toLowerCase());
+  if (free(name) || (!batch.has(name.toLowerCase()) && (await same(name)))) return name;
+  const prises = { has: (n: string) => !free(n) };
   const m = name.match(/^(.*?)(\.[A-Za-z0-9]{1,8})?$/);
   const base = m?.[1] ?? name;
   const ext = m?.[2] ?? "";

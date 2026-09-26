@@ -22,4 +22,11 @@ describe("applyEdit", () => {
   test("refuses a no-op edit", () => {
     expect(applyEdit("abc", "b", "b")).toMatchObject({ ok: false, reason: "same" });
   });
+
+  test("a Windows (CRLF) file matches an excerpt written with \\n, and keeps its endings", () => {
+    const out = applyEdit("a\r\nb\r\nc\r\n", "a\nb", "x\ny");
+    expect(out).toEqual({ ok: true, content: "x\r\ny\r\nc\r\n", count: 1 });
+    expect(applyEdit("a\r\nb\r\n", "b", "z")).toEqual({ ok: true, content: "a\r\nz\r\n", count: 1 });
+    expect(applyEdit("a\r\nb\r\n", "q\nb", "z")).toMatchObject({ ok: false, reason: "not_found" });
+  });
 });

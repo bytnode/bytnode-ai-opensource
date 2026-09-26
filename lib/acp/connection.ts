@@ -1,4 +1,5 @@
-import { spawnSync, type ChildProcess } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
+import { killTree } from "@/lib/server/process-groups";
 import { Readable, Writable } from "node:stream";
 import {
   ClientSideConnection,
@@ -265,20 +266,8 @@ export class AcpConnection {
     } catch {
       /* already closed */
     }
-    const kill = () => {
-      if (this.child.exitCode !== null) return;
-      if (process.platform === "win32" && this.child.pid) {
-        try {
-          spawnSync("taskkill", ["/pid", String(this.child.pid), "/t", "/f"], {
-            windowsHide: true,
-          });
-          return;
-        } catch {
-          /* fall back to kill */
-        }
-      }
-      this.child.kill();
-    };
-    setTimeout(kill, 1500).unref();
+    /* The agent AND what it launched (its MCP servers): on macOS / Linux
+       they are in its process group, even once the agent has exited. */
+    setTimeout(() => killTree(this.child, "SIGTERM", true), 1500).unref();
   }
 }

@@ -1,8 +1,20 @@
-import { rgPath } from "@vscode/ripgrep";
+import { findOnPath } from "@/lib/acp/detect";
 import type { Tool } from "../types";
 import { errorText, fail, ok } from "../types";
 import { OutsideWorkspaceError, displayPath, resolvePath } from "../paths";
 import { run } from "../exec/run";
+
+/** ripgrep's binary, loaded on use. ⚠️ `@vscode/ripgrep` THROWS AT IMPORT
+    when its package for this platform is missing (`--omit=optional`, a
+    platform it does not cover): imported at the top, it took down every
+    tool with it, not just Grep. Else an `rg` from the PATH. */
+async function ripgrep(): Promise<string | null> {
+  try {
+    return (await import("@vscode/ripgrep")).rgPath;
+  } catch {
+    return findOnPath("rg");
+  }
+}
 
 /* ---------------------------------------------------------------------------
    Grep: search a pattern in the content of files, with ripgrep.
@@ -67,7 +79,9 @@ export const grepTool: Tool<Args> = {
     rgArgs.push("-e", args.pattern, root);
 
     try {
-      const r = await run(rgPath, rgArgs, { cwd: ctx.workspace, timeoutMs: 60_000, signal: ctx.signal });
+      const rg = await ripgrep();
+      if (!rg) return fail("ripgrep is not available on this system (its package for this platform was not installed, and no `rg` is on the PATH). Search with Bash (`grep -rn`) or PowerShell (`Select-String`) instead.");
+      const r = await run(rg, rgArgs, { cwd: ctx.workspace, timeoutMs: 60_000, signal: ctx.signal });
       if (r.code === 1 && !r.stdout.trim()) return ok(`No match for /${args.pattern}/ in ${displayPath(ctx.workspace, root)}.`);
       if (r.code !== 0 && r.code !== 1) return fail(`ripgrep failed (code ${r.code}): ${r.stderr.trim() || "no message"}`);
       const lines = r.stdout

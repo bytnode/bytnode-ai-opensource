@@ -225,7 +225,8 @@ function ConversationRow({ conversation, active, onSelect, onRemove, onRename }:
     setEditing(null);
   };
   const onKey = (e: ReactKeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") commit();
+    /* Not the Enter that confirms an IME composition (Chinese, Japanese…). */
+    if (e.key === "Enter" && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229) commit();
     if (e.key === "Escape") setEditing(null);
   };
 

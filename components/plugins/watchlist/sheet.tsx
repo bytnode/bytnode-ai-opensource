@@ -169,7 +169,7 @@ function AssetTitle({ asset, onNote }: { asset: Row; onNote: (symbol: string, no
           onChange={(e) => setDraft(e.target.value)}
           onBlur={keep}
           onKeyDown={(e) => {
-            if (e.key === "Enter") keep();
+            if (e.key === "Enter" && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229) keep();
             if (e.key === "Escape") setDraft(null);
           }}
         />

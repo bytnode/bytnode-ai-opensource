@@ -55,6 +55,9 @@ describe("pluginStore", () => {
     const store = pluginStore("x", root);
     expect(() => store.file("../escape.json")).toThrow(/Invalid data file name/);
     expect(() => store.file("a/b.json")).toThrow(/Invalid data file name/);
+    /* Windows' device names, refused on every system. */
+    for (const n of ["con.json", "NUL.json", "com1.json", "lpt9"]) expect(() => store.file(n), n).toThrow(/Invalid data file name/);
+    expect(store.file("console.json")).toContain("console.json");
   });
 
   it("clears everything the plugin stored", async () => {

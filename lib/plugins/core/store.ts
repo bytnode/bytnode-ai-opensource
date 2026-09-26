@@ -64,19 +64,27 @@ export async function writeJsonAtomic(file: string, value: unknown): Promise<voi
   await writeTextAtomic(file, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-async function writeTextAtomic(file: string, text: string): Promise<void> {
+export async function writeTextAtomic(file: string, text: string): Promise<void> {
   await fs.mkdir(path.dirname(file), { recursive: true });
   const tmp = `${file}.${randomUUID().slice(0, 8)}.tmp`;
   await fs.writeFile(tmp, text);
+  try {
+    await renameRetry(tmp, file);
+  } catch (e) {
+    await fs.rm(tmp, { force: true, recursive: true });
+    throw e;
+  }
+}
+
+/** `rename`, retried while Windows holds the file or the folder (Defender
+    scans a freshly written `.js`). */
+export async function renameRetry(from: string, to: string): Promise<void> {
   for (let attempt = 0; ; attempt++) {
     try {
-      await fs.rename(tmp, file);
+      await fs.rename(from, to);
       return;
     } catch (e) {
-      if (attempt >= 5 || !busy(e)) {
-        await fs.rm(tmp, { force: true });
-        throw e;
-      }
+      if (attempt >= 5 || !busy(e)) throw e;
       await sleep(RETRY_MS * (attempt + 1));
     }
   }
@@ -167,11 +175,15 @@ export type PluginStore = {
 };
 
 const NAME = /^[\w-]+(\.[\w-]+)*$/;
+/** Windows' device names: `con.json` or `nul.json` is no file there — the
+    write goes nowhere, the rename fails. Refused on every system, so a
+    plugin behaves the same everywhere. */
+export const WINDOWS_RESERVED = /^(con|prn|aux|nul|com\d|lpt\d)(\.|$)/i;
 
 export function pluginStore(id: string, root: string = pluginsDir()): PluginStore {
   const dir = path.join(root, id);
   const file = (name: string) => {
-    if (!NAME.test(name)) throw new Error(`Invalid data file name: ${name}`);
+    if (!NAME.test(name) || WINDOWS_RESERVED.test(name)) throw new Error(`Invalid data file name: ${name}`);
     return path.join(dir, name);
   };
   return {

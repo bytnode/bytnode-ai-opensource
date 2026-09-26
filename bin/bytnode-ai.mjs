@@ -35,9 +35,11 @@ if (flag("--help") || flag("-h")) {
   process.exit(0);
 }
 
+/* The floor of the dependencies (ccxt's crypto libraries: 20.19; pdf-parse:
+   not 21 nor 22.0-22.2), the same as `engines` in package.json. */
 const [major, minor] = process.versions.node.split(".").map(Number);
-if (major < 20 || (major === 20 && minor < 9)) {
-  console.error(`Node 20.9 or newer is required (you have ${process.versions.node}). https://nodejs.org`);
+if (major < 20 || (major === 20 && minor < 19) || major === 21 || (major === 22 && minor < 12)) {
+  console.error(`Node 20.19+ or 22.12+ is required (you have ${process.versions.node}). https://nodejs.org`);
   process.exit(1);
 }
 
@@ -118,9 +120,14 @@ while (!up && Date.now() < deadline && child.exitCode === null) {
 if (!up) {
   console.error(`The server is not answering on ${url}.`);
 } else if (!flag("--no-open")) {
-  const open = process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : process.platform === "darwin" ? ["open", [url]] : ["xdg-open", [url]];
-  spawn(open[0], open[1], { detached: true, stdio: "ignore" })
-    .on("error", () => {})
+  /* WSL: no Linux browser as a rule — Windows' one, through interop. */
+  const open =
+    process.platform === "win32" ? ["cmd", ["/c", "start", "", url]]
+    : process.platform === "darwin" ? ["open", [url]]
+    : process.env.WSL_DISTRO_NAME ? ["cmd.exe", ["/c", "start", "", url]]
+    : ["xdg-open", [url]];
+  spawn(open[0], open[1], { detached: true, stdio: "ignore", windowsHide: true })
+    .on("error", () => console.log(`No browser could be opened: open ${url} yourself.`))
     .unref();
-  console.log(`Opened: ${url}   (Ctrl-C to stop)`);
+  console.log(`Ready: ${url}   (Ctrl-C to stop)`);
 } else console.log(`Ready: ${url}   (Ctrl-C to stop)`);

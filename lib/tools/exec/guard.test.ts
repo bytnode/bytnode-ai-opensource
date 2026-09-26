@@ -50,3 +50,31 @@ describe("findOutsideReferences", () => {
     expect(findOutsideReferences("node --version", ws)).toEqual([]);
   });
 });
+
+/* Read as paths by mistake: URLs, patterns, routes. */
+describe("findOutsideReferences: what is not a place", () => {
+  test("a URL is not a drive (the `s:/` of https)", () => {
+    expect(findOutsideReferences("curl -s https://api.binance.com/api/v3/time", ws)).toEqual([]);
+    expect(findOutsideReferences(`python -c "import urllib.request as u; u.urlopen('http://x.io/a')"`, ws)).toEqual([]);
+    expect(findOutsideReferences("type D:/data/x.txt", ws)).toEqual(["D:/data/x.txt"]);
+  });
+
+  test("a sed / awk pattern is not a path, on every system", () => {
+    for (const platform of ["win32", "darwin", "linux"] as const) {
+      expect(findOutsideReferences("sed '/^$/d' notes.txt", ws, { platform })).toEqual([]);
+      expect(findOutsideReferences("awk '/BTC.*USDT/ { print $2 }' prices.csv", ws, { platform })).toEqual([]);
+    }
+  });
+
+  test("macOS / Linux: a root folder that does not exist is a route, not a place", () => {
+    const rootExists = (name: string) => ["etc", "Users", "usr", "tmp"].includes(name);
+    const opts = { platform: "darwin" as const, rootExists };
+    expect(findOutsideReferences('grep -rn "/api/" logs', ws, opts)).toEqual([]);
+    expect(findOutsideReferences("cat /etc/passwd", ws, opts)).toEqual(["/etc/passwd"]);
+    expect(findOutsideReferences("ls /Users/someone/Desktop", ws, opts)).toEqual(["/Users/someone/Desktop"]);
+  });
+
+  test("Windows stays strict about a bare root path (PowerShell reads /x as C:/x)", () => {
+    expect(findOutsideReferences("mkdir /newdir", ws, { platform: "win32", rootExists: () => false })).toEqual(["/newdir"]);
+  });
+});

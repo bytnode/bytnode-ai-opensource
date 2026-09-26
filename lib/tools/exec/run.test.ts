@@ -20,3 +20,30 @@ describe("run: lines", () => {
     expect(r.stdout.length).toBeLessThan(2_500_000);
   });
 });
+
+/* A command is done when its process exits: a grandchild left in the
+   background with the pipes (`server &`) used to hang the call forever. */
+describe("run: the end of a command", () => {
+  test("a background grandchild holding stdout does not keep the call waiting", async () => {
+    const script = [
+      "const { spawn } = require('node:child_process');",
+      "const c = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 8000)'], { stdio: 'inherit' });",
+      "c.unref();",
+      "console.log('started');",
+      "process.exit(0);",
+    ].join(" ");
+    const started = Date.now();
+    const r = await run(process.execPath, ["-e", script], { cwd: process.cwd(), timeoutMs: 30_000 });
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain("started");
+    expect(Date.now() - started).toBeLessThan(6000);
+  }, 20_000);
+
+  test("a UTF-8 character split between two chunks stays whole", async () => {
+    const script = "process.stdout.write(Buffer.from([0xc3])); setTimeout(() => process.stdout.write(Buffer.from([0xa9, 0x0a])), 100);";
+    const lines: string[] = [];
+    const r = await run(process.execPath, ["-e", script], { cwd: process.cwd(), timeoutMs: 10_000, onLine: (l) => lines.push(l) });
+    expect(r.stdout).toBe("é\n");
+    expect(lines[0]).toBe("é");
+  });
+});

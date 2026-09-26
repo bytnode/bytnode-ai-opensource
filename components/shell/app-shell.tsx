@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import type { Settings } from "@/lib/domain/types";
 import { enabledViews, viewEntry } from "@/lib/plugins/catalog";
 import { HOME, useTabs } from "@/lib/state/tabs";
@@ -12,6 +13,29 @@ import { PluginReview } from "./plugin-review";
 import { TabBar } from "./tab-bar";
 import { usePluginSession } from "./use-plugin-session";
 import "./shell.css";
+
+/** A file dropped anywhere but on a drop zone (the composer, the context
+    files) made the browser OPEN it in place of the app — a reply being
+    written was cut. Nothing happens there any more; a drop zone that takes
+    the file cancels the event first and is left alone. */
+function useNoStrayDrop() {
+  useEffect(() => {
+    const over = (e: DragEvent) => {
+      if (e.defaultPrevented || !e.dataTransfer?.types.includes("Files")) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "none";
+    };
+    const drop = (e: DragEvent) => {
+      if (!e.defaultPrevented && e.dataTransfer?.types.includes("Files")) e.preventDefault();
+    };
+    window.addEventListener("dragover", over);
+    window.addEventListener("drop", drop);
+    return () => {
+      window.removeEventListener("dragover", over);
+      window.removeEventListener("drop", drop);
+    };
+  }, []);
+}
 
 /* ---------------------------------------------------------------------------
    The app once set up: the tab bar on top, the open pages underneath.
@@ -26,6 +50,7 @@ import "./shell.css";
 --------------------------------------------------------------------------- */
 export function AppShell({ settings }: { settings: Settings }) {
   usePluginSession(settings);
+  useNoStrayDrop();
   const tabs = useTabs();
   /* The views of the plugins that run and that the interface knows how to
      draw — a plugin written by an agent draws its own, in a frame; a tab

@@ -33,6 +33,12 @@ export async function captureScreen(): Promise<{ name: string; blob: Blob }> {
   try {
     stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 1 }, audio: false });
   } catch (e) {
+    /* macOS refuses before any picker when the browser has no Screen
+       Recording permission ("Permission denied by system"): the click did
+       nothing at all. Said, with where to grant it. */
+    if (e instanceof DOMException && e.name === "NotAllowedError" && /by system|platform/i.test(e.message) && /Mac/i.test(navigator.userAgent)) {
+      throw new CaptureError("macOS blocked the capture: allow your browser in System Settings → Privacy & Security → Screen & System Audio Recording, then restart the browser.");
+    }
     /* The user closed the dialog: that is not an error. */
     if (e instanceof DOMException && (e.name === "NotAllowedError" || e.name === "AbortError")) throw new CaptureError("");
     throw new CaptureError(e instanceof Error ? e.message : String(e));

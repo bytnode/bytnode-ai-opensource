@@ -37,7 +37,7 @@ export function FolderField({ id, value, onChange }: Props) {
         <input
           id={id}
           className="field-input mono"
-          placeholder="C:\Users\you\Desktop\project"
+          placeholder="Full path of a folder"
           spellCheck={false}
           value={value}
           onChange={(e) => onChange(e.target.value)}

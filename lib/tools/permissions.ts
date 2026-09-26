@@ -22,7 +22,12 @@ const SHELLS = new Set(["Bash", "PowerShell", "Monitor"]);
 
 /** The commands whose SUB-COMMAND is part of their identity: `git status`
     and `git push` are not the same authorisation. */
-const COMPOSEES = new Set(["git", "npm", "npx", "pnpm", "yarn", "pip", "pip3", "python", "py", "docker", "cargo", "go", "dotnet", "gh", "winget"]);
+const COMPOSEES = new Set([
+  "git", "npm", "npx", "pnpm", "yarn", "bun", "deno", "pip", "pip3", "python", "python3", "py", "uv", "poetry", "conda",
+  "docker", "kubectl", "cargo", "go", "dotnet", "gh",
+  /* each system's package manager: `brew install` is not `brew list` */
+  "winget", "choco", "scoop", "brew", "port", "apt", "apt-get", "dnf", "yum", "pacman", "zypper", "snap", "flatpak",
+]);
 
 /** A sub-command, as opposed to an argument: a simple word, with no path
     and no extension (`status`, `install`, `run`) — `script.py` or `./x`
@@ -47,6 +52,17 @@ const DANGERS: RegExp[] = [
   /\bchmod\s+777\b/i, /\btakeown\b/i, /\bicacls\b/i,
   /\bnetsh\b/i, /\bsc\s+(delete|stop)\b/i, /\bkillall\b/i,
   /\bcurl\b[^\n]*\|\s*\w+/i, /\bwget\b[^\n]*\|\s*\w+/i,
+  /* macOS / Linux: root, the disks, the services, the processes. */
+  /(^|[;&|(]\s*)sudo\b/i, /(^|[;&|(]\s*)su(\s|$)/i, /\bdoas\b/i,
+  /\bdiskutil\s+(erase\w*|partition\w*|zero\w*|secure\w*|reformat|unmount\w*)\b/i, /\bcsrutil\b/i, /\bspctl\b/i,
+  /\bchown\s+-[a-z]*r/i,
+  /\bfind\b[^\n]*\s-delete\b/i, /\bshred\b/i, /\bwipefs\b/i, /\bfdisk\b/i, /\bparted\b/i,
+  /\bsystemctl\s+(stop|disable|mask|poweroff|halt)\b/i, /\blaunchctl\s+(unload|remove|bootout|disable)\b/i,
+  /\bcrontab\s+-r\b/i, /\bpkill\b/i, /\bkill\s+-(9|KILL)\b/i, /\bhalt\b/i, /\bpoweroff\b/i,
+  /* Windows: the registry, the boot, the shadow copies, the disks. */
+  /\breg\s+(delete|add)\b/i, /\bremove-itemproperty\b/i, /\bbcdedit\b/i, /\bvssadmin\b/i, /\bcipher\s+\/w/i,
+  /\bformat-volume\b/i, /\bclear-disk\b/i, /\bstop-computer\b/i, /\brestart-computer\b/i,
+  /\bset-executionpolicy\b/i, /\bstop-process\b[^\n]*-force/i, /\btaskkill\b[^\n]*\/f\b/i,
 ];
 
 /** An irreversible command, or one that touches the system? (the file

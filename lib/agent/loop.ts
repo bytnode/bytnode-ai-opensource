@@ -153,10 +153,14 @@ export async function runAgentLoop(messages: ProviderMessage[], deps: LoopDeps):
         }
       }
       /* What the thread shows: a path in the workspace (served by
-         /api/files), otherwise the image itself. */
+         /api/files), otherwise the image itself. `name` is shown relative
+         inside the workspace, absolute outside — ⚠️ absolute is `C:/…` on
+         Windows but `/Users/…` on macOS: testing for a `:` alone sent
+         macOS paths to /api/files, which refused them (broken image). */
+      const inWorkspace = (name: string) => !/^([A-Za-z]:)?[\\/]/.test(name) && !name.startsWith("..");
       const shown = (result.attachments ?? [])
         .filter((a) => a.type === "image")
-        .map((a) => ({ name: a.name, src: a.path && !a.name.includes(":") ? `file:${a.name}` : a.dataUrl }));
+        .map((a) => ({ name: a.name, src: a.path && inWorkspace(a.name) ? `file:${a.name}` : a.dataUrl }));
       if (result.ok) guard.succeeded(call);
       deps.emit({ type: "tool_result", id: call.id, ok: result.ok, output: result.output, ...(shown.length ? { images: shown } : {}), ...(result.card ? { card: result.card } : {}) });
       history.push({ role: "tool", tool_call_id: call.id, content: result.output });

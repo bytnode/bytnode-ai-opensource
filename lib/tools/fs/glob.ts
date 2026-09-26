@@ -2,7 +2,7 @@ import fg from "fast-glob";
 import fs from "node:fs/promises";
 import type { Tool } from "../types";
 import { errorText, fail, ok } from "../types";
-import { OutsideWorkspaceError, displayPath, resolvePath } from "../paths";
+import { OutsideWorkspaceError, displayPath, isInside, resolvePath } from "../paths";
 
 /* Glob: find files by pattern, the most recently modified first — they
    are almost always the ones being looked for. */
@@ -34,8 +34,13 @@ export const globTool: Tool<Args> = {
       if (e instanceof OutsideWorkspaceError) return fail(e.message);
       throw e;
     }
+    /* fast-glob reads `\` as an escape: a Windows-style `src\**\*.ts` found
+       nothing. And in the workspace scope, the pattern itself must not
+       leave the folder (`../../**`, `/etc/*`): what it finds is filtered. */
+    const pattern = process.platform === "win32" ? args.pattern.replace(/\\/g, "/") : args.pattern;
     try {
-      const found = await fg(args.pattern, { cwd: root, absolute: true, dot: true, ignore: IGNORE, onlyFiles: true, suppressErrors: true });
+      const all = await fg(pattern, { cwd: root, absolute: true, dot: true, ignore: IGNORE, onlyFiles: true, suppressErrors: true });
+      const found = ctx.scope === "workspace" ? all.filter((f) => isInside(ctx.workspace, f)) : all;
       const withTime = await Promise.all(
         found.map(async (f) => ({ f, t: (await fs.stat(f).catch(() => null))?.mtimeMs ?? 0 })),
       );

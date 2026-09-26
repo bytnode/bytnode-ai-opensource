@@ -4,12 +4,18 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { containing, forbiddenPaths, isTextFile, leakedSecrets } from "../lib/publish/pack-check";
+import { containing, forbiddenPaths, isTextFile, leakedSecrets, machinePathNeedles } from "../lib/publish/pack-check";
 
 const root = process.cwd();
 
 const next = path.join(root, "node_modules", "next", "dist", "bin", "next");
-fs.rmSync(path.join(root, ".next"), { recursive: true, force: true });
+/* A clean build — but `.next/dev` belongs to the `next dev` that is usually
+   running: removing it broke the user's session, and it is kept out of the
+   archive by `files` anyway. */
+const dotNext = path.join(root, ".next");
+for (const e of fs.existsSync(dotNext) ? fs.readdirSync(dotNext) : []) {
+  if (e !== "dev") fs.rmSync(path.join(dotNext, e), { recursive: true, force: true });
+}
 const build = spawnSync(process.execPath, [next, "build"], { cwd: root, stdio: "inherit" });
 if (build.status !== 0) {
   console.error(`prepack: next build failed (${build.status}).`);
@@ -80,7 +86,7 @@ const paths = pack.files.map((f) => f.path);
 const bad = forbiddenPaths(paths);
 const texts = paths.filter(isTextFile).map((p) => ({ path: p, text: fs.readFileSync(path.join(root, p), "utf8") }));
 const leaks = leakedSecrets(texts);
-const machine = containing(texts, [root, rootJson]);
+const machine = containing(texts, machinePathNeedles(root));
 if (bad.length || leaks.length || machine.length) {
   console.error("prepack: PUBLISH REFUSED.");
   for (const p of bad) console.error(`  forbidden file: ${p}`);

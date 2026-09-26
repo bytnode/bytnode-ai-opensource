@@ -1,6 +1,7 @@
+import os from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
-import { OutsideWorkspaceError, displayPath, resolvePath } from "./paths";
+import { OutsideWorkspaceError, displayPath, expandHome, resolvePath } from "./paths";
 
 /* Portable paths: `path.resolve("/x")` gives `C:\x` on Windows and `/x`
    elsewhere — the tests run on all three OSes (GitHub matrix). */
@@ -36,6 +37,20 @@ describe("resolvePath, workspace scope", () => {
 
   test("is the default", () => {
     expect(() => resolvePath(ws, other)).toThrow(OutsideWorkspaceError);
+  });
+});
+
+describe("~, the user's folder", () => {
+  test("expands like a shell, never into a folder named ~", () => {
+    const home = path.resolve("/home/me");
+    expect(expandHome("~/Desktop/x.md", home)).toBe(path.join(home, "Desktop", "x.md"));
+    expect(expandHome("~", home)).toBe(home);
+    expect(expandHome("notes/~draft.md", home)).toBe("notes/~draft.md");
+  });
+
+  test("the workspace scope refuses it, the disk scope reaches it", () => {
+    expect(() => resolvePath(ws, "~/Desktop/x.md")).toThrow(OutsideWorkspaceError);
+    expect(resolvePath(ws, "~/Desktop/x.md", "disk")).toBe(path.join(os.homedir(), "Desktop", "x.md"));
   });
 });
 

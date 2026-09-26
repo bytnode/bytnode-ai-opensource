@@ -1,5 +1,7 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
+import { expandHome } from "@/lib/tools/paths";
 import { workspacesDir } from "./data-dir";
 
 /* An agent's workspace: the one it configured, or else
@@ -35,7 +37,11 @@ async function move(from: string, to: string): Promise<void> {
 export async function resolveWorkspace(agentId: string, requested: string | undefined): Promise<string> {
   const safeId = (agentId || "agent").replace(/[^\w.-]/g, "_");
   if (requested?.trim()) {
-    const dir = path.resolve(requested.trim());
+    /* `~/Projects/desk` (how a macOS / Linux user types it) and a relative
+       path are the user's folder's: resolved against the server's cwd —
+       the npm package — they landed inside the app, wiped at the next
+       update. */
+    const dir = path.resolve(os.homedir(), expandHome(requested.trim()));
     await fs.mkdir(dir, { recursive: true });
     return dir;
   }

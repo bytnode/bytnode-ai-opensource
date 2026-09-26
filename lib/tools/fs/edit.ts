@@ -21,6 +21,12 @@ export type EditOutcome =
 export function applyEdit(content: string, oldString: string, newString: string, replaceAll = false): EditOutcome {
   if (oldString === "") return { ok: false, reason: "empty" };
   if (oldString === newString) return { ok: false, reason: "same" };
+  /* A file with Windows line endings: the model writes its excerpt with
+     `\n` (Read shows no `\r`), so the excerpt never matched. It is matched
+     in the file's own endings, and the replacement written in them too. */
+  if (content.includes("\r\n") && !oldString.includes("\r") && oldString.includes("\n") && !content.includes(oldString)) {
+    return applyEdit(content, oldString.replace(/\n/g, "\r\n"), newString.replace(/\r?\n/g, "\r\n"), replaceAll);
+  }
   const count = content.split(oldString).length - 1;
   if (count === 0) return { ok: false, reason: "not_found" };
   if (count > 1 && !replaceAll) return { ok: false, reason: "ambiguous", count };

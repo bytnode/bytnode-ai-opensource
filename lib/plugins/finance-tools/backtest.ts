@@ -1,7 +1,10 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { Resvg } from "@resvg/resvg-js";
+import { findOnPath } from "@/lib/acp/detect";
+import { installHint, pythonCandidates } from "./python";
 import type { Tool, ToolContext, ToolResult } from "@/lib/tools/types";
 import { errorText, fail } from "@/lib/tools/types";
 import { OutsideWorkspaceError, displayPath, resolvePath } from "@/lib/tools/paths";
@@ -113,8 +116,9 @@ async function runBacktest(args: Args, ctx: ToolContext): Promise<ToolResult> {
   };
   await fs.writeFile(cfgPath, JSON.stringify(cfg, null, 2));
 
-  const python = await findPython();
-  if (!python) return fail("Python 3 not found (python / python3 / py). The backtest requires Python with pandas and numpy.");
+  const found = await findPython();
+  if ("error" in found) return fail(found.error);
+  const { python } = found;
   const engine = engineOf(ctx.projectRoot);
   try {
     await fs.access(engine);
@@ -131,7 +135,7 @@ async function runBacktest(args: Args, ctx: ToolContext): Promise<ToolResult> {
   }
   if (!report) {
     const err = (run.stderr || run.stdout).trim().slice(-3000);
-    if (/No module named/.test(err)) return fail(`A Python module is missing: ${err}\nInstall it (pip install pandas numpy) and run again.`);
+    if (/No module named/.test(err)) return fail(`A Python module is missing: ${err}\nInstall it (\`${python} -m pip install <module>\`) and run again.`);
     return fail(`The engine returned nothing (code ${run.code}).\n${err}`);
   }
   if (!report.ok) return fail(`Backtest impossible: ${report.error}\n${run.stderr.trim().slice(-1500)}`);
@@ -200,18 +204,28 @@ function metricsTable(m: Record<string, Metrics>): string {
   return [head, sep, ...rows].join("\n");
 }
 
-let pythonCmd: string | null | undefined;
-async function findPython(): Promise<string | null> {
-  if (pythonCmd !== undefined) return pythonCmd;
-  for (const cmd of ["python", "python3", "py"]) {
-    const r = await exec(cmd, ["-c", "import pandas, numpy; print('ok')"], process.cwd(), undefined, 30_000).catch(() => null);
-    if (r && r.code === 0 && /ok/.test(r.stdout)) {
+/** The Python to run, with what is missing when there is one but not the
+    modules. Two separate probes: a Python 3 without pandas used to be
+    reported as "Python 3 not found". Only a success is cached — installing
+    pandas afterwards must not need a restart. */
+let pythonCmd: string | undefined;
+async function findPython(): Promise<{ python: string } | { error: string }> {
+  if (pythonCmd) return { python: pythonCmd };
+  const candidates = pythonCandidates({ platform: process.platform, find: findOnPath, exists: existsSync });
+  let bare: string | null = null;
+  for (const cmd of candidates) {
+    const r = await exec(cmd, ["-c", "import sys; print(sys.version_info[0])"], process.cwd(), undefined, 30_000).catch(() => null);
+    if (!r || r.code !== 0 || r.stdout.trim() !== "3") continue;
+    const mods = await exec(cmd, ["-c", "import pandas, numpy; print('ok')"], process.cwd(), undefined, 60_000).catch(() => null);
+    if (mods && mods.code === 0 && /ok/.test(mods.stdout)) {
       pythonCmd = cmd;
-      return cmd;
+      return { python: cmd };
     }
+    bare ??= cmd;
   }
-  pythonCmd = null;
-  return null;
+  if (bare) return { error: `Python 3 is installed (${bare}) but pandas / numpy are missing. ${installHint(process.platform, bare)}` };
+  const where = process.platform === "darwin" ? "Install it from python.org or with Homebrew (`brew install python`)." : process.platform === "win32" ? "Install it from python.org (tick \"Add python.exe to PATH\")." : "Install python3 with your distribution's package manager.";
+  return { error: `Python 3 not found (tried: ${candidates.join(", ") || "none"}). The backtest requires Python 3 with pandas and numpy. ${where}` };
 }
 
 function exec(cmd: string, args: string[], cwd: string, signal?: AbortSignal, timeoutMs = TIMEOUT): Promise<{ code: number | null; stdout: string; stderr: string }> {

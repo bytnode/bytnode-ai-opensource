@@ -501,7 +501,7 @@ function NameTitle({ name, onRename }: { name: string; onRename: (name: string) 
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => void keep()}
         onKeyDown={(e) => {
-          if (e.key === "Enter") void keep();
+          if (e.key === "Enter" && !e.nativeEvent.isComposing && e.nativeEvent.keyCode !== 229) void keep();
           if (e.key === "Escape") {
             setDraft(null);
             setProblem(null);

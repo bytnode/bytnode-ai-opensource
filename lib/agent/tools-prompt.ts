@@ -25,9 +25,10 @@ export function buildToolsPrompt(
     scope === "workspace"
       ? "Scope: the workspace ONLY. The file tools (Read, Write, Edit, NotebookEdit, Glob, Grep) refuse any path that leaves it, and a shell command (Bash, PowerShell, Monitor) that references an outside location — absolute path, `..` climbing up, `~`, account variables — is refused before it is launched. Work with relative paths. If a task requires leaving it, tell the user: only they can widen the scope."
       : `Scope: the whole disk. Relative paths resolve in the workspace; an absolute path is accepted anywhere. Stay in the workspace unless the user explicitly asks otherwise.`;
+  const mac = platform.startsWith("darwin");
   const shell = windows
     ? "Default shell: PowerShell (native paths `C:\\...`). Bash (Git's, paths `/c/...`) only when Unix tools are needed."
-    : "Default shell: Bash. PowerShell only if the user asks for it.";
+    : `Shell: Bash (Unix commands and paths). ${mac ? "This is macOS: " : ""}Python is \`python3\` and pip is \`python3 -m pip\` — \`python\` may not exist. Do not use PowerShell unless the tool is in your list.`;
   const lines = [
     "## Environment",
     "",

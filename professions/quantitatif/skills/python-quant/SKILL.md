@@ -7,7 +7,7 @@ description: The way of working in Python for quantitative research — structur
 
 ## Environment
 
-- Check first: `python --version` and `python -c "import pandas, numpy, scipy, statsmodels, matplotlib"` (PowerShell or Bash). Is a package missing? `pip install pandas numpy scipy statsmodels matplotlib` — and say so.
+- Check first which Python runs: on macOS / Linux `python3` (plain `python` often does not exist there), on Windows `python` (or `py`). Then `python3 --version` and `python3 -c "import pandas, numpy, scipy, statsmodels, matplotlib"` — with `python` on Windows. Is a package missing? `python3 -m pip install pandas numpy scipy statsmodels matplotlib` (`python -m pip …` on Windows) — and say so. Use the same command in every script you run afterwards.
 - One `.py` script per experiment, in the workspace, under `research/`; raw data under `data/`, outputs under `out/`. A notebook only if asked for (NotebookEdit).
 
 ## Structure of an experiment script

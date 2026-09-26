@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { isInside } from "../paths";
 
@@ -17,7 +18,9 @@ import { isInside } from "../paths";
    it, it is the "ask before acting" mode that protects.
 --------------------------------------------------------------------------- */
 
-const WIN_ABS = /(?:"([A-Za-z]:[\\/][^"]*)"|'([A-Za-z]:[\\/][^']*)'|([A-Za-z]:[\\/][^\s"'|&;<>()]*))/g;
+/* ⚠️ The drive letter must START a word: without that, the `s:/` of
+   `https://…` was read as a drive and every `curl https://…` refused. */
+const WIN_ABS = /(?:"([A-Za-z]:[\\/][^"]*)"|'([A-Za-z]:[\\/][^']*)'|(?<![A-Za-z0-9_])([A-Za-z]:[\\/][^\s"'|&;<>()]*))/g;
 const UNIX_ABS = /(?:^|[\s"'=(|&;<>])(\/[^\s"'|&;<>()]*)/g;
 const RELATIVE_UP = /(?:^|[\s"'=(|&;<>])((?:\.\.[\\/])[^\s"'|&;<>()]*|\.\.)(?=$|[\s"'|&;<>()])/g;
 /* The environment variables that designate a location: the account, the
@@ -34,9 +37,21 @@ const WIN_ROOT = /(?:^|[\s"'=(|&;<>])(\\{1,2}[^\s"'|&;<>()]*)/g;
 
 const ALLOWED_UNIX = new Set(["/dev/null", "/dev/stdin", "/dev/stdout", "/dev/stderr"]);
 
+/* A "/…/" that is a pattern, not a path: `sed '/^$/d'`, `awk '/x+/'`. A
+   first segment with a regex character names no folder anyone has. */
+const PATTERN = /^\/[^/]*[\^$*+?[\]{}\\|]/;
+
+type GuardOptions = {
+  platform?: NodeJS.Platform;
+  /** Does `/<name>` exist at the root of the disk? (macOS / Linux) */
+  rootExists?: (name: string) => boolean;
+};
+
 /** The references outside the workspace found in the command, as written.
     Empty when the command stays inside. */
-export function findOutsideReferences(command: string, workspace: string): string[] {
+export function findOutsideReferences(command: string, workspace: string, opts: GuardOptions = {}): string[] {
+  const platform = opts.platform ?? process.platform;
+  const rootExists = opts.rootExists ?? ((name: string) => fs.existsSync(`/${name}`));
   const out: string[] = [];
   const seen = new Set<string>();
   const push = (raw: string) => {
@@ -52,13 +67,21 @@ export function findOutsideReferences(command: string, workspace: string): strin
   }
   for (const m of command.matchAll(UNIX_ABS)) {
     const p = m[1];
-    if (!p || ALLOWED_UNIX.has(p)) continue;
+    if (!p || ALLOWED_UNIX.has(p) || PATTERN.test(p)) continue;
+    /* macOS / Linux: a first folder that does not exist at the root is a
+       URL route or a pattern (`grep "/api/"`), and nobody but root could
+       create it there. Windows is kept strict: PowerShell reads `/x` as
+       `C:\x`, which any user may create. */
+    if (platform !== "win32") {
+      const top = p.split("/")[1];
+      if (top && !rootExists(top)) continue;
+    }
     /* On Windows, `/c/Users/…` is the C: drive as seen from Git bash and the
        other roots (`/usr`, `/tmp`) are outside the folder by construction.
        On macOS/Linux, it is simply an absolute path: it is compared to the
        folder, otherwise every absolute path INSIDE the folder would be refused. */
-    const drive = process.platform === "win32" ? p.match(/^\/([A-Za-z])\/(.*)$/) : null;
-    const resolved = process.platform !== "win32" ? path.resolve(p) : drive ? path.resolve(`${drive[1]}:/${drive[2]}`) : null;
+    const drive = platform === "win32" ? p.match(/^\/([A-Za-z])\/(.*)$/) : null;
+    const resolved = platform !== "win32" ? path.resolve(p) : drive ? path.resolve(`${drive[1]}:/${drive[2]}`) : null;
     if (!resolved || !isInside(workspace, resolved)) push(p);
   }
   for (const m of command.matchAll(RELATIVE_UP)) {

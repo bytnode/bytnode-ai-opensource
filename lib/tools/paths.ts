@@ -1,3 +1,4 @@
+import os from "node:os";
 import path from "node:path";
 
 /* ---------------------------------------------------------------------------
@@ -24,15 +25,22 @@ export class OutsideWorkspaceError extends Error {
   }
 }
 
-const norm = (p: string) => (process.platform === "win32" ? p.toLowerCase() : p);
+/* Windows and macOS disks ignore letter case (APFS by default). */
+const norm = (p: string) => (process.platform === "win32" || process.platform === "darwin" ? p.toLowerCase() : p);
 
 export function isInside(workspace: string, absolute: string): boolean {
   const rel = path.relative(norm(path.resolve(workspace)), norm(absolute));
   return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
 }
 
+/** `~` is the user's folder, as in every shell: `~/Desktop/x.md` used to
+    become a folder literally named `~` inside the workspace. */
+export function expandHome(p: string, home = os.homedir()): string {
+  return p === "~" ? home : /^~[\\/]/.test(p) ? path.join(home, p.slice(2)) : p;
+}
+
 export function resolvePath(workspace: string, requested: string, scope: Scope = "workspace"): string {
-  const target = path.resolve(workspace, requested);
+  const target = path.resolve(workspace, expandHome(requested));
   if (scope === "workspace" && !isInside(workspace, target)) throw new OutsideWorkspaceError(requested);
   return target;
 }

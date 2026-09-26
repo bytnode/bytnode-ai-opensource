@@ -174,7 +174,10 @@ export function Composer({
   const run = (c: SlashCommand) => submitText(runCommand(c));
 
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.nativeEvent.isComposing) return;
+    /* Safari fires the Enter that confirms a Chinese / Japanese / Korean
+       composition AFTER `compositionend`, `isComposing` false, keyCode 229:
+       a half-typed message was sent. */
+    if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
     if (palette) {
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault();
@@ -207,7 +210,21 @@ export function Composer({
   const canSend = (text.trim().length > 0 || attachments.length > 0) && !disabled && !!modelId;
 
   return (
-    <div className={`cmp${docked ? " is-docked" : ""}${focused ? " is-focused" : ""}${streaming ? " is-busy" : ""}`} onFocus={onFocusIn} onBlur={onFocusOut}>
+    <div
+      className={`cmp${docked ? " is-docked" : ""}${focused ? " is-focused" : ""}${streaming ? " is-busy" : ""}`}
+      onFocus={onFocusIn}
+      onBlur={onFocusOut}
+      /* Files dropped on the composer are attached, like the `+` menu's. */
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes("Files")) e.preventDefault();
+      }}
+      onDrop={(e) => {
+        const f = e.dataTransfer.files;
+        if (!f.length) return;
+        e.preventDefault();
+        void joindre("fichiers", () => onAttachFiles(f));
+      }}
+    >
       <canvas ref={rimCanvas} className="cmp-rim" aria-hidden />
       {(attachments.length > 0 || research || failure) && (
         <div className="cmp-joints">

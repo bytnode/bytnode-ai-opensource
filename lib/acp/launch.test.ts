@@ -1,6 +1,6 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { agentDir, brokenInstall, npmCli } from "./launch";
+import { agentDir, appleScriptString, brokenInstall, launchFile, linuxTerminal, npmCli, posixTerminalLine } from "./launch";
 
 const has =
   (...present: string[]) =>
@@ -90,5 +90,46 @@ describe("npmCli (posix)", () => {
 
   it("falls back to the npm command, still no shell", () => {
     expect(npmCli({ ...posix, execPath: "/opt/x/bin/node", exists: has() })).toEqual({ command: "npm", args: [], shell: false });
+  });
+});
+
+/* Grok's `bin/grok` is a Node script on Windows and, after its postinstall
+   on macOS / Linux, a symlink to a native binary. */
+describe("launchFile", () => {
+  const bin = "/home/me/.bytnode-ai/agents/grok/node_modules/@xai-official/grok/bin/grok";
+
+  it("a Node script runs with this Node", () => {
+    expect(launchFile(bin, ["agent", "stdio"], "#!/usr/bin/env node\n// …")).toEqual({ command: process.execPath, args: [bin, "agent", "stdio"] });
+    expect(launchFile("/x/bundle/gemini.js", ["--acp"], "")).toEqual({ command: process.execPath, args: ["/x/bundle/gemini.js", "--acp"] });
+  });
+
+  it("a native binary (ELF, Mach-O, PE) runs as itself", () => {
+    for (const head of ["\x7fELF\x02\x01", "\xcf\xfa\xed\xfe\x0c", "\xca\xfe\xba\xbe", "MZ\x90\x00"]) {
+      expect(launchFile(bin, ["agent", "stdio"], head)).toEqual({ command: bin, args: ["agent", "stdio"] });
+    }
+  });
+
+  it("a script for another interpreter runs through its own shebang", () => {
+    expect(launchFile(bin, [], "#!/bin/sh\nexec x")).toEqual({ command: bin, args: [] });
+  });
+});
+
+describe("the sign-in terminal, macOS / Linux", () => {
+  it("writes the environment into the line: keys removed, the agent's own variables kept", () => {
+    const line = posixTerminalLine("/opt/grok", ["login"], { GROK_MODE: "it's" });
+    expect(line).toMatch(/^env -u ANTHROPIC_API_KEY /);
+    expect(line).toContain("-u XAI_API_KEY");
+    expect(line).toContain(`'GROK_MODE=it'\\''s' '/opt/grok' 'login';`);
+  });
+
+  it("quotes an AppleScript string", () => {
+    expect(appleScriptString(`a "b" c\\d`)).toBe(`"a \\"b\\" c\\\\d"`);
+  });
+
+  it("takes the first terminal installed, each with its own way of taking a command", () => {
+    const only = (name: string) => (n: string) => (n === name ? `/usr/bin/${name}` : null);
+    expect(linuxTerminal("x", only("gnome-terminal"))).toEqual({ command: "/usr/bin/gnome-terminal", args: ["--", "sh", "-c", "x"] });
+    expect(linuxTerminal("x", only("konsole"))).toEqual({ command: "/usr/bin/konsole", args: ["-e", "sh", "-c", "x"] });
+    expect(linuxTerminal("x", () => null)).toBeNull();
   });
 });

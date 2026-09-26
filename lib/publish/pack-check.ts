@@ -2,7 +2,9 @@
    file list (npm pack --dry-run --json) through here and refuses to
    publish at the first hit. Pure: testable without an archive. */
 
-const FORBIDDEN = [/(^|\/)\.env/, /^workspaces\//, /^sandboxes(\/|$)/, /^\.mcp\.json$/, /^scratchpad\//];
+/* `.next/dev` is the user's running `next dev` (its lock names the pid and
+   the port): 0.1.3 shipped it. */
+const FORBIDDEN = [/(^|\/)\.env/, /^workspaces\//, /^sandboxes(\/|$)/, /^\.mcp\.json$/, /^scratchpad\//, /^\.next\/dev\//];
 
 /** The patterns of a real key: the prefix alone (`cb_live_` in a message)
     does not count, the body is required. */
@@ -14,7 +16,16 @@ export const leakedSecrets = (files: { path: string; text: string }[]): string[]
   files.filter((f) => SECRETS.some((re) => re.test(f.text))).map((f) => f.path);
 
 /** The files whose text is read to look for a key. */
-export const isTextFile = (p: string) => /\.(ts|tsx|js|mjs|cjs|json|md|txt|css|yml|yaml)$/.test(p);
+export const isTextFile = (p: string) => /\.(ts|tsx|js|mjs|cjs|json|md|txt|css|yml|yaml|map)$/.test(p);
+
+/** Every way a build writes the project's absolute path: as is, escaped in
+    JSON, with forward slashes (Turbopack's `[project]`), and as a `file:`
+    URL (source maps: 0.1.3 shipped `file:///C:/Users/<name>/…`). */
+export function machinePathNeedles(root: string): string[] {
+  const slash = root.replace(/\\/g, "/");
+  const url = `file://${slash.startsWith("/") ? "" : "/"}${slash}`;
+  return [...new Set([root, JSON.stringify(root).slice(1, -1), slash, url])];
+}
 
 /** The files that contain one of these texts (the build machine's absolute
     path, for instance: it names the user). */

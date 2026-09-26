@@ -238,6 +238,7 @@ const LOGIN: Partial<Record<AcpAgentId, () => Promise<void>>> = {
       stdio: "ignore",
       windowsHide: true,
     });
+    child.on("error", () => {});
     child.unref();
   },
 };

@@ -1,0 +1,5 @@
+# The launcher's shebang must end in LF: with CRLF, macOS / Linux look for
+# a program named "node\r". A Windows checkout (core.autocrlf=true) would
+# otherwise write it with CRLF.
+bin/** text eol=lf
+*.sh text eol=lf

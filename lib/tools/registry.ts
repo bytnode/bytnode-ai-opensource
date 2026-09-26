@@ -24,6 +24,7 @@ import { pluginCheckTool } from "./plugins/plugin-check";
 import { pluginActivateTool } from "./plugins/plugin-activate";
 import type { ExchangeAccount } from "@/lib/domain/types";
 import { activeRuntime } from "@/lib/plugins/core/active";
+import { findOnPath } from "@/lib/acp/detect";
 
 /* ---------------------------------------------------------------------------
    The tool registry: ONE list, for both engines.
@@ -61,10 +62,14 @@ export type ToolsetOptions = {
 
 export type BytnodeStatus = { ok: boolean; count: number; message?: string };
 
-/** The general tools: what an external agent already has on its own. */
+/** The general tools: what an external agent already has on its own.
+    ⚠️ PowerShell only where it exists: always on Windows, on macOS / Linux
+    only when `pwsh` is installed — offered anyway, an agent on a Mac called
+    it and got "command not found". */
 export function generalTools(platform: string): Tool[] {
   const { bashTool, powershellTool } = makeShellTools(platform === "win32" ? "PowerShell" : "Bash");
-  return [readTool, writeTool, editTool, notebookEditTool, globTool, grepTool, bashTool, powershellTool, monitorTool, makeWebSearchTool({}), webFetchTool, workflowTool, skillTool, todoTool] as Tool[];
+  const shells = platform === "win32" || findOnPath("pwsh") ? [bashTool, powershellTool] : [bashTool];
+  return [readTool, writeTool, editTool, notebookEditTool, globTool, grepTool, ...shells, monitorTool, makeWebSearchTool({}), webFetchTool, workflowTool, skillTool, todoTool] as Tool[];
 }
 
 /** BytNode-AI's own core tools, served to both engines: the agent's

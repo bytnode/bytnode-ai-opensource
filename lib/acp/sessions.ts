@@ -1,6 +1,7 @@
 import type { McpServer, PermissionOption, SessionConfigOption } from "@agentclientprotocol/sdk";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { BYTNODE_MCP_URL, bytnodeTools } from "@/lib/mcp/bytnode";
 import { dataDir } from "@/lib/server/data-dir";
@@ -175,6 +176,19 @@ const clock = () => {
 };
 const trace = (msg: string) => console.info(`[acp] ${msg}`);
 
+/** tsx's CLI, resolved the way Node resolves it from the project.
+    ⚠️ NEVER `<project>/node_modules/tsx`: under `npx bytnode-ai` (and any
+    local install) npm hoists tsx NEXT TO the package, `bytnode-ai` has no
+    `node_modules` of its own, and every subscription agent lost its
+    BytNode-AI tools ("Cannot find module …/tsx/dist/cli.mjs"). */
+function tsxCli(): string {
+  try {
+    return createRequire(path.join(PROJECT_ROOT, "package.json")).resolve("tsx/cli");
+  } catch {
+    return path.join(PROJECT_ROOT, "node_modules", "tsx", "dist", "cli.mjs");
+  }
+}
+
 /* The token that authorises a conversation's MCP server to launch
    sub-agents on its behalf: stable as long as the server runs (it goes
    into the session key), unknown to any other process. */
@@ -211,7 +225,7 @@ const mcpServersFor = ({ workspace, bytnodeKey, exchangeAccounts, plugins, agent
       name: "bytnode-ai",
       command: process.execPath,
       args: [
-        path.join(PROJECT_ROOT, "node_modules", "tsx", "dist", "cli.mjs"),
+        tsxCli(),
         /* The project's tsconfig, explicitly: the agent launches this
            server in the workspace, and the `@/` aliases must resolve from
            the project — not from where the process starts. */

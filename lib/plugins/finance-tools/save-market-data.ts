@@ -90,9 +90,13 @@ export const saveMarketDataTool: Tool<Args> = {
         /* no file yet */
       }
       if (existing.trim()) {
-        const head = existing.split(/\r?\n/)[0];
+        /* A file saved by Excel ("CSV UTF-8") starts with a BOM, and one
+           saved by Notepad may not end with a newline: the header did not
+           match, or the first new row was glued onto the last old one. */
+        const head = existing.replace(/^﻿/, "").split(/\r?\n/)[0];
         if (head !== columns.join(",")) return fail(`Columns differ from the existing file (${head}): cannot append. Choose another file or drop \`append\`.`);
-        await fs.appendFile(out, toCsv(columns, rows).split("\n").slice(1).join("\n"));
+        const sep = /\n$/.test(existing) ? "" : "\n";
+        await fs.appendFile(out, sep + toCsv(columns, rows).split("\n").slice(1).join("\n"));
         total += existing.trim().split(/\r?\n/).length - 1;
       } else await fs.writeFile(out, toCsv(columns, rows));
     } else await fs.writeFile(out, toCsv(columns, rows));
