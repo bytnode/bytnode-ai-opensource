@@ -340,6 +340,8 @@ export function neededSymbols(book: Book): string[] {
 
 export type Valuation = {
   cash: number;
+  /** The cash the open orders do not hold back: what a new order may use. */
+  free: number;
   holdings: Array<{ asset: string; amount: number; avgPrice: number; price?: number; value?: number; unrealized?: number }>;
   positions: Array<Position & { mark?: number; unrealized?: number; liquidation: number }>;
   /** Undefined when a price is missing: never a partial total shown as whole. */
@@ -373,6 +375,7 @@ export function valuation(book: Book, prices: Map<string, number>, cfg: EngineCo
   const equity = complete ? cash + holdings.reduce((t, h) => t + (h.value ?? 0), 0) + positions.reduce((t, p) => t + p.margin + (p.unrealized ?? 0), 0) : undefined;
   return {
     cash,
+    free: available(book, CASH, cfg),
     holdings,
     positions,
     equity,

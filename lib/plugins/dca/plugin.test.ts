@@ -62,6 +62,17 @@ describe("DCA plugin", () => {
     expect(await h.tool("DcaCreate").execute({ symbol: "ETH/BTC", quoteAmount: 1, frequency: "every 7 days", destination: "paper" }, h.ctx())).toMatchObject({ ok: false, output: "The paper portfolio trades against USDT: use ETH/USDT." });
   });
 
+  it("a due date is bought once, even when two runs of the job overlap", async () => {
+    h = await harness([scheduler, paperTradingPlugin, dcaPlugin], STATE);
+    await h.tool("DcaCreate").execute({ symbol: "ETH/USDT", quoteAmount: 5, frequency: "every 7 days", destination: "paper" }, h.ctx());
+    const [plan] = await store().read<DcaPlan[]>("plans.json", []);
+    const outcomes = await Promise.all([due(), due()]);
+    expect(outcomes.filter((o) => o === "Nothing due.")).toHaveLength(1);
+    expect((await store().read<Purchase[]>("purchases.json", [])).map((p) => p.status)).toEqual(["filled"]);
+    const [after] = await store().read<DcaPlan[]>("plans.json", []);
+    expect(Date.parse(after.nextDue!) - Date.parse(plan.nextDue!)).toBe(7 * 24 * 3600_000);
+  });
+
   it("a real plan only PROPOSES: the user's confirmation runs the order, and the fill is recorded", async () => {
     h = await harness([scheduler, paperTradingPlugin, dcaPlugin], STATE);
     const created = await h.tool("DcaCreate").execute({ symbol: "BTC/USDT", quoteAmount: 100, frequency: "every 7 days", destination: "exchange", account: "Binance-main" }, h.ctx({ exchangeAccounts: [MAIN] }));

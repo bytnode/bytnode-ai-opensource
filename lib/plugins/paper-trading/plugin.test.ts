@@ -58,6 +58,10 @@ describe("paper trading plugin", () => {
     h = await harness([paperTradingPlugin], ZERO);
     expect(await h.tool("PaperOrder").execute({ symbol: "ETH/USDT", side: "buy", type: "market", amount: 1 }, h.ctx())).toMatchObject({ ok: false, output: "Paper order refused: No price for ETH/USDT." });
     await h.tool("PaperOrder").execute({ symbol: "BTC/USDT", side: "buy", type: "limit", price: 30_000, amount: 0.01 }, h.ctx());
+    const held = await h.tool("PaperPortfolio").execute({}, h.ctx());
+    expect(held.output).toContain("Cash 1 000.00 USDT, of which 300.00 USDT held by open orders: 700.00 USDT free to trade.");
+    expect(held.card).toMatchObject({ data: { rows: expect.arrayContaining([["Cash free to trade", "", "", "700.00 USDT"]]) } });
+    expect(await h.runtime.prompts(null, { agentId: "a", engine: "native", subagent: false }, {})).toEqual([expect.stringContaining("cash 1 000.00 USDT (700.00 USDT free, the rest held by open orders)")]);
     expect((await h.tool("PaperCancel").execute({ orderId: "all" }, h.ctx())).output).toMatch(/^PAPER order cancelled: buy 0\.01 BTC\/USDT limit 30000/);
     expect((await h.tool("PaperReset").execute({ capital: 5000 }, h.ctx())).output).toBe("Paper portfolio reset: 5 000.00 USDT of paper cash, nothing else.");
     expect(await h.runtime.prompts(null, { agentId: "a", engine: "native", subagent: false }, {})).toEqual([expect.stringContaining("capital 5 000.00 USDT, cash 5 000.00 USDT, 0 futures position(s), 0 open order(s)")]);

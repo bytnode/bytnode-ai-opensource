@@ -30,11 +30,13 @@ export function paperPortfolioTool(shelf: Shelf): Tool<{ portfolio?: string }> {
         ...v.holdings.map((h) => [h.asset, "spot", num(h.amount), h.value !== undefined ? usdt(h.value) : "no price"]),
         ...v.positions.map((p) => [p.symbol, `${p.side} ×${p.leverage}`, num(p.amount), p.unrealized !== undefined ? `PnL ${signed(p.unrealized)}` : "no price"]),
       ];
+      /* A limit buy's funds are held: the cash free to trade is said apart. */
+      const cash = [["Cash", "", "", usdt(v.cash)], ...(v.cash - v.free >= 0.005 ? [["Cash free to trade", "", "", usdt(v.free)]] : [])];
       const head = others.length ? [`Paper portfolio "${picked.book.name}". The other paper portfolios: ${others.join(", ")}.`] : [];
       const title = picked.many ? picked.book.name : "Paper portfolio";
       return {
         ...ok([...head, ...portfolioLines(look.book, v, look.at), ...look.priceErrors].join("\n")),
-        card: tableCard(v.equity !== undefined ? `${title} · ${usdt(v.equity)}` : title, ["Asset", "Kind", "Amount", "Value"], [["Cash", "", "", usdt(v.cash)], ...rows], { badge: "PAPER", note: SIMULATED }),
+        card: tableCard(v.equity !== undefined ? `${title} · ${usdt(v.equity)}` : title, ["Asset", "Kind", "Amount", "Value"], [...cash, ...rows], { badge: "PAPER", note: SIMULATED }),
       };
     },
   };

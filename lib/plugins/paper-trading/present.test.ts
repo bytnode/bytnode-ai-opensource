@@ -14,11 +14,18 @@ describe("paper trading in words", () => {
 
   it("always says it is simulated", () => {
     const book = emptyBook(10_000, new Date("2026-09-23T00:00:00Z"));
-    const v = { cash: 10_000, holdings: [], positions: [], equity: 10_000, unrealized: 0, missing: [], realized: 0, fees: 0, returnPct: 0 };
+    const v = { cash: 10_000, free: 10_000, holdings: [], positions: [], equity: 10_000, unrealized: 0, missing: [], realized: 0, fees: 0, returnPct: 0 };
     expect(portfolioLines(book, v, new Date("2026-09-23T10:00:00Z"))[0]).toContain(SIMULATED);
     expect(paperPrompt([{ name: "Main", book }])).toMatch(/^## Paper trading\nA simulated portfolio \(capital 10 000\.00 USDT.*\n.*never present it as a real performance/);
     expect(paperPrompt([{ name: "Main", book }, { name: "Swing", book }])).toContain("2 simulated portfolios; PaperOrder / PaperCancel / PaperPortfolio take `portfolio` (by name), the first is the default:\n- Main (default): capital 10 000.00 USDT");
     expect(exportSections(book, v)[0]).toMatchObject({ heading: "Simulated result", markdown: expect.stringContaining(SIMULATED) });
     expect(portfolioLines(book, { ...v, equity: undefined, missing: ["ETH/USDT"] }, new Date())[1]).toBe("Equity: unknown, no price for ETH/USDT. Cash 10 000.00 USDT.");
+  });
+
+  it("the cash open orders hold back is not shown as free", () => {
+    const book = emptyBook(10_000, new Date("2026-09-23T00:00:00Z"));
+    const v = { cash: 10_000, free: 9_600, holdings: [], positions: [], equity: 10_000, unrealized: 0, missing: [], realized: 0, fees: 0, returnPct: 0 };
+    expect(portfolioLines(book, v, new Date())[1]).toBe("Equity 10 000.00 USDT for a capital of 10 000.00 USDT (+0.00 USDT, 0.00 %). Cash 10 000.00 USDT, of which 400.00 USDT held by open orders: 9 600.00 USDT free to trade.");
+    expect(paperPrompt([{ name: "Main", book, free: 9_600 }])).toContain("cash 10 000.00 USDT (9 600.00 USDT free, the rest held by open orders)");
   });
 });

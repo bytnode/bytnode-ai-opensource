@@ -99,7 +99,14 @@ export const paperTradingPlugin = definePlugin({
     ctx.tool(paperResetTool(shelf));
     ctx.prompt(async () => {
       const books = await list();
-      return paperPrompt(await Promise.all(books.map(async (b) => ({ name: b.name, book: await deskOf(b, books.length > 1).read() }))));
+      return paperPrompt(
+        await Promise.all(
+          books.map(async (b) => {
+            const book = await deskOf(b, books.length > 1).read();
+            return { name: b.name, book, free: available(book, CASH, settings().engine) };
+          }),
+        ),
+      );
     });
     ctx.provide<PaperService>(() => ({
       cash: CASH,

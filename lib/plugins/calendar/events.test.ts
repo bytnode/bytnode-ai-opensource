@@ -41,6 +41,17 @@ describe("calendar events", () => {
     expect(eventKey("2026-10-29", "FOMC  Rate decision!")).toBe(eventKey("2026-10-29", "fomc rate decision"));
   });
 
+  it("the same release written in other words by another agent is one event", () => {
+    const bea = (title: string, url: string) => ok({ startsAt: "2026-09-30T12:30:00Z", title, source: "U.S. Bureau of Economic Analysis", url });
+    const first = mergeEvents([], [bea("US Personal Income and Outlays — August 2026 (includes PCE inflation)", "https://www.bea.gov/news/schedule")], now);
+    const again = mergeEvents(first.events, [bea("US Personal Income and Outlays for August, including PCE inflation", "https://www.bea.gov/news/schedule/full")], now);
+    expect([again.added.length, again.updated.length]).toEqual([0, 1]);
+    expect(again.events).toHaveLength(1);
+    /* Another release of the same agency, at the same minute: another event. */
+    const gdp = mergeEvents(again.events, [bea("US GDP, second quarter 2026 (third estimate)", "https://www.bea.gov/news/schedule/full")], now);
+    expect(gdp.events).toHaveLength(2);
+  });
+
   it("keeps 30 days of past events and the whole future", () => {
     const old = ok({ startsAt: "2026-08-01T00:00:00Z", title: "old" });
     const recent = ok({ startsAt: "2026-09-01T00:00:00Z", title: "recent" });

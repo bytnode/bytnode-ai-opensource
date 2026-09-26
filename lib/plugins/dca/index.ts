@@ -122,14 +122,26 @@ export const dcaPlugin = definePlugin({
         const stale = (p: Purchase) => p.status === "proposed" && now.getTime() - Date.parse(p.at) > EXPIRY_MS;
         const known = await purchases();
         if (known.some(stale)) await ctx.store.update<Purchase[]>(PURCHASES, [], (all) => all.map((p) => (stale(p) ? { ...p, status: "expired", detail: "Not confirmed in time." } : p)));
-        const due = (await plans()).map((plan) => ({ plan, d: dueNow(plan, now) })).filter((x) => x.d !== null);
+        if (!(await plans()).some((plan) => dueNow(plan, now))) return "Nothing due.";
+        /* A due date is CLAIMED (the plan moved to its next one) under the
+           plans' lock before anything is bought: another run of this job —
+           another process, a runtime left over by a reload — finds it gone.
+           A due date is handled once, never twice. */
+        const due: Array<{ plan: DcaPlan; due: string; late: boolean }> = [];
+        await ctx.store.update<DcaPlan[]>(PLANS, [], (list) => {
+          due.length = 0;
+          return list.map((plan) => {
+            const d = dueNow(plan, now);
+            if (!d) return plan;
+            due.push({ plan, ...d });
+            return advance(plan, now);
+          });
+        });
         if (due.length === 0) return "Nothing due.";
         const pending = known.filter((p) => p.status === "proposed" && !stale(p));
         const handled: Handled[] = [];
-        for (const { plan, d } of due) handled.push(await handle(plan, d!.due, d!.late, session, signal, pending));
+        for (const d of due) handled.push(await handle(d.plan, d.due, d.late, session, signal, pending));
         await record(handled.map((h) => h.purchase));
-        const ids = new Set(due.map((x) => x.plan.id));
-        await ctx.store.update<DcaPlan[]>(PLANS, [], (list) => list.map((p) => (ids.has(p.id) && p.status === "active" ? advance(p, now) : p)));
         for (const h of handled) if (h.notice) await ctx.notify({ ...h.notice, action: { kind: "open-view", view: "dca" } });
         return handled.map((h) => `${h.purchase.planId}: ${h.purchase.status}`).join(", ");
       },

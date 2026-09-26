@@ -4,10 +4,10 @@
    Your agents write it (`CalendarEdit`): market events, each SOURCED — one
    without an http(s) URL is rejected, never stored — and the user's own
    entries (tasks, reminders, deadlines: the `task` calendar), which need no
-   source. The same event written twice is updated, not duplicated: its key
-   is the day and the title. Two calendars are COMPUTED, never stored: the
-   options and futures expiries (`expiries.ts`) and the coming runs of the
-   scheduled tasks. Thirty days of past entries are kept, all the known
+   source. The same event written twice is updated, not duplicated: same
+   day and title, or same day and site with titles alike. Two calendars
+   are COMPUTED, never stored: the options and futures expiries
+   (`expiries.ts`) and the coming runs of the scheduled tasks. Thirty days of past entries are kept, all the known
    future. Pure, tested.
 --------------------------------------------------------------------------- */
 
@@ -125,15 +125,37 @@ export function validateEvent(raw: unknown, now: Date, by = "an agent", sourcele
   };
 }
 
+const FILLER = new Set(["and", "the", "for", "with", "from", "including", "includes"]);
+const words = (title: string) => new Set(title.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !FILLER.has(w)));
+const site = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+};
+
+/** The same event written again — retitled, or by another agent in its
+    own words: same day, same site, titles sharing most of their words.
+    ⚠️ Not the same URL alone: a release schedule (bea.gov/news/schedule)
+    announces a whole day of different events. */
+function sameEvent(a: CalendarEvent, b: CalendarEvent): boolean {
+  if (!a.url || !b.url || a.startsAt.slice(0, 10) !== b.startsAt.slice(0, 10) || site(a.url) !== site(b.url)) return false;
+  const x = words(a.title);
+  const y = words(b.title);
+  const shared = [...x].filter((w) => y.has(w)).length;
+  return x.size + y.size > 0 && (2 * shared) / (x.size + y.size) >= 0.6;
+}
+
 /** Merges written events into the table: new ones added, known ones
-    (same key, or same URL on the same day) updated — never duplicated —
-    and the old past dropped. */
+    (same key, or `sameEvent`) updated — never duplicated — and the old
+    past dropped. */
 export function mergeEvents(stored: CalendarEvent[], incoming: CalendarEvent[], now: Date): { events: CalendarEvent[]; added: CalendarEvent[]; updated: CalendarEvent[] } {
   const byId = new Map(stored.map((e) => [e.id, e]));
   const added: CalendarEvent[] = [];
   const updated: CalendarEvent[] = [];
   for (const e of incoming) {
-    const same = byId.get(e.id) ?? [...byId.values()].find((x) => e.url !== "" && x.url === e.url && x.startsAt.slice(0, 10) === e.startsAt.slice(0, 10));
+    const same = byId.get(e.id) ?? [...byId.values()].find((x) => sameEvent(x, e));
     if (same) {
       const next = { ...e, id: same.id };
       byId.delete(same.id);

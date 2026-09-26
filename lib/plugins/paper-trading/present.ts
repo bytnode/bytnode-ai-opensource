@@ -23,13 +23,21 @@ export function fillLine(f: Fill): string {
   return `${f.at.slice(0, 16).replace("T", " ")} UTC — ${head}, fee ${usdt(f.fee)}${f.realizedPnl ? `, realized ${signed(f.realizedPnl)}` : ""}`;
 }
 
+/** Less than a cent held back: nothing to say. */
+const holds = (cash: number, free: number) => cash - free >= 0.005;
+
+/** The cash, and what the open orders hold back of it: a limit buy's
+    funds are not free to trade. */
+export const cashLine = (v: Pick<Valuation, "cash" | "free">) =>
+  holds(v.cash, v.free) ? `Cash ${usdt(v.cash)}, of which ${usdt(v.cash - v.free)} held by open orders: ${usdt(v.free)} free to trade.` : `Cash ${usdt(v.cash)}.`;
+
 /** The portfolio for the agent: PaperPortfolio's output. */
 export function portfolioLines(book: Book, v: Valuation, at: Date): string[] {
   const lines = [`PAPER portfolio — ${at.toISOString().slice(0, 16).replace("T", " ")} UTC. ${SIMULATED}`];
   lines.push(
     v.equity === undefined
-      ? `Equity: unknown, no price for ${v.missing.join(", ")}. Cash ${usdt(v.cash)}.`
-      : `Equity ${usdt(v.equity)} for a capital of ${usdt(book.capital)} (${signed(v.equity - book.capital)}, ${v.returnPct?.toFixed(2)} %). Cash ${usdt(v.cash)}.`,
+      ? `Equity: unknown, no price for ${v.missing.join(", ")}. ${cashLine(v)}`
+      : `Equity ${usdt(v.equity)} for a capital of ${usdt(book.capital)} (${signed(v.equity - book.capital)}, ${v.returnPct?.toFixed(2)} %). ${cashLine(v)}`,
   );
   lines.push(`Realized ${signed(v.realized)} · fees paid ${usdt(v.fees)}${v.unrealized !== undefined ? ` · unrealized ${signed(v.unrealized)}` : ""}.`);
   if (v.holdings.length) {
@@ -47,20 +55,24 @@ export function portfolioLines(book: Book, v: Valuation, at: Date): string[] {
   return lines;
 }
 
-const bookLine = (book: Book) => `capital ${usdt(book.capital)}, cash ${usdt(book.balances[CASH] ?? 0)}, ${book.positions.length} futures position(s), ${book.orders.filter((o) => o.status === "open").length} open order(s)`;
+const bookLine = (book: Book, free?: number) => {
+  const cash = book.balances[CASH] ?? 0;
+  const held = free !== undefined && holds(cash, free) ? ` (${usdt(free)} free, the rest held by open orders)` : "";
+  return `capital ${usdt(book.capital)}, cash ${usdt(cash)}${held}, ${book.positions.length} futures position(s), ${book.orders.filter((o) => o.status === "open").length} open order(s)`;
+};
 
 /** The prompt section: what the agent must know without a call. One
     portfolio reads as before; several are listed, the first the default. */
-export function paperPrompt(books: Array<{ name: string; book: Book }>): string {
+export function paperPrompt(books: Array<{ name: string; book: Book; free?: number }>): string {
   const [first, ...rest] = books;
   const shown = rest.slice(0, 5);
   const listing =
     rest.length === 0
-      ? `A simulated portfolio (${bookLine(first.book)}). PaperOrder / PaperCancel trade it, PaperPortfolio shows it.`
+      ? `A simulated portfolio (${bookLine(first.book, first.free)}). PaperOrder / PaperCancel trade it, PaperPortfolio shows it.`
       : [
           `${books.length} simulated portfolios; PaperOrder / PaperCancel / PaperPortfolio take \`portfolio\` (by name), the first is the default:`,
-          `- ${first.name} (default): ${bookLine(first.book)}`,
-          ...shown.map((b) => `- ${b.name}: ${bookLine(b.book)}`),
+          `- ${first.name} (default): ${bookLine(first.book, first.free)}`,
+          ...shown.map((b) => `- ${b.name}: ${bookLine(b.book, b.free)}`),
           ...(rest.length > shown.length ? [`- and ${rest.length - shown.length} more (PaperPortfolio lists them)`] : []),
         ].join("\n");
   return [
