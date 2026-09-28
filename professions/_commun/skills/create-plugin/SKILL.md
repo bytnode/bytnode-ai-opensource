@@ -9,7 +9,7 @@ This skill is the engineering. **A plugin with a tab needs a second skill too: `
 
 A plugin you write joins the app like the shipped ones: tools for every agent, a tab of its own if the user wants one, background jobs, notifications. It runs in a **closed box**: no file, no network, no keys — only `ctx`, and only what the user **grants** when they review it. You never grant anything yourself.
 
-You work with four tools: `PluginWrite` (one file of the draft), `PluginCheck` (the whole verification), `PluginActivate` (ask for it to run), `PluginRead` (the list, a plugin's state and files — read it before changing an existing one).
+You work with five tools: `PluginWrite` (one whole file of the draft), `PluginEdit` (targeted replacements inside one file — each one reported and applied best-effort by default; use it to change one thing without rewriting the file), `PluginCheck` (the whole verification), `PluginActivate` (ask for it to run), `PluginRead` (the list, a plugin's state and files — read it before changing an existing one).
 
 ## 1. Ask first — one question at a time
 
@@ -33,11 +33,11 @@ Read the references before writing, every time — the API is small but exact. W
 - For the tab: **load the `plugin-design` skill** and follow it (the page, the kit, the backdrop veil, the centring, the art direction).
 - The closest example, whole: `examples/price-watch/…` (tools + job + notification), `examples/fear-greed/…` (an outside API + a tab with a curve), `examples/rebalance/…` (reads an account, proposes orders). Each has `plugin.json`, `server.js`, `tests.js` and, for the tabs, `view/index.html`.
 
-Write with `PluginWrite`, one file per call, the whole file each time. The id is short, lowercase, with dashes (`dividend-tracker`). Always write `tests.js`: one test per tool and per action at least, with mocks for anything outside.
+Write with `PluginWrite`, one file per call, the whole file each time. To change a piece of an existing file, prefer `PluginEdit` (see step 5). The id is short, lowercase, with dashes (`dividend-tracker`). Always write `tests.js`: one test per tool and per action at least, with mocks for anything outside.
 
 ## 3. Check it — until everything passes
 
-Run `PluginCheck`. It parses, runs `setup` against a fake world, runs your tests, and looks at the page. Read the report, fix exactly what it names with `PluginWrite`, run it again. Do not ask the user to test what the check can tell you.
+Run `PluginCheck`. It parses, runs `setup` against a fake world, runs your tests, and looks at the page. Read the report, fix exactly what it names with `PluginWrite` (a whole file) or `PluginEdit` (one fragment), run it again. Do not ask the user to test what the check can tell you.
 
 ## 4. Activate it
 
@@ -45,14 +45,14 @@ Run `PluginCheck`. It parses, runs `setup` against a fake world, runs your tests
 
 ## 5. Show it, then improve it
 
-Once it is active: if it has a tab, open it with `OpenView` (its view id is the plugin's id, `u-…`) and ask whether it is what they wanted. A change ("add a column", "every hour instead") is steps 2 → 3 again on the same id: an approved plugin is updated **live** by `PluginWrite` as soon as the draft passes the check and asks for no new permission — its answer says "LIVE", and the open tab reloads within seconds. If it says "Not live yet", fix what it names (PluginCheck gives the details). A new permission still needs `PluginActivate` and the user's approval in the conversation. If the page or a call failed, `PluginRead` on the plugin shows the recent errors — fix them before they ask.
+Once it is active: if it has a tab, open it with `OpenView` (its view id is the plugin's id, `u-…`) and ask whether it is what they wanted. A change ("add a column", "every hour instead") is steps 2 → 3 again on the same id. For a small change, `PluginRead` the file then `PluginEdit` it (the exact fragments, no whole-file rewrite); for a new file or a deep rework, `PluginWrite` it whole. An approved plugin is updated **live** as soon as the draft passes the check and asks for no new permission — its answer says "LIVE", and the open tab reloads within seconds. If it says "Not live yet", fix what it names (PluginCheck gives the details). A new permission still needs `PluginActivate` and the user's approval in the conversation. If the page or a call failed, `PluginRead` on the plugin shows the recent errors — fix them before they ask.
 
 ## Mistakes agents made — do not repeat them
 
-1. **A plugin's files are not files of your workspace.** They live in BytNode-AI's plugin store. Never `Read`, `Edit`, `Write` or a shell on them (you get ENOENT, or you bypass the checks): read them with `PluginRead(plugin, file)`, change them with `PluginWrite` — **always the WHOLE file**, there is no partial edit. To change three lines: `PluginRead` the file, then `PluginWrite` it complete.
+1. **A plugin's files are not files of your workspace.** They live in BytNode-AI's plugin store. Never `Read`, `Edit`, `Write` or a shell on them (you get ENOENT, or you bypass the checks): read them with `PluginRead(plugin, file)`, change them with `PluginEdit` (a targeted fragment — copy the `old` text EXACTLY as `PluginRead` shows it) or `PluginWrite` (a whole file). To change three lines, `PluginEdit` them; to rebuild a file, `PluginWrite` it complete.
 2. **A tool's result carries ONE card:** `{ text, facts }` OR `{ text, table }`, never both (only `facts` would show). Put the figures in the table, or the table in the text.
 3. **A tool never throws at its caller.** A tool whose `run` throws or returns `{ error }` answers `{ ok: false, output: "…" }` — in `tests.js`, `plugin.tool(…)` resolves and you check `assertEqual(r.ok, false)`. It is an ACTION (`plugin.action(…)`) that rejects: that one you test with `assertThrows`.
-4. **Never run `PluginCheck` again without changing something.** After a failure, read the report, fix the file it names with `PluginWrite`, then check again. The same failing call three times in a row, with nothing done between, is stopped as a loop.
+4. **Never run `PluginCheck` again without changing something.** After a failure, read the report, fix the file it names with `PluginEdit` or `PluginWrite`, then check again. The same failing call three times in a row, with nothing done between, is stopped as a loop.
 5. **Read `reference/ctx.md` before writing** — the return shapes, the test helpers and the limits are there; guessing them costs a round of failed tests.
 
 ## What a plugin can never do — say it plainly instead of working around it
@@ -67,4 +67,4 @@ If the request needs one of these, say so and propose what is possible (a propos
 
 ## Changing a plugin another agent wrote
 
-`PluginRead` it first (its state, its files), then the same steps. Keep what the user did not ask to change.
+`PluginRead` it first (its state, its files), then the same steps. Keep what the user did not ask to change: a small change is one `PluginEdit` on the fragment concerned, not a whole-file rewrite.

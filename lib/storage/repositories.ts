@@ -182,8 +182,9 @@ export class SettingsRepository {
     }
   }
 
-  save(settings: Settings) {
-    this.storage.set(SETTINGS_KEY, JSON.stringify(settings));
+  /** False when the settings could not be written (quota, access refused). */
+  save(settings: Settings): boolean {
+    return this.storage.set(SETTINGS_KEY, JSON.stringify(settings));
   }
 }
 

@@ -4,12 +4,11 @@ import { useEffect, useState, type ReactNode } from "react";
 import { NEED_LABELS, PLUGIN_CATEGORIES, type ConfigProperty, type PluginManifest, type PluginsState, type PluginStatus } from "@/lib/domain/plugins";
 import type { Settings } from "@/lib/domain/types";
 import { PLUGIN_MANIFESTS, pluginManifest, unmetNeeds } from "@/lib/plugins/catalog";
-import { clearPluginData, deleteUserPlugin, revokeUserPlugin } from "@/lib/plugins/client";
+import { clearPluginData, decideUserPlugin, deleteUserPlugin, revokeUserPlugin } from "@/lib/plugins/client";
 import { describePermissions } from "@/lib/plugins/user/permissions";
 import type { UserPluginInfo } from "@/lib/plugins/user/types";
 import { openReview, refreshUserPlugins, runningManifests, useUserPlugins } from "@/lib/state/user-plugins";
-import { requiredBy } from "@/lib/plugins/core/graph";
-import { pluginSettings, resolveConfig, setPluginAgents, setPluginConfig, togglePlugin, validValue } from "@/lib/plugins/core/state";
+import { pluginSettings, resolveConfig, setPluginAgents, setPluginConfig, validValue } from "@/lib/plugins/core/state";
 import { describePolicy } from "@/lib/tools/policy";
 import { refreshPlugins, usePlugins } from "@/lib/state/plugins";
 import { closeViews, openView } from "@/lib/state/tabs";
@@ -26,13 +25,13 @@ import type { SettingsTab } from "./settings-panel";
    The library shows them as blocks grouped by category, with a search;
    each block carries the prerequisites it needs, its state and its switch. A
    plugin's page says everything it does: what it is, the views it opens,
-   the tools it gives the agents WITH WHAT EACH MAY DO WITHOUT YOU, whom it
-   depends on and who depends on it, its settings, which agents may use
-   it, and what it stores — with a way to clear it.
+   the tools it gives the agents WITH WHAT EACH MAY DO WITHOUT YOU, the
+   plugins it works better with, its settings, which agents may use it,
+   and what it stores — with a way to clear it.
 
-   Every change saves at once. Switching one off also switches off what
-   requires it, switching one on what it requires: a confirmation lists
-   them first. Shipped plugins switch off; they are never removed.
+   Every change saves at once. Every plugin is independent: switching one
+   on or off touches no other (no cascade, no confirmation). Shipped
+   plugins switch off; they are never removed.
 
    Below them, the plugins the user's agents WROTE (`lib/plugins/user/`):
    the same blocks, plus their state in the review (draft, waiting for
@@ -48,15 +47,12 @@ type Props = {
   onGo: (tab: SettingsTab) => void;
 };
 
-type Pending = { id: string; on: boolean; state: PluginsState; also: string[] };
-
 export function PluginsLibrary({ settings, initial, onUpdate, onGo }: Props) {
   const mine = useUserPlugins();
   const extra = runningManifests(mine);
   const nameOf = (id: string) => pluginManifest(id, extra)?.name ?? id;
   const names = (ids: string[]) => ids.map(nameOf).join(", ");
   const [selected, setSelected] = useState<string | null>(initial ?? null);
-  const [pending, setPending] = useState<Pending | null>(null);
   const { status } = usePlugins();
 
   useEffect(() => {
@@ -64,16 +60,11 @@ export function PluginsLibrary({ settings, initial, onUpdate, onGo }: Props) {
     void refreshUserPlugins();
   }, []);
 
-  const apply = (p: Pending) => {
-    onUpdate({ plugins: p.state });
-    if (!p.on) closeViews([p.id, ...p.also].flatMap((id) => pluginManifest(id, extra)?.views.map((v) => v.id) ?? []));
-  };
-
+  /* This plugin only: no other one depends on it. */
   const toggle = (id: string, on: boolean) => {
-    const { state, also } = togglePlugin([...PLUGIN_MANIFESTS, ...extra], settings.plugins, id, on);
-    const next = { id, on, state, also };
-    if (also.length) setPending(next);
-    else apply(next);
+    const state: PluginsState = { ...settings.plugins, [id]: { ...pluginSettings(settings.plugins, id), enabled: on } };
+    onUpdate({ plugins: state });
+    if (!on) closeViews(pluginManifest(id, extra)?.views.map((v) => v.id) ?? []);
   };
 
   const statusOf = (id: string): PluginStatus => status.find((s) => s.id === id) ?? { id, state: pluginSettings(settings.plugins, id).enabled ? "active" : "disabled" };
@@ -87,22 +78,6 @@ export function PluginsLibrary({ settings, initial, onUpdate, onGo }: Props) {
       ) : (
         <PluginList settings={settings} mine={mine} statusOf={statusOf} onOpen={setSelected} onToggle={toggle} />
       )}
-      {pending && (
-        <ConfirmDialog
-          title={pending.on ? `Switch on ${nameOf(pending.id)}?` : `Switch off ${nameOf(pending.id)}?`}
-          body={
-            pending.on
-              ? `It needs ${names(pending.also)}, which will be switched on too.`
-              : `${names(pending.also)} cannot run without it and will be switched off too. Their data is kept.`
-          }
-          confirmLabel={pending.on ? "Switch on" : "Switch off"}
-          onConfirm={() => {
-            apply(pending);
-            setPending(null);
-          }}
-          onCancel={() => setPending(null)}
-        />
-      )}
     </>
   );
 }
@@ -111,17 +86,15 @@ export function PluginsLibrary({ settings, initial, onUpdate, onGo }: Props) {
 
    A shelf of blocks, one per plugin, under its category. A block opens the
    plugin's page; its foot says whether it runs — on the left, green when
-   active, red when off (and when it failed), amber while it waits for a
-   plugin it needs — and holds its switch on the right. */
+   active, red when off (and when it failed) — and holds its switch on the
+   right. */
 
 function StateTag({ on, status }: { on: boolean; status: PluginStatus }) {
   const [tone, label] = !on
     ? ["is-off", "Inactive"]
     : status.state === "error"
       ? ["is-off", "Error"]
-      : status.state === "blocked"
-        ? ["is-wait", "Waiting"]
-        : ["is-on", "Active"];
+      : ["is-on", "Active"];
   return (
     <span className={`pl-state ${tone}`} title={on && status.state !== "active" ? status.message : undefined}>
       <i aria-hidden="true" />
@@ -274,7 +247,6 @@ function PluginPage({ manifest: m, user, settings, status, names, onBack, onTogg
   const runs = !user || Boolean(user.granted);
   const own = pluginSettings(settings.plugins, m.id);
   const config = resolveConfig(m, own.config);
-  const users = requiredBy(PLUGIN_MANIFESTS, m.id);
   const missing = unmetNeeds(settings, m);
   const mine = tools.filter((t) => t.plugin === m.id);
   const set = (key: string, value: string | number | boolean) => onUpdate({ plugins: setPluginConfig(settings.plugins, m.id, key, value) });
@@ -298,11 +270,6 @@ function PluginPage({ manifest: m, user, settings, status, names, onBack, onTogg
       {status.state === "error" && !user?.message && (
         <div className="notice pl-notice" role="alert">
           <p>It could not start: {status.message}</p>
-        </div>
-      )}
-      {status.state === "blocked" && (
-        <div className="notice pl-notice">
-          <p>{status.message}</p>
         </div>
       )}
       {own.enabled && missing.length > 0 && (
@@ -350,9 +317,8 @@ function PluginPage({ manifest: m, user, settings, status, names, onBack, onTogg
 
       <Block title="Dependencies">
         <p className="pl-text">
-          {m.requires.length ? `Needs ${names(m.requires)}.` : "Needs no other plugin."}
-          {m.optional.length ? ` Uses ${names(m.optional)} when they run.` : ""}
-          {users.length ? ` ${names(users)} cannot run without it.` : ""}
+          Needs no other plugin: it runs on its own.
+          {m.optional.length ? ` It also uses ${names(m.optional)} when they are on, and goes on without them.` : ""}
         </p>
         {m.needs.length > 0 && <p className="pl-text">Prerequisites: {m.needs.map((n) => NEED_LABELS[n].toLowerCase()).join(", ")}.</p>}
       </Block>
@@ -458,6 +424,31 @@ function PluginPage({ manifest: m, user, settings, status, names, onBack, onTogg
    accounts), what went wrong lately in its code or its page, and the ways
    out: revoke (it stops, the draft stays) and delete. */
 
+/** A grant from before approvals were signed: the user approves the same
+    permissions again, from this tab (the approval key is this browser's). */
+function ApproveAgain({ user }: { user: UserPluginInfo }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const again = () => {
+    if (!user.unsigned) return;
+    setBusy(true);
+    setError("");
+    decideUserPlugin(user.id, user.unsigned.digest, true, user.granted?.accounts ?? [])
+      .then(() => refreshUserPlugins())
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <div className="notice pl-notice" role="alert">
+      <p>Security update: approvals are now signed by your browser. Approve this plugin again, with the same permissions, for it to run.</p>
+      <button type="button" className="btn btn-sm" onClick={again} disabled={busy}>
+        Approve again
+      </button>
+      {error && <p>{error}</p>}
+    </div>
+  );
+}
+
 function UserPluginBlock({ user, settings, onRemove }: { user: UserPluginInfo; settings: Settings; onRemove: (what: "revoke" | "delete") => void }) {
   const agent = (id: string) => settings.agents.find((a) => a.id === id)?.name || "an agent";
   const granted = user.granted ? describePermissions(user.granted.permissions) : [];
@@ -473,10 +464,15 @@ function UserPluginBlock({ user, settings, onRemove }: { user: UserPluginInfo; s
           </button>
         </div>
       )}
-      {user.state === "error" && user.message && (
-        <div className="notice pl-notice" role="alert">
-          <p>It could not start: {user.message}</p>
-        </div>
+      {user.unsigned ? (
+        <ApproveAgain user={user} />
+      ) : (
+        user.state === "error" &&
+        user.message && (
+          <div className="notice pl-notice" role="alert">
+            <p>It could not start: {user.message}</p>
+          </div>
+        )
       )}
       <Block title="Written by an agent">
         <p className="pl-text">

@@ -10,7 +10,7 @@ export const reportExportManifest: PluginManifest = {
   forAgents: "Turns an analysis into a standalone HTML or Markdown report — charts and dated sources included — in the workspace's `reports/` folder.",
   description:
     "Turns an analysis made in a conversation into a document you keep or share: a single HTML file (or Markdown) in the agent's workspace, under reports/, with the title, the summary, the sections, the charts embedded, the table of sources — each with the date it was read — the date of generation and the notice \"information, not investment advice\". It opens without the app, loads nothing from the internet, and prints to PDF from any browser. The portfolio and the paper trading use it for their \"Export\" button.",
-  requires: ["finance-tools"],
+  requires: [],
   optional: [],
   needs: [],
   config: { type: "object", properties: {} },

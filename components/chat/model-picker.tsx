@@ -111,7 +111,9 @@ export function ModelPicker({
   const searching = query.trim().length > 0;
   /* A subscription only has a few models: all of them, no "latest releases". */
   const acp = acpAgentOf(providerId);
-  const results = searching ? searchModels(catalog.models, providerId, query) : acp ? searchModels(catalog.models, providerId, "") : latestModels(catalog.models, providerId);
+  /* A key agent can run any OpenRouter model: the search covers every
+     vendor. A subscription only runs its own. */
+  const results = searching ? searchModels(catalog.models, providerId, query, { allVendors: !acp }) : acp ? searchModels(catalog.models, providerId, "") : latestModels(catalog.models, providerId);
 
   const effortText = !current
     ? "Choose a model"
@@ -180,7 +182,7 @@ export function ModelPicker({
               <>
                 <label className="cmp-search">
                   <Search />
-                  <input data-autofocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search all models" aria-label="Search a model" />
+                  <input data-autofocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder={acp ? `Search ${acp.label} models` : "Search all models"} aria-label="Search a model" />
                 </label>
                 <div className="cmp-list">
                   {catalog.status === "loading" || catalog.status === "idle" ? (

@@ -1,7 +1,7 @@
 import type { Tool } from "../types";
 import { fail, ok } from "../types";
 import { exchangeInfo } from "./catalog";
-import { ACCOUNT_PROP, attempt, resolve } from "./common";
+import { ACCOUNT_PROP, attempt, resolve, sendOnce } from "./common";
 import { n8 } from "./format";
 
 /* Transfer: move funds BETWEEN THE WALLETS OF A SINGLE ACCOUNT: spot ↔
@@ -51,8 +51,15 @@ export const transferTool: Tool<Args> = {
       return w === "futures" ? "swap" : "spot";
     };
     const asset = args.asset.trim().toUpperCase();
+    /* ⚠️ Sent ONCE (`sendOnce`): a transfer re-sent after a lost answer
+       moves the funds twice. */
     return attempt(async () => {
-      const t = (await r.ex.transfer(asset, args.amount, ccxtWallet(args.from), ccxtWallet(args.to))) as { id?: string };
+      const t = (await sendOnce(
+        () => r.ex.transfer(asset, args.amount, ccxtWallet(args.from), ccxtWallet(args.to)),
+        (detail) =>
+          `Outcome UNKNOWN: the transfer of ${n8(args.amount)} ${asset} ${args.from} → ${args.to} was sent, but the exchange's answer was lost — ${detail} ` +
+          `It may have been done. Do NOT send it again: first check ExchangeBalance on both wallets (${args.from} and ${args.to}).`,
+      )) as { id?: string };
       return ok(`Transfer${t?.id ? ` #${t.id}` : ""}: ${n8(args.amount)} ${asset} ${args.from} → ${args.to}.`);
     });
   },

@@ -2,6 +2,7 @@ import { reloadUserPlugins } from "@/lib/plugins/core/active";
 import { checkUserPlugin, reportText } from "@/lib/plugins/user/check";
 import { activate, readGrant, writeRequest } from "@/lib/plugins/user/files";
 import { covers, describePermissions } from "@/lib/plugins/user/permissions";
+import { isTrustedGrant } from "@/lib/plugins/user/approval";
 import type { Tool } from "../types";
 import { fail, ok } from "../types";
 import { PLUGIN_PROP, pluginArg, takenToolNames } from "./common";
@@ -40,8 +41,11 @@ export const pluginActivateTool: Tool<Args> = {
       report.registered?.jobs.length ? `${report.registered.jobs.length} scheduled job(s)` : "",
     ].filter(Boolean).join(", ");
 
-    if (grant && covers(grant.permissions, permissions)) {
-      await activate(p.id, { ...grant, permissions, digest: report.digest, at: new Date().toISOString() });
+    /* Covered by what the user SIGNED: it runs at once, under the approved
+       permissions themselves — the signature covers them, so they are kept
+       as they are (`approval.ts`). An unsigned grant goes back to the user. */
+    if (grant && isTrustedGrant(p.id, grant) && covers(grant.permissions, permissions)) {
+      await activate(p.id, { ...grant, digest: report.digest, at: new Date().toISOString() });
       await reloadUserPlugins();
       return ok(`${manifest.name} is updated and running, under the permissions the user already granted${summary ? `: ${summary}` : ""}. Your new tools reach you from your next turn.`);
     }

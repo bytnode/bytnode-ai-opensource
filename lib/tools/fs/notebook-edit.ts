@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import type { Tool } from "../types";
 import { errorText, fail, ok } from "../types";
 import { OutsideWorkspaceError, displayPath, resolvePath } from "../paths";
+import { serialized, writeFileAtomic } from "./safe-write";
 
 /* ---------------------------------------------------------------------------
    NotebookEdit: one cell of a Jupyter notebook — replace, insert after,
@@ -33,8 +34,13 @@ export function editNotebook(
   const mode = edit.edit_mode ?? "replace";
   const cells = nb.cells.slice();
   const i = edit.cell_index;
-  if (!Number.isInteger(i) || i < 0 || i >= cells.length) {
-    return { ok: false, message: `Cell index ${i} out of range (the notebook has ${cells.length} cells).` };
+  /* `insert` goes AFTER the index: -1 puts the cell first — the only way to
+     add one before the first cell, or into an empty notebook — and the
+     count itself appends (read as "after the last one"). */
+  const valid = mode === "insert" ? Number.isInteger(i) && i >= -1 && i <= cells.length : Number.isInteger(i) && i >= 0 && i < cells.length;
+  if (!valid) {
+    const hint = mode === "insert" ? " For insert, -1 puts the cell first." : "";
+    return { ok: false, message: `Cell index ${i} out of range (the notebook has ${cells.length} cell${cells.length === 1 ? "" : "s"}).${hint}` };
   }
   if (mode === "delete") {
     cells.splice(i, 1);
@@ -49,7 +55,7 @@ export function editNotebook(
         type === "code"
           ? { cell_type: "code", source, metadata: {}, outputs: [], execution_count: null }
           : { cell_type: "markdown", source, metadata: {} };
-      cells.splice(i + 1, 0, cell);
+      cells.splice(Math.min(i + 1, cells.length), 0, cell);
     }
   }
   return { ok: true, notebook: { ...nb, cells } };
@@ -59,12 +65,12 @@ export const notebookEditTool: Tool<Args> = {
   name: "NotebookEdit",
   policy: { gated: true, subagent: true },
   description:
-    "Modifies a cell of a Jupyter notebook (.ipynb): replaces its source (`replace`, default), inserts a new cell after the index (`insert`) or deletes it (`delete`). Indexes start at 0; read the notebook with Read to know them.",
+    "Modifies a cell of a Jupyter notebook (.ipynb): replaces its source (`replace`, default), inserts a new cell after the index (`insert`; -1 inserts it first, also into an empty notebook) or deletes it (`delete`). Indexes start at 0; read the notebook with Read to know them.",
   parameters: {
     type: "object",
     properties: {
       notebook_path: { type: "string", description: "Path of the .ipynb notebook." },
-      cell_index: { type: "integer", description: "Index of the target cell (0 = first)." },
+      cell_index: { type: "integer", minimum: -1, description: "Index of the target cell (0 = first). For insert: the cell to insert after, -1 = at the start." },
       edit_mode: { type: "string", enum: ["replace", "insert", "delete"], description: "Default: replace." },
       new_source: { type: "string", description: "New source of the cell (replace, insert)." },
       cell_type: { type: "string", enum: ["code", "markdown"], description: "Type of the inserted cell (insert). Default: code." },
@@ -81,20 +87,30 @@ export const notebookEditTool: Tool<Args> = {
       throw e;
     }
     const shown = displayPath(ctx.workspace, target);
-    let nb: Notebook;
-    try {
-      nb = JSON.parse(await fs.readFile(target, "utf8")) as Notebook;
-      if (!Array.isArray(nb.cells)) throw new Error("no `cells` list");
-    } catch (e) {
-      return fail(`${shown} is not a readable notebook: ${errorText(e)}`);
-    }
-    const out = editNotebook(nb, args);
-    if (!out.ok) return fail(out.message);
-    try {
-      await fs.writeFile(target, JSON.stringify(out.notebook, null, 1) + "\n", "utf8");
-    } catch (e) {
-      return fail(`Could not write ${shown}: ${errorText(e)}`);
-    }
-    return ok(`${shown}: cell ${args.cell_index} ${args.edit_mode === "delete" ? "deleted" : args.edit_mode === "insert" ? "inserted after" : "replaced"}. The notebook has ${out.notebook.cells.length} cells.`);
+    /* One change of a notebook at a time, written atomically (`safe-write.ts`). */
+    return serialized(target, async () => {
+      let nb: Notebook;
+      try {
+        nb = JSON.parse(await fs.readFile(target, "utf8")) as Notebook;
+        if (!Array.isArray(nb.cells)) throw new Error("no `cells` list");
+      } catch (e) {
+        return fail(`${shown} is not a readable notebook: ${errorText(e)}`);
+      }
+      const out = editNotebook(nb, args);
+      if (!out.ok) return fail(out.message);
+      try {
+        await writeFileAtomic(target, JSON.stringify(out.notebook, null, 1) + "\n");
+      } catch (e) {
+        return fail(`Could not write ${shown}: ${errorText(e)}`);
+      }
+      const n = out.notebook.cells.length;
+      const done =
+        args.edit_mode === "delete"
+          ? `cell ${args.cell_index} deleted`
+          : args.edit_mode === "insert"
+            ? `new cell inserted at index ${Math.min(args.cell_index + 1, n - 1)}`
+            : `cell ${args.cell_index} replaced`;
+      return ok(`${shown}: ${done}. The notebook has ${n} cell${n === 1 ? "" : "s"}.`);
+    });
   },
 };

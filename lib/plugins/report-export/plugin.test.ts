@@ -45,8 +45,9 @@ describe("report-export plugin", () => {
     expect(out.output).toMatch(/outside the workspace/);
   });
 
-  it("does not start without the charts plugin, which it requires", async () => {
+  it("runs without the charts plugin: every plugin is independent", async () => {
     h = await harness([financeToolsPlugin, reportExportPlugin], { "finance-tools": { enabled: false, config: {}, agentIds: null } });
-    expect(h.runtime.isRunning("report-export")).toBe(false);
+    expect(h.runtime.isRunning("report-export")).toBe(true);
+    expect(h.runtime.tools(null).map((t) => t.name)).toContain("ReportExport");
   });
 });

@@ -17,7 +17,7 @@ import {
 } from "@/lib/state/conversations";
 import { updateSettings } from "@/lib/state/settings";
 import { clampWidth, updateUiPrefs, useUiPrefs } from "@/lib/state/ui";
-import { openSettings, setActiveConversation, useNavigation, type SettingsRequest } from "@/lib/state/navigation";
+import { openConversation, openSettings, setActiveConversation, useNavigation, type SettingsRequest } from "@/lib/state/navigation";
 import { blankAgent } from "@/lib/storage/repositories";
 import { addRule } from "@/lib/tools/permissions";
 import {
@@ -98,13 +98,18 @@ export function ChatShell({ settings }: Props) {
      confirmation. */
   const [deleting, setDeleting] = useState<AgentConfig | null>(null);
 
-  const agent =
-    settings.agents.find((a) => a.id === settings.activeAgentId) ??
-    settings.agents[0] ??
-    null;
   const conversation = active
     ? (conversations.find((c) => c.id === active) ?? null)
     : null;
+  /* ⚠️ AN OPEN CONVERSATION IS ANSWERED BY ITS OWN AGENT. Opening one
+     makes its agent active (`openConversation`), but whatever path opened
+     it, the thread never runs — nor labels its replies — with another
+     agent's prompt, tools, workspace and permissions. */
+  const agent =
+    (conversation ? settings.agents.find((a) => a.id === conversation.agentId) : undefined) ??
+    settings.agents.find((a) => a.id === settings.activeAgentId) ??
+    settings.agents[0] ??
+    null;
 
   const providerId = agent?.providerId ?? "";
   const fallback =
@@ -131,21 +136,17 @@ export function ChatShell({ settings }: Props) {
     setPendingMode(null);
   }, []);
 
-  /* "Always" memorises ONE rule for this agent — no more flipping to
-     direct execution (see `lib/tools/permissions.ts`). */
-  const onAllowRule = useCallback(
-    (rule: string) => {
-      const id = settings.activeAgentId;
-      if (id)
-        updateSettings((s) => ({
-          ...s,
-          agents: s.agents.map((a) =>
-            a.id === id ? { ...a, allowRules: addRule(a.allowRules, rule) } : a,
-          ),
-        }));
-    },
-    [settings.activeAgentId],
-  );
+  /* "Always" memorises ONE rule for the agent that ran the turn — no
+     more flipping to direct execution (see `lib/tools/permissions.ts`). */
+  const onAllowRule = useCallback((id: string, rule: string) => {
+    if (id)
+      updateSettings((s) => ({
+        ...s,
+        agents: s.agents.map((a) =>
+          a.id === id ? { ...a, allowRules: addRule(a.allowRules, rule) } : a,
+        ),
+      }));
+  }, []);
 
   /* The mode: the ones the external agent publishes for a subscription,
      our two permission modes otherwise. The choice lives in the
@@ -156,13 +157,13 @@ export function ChatShell({ settings }: Props) {
   const agentAccounts = allowedAccounts(settings.keys.exchanges, agent?.exchangeAccountIds);
   const agentModes = acp ? (catalog.acpModes[acp.id] ?? null) : null;
   const modeOptions = acp ? (agentModes?.options ?? []) : PERMISSION_MODES;
-  const mode = acp
-    ? (conversation?.mode ??
-      pendingMode ??
-      agent?.defaultMode ??
-      agentModes?.current ??
-      null)
-    : (agent?.permissionMode ?? "ask");
+  /* ⚠️ Only a mode the USER picked is sent to the server: it wins there
+     (`turnMode`). With none, the server starts Codex in its asking mode
+     (`askMode`) — so the picker shows that one, not whatever the agent's
+     session happened to report. */
+  const pickedMode = acp ? (conversation?.mode ?? pendingMode ?? agent?.defaultMode ?? null) : null;
+  const askDefault = acp?.askMode && agentModes?.options.some((o) => o.value === acp.askMode) ? acp.askMode : null;
+  const mode = acp ? (pickedMode ?? askDefault ?? agentModes?.current ?? null) : (agent?.permissionMode ?? "ask");
 
   const { send, stop, retry, answer, streamingId, usage, rate, produced, compactError, dismissCompactError } =
     useChat({
@@ -171,7 +172,7 @@ export function ChatShell({ settings }: Props) {
       conversationId: active,
       modelId,
       effort,
-      mode: acp ? mode : null,
+      mode: pickedMode,
       window: currentModel?.contextLength ?? null,
       onConversationCreated,
       onAllowRule,
@@ -300,7 +301,8 @@ export function ChatShell({ settings }: Props) {
   };
 
   const removeConv = (id: string) => {
-    if (acpAgentOf(agent?.providerId)) void closeAcpConversation(id);
+    const owner = settings.agents.find((a) => a.id === conversations.find((c) => c.id === id)?.agentId);
+    if (acpAgentOf(owner?.providerId)) void closeAcpConversation(id);
     removeConversation(id);
     if (id === active) setActiveConversation(null);
   };
@@ -362,7 +364,10 @@ export function ChatShell({ settings }: Props) {
           setMenu(false);
         }}
         onSelectConversation={(id) => {
-          setActiveConversation(id);
+          openConversation(id);
+          setPendingModel(null);
+          setPendingEffort(null);
+          setPendingMode(null);
           setMenu(false);
         }}
         onRemoveConversation={removeConv}

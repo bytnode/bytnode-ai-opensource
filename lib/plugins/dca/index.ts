@@ -3,7 +3,7 @@ import type { ExchangeAccount } from "@/lib/domain/types";
 import { EXPIRY_MS } from "../core/confirmations";
 import { definePlugin, type Session } from "../core/contract";
 import type { PaperService } from "../paper-trading/service";
-import type { SchedulerService } from "../scheduler/service";
+import { PAPER_CASH } from "../shared/paper";
 import { dcaCreateTool } from "./dca-create";
 import { dcaListTool } from "./dca-list";
 import { dcaPauseTool } from "./dca-pause";
@@ -17,26 +17,33 @@ import type { Candle } from "../shared/candle";
 /* ---------------------------------------------------------------------------
    Recurring purchases.
 
-   A scheduler job looks at the plans every minute. A due paper plan buys
-   through the paper trading's service. A due REAL plan is checked (market
-   open, minimum, balance) and then only PROPOSED: `ctx.confirm` parks a
-   PlaceOrder that runs after the user's click — the same prompt as in a
-   conversation, LIVE / TESTNET badge, no "Always" — and `onConfirmed`
-   records what happened. This plugin never places an order itself.
+   A job on the core's clock looks at the plans every minute. A due paper
+   plan buys through the paper trading's service — when that plugin runs:
+   off, the purchase is recorded as failed and said, the real plans go on.
+   A due REAL plan is checked (market open, minimum, balance) and then only
+   PROPOSED: `ctx.confirm` parks a PlaceOrder that runs after the user's
+   click — the same prompt as in a conversation, LIVE / TESTNET badge, no
+   "Always" — and `onConfirmed` records what happened. This plugin never
+   places an order itself.
+
+   Each purchase is recorded AS IT HAPPENS, plan by plan: one plan that
+   breaks never loses what the others bought, and a proposal confirmed
+   before the run ends is recorded as filled, not "proposed".
 --------------------------------------------------------------------------- */
 
 const PLANS = "plans.json";
 const PURCHASES = "purchases.json";
 const GROUPS = "groups.json";
 const MAX_PURCHASES = 2000;
+const PAPER_OFF = "Paper trading is off (Settings → Plugins): this paper plan cannot buy.";
 
 type Handled = { purchase: Purchase; notice?: { title: string; body: string; level: "success" | "error" | "warning" } };
 
 export const dcaPlugin = definePlugin({
   manifest: dcaManifest,
   setup(ctx) {
-    const scheduler = ctx.inject<SchedulerService>("scheduler");
-    const paper = ctx.inject<PaperService>("paper-trading");
+    /* Read at each use: the paper trading may be switched on or off. */
+    const paper = () => ctx.optional<PaperService>("paper-trading");
     const plans = () => ctx.store.read<DcaPlan[]>(PLANS, []);
     const purchases = () => ctx.store.read<Purchase[]>(PURCHASES, []);
     const groups = () => ctx.store.read<DcaGroup[]>(GROUPS, []);
@@ -68,7 +75,13 @@ export const dcaPlugin = definePlugin({
       });
       return "error" in result ? result : result.group;
     };
-    const record = (list: Purchase[]) => ctx.store.update<Purchase[]>(PURCHASES, [], (all) => [...all, ...list].slice(-MAX_PURCHASES));
+    /** Adds purchases; one already there (a proposal whose decision was
+        recorded first, `onConfirmed`) is kept as it is. */
+    const record = (list: Purchase[]) =>
+      ctx.store.update<Purchase[]>(PURCHASES, [], (all) => {
+        const known = new Set(all.map((p) => p.id));
+        return [...all, ...list.filter((p) => !known.has(p.id))].slice(-MAX_PURCHASES);
+      });
     const add = async (plan: DcaPlan) => void (await ctx.store.update<DcaPlan[]>(PLANS, [], (list) => [...list, plan]));
     const change = async (id: string, action: PlanAction) => {
       let result = { error: "" } as ReturnType<typeof changePlan>;
@@ -84,7 +97,9 @@ export const dcaPlugin = definePlugin({
       const base = { id: randomUUID().slice(0, 12), planId: plan.id, due, at: new Date().toISOString(), ...(late ? { late: true } : {}) };
       const [asset, quote] = plan.symbol.split("/");
       if (plan.destination === "paper") {
-        const r = await paper.buy({ symbol: plan.symbol, quoteAmount: plan.quoteAmount, note: `DCA ${plan.id}` }, { bytnodeKey: session.bytnodeKey, accounts: session.exchangeAccounts, signal });
+        const desk = paper();
+        if (!desk) return { purchase: { ...base, mode: "paper", status: "failed", detail: PAPER_OFF }, notice: { title: `DCA (paper) not possible: ${plan.symbol}`, body: PAPER_OFF, level: "error" } };
+        const r = await desk.buy({ symbol: plan.symbol, quoteAmount: plan.quoteAmount, note: `DCA ${plan.id}` }, { bytnodeKey: session.bytnodeKey, accounts: session.exchangeAccounts, signal });
         if ("error" in r || !r.fill) {
           const detail = "error" in r ? r.error : "The paper order did not fill.";
           return { purchase: { ...base, mode: "paper", status: "failed", detail }, notice: { title: `DCA (paper) failed: ${plan.symbol}`, body: detail, level: "error" } };
@@ -107,12 +122,14 @@ export const dcaPlugin = definePlugin({
         accountId: account.id,
         title: `DCA purchase ready: ${plan.quoteAmount} ${quote} of ${asset}`,
         reason: `${late ? `Due ${due.slice(0, 16).replace("T", " ")} UTC, missed while the app was closed. ` : ""}Plan ${plan.id} (${plan.frequency}): market buy of ${plan.quoteAmount} ${quote} of ${asset} on ${account.label} (${account.testnet ? "TESTNET" : "LIVE"}), about ${Number((plan.quoteAmount / checked.price).toPrecision(6))} ${asset} at ${checked.price}. Nothing is bought until you confirm.`,
-        payload: { planId: plan.id, due },
+        /* What `onConfirmed` needs to write the purchase itself, should the
+           user decide before this run records it. */
+        payload: { planId: plan.id, due, purchaseId: base.id, mode, ...(late ? { late: true } : {}) },
       });
       return { purchase: { ...base, mode, status: "proposed", confirmationId: c.id } };
     };
 
-    scheduler.job({
+    ctx.job({
       id: "due",
       title: "DCA purchases",
       every: "every 1 minute",
@@ -139,22 +156,48 @@ export const dcaPlugin = definePlugin({
         });
         if (due.length === 0) return "Nothing due.";
         const pending = known.filter((p) => p.status === "proposed" && !stale(p));
-        const handled: Handled[] = [];
-        for (const d of due) handled.push(await handle(d.plan, d.due, d.late, session, signal, pending));
-        await record(handled.map((h) => h.purchase));
-        for (const h of handled) if (h.notice) await ctx.notify({ ...h.notice, action: { kind: "open-view", view: "dca" } });
-        return handled.map((h) => `${h.purchase.planId}: ${h.purchase.status}`).join(", ");
+        const said: string[] = [];
+        for (const d of due) {
+          let h: Handled;
+          try {
+            h = await handle(d.plan, d.due, d.late, session, signal, pending);
+          } catch (e) {
+            /* One plan breaking never costs the others their records. */
+            const detail = e instanceof Error ? e.message : String(e);
+            h = {
+              purchase: { id: randomUUID().slice(0, 12), planId: d.plan.id, due: d.due, at: new Date().toISOString(), mode: d.plan.destination === "paper" ? "paper" : "live", status: "failed", detail, ...(d.late ? { late: true } : {}) },
+              notice: { title: `DCA purchase failed: ${d.plan.symbol}`, body: detail, level: "error" },
+            };
+          }
+          await record([h.purchase]);
+          if (h.notice) await ctx.notify({ ...h.notice, action: { kind: "open-view", view: "dca" } });
+          said.push(`${h.purchase.planId}: ${h.purchase.status}`);
+        }
+        return said.join(", ");
       },
     });
 
     /* The user decided a proposal: what the exchange did is recorded. */
+    /* ⚠️ The user may decide BEFORE the run has recorded the proposal (the
+       notification shows at once; the next plan's exchange check takes
+       seconds): the purchase is then written here, from the payload, and
+       the run's later record keeps it as it is. */
     ctx.onConfirmed(async (c) => {
       const status: Purchase["status"] = c.status === "allowed" ? "filled" : c.status === "denied" ? "refused" : c.status === "expired" ? "expired" : "failed";
       const fill = c.status === "allowed" ? readOrderOutcome(c.outcome ?? "") : {};
-      await ctx.store.update<Purchase[]>(PURCHASES, [], (all) => all.map((p) => (p.confirmationId === c.id ? { ...p, status, ...fill, ...(c.outcome ? { detail: c.outcome } : {}) } : p)));
+      const decided = { status, ...fill, ...(c.outcome ? { detail: c.outcome } : {}) };
+      const payload = (c.payload ?? {}) as { planId?: unknown; due?: unknown; purchaseId?: unknown; mode?: unknown; late?: unknown };
+      await ctx.store.update<Purchase[]>(PURCHASES, [], (all) => {
+        const mine = (p: Purchase) => p.confirmationId === c.id || (typeof payload.purchaseId === "string" && p.id === payload.purchaseId);
+        if (all.some(mine)) return all.map((p) => (mine(p) ? { ...p, ...decided, confirmationId: c.id } : p));
+        if (typeof payload.purchaseId !== "string" || typeof payload.planId !== "string") return all;
+        const at = new Date().toISOString();
+        const row: Purchase = { id: payload.purchaseId, planId: payload.planId, due: typeof payload.due === "string" ? payload.due : at, at, mode: payload.mode === "testnet" ? "testnet" : "live", confirmationId: c.id, ...(payload.late === true ? { late: true } : {}), ...decided };
+        return [...all, row].slice(-MAX_PURCHASES);
+      });
     });
 
-    ctx.tool(dcaCreateTool(add, paper.cash, groupFor));
+    ctx.tool(dcaCreateTool(add, PAPER_CASH, groupFor, () => paper() !== undefined));
     ctx.tool(dcaListTool(async () => ({ plans: await plans(), purchases: await purchases(), groups: await groups() })));
     ctx.tool(dcaPauseTool(change));
 
@@ -169,7 +212,8 @@ export const dcaPlugin = definePlugin({
         plans: list.map((plan) => ({ ...plan, summary: summarize(all.filter((p) => p.planId === plan.id)) })),
         groups: known,
         purchases: all.slice(-300).reverse(),
-        paperCash: paper.cash,
+        paperCash: PAPER_CASH,
+        paperOn: paper() !== undefined,
       };
     });
     /* The current price of every pair the plans buy: what they are worth.
@@ -240,7 +284,8 @@ export const dcaPlugin = definePlugin({
       if ("error" in home) throw new Error(home.error);
       const plan = newPlan({ ...params, accountId, groupId: home.id }, randomUUID().slice(0, 8), new Date());
       if ("error" in plan) throw new Error(plan.error);
-      if (plan.destination === "paper" && plan.symbol.split("/")[1] !== paper.cash) throw new Error(`The paper portfolio trades against ${paper.cash}: use ${plan.symbol.split("/")[0]}/${paper.cash}.`);
+      if (plan.destination === "paper" && plan.symbol.split("/")[1] !== PAPER_CASH) throw new Error(`The paper portfolio trades against ${PAPER_CASH}: use ${plan.symbol.split("/")[0]}/${PAPER_CASH}.`);
+      if (plan.destination === "paper" && !paper()) throw new Error(PAPER_OFF);
       await add(plan);
       return plan;
     });

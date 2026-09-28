@@ -3,11 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentConfig } from "@/lib/domain/types";
-import type { NotificationInput, Session } from "../core/contract";
-import { pluginStore, type PluginStore } from "../core/store";
-import { Clock, JOBS, RUNS, TASKS, type ClockDeps } from "./engine";
-import type { JobSpec } from "./service";
-import { afterRun, taskKey, type AgentTask, type RunRecord, type RunState } from "./tasks";
+import { Clock, JOBS, JobFailure, RUNS, type ClockDeps, type JobSpec } from "./clock";
+import type { NotificationInput, Session } from "./contract";
+import { afterRun, type RunRecord, type RunState } from "./schedule";
+import { pluginStore, type PluginStore } from "./store";
 
 const at = (h: number, m = 0, d = 23) => new Date(2026, 8, d, h, m).getTime();
 const SESSION = { agents: [{ id: "a1", name: "Analyst" }] as AgentConfig[] } as Session;
@@ -16,10 +15,10 @@ let root: string;
 let store: PluginStore;
 let session: Session | null;
 let notes: NotificationInput[];
-let runAgent: ReturnType<typeof vi.fn<ClockDeps["runAgent"]>>;
+let logs: string[];
 let clock: Clock;
 
-const deps = (): ClockDeps => ({ store, session: () => session, notify: async (n) => void notes.push(n), runAgent, log: () => {} });
+const deps = (): ClockDeps => ({ store, session: () => session, notify: async (_owner, n) => void notes.push(n), log: (m) => void logs.push(m) });
 const states = () => store.read<Record<string, RunState>>(JOBS, {});
 
 beforeEach(async () => {
@@ -27,7 +26,7 @@ beforeEach(async () => {
   store = pluginStore("scheduler", root);
   session = SESSION;
   notes = [];
-  runAgent = vi.fn<ClockDeps["runAgent"]>(async () => ({ ok: true, text: "## Brief\nBTC is up 2 %." }));
+  logs = [];
   clock = new Clock(deps());
 });
 
@@ -39,7 +38,7 @@ afterEach(async () => {
 
 const job = (over: Partial<JobSpec> = {}): JobSpec => ({ id: "snap", title: "Snapshot", every: "every 5 minutes", run: vi.fn(async () => "done"), ...over });
 
-describe("scheduler clock — jobs", () => {
+describe("the core clock — jobs", () => {
   it("runs a due job while a session is live, and records its state", async () => {
     const spec = job();
     clock.register("portfolio:snap", "portfolio", spec);
@@ -127,31 +126,69 @@ describe("scheduler clock — jobs", () => {
   });
 });
 
-describe("scheduler clock — agent tasks", () => {
-  const task = (over: Partial<AgentTask> = {}): AgentTask => ({ id: "t1", title: "Morning brief", prompt: "Brief me.", agent: "Analyst", frequency: "every 1 hour", catchUp: "skip", status: "active", createdAt: "", ...over });
-
-  it("runs the agent, logs the report and announces it as a conversation", async () => {
-    await store.write(TASKS, [task()]);
+describe("the core clock — sources, failures, back-off", () => {
+  it("a source is read at every tick; a paused job runs only when asked", async () => {
+    const run = vi.fn(async () => "ran");
+    let paused = false;
+    clock.source("scheduler", async () => [{ id: "task:t1", title: "Brief", every: "every 1 hour", paused, run }]);
     await clock.tick(at(10));
     await clock.idle();
-    expect(runAgent).toHaveBeenCalledWith(expect.objectContaining({ agentId: "Analyst", prompt: "Brief me.", purpose: 'scheduled task "Morning brief", every 1 hour' }), SESSION);
-    const [run] = await store.lines<RunRecord>(RUNS);
-    expect(run).toMatchObject({ kind: "task", ref: "t1", agentId: "a1", ok: true, text: "## Brief\nBTC is up 2 %.", prompt: "Brief me." });
-    expect(notes).toEqual([{ title: "Scheduled task: Morning brief", body: "Brief", level: "success", action: { kind: "open-conversation", conversationId: `run-${run.id}` } }]);
-    expect((await states())[taskKey("t1")]).toMatchObject({ lastStatus: "ok" });
+    expect(run).toHaveBeenCalledTimes(1);
+    expect((await states())["scheduler:task:t1"]).toMatchObject({ lastStatus: "ok", lastMessage: "ran" });
+    paused = true;
+    await clock.tick(at(11, 1));
+    await clock.idle();
+    expect(run).toHaveBeenCalledTimes(1);
+    await clock.trigger("scheduler:task:t1");
+    await clock.tick(at(11, 2));
+    await clock.idle();
+    expect(run).toHaveBeenCalledTimes(2);
   });
 
-  it("a paused task waits, unless asked to run now; a failure says why", async () => {
-    runAgent.mockResolvedValueOnce({ ok: false, error: "No OpenRouter key: this agent cannot run." });
-    await store.write(TASKS, [task({ status: "paused" })]);
+  it("a JobFailure is marked failed, with no second record or notice from the clock", async () => {
+    const spec = job({ run: vi.fn(async () => Promise.reject(new JobFailure("no key"))) });
+    clock.register("scheduler:task:t1", "scheduler", spec);
     await clock.tick(at(10));
     await clock.idle();
-    expect(runAgent).not.toHaveBeenCalled();
-    await clock.trigger(taskKey("t1"));
-    await clock.tick(at(10, 1));
+    expect((await states())["scheduler:task:t1"]).toMatchObject({ lastStatus: "failed", lastMessage: "no key", nextRun: new Date(at(10, 5)).toISOString() });
+    expect(notes).toEqual([]);
+    expect(await store.lines(RUNS)).toEqual([]);
+  });
+
+  it("a run that breaks outside its own handling waits instead of being relaunched at every tick", async () => {
+    const spec = job({ every: "every 1 minute", run: vi.fn(async () => "ok") });
+    /* The state cannot be written: the run succeeds, its settling throws. */
+    const refusing = { ...store, update: (name: string, fallback: unknown, change: (c: unknown) => unknown) => (name === JOBS ? Promise.reject(new Error("disk full")) : store.update(name, fallback, change)) } as PluginStore;
+    const fragile = new Clock({ ...deps(), store: refusing });
+    fragile.register("x:fragile", "x", spec);
+    for (let i = 0; i <= 4; i++) {
+      await fragile.tick(at(10, 0) + i * 15_000);
+      await fragile.idle();
+    }
+    expect(spec.run).toHaveBeenCalledTimes(1);
+    expect(logs.join("\n")).toMatch(/x:fragile/);
+  });
+
+  it("a tick that rejects is logged, never an unhandled rejection", async () => {
+    vi.useFakeTimers();
+    try {
+      const failing = new Clock({ ...deps(), session: () => SESSION, store: { ...store, update: () => Promise.reject(new Error("disk busy")) } as PluginStore });
+      failing.start();
+      await vi.advanceTimersByTimeAsync(15_000);
+      failing.stop();
+      expect(logs.some((l) => /tick failed: disk busy/.test(l))).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("unregistering a job cancels its run in progress: nothing is recorded for it", async () => {
+    const spec = job({ run: vi.fn(({ signal }) => new Promise<string>((_r, reject) => signal.addEventListener("abort", () => reject(new Error("aborted"))))) });
+    const unregister = clock.register("x:long", "x", spec);
+    await clock.tick(at(10));
+    unregister();
     await clock.idle();
-    expect(runAgent).toHaveBeenCalledTimes(1);
-    expect(notes[0]).toMatchObject({ title: "Scheduled task failed: Morning brief", body: "No OpenRouter key: this agent cannot run.", level: "error", action: { kind: "open-view" } });
-    expect((await store.lines<RunRecord>(RUNS))[0]).toMatchObject({ ok: false, error: "No OpenRouter key: this agent cannot run." });
+    expect(notes).toEqual([]);
+    expect(await store.lines<RunRecord>(RUNS)).toEqual([]);
   });
 });

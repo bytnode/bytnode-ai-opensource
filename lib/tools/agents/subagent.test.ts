@@ -131,3 +131,10 @@ describe("reportSection / parseWorkflowReport", () => {
     expect(parseWorkflowReport(`noise\n## A — ${professionInfo("standard").label}\n\nbody`)).toEqual([{ title: "A", profession: "standard", body: "body", failed: false }]);
   });
 });
+
+describe("failureBody", () => {
+  it("says an interruption plainly, keeps other reasons", () => {
+    expect(failureBody("signal is aborted without reason")).toMatch(/^\[failed: interrupted/);
+    expect(failureBody("Python missing")).toBe("[failed: Python missing]");
+  });
+});

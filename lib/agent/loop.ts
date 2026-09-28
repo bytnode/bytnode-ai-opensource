@@ -45,6 +45,13 @@ export type LoopDeps = {
   emit: (e: AgentEvent) => void;
   tools: ToolSpec[];
   maxTurns?: number;
+  /** Whether the model behind `complete` accepts image input. When false
+      (a sub-agent, a background run: they report in text and may run on a
+      text-only model), image attachments are never pushed into the history
+      sent back to the model — a text-only model would reject the turn with
+      "No endpoints found that support image input". The images still reach
+      the thread through `emit`. Default: true. */
+  modelSeesImages?: boolean;
   signal: AbortSignal;
 };
 
@@ -96,6 +103,17 @@ export async function runAgentLoop(messages: ProviderMessage[], deps: LoopDeps):
         break;
       } catch (e) {
         if (deps.signal.aborted) throw e;
+        /* A text-only model: the provider refuses the whole turn as soon as
+           the history holds an image ("No endpoints found that support image
+           input" — a Read of a PNG, a Chart, an attached screenshot). The
+           images are replaced by a note with their name and the turn is
+           replayed once, instead of the task failing. */
+        if (!emitted && refusesImages(e) && stripImages(history)) {
+          text = "";
+          acc.reset();
+          attempt--;
+          continue;
+        }
         if (emitted || attempt + 1 >= MAX_ATTEMPTS || !isTransient(e)) throw e;
         const delay = backoffDelay(attempt);
         deps.emit({
@@ -168,8 +186,12 @@ export async function runAgentLoop(messages: ProviderMessage[], deps: LoopDeps):
     }
 
     /* A read image does not fit in a tool result (text only): it is shown
-       to the model in a separate message, right after. */
-    if (images.length > 0) {
+       to the model in a separate message, right after. A sub-agent or a
+       background run reports in text — and may run on a text-only model
+       that rejects image input — so their loop sets `modelSeesImages:
+       false` and no image is pushed (the chart still exists on disk, and
+       its path is in the tool's text). */
+    if (images.length > 0 && deps.modelSeesImages !== false) {
       history.push({
         role: "user",
         content: images.flatMap((im) => [
@@ -179,6 +201,25 @@ export async function runAgentLoop(messages: ProviderMessage[], deps: LoopDeps):
       });
     }
   }
+}
+
+/** The provider's refusal of image input by the chosen model. */
+export const refusesImages = (e: unknown): boolean => /support(s)? image input|image input is not supported|does not support image/i.test(e instanceof Error ? e.message : String(e));
+
+/** Replaces every image of the history by a text note, in place; `true`
+    when there was one. */
+export function stripImages(history: ProviderMessage[]): boolean {
+  let found = false;
+  for (const m of history) {
+    if (!Array.isArray(m.content)) continue;
+    const parts = m.content as Array<{ type: string; text?: string; image_url?: unknown }>;
+    if (!parts.some((p) => p.type === "image_url")) continue;
+    found = true;
+    m.content = parts.map((p) =>
+      p.type === "image_url" ? { type: "text" as const, text: "[image not shown: this model does not read images — its file path is given in the text]" } : p,
+    ) as typeof m.content;
+  }
+  return found;
 }
 
 /** The sentence to return to the model if the call does not respect the

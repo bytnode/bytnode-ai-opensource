@@ -13,7 +13,7 @@ import { badgeOf } from "./present";
 
 type Args = { symbol: string; quoteAmount: number; frequency: string; destination: "paper" | "exchange"; account?: string; start?: string; end?: string; note?: string; group?: string };
 
-export function dcaCreateTool(add: (plan: DcaPlan) => Promise<void>, paperCash: string, groupFor: (name: string) => Promise<DcaGroup | { error: string }>): Tool<Args> {
+export function dcaCreateTool(add: (plan: DcaPlan) => Promise<void>, paperCash: string, groupFor: (name: string) => Promise<DcaGroup | { error: string }>, paperOn: () => boolean = () => true): Tool<Args> {
   return {
     name: "DcaCreate",
     policy: { gated: true, subagent: false },
@@ -51,6 +51,7 @@ export function dcaCreateTool(add: (plan: DcaPlan) => Promise<void>, paperCash: 
       const plan = newPlan({ ...args, accountId, groupId, startAt: args.start, endAt: args.end }, randomUUID().slice(0, 8), new Date());
       if ("error" in plan) return fail(plan.error);
       if (plan.destination === "paper" && plan.symbol.split("/")[1] !== paperCash) return fail(`The paper portfolio trades against ${paperCash}: use ${plan.symbol.split("/")[0]}/${paperCash}.`);
+      if (plan.destination === "paper" && !paperOn()) return fail("Paper trading is off (Settings → Plugins): a paper plan cannot buy. Ask the user to switch it on, or use `destination: exchange`.");
       await add(plan);
       const badge = badgeOf(plan, accounts);
       const quote = plan.symbol.split("/")[1];

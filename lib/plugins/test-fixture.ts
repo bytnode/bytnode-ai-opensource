@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { AppNotification, Confirmation, PluginsState } from "@/lib/domain/plugins";
 import type { Tool, ToolContext } from "@/lib/tools/types";
+import type { JobSpec } from "./core/clock";
 import type { ConfirmationRequest, NotificationInput, PluginDefinition, Session } from "./core/contract";
 import { PluginRuntime } from "./core/runtime";
 import { pluginStore } from "./core/store";
@@ -17,6 +18,8 @@ export type Harness = {
   confirmations: Array<ConfirmationRequest & { plugin: string }>;
   session: { current: Session | null };
   tool(name: string): Tool;
+  /** A job the plugins registered on the core's clock, by `<plugin>:<id>`. */
+  job(key: string): JobSpec;
   ctx(over?: Partial<ToolContext>): ToolContext;
   close(): Promise<void>;
 };
@@ -56,6 +59,11 @@ export async function harness(definitions: PluginDefinition[], state: PluginsSta
       const t = runtime.tools(null).find((x) => x.name === name);
       if (!t) throw new Error(`No tool ${name}`);
       return t;
+    },
+    job(key) {
+      const spec = runtime.clock.spec(key);
+      if (!spec) throw new Error(`No job ${key}`);
+      return spec;
     },
     ctx: (over = {}) => ({
       workspace: root,

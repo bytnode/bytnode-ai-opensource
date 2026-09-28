@@ -1,5 +1,5 @@
 import type { Model, Provider } from "@/lib/domain/types";
-import { acpAgentOf } from "@/lib/acp/agents";
+import { acpAgentOf, isAcpProvider } from "@/lib/acp/agents";
 
 /* ---------------------------------------------------------------------------
    The catalog: what OpenRouter publishes, reduced and reorganised.
@@ -112,11 +112,27 @@ export function latestModels(models: Model[], providerId: string, n = 3): Model[
     .slice(0, n);
 }
 
-export function searchModels(models: Model[], providerId: string, query: string): Model[] {
-  const q = query.trim().toLowerCase();
-  const pool = ofProvider(models, providerId);
-  if (!q) return pool;
-  return pool.filter((m) => m.id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q));
+/** Every word of the query, in any order, somewhere in the id or the
+    name: "gemini flash lite" finds `google/gemini-3.5-flash-lite`, "flash
+    v4.1" finds "DeepSeek V4.1 Flash". */
+const matches = (m: Model, words: string[]) => {
+  const hay = `${m.id} ${m.name}`.toLowerCase();
+  return words.every((w) => hay.includes(w));
+};
+
+/** The models of a vendor matching a query, newest first. With
+    `allVendors` (an agent on an OpenRouter key: any model of the catalog
+    can answer), a query searches every vendor's models — the agent's own
+    first — but never a subscription's (`acp:…`), which only its agent
+    can run. An empty query lists the vendor's own models. */
+export function searchModels(models: Model[], providerId: string, query: string, opts: { allVendors?: boolean } = {}): Model[] {
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const own = ofProvider(models, providerId);
+  if (words.length === 0) return own;
+  const found = own.filter((m) => matches(m, words));
+  if (!opts.allVendors) return found;
+  const others = models.filter((m) => m.providerId !== providerId && !isAcpProvider(m.providerId) && matches(m, words)).sort(byNewest);
+  return [...found, ...others];
 }
 
 export function searchProviders(providers: Provider[], query: string): Provider[] {

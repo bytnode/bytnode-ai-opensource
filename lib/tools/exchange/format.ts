@@ -60,11 +60,18 @@ export function formatPositions(positions: Position[]): string {
     .join("\n");
 }
 
+/* The client id PlaceOrder / ClosePosition put on their orders (`bnai` + 12
+   hex, `orderClientId` in common.ts; Gate prefixes it with `t-`): shown so
+   that an order whose answer was lost can be found. The exchanges' own
+   ids (broker tags) are noise and stay hidden. */
+const OUR_CLIENT_ID = /bnai[0-9a-f]{12}/;
+
 export function formatOrders(orders: Order[]): string {
   if (orders.length === 0) return "No order.";
   return orders
     .map((o) => {
-      const parts = [iso(o.timestamp), `#${o.id}`, o.symbol, `${(o.side ?? "?").toUpperCase()} ${o.type} ${n8(o.amount)}${o.price ? ` @ ${n8(o.price)}` : ""}`];
+      const client = typeof o.clientOrderId === "string" ? OUR_CLIENT_ID.exec(o.clientOrderId)?.[0] : undefined;
+      const parts = [iso(o.timestamp), `#${o.id}${client ? ` (client id ${client})` : ""}`, o.symbol, `${(o.side ?? "?").toUpperCase()} ${o.type} ${n8(o.amount)}${o.price ? ` @ ${n8(o.price)}` : ""}`];
       if (o.filled) parts.push(`filled ${n8(o.filled)}${o.average ? ` (avg. ${n8(o.average)})` : ""}`);
       parts.push(String(o.status ?? "?"));
       if (o.fee?.cost) parts.push(`fee ${n8(o.fee.cost)} ${o.fee.currency ?? ""}`.trim());

@@ -1,7 +1,7 @@
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
-import { OutsideWorkspaceError, displayPath, expandHome, resolvePath } from "./paths";
+import { OutsideWorkspaceError, displayPath, expandHome, isInside, resolvePath } from "./paths";
 
 /* Portable paths: `path.resolve("/x")` gives `C:\x` on Windows and `/x`
    elsewhere — the tests run on all three OSes (GitHub matrix). */
@@ -28,6 +28,12 @@ describe("resolvePath, workspace scope", () => {
   test("refuses a path that climbs out", () => {
     expect(() => resolvePath(ws, "../secret", "workspace")).toThrow(OutsideWorkspaceError);
     expect(() => resolvePath(ws, "src/../../secret", "workspace")).toThrow(OutsideWorkspaceError);
+    expect(() => resolvePath(ws, "..", "workspace")).toThrow(OutsideWorkspaceError);
+  });
+
+  test("a name that starts with dots is a file inside", () => {
+    expect(resolvePath(ws, "..notes.md", "workspace")).toBe(path.join(ws, "..notes.md"));
+    expect(isInside(ws, path.join(ws, "...", "x"))).toBe(true);
   });
 
   test("refuses an absolute path elsewhere, even with a look-alike prefix", () => {

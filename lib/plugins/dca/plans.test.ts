@@ -20,6 +20,14 @@ describe("editing a DCA", () => {
     const back = editPlan("error" in ended ? [] : ended.plans, "p1", { endAt: "" }, now);
     expect("error" in back ? back.error : back.plan).toMatchObject({ status: "active", nextDue: at(28, 9).toISOString() });
   });
+
+  it("F4: refuses an end before the start or in the past, and an absurd amount — like the creation", () => {
+    const p = plan({ startAt: at(24, 0).toISOString() });
+    expect(editPlan([p], "p1", { endAt: "1999-01-01" }, now)).toEqual({ error: "The end must come after the start." });
+    expect(editPlan([plan({ startAt: at(1, 0).toISOString() })], "p1", { endAt: at(10, 0).toISOString() }, now)).toMatchObject({ error: expect.stringMatching(/in the future/) });
+    expect(editPlan([p], "p1", { quoteAmount: 1e300 }, now)).toMatchObject({ error: expect.stringMatching(/at most 10,000,000/) });
+    expect(newPlan({ symbol: "btc", quoteAmount: 1e300, frequency: "every 7 days", destination: "paper" }, "p2", now)).toMatchObject({ error: expect.stringMatching(/at most/) });
+  });
 });
 
 describe("DCA plans", () => {

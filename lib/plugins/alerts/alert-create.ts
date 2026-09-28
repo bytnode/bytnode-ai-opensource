@@ -12,7 +12,7 @@ import { EXAMPLES, METRICS_HELP, describeCondition, onPosition, parseCondition }
 
 type Args = { symbol: string; condition: string; once?: boolean; note?: string; account?: string };
 
-export function alertCreateTool(add: (alert: Alert) => Promise<void>, hasCalendar: () => boolean): Tool<Args> {
+export function alertCreateTool(add: (alert: Alert) => Promise<void>, hasCalendar: () => boolean, hasWatchlist: () => boolean = () => true): Tool<Args> {
   return {
     name: "AlertCreate",
     policy: { gated: false, subagent: false },
@@ -43,6 +43,7 @@ export function alertCreateTool(add: (alert: Alert) => Promise<void>, hasCalenda
       }
       const made = newAlert({ target: args.symbol, condition: args.condition, once: args.once, note: args.note, accountId }, randomUUID().slice(0, 8), new Date());
       if ("error" in made) return fail(made.error);
+      if (made.alert.target === WATCHLIST && !hasWatchlist()) return fail("Watchlist alerts need the watchlist: it is off (Settings → Plugins). Set the alert on a pair instead, or ask the user to switch the watchlist on.");
       await add(made.alert);
       const a = made.alert;
       const target = a.target === WATCHLIST ? "every asset of the watchlist" : a.target;

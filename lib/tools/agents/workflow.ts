@@ -87,6 +87,11 @@ async function runOne(task: SubagentTask, index: number, context: string | undef
         },
         tools: specs,
         maxTurns: SUBAGENT_TURNS,
+        /* A sub-agent reports in text; its model may not accept images. Its
+           charts stay on disk and are cited by path — never pushed to the
+           model, which would reject the turn ("No endpoints found that
+           support image input"). */
+        modelSeesImages: false,
         signal: ctx.signal,
       },
     );

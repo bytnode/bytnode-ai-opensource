@@ -2,6 +2,7 @@ import type { AgentConfig, ExchangeAccount, Profile } from "@/lib/domain/types";
 import type { AppNotification, Confirmation, NotificationAction, NotificationLevel, PluginConfig, PluginManifest, PluginsState } from "@/lib/domain/plugins";
 import type { Tool } from "@/lib/tools/types";
 import type { Transport } from "@/lib/tools/transport";
+import type { JobSpec } from "./clock";
 import type { Disposer } from "./scope";
 import type { PluginStore } from "./store";
 
@@ -10,10 +11,15 @@ import type { PluginStore } from "./store";
 
    A plugin is a manifest (`lib/domain/plugins.ts`) and a `setup(ctx)` that
    receives the core's EXTENSION POINTS and plugs into them what it brings.
-   It reaches nothing else: not the other plugins (it asks for their
-   service, which must be a declared dependency), not the core's
+   It reaches nothing else: not the other plugins (it may use the service
+   of one it declares `optional`, and must work without it), not the core's
    guarantees. Everything it registers belongs to its scope and disappears
    when it stops.
+
+   ⚠️ EVERY PLUGIN IS INDEPENDENT. No plugin needs another one to run:
+   switching one off never switches off or breaks another. What several
+   plugins use lives in the core (the clock: `job`, `jobs`, `trigger`) or
+   in `lib/plugins/shared/`.
 
    The same contract for the plugins shipped with the app and for those of
    a future library: the difference is a product decision, not a technical
@@ -81,17 +87,28 @@ export interface PluginContext {
   /** Called when one of this plugin's confirmations is decided (run,
       refused, expired). */
   onConfirmed(handler: (confirmation: Confirmation) => void | Promise<void>): void;
+  /** EXTENSION POINT — background work on the core's clock (`clock.ts`):
+      runs on the Next server only, while a tab is open, never twice at
+      once, and goes when this plugin stops. */
+  job(spec: JobSpec): void;
+  /** EXTENSION POINT — jobs read again at every tick (a list the user
+      edits, possibly from another process). */
+  jobs(list: () => Promise<JobSpec[]>): void;
+  /** Asks for one of this plugin's jobs to run as soon as possible — from
+      any process (a tool served over MCP asks through the disk). */
+  trigger(jobId: string): Promise<void>;
+  /** Is one of this plugin's jobs running now (in this process)? */
+  jobRunning(jobId: string): boolean;
   /** Events: `on("watchlist:changed", …)`; `emit("changed")` publishes
       `<this plugin>:changed`. */
   on(event: string, listener: (payload: unknown) => void | Promise<void>): void;
   emit(event: string, payload?: unknown): void;
-  /** The service this plugin offers to the plugins that depend on it. The
-      factory receives the CALLER's context: what the caller registers
-      through the service (a job) belongs to the caller's scope. */
+  /** The service this plugin offers to the plugins that use it
+      optionally. The factory receives the CALLER's context: what the
+      caller registers through the service belongs to the caller's scope. */
   provide<T>(factory: (caller: PluginContext) => T): void;
-  /** A required plugin's service (declared in `requires`). */
-  inject<T>(id: string): T;
-  /** An optional plugin's service (declared in `optional`), if it runs. */
+  /** An optional plugin's service (declared in `optional`), if it runs —
+      read at each use: it may come and go. */
   optional<T>(id: string): T | undefined;
   readonly store: PluginStore;
   /** The live session's keys, or null (no tab open). */

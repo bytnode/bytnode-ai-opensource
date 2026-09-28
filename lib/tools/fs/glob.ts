@@ -46,7 +46,9 @@ export const globTool: Tool<Args> = {
       );
       withTime.sort((a, b) => b.t - a.t);
       const list = withTime.slice(0, LIMIT).map(({ f }) => displayPath(ctx.workspace, f));
-      if (list.length === 0) return ok(`No file matches ${args.pattern} in ${displayPath(ctx.workspace, root)}.`);
+      /* "in .." read as the parent folder: the root is named in words. */
+      const where = displayPath(ctx.workspace, root);
+      if (list.length === 0) return ok(`No file matches \`${args.pattern}\` in ${where === "." ? "the workspace" : `\`${where}\``}.`);
       const more = withTime.length > LIMIT ? `\n[… ${withTime.length - LIMIT} more]` : "";
       return ok(list.join("\n") + more);
     } catch (e) {

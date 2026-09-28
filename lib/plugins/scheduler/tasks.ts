@@ -1,15 +1,16 @@
 import type { AgentConfig } from "@/lib/domain/types";
-import { missedSince, nextRun, parseFrequency, type Frequency } from "../core/frequency";
-import type { CatchUp } from "./service";
+import { nextRun, parseFrequency } from "../core/frequency";
+import type { CatchUp, RunState } from "../core/schedule";
 
 /* ---------------------------------------------------------------------------
-   What the scheduler decides: when something is due, what to do with a run
-   missed while the app was closed, and how a background run is framed.
-
-   Two kinds of scheduled things share these rules: the JOBS other plugins
-   register (no model) and the user's AGENT TASKS ("a market brief every
-   morning at 8"). Pure, tested.
+   The user's AGENT TASKS ("a market brief every morning at 8"): what one
+   is, how it is named and changed, when it runs next, and how its
+   background run is framed. When something is due is decided by the
+   core's clock (`../core/schedule.ts`), the same rules as the plugins'
+   jobs. Pure, tested.
 --------------------------------------------------------------------------- */
+
+export { afterRun, decide, type CatchUp, type Decision, type RunRecord, type RunState } from "../core/schedule";
 
 export type AgentTask = {
   id: string;
@@ -23,69 +24,6 @@ export type AgentTask = {
   status: "active" | "paused";
   createdAt: string;
 };
-
-/** What happened last, and what comes next, for a job or a task. */
-export type RunState = {
-  lastRun?: string;
-  lastStatus?: "ok" | "failed";
-  lastMessage?: string;
-  nextRun?: string;
-  /** The frequency the next run was computed with: if it changes, the next
-      run is computed again. */
-  every?: string;
-};
-
-/** A finished run of an agent task (and the failures of jobs): the log
-    the view reads, and what the browser turns into a conversation. */
-export type RunRecord = {
-  id: string;
-  kind: "task" | "job";
-  ref: string;
-  title: string;
-  agentId?: string;
-  prompt?: string;
-  startedAt: string;
-  finishedAt: string;
-  ok: boolean;
-  text?: string;
-  error?: string;
-};
-
-export type Decision = { run: false; state: RunState } | { run: true; reason: "schedule" | "manual" | "catch-up" };
-
-/** What to do with a job or a task at `now`. `resumed`: the first tick
-    after a period without a live session (app closed, no tab open). */
-export function decide(every: string, state: RunState, now: number, opts: { resumed: boolean; catchUp: CatchUp; triggered: boolean }): Decision | { error: string } {
-  const f = parseFrequency(every);
-  if ("error" in f) return { error: f.error };
-  if (opts.triggered) return { run: true, reason: "manual" };
-  const last = state.lastRun ? Date.parse(state.lastRun) : undefined;
-  if (opts.resumed && last !== undefined && missedSince(f, last, now)) {
-    if (opts.catchUp === "run-once-on-start") return { run: true, reason: "catch-up" };
-    return { run: false, state: { ...state, nextRun: new Date(upcoming(f, now)).toISOString(), every } };
-  }
-  const known = state.nextRun && state.every === every ? Date.parse(state.nextRun) : undefined;
-  const due = known ?? (last !== undefined ? nextRun(f, last) : firstRun(f, now));
-  if (due <= now) return { run: true, reason: "schedule" };
-  return known === undefined ? { run: false, state: { ...state, nextRun: new Date(due).toISOString(), every } } : { run: false, state };
-}
-
-/** A new schedule: an interval starts at once, a time of day waits for it. */
-const firstRun = (f: Frequency, now: number) => (f.kind === "interval" ? now : nextRun(f, now));
-
-/** The next occurrence strictly after `now`. */
-const upcoming = (f: Frequency, now: number) => (f.kind === "interval" ? now + f.minutes * 60_000 : nextRun(f, now));
-
-/** The state after a run that started at `startedAt`. */
-export function afterRun(every: string, startedAt: number, ok: boolean, message: string | undefined): RunState {
-  const f = parseFrequency(every);
-  return {
-    lastRun: new Date(startedAt).toISOString(),
-    lastStatus: ok ? "ok" : "failed",
-    ...(message ? { lastMessage: message.slice(0, 500) } : {}),
-    ...("error" in f ? {} : { nextRun: new Date(Math.max(nextRun(f, startedAt), startedAt + 30_000)).toISOString(), every }),
-  };
-}
 
 /** The agent a task names, by id or by name. */
 export const findAgent = (agents: AgentConfig[], ref: string): AgentConfig | undefined => {
@@ -111,8 +49,10 @@ export function newTask(input: { title?: unknown; prompt?: unknown; agent?: unkn
 /** The conversation a finished task becomes in the browser. */
 export const runConversationId = (runId: string) => `run-${runId}`;
 
-/** Where a task's state is kept, next to the jobs' (`jobs.json`). */
-export const taskKey = (id: string) => `task:${id}`;
+/** A task's job id: the clock keeps its state under `scheduler:task:<id>`
+    (`taskKey`), next to the jobs' (`jobs.json`). */
+export const taskJobId = (id: string) => `task:${id}`;
+export const taskKey = (id: string) => `scheduler:${taskJobId(id)}`;
 
 export type TaskAction = "pause" | "resume" | "delete";
 

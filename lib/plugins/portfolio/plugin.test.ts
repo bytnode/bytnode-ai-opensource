@@ -60,4 +60,10 @@ describe("portfolio plugin", () => {
     h = await harness([portfolioPlugin]);
     expect((await h.tool("PortfolioHistory").execute({ days: 30 }, h.ctx())).output).toMatch(/No snapshot in the last 30 days/);
   });
+
+  it("F2: the view's history clamps `days` (a huge one made an invalid date)", async () => {
+    h = await harness([portfolioPlugin]);
+    const req = { transport: { bytnodeKey: "", exchangeAccounts: [] }, signal: new AbortController().signal } as unknown as import("../core/contract").ApiRequest;
+    for (const days of [1_000_000_000, -10, Number.NaN, 2.6]) await expect(h.runtime.handler("portfolio", "history")!({ days }, req)).resolves.toMatchObject({ points: [] });
+  });
 });

@@ -1,10 +1,10 @@
 import { readTransport } from "@/lib/tools/transport";
 import { isAcpAgentId } from "@/lib/acp/agents";
-import { runTurn, type WireEvent } from "@/lib/acp/sessions";
+import { claimTurnAfterStop, releaseTurn, runTurn, type WireEvent } from "@/lib/acp/sessions";
 import { syncSkills } from "@/lib/acp/skills-sync";
 import { loadProfession } from "@/lib/professions/load";
 import { DEFAULT_PROFESSION, isProfessionId } from "@/lib/professions/catalog";
-import { PROJECT_ROOT, resolveWorkspace } from "@/lib/server/workspace";
+import { PROJECT_ROOT, resolveWorkspace, workspaceError } from "@/lib/server/workspace";
 import { userSkills } from "@/lib/tools/skills/skill";
 import { readyRuntime } from "@/lib/plugins/host";
 import { pluginSkills } from "@/lib/plugins/extras";
@@ -16,6 +16,10 @@ import { pluginSkills } from "@/lib/plugins/extras";
    thread events (text, calls, results), the permission requests
    (`{type:"permission"}`, to be answered through /api/acp/permission), and
    `done`. Closing the request interrupts the turn.
+
+   The conversation is claimed FIRST (`claimTurn`): a second prompt while
+   one runs — or is still being prepared — is refused at once (409), and a
+   Stop or a cancel during the preparation counts.
 --------------------------------------------------------------------------- */
 
 type Body = {
@@ -48,21 +52,37 @@ export async function POST(req: Request) {
   }
   const agent = body.agent;
   const agentId = body.agentId ?? "";
+  const claim = await claimTurnAfterStop(body.conversationId, req.signal);
+  if (!claim) return Response.json({ error: { message: "This conversation already has a turn in progress." } }, { status: 409 });
   const { bytnodeKey, exchangeAccounts, plugins } = readTransport(req.headers);
-  const workspace = await resolveWorkspace(agentId, body.workspace);
-  const runtime = await readyRuntime();
-  const [profession, extra] = await Promise.all([
-    loadProfession(PROJECT_ROOT, isProfessionId(body.profession) ? body.profession : DEFAULT_PROFESSION),
-    pluginSkills(runtime, plugins),
-  ]);
+  /* ⚠️ Everything before the stream is inside a try: a throw here used to
+     escape the route as a bare 500 with an empty body (an uncreatable
+     workspace), and would now also keep the conversation claimed. */
+  let workspace: string;
   try {
-    /* The profession's skills, the plugins', then your own
-       (`~/.bytnode-ai/skills/`). */
-    const t0 = Date.now();
-    await syncSkills(workspace, [...profession.skills, ...extra, ...(await userSkills())]);
-    console.info(`[acp] skills synced in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
-  } catch {
-    /* a read-only folder does not prevent talking */
+    workspace = await resolveWorkspace(agentId, body.workspace);
+  } catch (e) {
+    releaseTurn(claim);
+    return workspaceError(e);
+  }
+  try {
+    const runtime = await readyRuntime();
+    const [profession, extra] = await Promise.all([
+      loadProfession(PROJECT_ROOT, isProfessionId(body.profession) ? body.profession : DEFAULT_PROFESSION),
+      pluginSkills(runtime, plugins),
+    ]);
+    try {
+      /* The profession's skills, the plugins', then your own
+         (`~/.bytnode-ai/skills/`). */
+      const t0 = Date.now();
+      await syncSkills(workspace, [...profession.skills, ...extra, ...(await userSkills())]);
+      console.info(`[acp] skills synced in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+    } catch {
+      /* a read-only folder does not prevent talking */
+    }
+  } catch (e) {
+    releaseTurn(claim);
+    return Response.json({ error: { message: `Could not prepare the turn: ${e instanceof Error ? e.message : String(e)}` } }, { status: 500 });
   }
 
   const encoder = new TextEncoder();
@@ -99,6 +119,7 @@ export async function POST(req: Request) {
           },
           send,
           req.signal,
+          claim,
         );
       } catch (e) {
         send({ type: "error", message: e instanceof Error ? e.message : String(e) });

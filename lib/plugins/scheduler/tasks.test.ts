@@ -32,6 +32,17 @@ describe("decide", () => {
     expect(decide("daily at 08:00", state, at(10), { ...opts, resumed: true, catchUp: "run-once-on-start" })).toEqual({ run: true, reason: "catch-up" });
   });
 
+  it("catch-up 'skip' also holds for a task that never ran: its first time, missed while closed, is skipped", () => {
+    /* Created at 20:00 for "daily at 08:00"; the app reopens at 14:00 the day after. */
+    const first = decide("daily at 08:00", {}, at(20, 0, 22), opts) as { state: RunState };
+    expect(decide("daily at 08:00", first.state, at(14), { ...opts, resumed: true })).toMatchObject({ run: false, state: { nextRun: new Date(at(8, 0, 24)).toISOString() } });
+    expect(decide("daily at 08:00", first.state, at(14), { ...opts, resumed: true, catchUp: "run-once-on-start" })).toEqual({ run: true, reason: "catch-up" });
+    /* An interval task planned a moment ago still runs at the first (resumed) tick. */
+    const fresh = decide("every 30 minutes", {}, at(10), opts);
+    expect(fresh).toEqual({ run: true, reason: "schedule" });
+    expect(decide("every 30 minutes", { nextRun: new Date(at(10)).toISOString(), every: "every 30 minutes" }, at(10, 1), { ...opts, resumed: true })).toEqual({ run: true, reason: "schedule" });
+  });
+
   it("a request runs now; a bad frequency says why", () => {
     expect(decide("daily at 08:00", {}, at(7), { ...opts, triggered: true })).toEqual({ run: true, reason: "manual" });
     expect(decide("sometimes", {}, at(7), opts)).toMatchObject({ error: expect.stringMatching(/Unreadable frequency/) });

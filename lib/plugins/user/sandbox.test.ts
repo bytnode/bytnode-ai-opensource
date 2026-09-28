@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { Sandbox, syntaxError, type HostOps } from "./sandbox";
+import { HEAP_OVERHEAD, Sandbox, heapSize, syntaxError, type HostOps } from "./sandbox";
 
 const boxes: Sandbox[] = [];
 afterEach(() => {
@@ -96,6 +96,56 @@ describe("the sandbox of a plugin written by an agent", () => {
     const b = await box(ops, { timeoutMs: 150 });
     await b.setup(`export function setup(ctx) { ctx.action("wait", () => ctx.fetch("https://api.example.com")); }`);
     await expect(b.invoke((registered[0].args as { fn: number }).fn, [])).rejects.toThrow(/did not finish within/);
+  });
+
+  /* ⚠️ S8 / F8: QuickJS's own limit does not count long strings; the heap
+     cap does. The same allocation reached 350 MB before. */
+  it("S8: long strings cannot take the heap past its cap, and the plugin hears it at once", { timeout: 30_000 }, async () => {
+    const { ops, registered } = recorder();
+    const b = await box(ops, { memoryBytes: 16 * 1024 * 1024 });
+    await b.setup(`export function setup(ctx) { ctx.action("eat", () => { const held = []; let reached = 0; try { for (let i = 0; i < 400; i++) { held.push("y".repeat(1024 * 1024) + i); reached = i + 1; } return "reached " + reached; } catch (e) { return "stopped at " + reached + ": " + e.message; } }); }`);
+    const started = Date.now();
+    const out = await b.invoke((registered[0].args as { fn: number }).fn, []);
+    expect(out).toMatch(/^stopped at \d+: out of memory/);
+    expect(Number(/stopped at (\d+)/.exec(String(out))![1])).toBeLessThan(16 + HEAP_OVERHEAD / 1024 / 1024);
+    expect(heapSize(b.module)).toBeLessThanOrEqual(16 * 1024 * 1024 + HEAP_OVERHEAD);
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+
+  it("S8: each sandbox has a heap of its own, capped whatever the others do", async () => {
+    const a = await box(recorder().ops);
+    const b = await box(recorder().ops);
+    expect(a.module).not.toBe(b.module);
+  });
+
+  /* S9: a busy loop that awaits a host call now and then used to get a
+     fresh slice each time, and hold the server for good. */
+  it("S9: the processor time of a call is counted across its awaits", { timeout: 30_000 }, async () => {
+    const { ops, registered } = recorder(async () => "ok");
+    const b = await box(ops, { sliceMs: 400, cpuMs: 1_000 });
+    await b.setup(`export function setup(ctx) { ctx.action("hog", async () => { for (let i = 0; i < 50; i++) { const s = Date.now(); while (Date.now() - s < 300) {} await ctx.fetch("x"); } return "never"; }); }`);
+    const started = Date.now();
+    await expect(b.invoke((registered[0].args as { fn: number }).fn, [])).rejects.toThrow(/processor time/);
+    expect(Date.now() - started).toBeLessThan(3_000);
+    expect(b.dead).toMatch(/processor time/);
+  });
+
+  /* S10 / F7: after the timeout, the plugin kept writing to its store. */
+  it("S10: a call past its timeout stops the plugin: none of its host calls lands afterwards", { timeout: 30_000 }, async () => {
+    const seen: string[] = [];
+    const { ops, registered } = recorder(async (op, args) => {
+      seen.push(`${op}:${JSON.stringify(args)}`);
+      await new Promise((r) => setTimeout(r, 20));
+      return null;
+    });
+    const b = await box(ops, { timeoutMs: 300 });
+    await b.setup(`export function setup(ctx) { ctx.action("spin", async () => { for (let i = 0; ; i++) await ctx.store.set("spin", { i }); }); }`);
+    await expect(b.invoke((registered[0].args as { fn: number }).fn, [])).rejects.toThrow(/did not finish within .* stopped/);
+    const count = seen.length;
+    await new Promise((r) => setTimeout(r, 300));
+    expect(seen.length).toBeLessThanOrEqual(count + 1);
+    expect(b.dead).toMatch(/did not finish/);
+    await expect(b.invoke(1, [])).rejects.toThrow(/did not finish/);
   });
 
   it("points at the line of a syntax error", async () => {

@@ -11,7 +11,7 @@ export const paperTradingManifest: PluginManifest = {
   description:
     "A simulated portfolio to try a strategy, move from a backtest toward real trading without risk, or discover the app without giving an exchange key. Orders take the same shape as real ones — market or limit, spot or futures with leverage — and fill at the current BytNode price (or your exchange's), with the fees and slippage you set; a limit waits until the market reaches it. Every paper order carries a PAPER badge in the thread, and the agents always say that a paper result is simulated, never a real performance.",
   requires: [],
-  optional: ["scheduler", "report-export"],
+  optional: ["report-export"],
   needs: [],
   config: {
     type: "object",

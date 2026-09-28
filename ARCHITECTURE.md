@@ -112,6 +112,14 @@ subprocess, spoken to over the [Agent Client Protocol](https://agentclientprotoc
   (`skills-sync.ts`).
 - **Translation** — `translate.ts` turns ACP updates into the app's events (text, tool calls,
   plans, usage, cards). Permission requests come back through `/api/acp/permission`.
+- **Modes** — an agent's own mode picker decides how much it asks; with nothing picked, Codex
+  starts in its `read-only` mode (it asks before writes and commands).
+- **Money, whatever the mode** — the tool server (`lib/mcp/serve-call.ts`) never runs PlaceOrder,
+  ClosePosition or Transfer before BytNode-AI's user has confirmed it: it calls
+  `POST /api/acp/confirm`, which raises the prompt on the agent's step in the conversation
+  (`confirmCall` in `sessions.ts`: Allow / Deny, LIVE/TESTNET badge, a one-time nonce only the
+  browser sees). The agent's own request for these tools is answered once, so the user sees one
+  prompt. One turn at a time per conversation (`claimTurn`: a second prompt gets 409).
 - **Sign-in** — `auth.ts`: the vendor's CLI when it has one, otherwise the protocol's
   `authenticate` method or a terminal window.
 
@@ -137,7 +145,7 @@ exchange tools when the agent has an account, and the plugins' tools.
 | `skills/` | Skill |
 | `finance/` | Memory |
 | `exchange/` | the ten exchange tools |
-| `plugins/` | PluginWrite, PluginCheck, PluginActivate, PluginRead |
+| `plugins/` | PluginWrite, PluginEdit, PluginCheck, PluginActivate, PluginRead |
 
 **Policy.** Each tool declares `policy: { readOnly, gated, alwaysAsk, subagent }`;
 `lib/tools/policy.ts` resolves it over a floor no tool can lower (`names.ts`): orders, position
@@ -187,10 +195,17 @@ settings) and an `index.ts` (`definePlugin({ manifest, setup(ctx) })`), register
 | Position calculator | `position-calc` |
 | Report export | `report-export` |
 
-**The runtime** (`lib/plugins/core/`) starts plugins in dependency order; a failing plugin is
-marked in error and its dependents blocked. `ctx` is a plugin's only way in: tools, prompt
-sections, view actions (`/api/plugins/<id>/<action>`), notifications, confirmations for orders,
-events, shared services, and a store in `~/.bytnode-ai/plugins/<id>/`. Two runtimes exist: one in
+**Every plugin is independent**: no plugin requires another, and switching one off never switches
+off or breaks another (`catalog.test.ts` enforces it). Machinery several plugins use lives in the
+core or in `lib/plugins/shared/` — the job clock (`core/clock.ts`, reached through `ctx.job`),
+price reading, paper cash — and an integration with another plugin is optional and degrades
+gracefully when that plugin is off.
+
+**The runtime** (`lib/plugins/core/`) starts the enabled plugins; a failing plugin is marked in
+error and nothing else is affected. `ctx` is a plugin's only way in: tools, prompt
+sections, view actions (`/api/plugins/<id>/<action>`, answering 400 / 404 / 503 / 500 by cause),
+notifications, confirmations for orders, scheduled jobs, events, optional services, and a store in
+`~/.bytnode-ai/plugins/<id>/` (atomic writes, cross-process lock). Two runtimes exist: one in
 the Next server (with background work, while a browser tab keeps a session alive) and one per MCP
 server (tools only, for subscription agents).
 
@@ -200,14 +215,20 @@ server (tools only, for subscription agents).
 **Plugins written by agents** (`lib/plugins/user/`):
 
 1. The agent writes a draft with `PluginWrite` — `plugin.json`, `server.js`, `tests.js`, `view/*` —
-   guided by the `create-plugin` and `plugin-design` skills.
+   guided by the `create-plugin` and `plugin-design` skills. A targeted change to an existing file
+   goes through `PluginEdit` instead: exact text fragments, applied atomically, no whole-file
+   rewrite.
 2. `PluginCheck` verifies it inside the app: manifest, code, a dry setup, the plugin's own tests,
    its page.
 3. `PluginActivate` asks the user, in the conversation, to approve exactly what the plugin may
    reach. The approval is bound to the code's digest.
-4. `server.js` runs in **QuickJS compiled to WebAssembly**, one runtime per plugin, with memory,
-   CPU and time limits. It has no `require`, network or file access of its own: every call goes
-   through `host-ops.ts`, checked against the grant.
+4. `server.js` runs in **QuickJS compiled to WebAssembly**, one WebAssembly instance per plugin:
+   its memory is capped (the instance's own memory growth is bounded, since QuickJS's limit does
+   not count long strings), each call has a CPU budget across its awaits on top of a 2 s slice,
+   and a call that overruns its time or budget stops the sandbox (a fresh one starts at the next
+   call). Tools and actions can only be registered during setup. It has no `require`, network or
+   file access of its own: every call goes through `host-ops.ts`, checked against the grant, and
+   its network requests go through the same checked, pinned fetch as WebFetch.
 5. Its tab is a sandboxed iframe with the BytNode kit (`lib/plugins/user/kit/`).
 
 On disk: `~/.bytnode-ai/bytnode-plugin-user/<id>/` holds `draft/`, `active/`, `data/`,
@@ -227,6 +248,10 @@ On disk: `~/.bytnode-ai/bytnode-plugin-user/<id>/` holds `draft/`, `active/`, `d
   wallet), so a call that cannot work is refused before it is made.
 - Read tools: balance, positions, orders, ticker, watch. Action tools: place order, cancel, close
   position, transfer, set leverage — **never available to sub-agents, always confirmed**.
+- An order, a close or a transfer is **sent once** (`sendOnce` in `common.ts`): if the answer is
+  lost after the send, the tool reports an unknown outcome and tells the agent what to check — it
+  is never re-sent. Orders carry a client id so they can be found again. Sizes are converted to
+  contracts on contract markets (`contractSizeOf`).
 - Tests use a fake exchange (`test-fixture.ts`); they never call a real one.
 
 ---
@@ -253,8 +278,11 @@ The app is published on npm as `bytnode-ai`.
 - `bin/bytnode-ai.mjs` is the launcher. Run through `npx`, it installs the `bytnode-ai` command
   globally, then starts `next start` on `127.0.0.1` with the package folder as its working directory.
 - `prepack` (`scripts/prepack.ts`) builds cleanly, restores the real names of external packages in
-  the built chunks, and refuses the archive if `lib/publish/pack-check.ts` finds a key, a personal
-  file or the build machine's path.
+  the built chunks, bundles the tool server for subscription agents into `.next/finance-server.mjs`
+  (tsx cannot resolve the `@/` aliases of a package installed under `node_modules`;
+  `lib/mcp/server-launch.ts` uses the bundle in production, tsx in development), and refuses the
+  archive if `lib/publish/pack-check.ts` finds a key, a personal file, the build machine's path, or
+  a missing bundle. `npm run smoke:pack` installs the archive and starts that bundle.
 - `prepublishOnly` bumps the patch version when the current one is already on npm.
 - `package.json` `files` is a whitelist; development output (`.next/dev`, source maps, trace files)
   is excluded.

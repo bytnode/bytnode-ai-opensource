@@ -32,9 +32,10 @@ describe("plugin.json", () => {
     expect(r.value.manifest.config.properties.currency.default).toBe("USD");
   });
 
-  it("uses the scheduler optionally when it asks to run on a schedule", () => {
+  it("needs no other plugin, even to run on a schedule (the clock is the core's)", () => {
     const r = readUserManifest("u-dividends", { ...valid, permissions: { schedule: true } });
-    expect(r.ok && r.value.manifest.optional).toEqual(["scheduler"]);
+    expect(r.ok && r.value.manifest.optional).toEqual([]);
+    expect(r.ok && r.value.manifest.requires).toEqual([]);
   });
 
   it("lists every problem in words the agent can act on", () => {

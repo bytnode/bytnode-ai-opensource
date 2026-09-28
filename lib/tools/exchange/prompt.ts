@@ -50,6 +50,7 @@ export function exchangePromptSection(
     "Discipline:",
     "- Before an order: ExchangeBalance then ExchangeTicker on the account's exchange; compute the quantity in base asset, or give `quoteAmount`.",
     "- An order, a close or a transfer ALWAYS requires the user's consent: wait for the result, do not chain them blindly. After an order, confirm with ExchangeOrders.",
+    "- An action is never re-sent by the tools. If one answers \"Outcome UNKNOWN\" (timeout, lost connection), it may have gone through: do NOT send it again before checking ExchangeOrders (the client id it gives), ExchangePositions or ExchangeBalance.",
     "- If there are several accounts, always name `account`. Specify `market: futures` for perpetuals.",
     "- No withdrawal to an external address exists; Transfer only moves between the wallets of a single account (spot ↔ futures, and funding → trading where deposits land in a Funding wallet: Bybit, OKX, KuCoin, Binance). If ExchangeBalance reports funds in Funding, propose that transfer before any order.",
     "- To follow a position over time, ExchangeWatch with an `until` condition; it is bounded to 10 minutes, run it again if needed.",

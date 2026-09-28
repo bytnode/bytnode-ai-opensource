@@ -1,15 +1,16 @@
-import dns from "node:dns/promises";
-import net from "node:net";
 import TurndownService from "turndown";
 import { gfm } from "@joplin/turndown-plugin-gfm";
 import type { Tool } from "../types";
 import { errorText, fail, ok } from "../types";
+import { publicFetch } from "./public-fetch";
 
 /* ---------------------------------------------------------------------------
    WebFetch: the same system as DeepSeek Harness.
 
-   Native `fetch`, redirects followed by hand and only to the same origin,
-   anti-SSRF guard (the host must resolve to a public address), content
+   Redirects followed by hand to any PUBLIC address (http → https, apex →
+   www), each hop checked, and the connection made to the address that was
+   checked (`public-fetch.ts`: no private, loopback or reserved address, no
+   DNS rebinding between the check and the connection), content
    classified by type — HTML converted to markdown with turndown and the GFM
    plugin, text/JSON/XML returned as is, the rest refused. Bounds: 5 MB
    read, 100,000 characters returned, 30 s. A non-2xx status is a result,
@@ -41,31 +42,8 @@ export function htmlToMarkdown(html: string): string {
   }
 }
 
-function isPublicIp(ip: string): boolean {
-  if (net.isIPv4(ip)) {
-    const [a, b] = ip.split(".").map(Number);
-    if (a === 10 || a === 127 || a === 0) return false;
-    if (a === 169 && b === 254) return false;
-    if (a === 172 && b >= 16 && b <= 31) return false;
-    if (a === 192 && b === 168) return false;
-    if (a === 100 && b >= 64 && b <= 127) return false;
-    return true;
-  }
-  const v6 = ip.toLowerCase();
-  return !(v6 === "::1" || v6 === "::" || v6.startsWith("fc") || v6.startsWith("fd") || v6.startsWith("fe80") || v6.startsWith("::ffff:"));
-}
-
-/** Refuses what is not http(s) or does not resolve to a public address. */
-export async function assertPublic(url: URL) {
-  if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("Only http and https are accepted.");
-  const host = url.hostname;
-  if (host === "localhost" || net.isIP(host)) {
-    if (host === "localhost" || !isPublicIp(host)) throw new Error("Local or private address refused.");
-    return;
-  }
-  const addrs = await dns.lookup(host, { all: true });
-  if (addrs.length === 0 || addrs.some((a) => !isPublicIp(a.address))) throw new Error(`${host} does not resolve to a public address.`);
-}
+/* Kept here for the callers that imported it from WebFetch. */
+export { assertPublic } from "./public-fetch";
 
 type Kind = "html" | "text";
 
@@ -77,46 +55,21 @@ function classify(contentType: string): Kind | null {
 }
 
 export async function fetchAsMarkdown(rawUrl: string, signal: AbortSignal): Promise<{ finalUrl: string; status: number; body: string; truncated: boolean }> {
-  let url = new URL(rawUrl);
   if (rawUrl.length > 2048) throw new Error("URL too long.");
-  for (let hop = 0; ; hop++) {
-    await assertPublic(url);
-    const res = await fetch(url, {
-      redirect: "manual",
-      signal,
-      headers: { Accept: "text/html,application/xhtml+xml,text/*;q=0.9,application/json;q=0.8", "User-Agent": "Mozilla/5.0 (compatible; AgentChat/1.0)" },
-    });
-    if (res.status >= 300 && res.status < 400) {
-      const loc = res.headers.get("location");
-      if (!loc || hop >= MAX_REDIRECTS) throw new Error("Too many redirects.");
-      const next = new URL(loc, url);
-      if (next.origin !== url.origin) throw new Error(`Redirect to another origin refused (${next.origin}).`);
-      url = next;
-      continue;
-    }
-    const kind = classify(res.headers.get("content-type") ?? "");
-    if (!kind) throw new Error(`Unsupported content type: ${res.headers.get("content-type") ?? "unknown"}.`);
-    const reader = res.body?.getReader();
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-    if (reader) {
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        size += value.byteLength;
-        chunks.push(value);
-        if (size >= MAX_BYTES) {
-          await reader.cancel();
-          break;
-        }
-      }
-    }
-    const raw = new TextDecoder(charsetOf(res.headers.get("content-type") ?? "")).decode(Buffer.concat(chunks));
-    let body = kind === "html" ? htmlToMarkdown(raw) : raw;
-    const truncated = body.length > MAX_CHARS || size >= MAX_BYTES;
-    if (body.length > MAX_CHARS) body = body.slice(0, MAX_CHARS);
-    return { finalUrl: url.toString(), status: res.status, body, truncated };
-  }
+  const res = await publicFetch(rawUrl, {
+    signal,
+    maxBytes: MAX_BYTES,
+    maxRedirects: MAX_REDIRECTS,
+    headers: { accept: "text/html,application/xhtml+xml,text/*;q=0.9,application/json;q=0.8", "user-agent": "Mozilla/5.0 (compatible; AgentChat/1.0)" },
+  });
+  const type = res.headers["content-type"] ?? "";
+  const kind = classify(type);
+  if (!kind) throw new Error(`Unsupported content type: ${type || "unknown"}.`);
+  const raw = new TextDecoder(charsetOf(type)).decode(res.body);
+  let body = kind === "html" ? htmlToMarkdown(raw) : raw;
+  const truncated = body.length > MAX_CHARS || res.truncated;
+  if (body.length > MAX_CHARS) body = body.slice(0, MAX_CHARS);
+  return { finalUrl: res.url, status: res.status, body, truncated };
 }
 
 const charsetOf = (ct: string) => {
@@ -135,7 +88,7 @@ export const webFetchTool: Tool<Args> = {
   name: "WebFetch",
   policy: { readOnly: true, subagent: true },
   description:
-    "Fetches the content of a URL (http/https) and returns it as markdown (converted HTML) or text (JSON, XML, plain text). Follows same-origin redirects. Limited to 100,000 characters.",
+    "Fetches the content of a URL (http/https) and returns it as markdown (converted HTML) or text (JSON, XML, plain text). Follows redirects (public addresses only). Limited to 100,000 characters.",
   parameters: {
     type: "object",
     properties: { url: { type: "string", description: "The full address." } },

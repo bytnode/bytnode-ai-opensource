@@ -2,6 +2,7 @@ import type { Tool } from "@/lib/tools/types";
 import { fail, ok } from "@/lib/tools/types";
 import { transportHeaders, type Transport } from "@/lib/tools/transport";
 import { acpModelId } from "@/lib/acp/agents";
+import type { ConfirmVerdict } from "./serve-call";
 import { failureBody, readTasks, reportSection, runInPool, subagentMessage, workflowDescription, workflowParameters, type SubagentTask } from "@/lib/tools/agents/subagent";
 
 /* ---------------------------------------------------------------------------
@@ -23,6 +24,82 @@ export function parentLinkFromEnv(env: Record<string, string | undefined>): Pare
   const { BYTNODE_AI_PARENT: conversationId, BYTNODE_AI_ORIGIN: origin, BYTNODE_AI_SUBAGENT_TOKEN: token, BYTNODE_AI_ACP_AGENT: agent } = env;
   if (!conversationId || !origin || !token || !agent) return null;
   return { conversationId, origin, token, agent };
+}
+
+/** Where to say « my tools are served » (`/api/acp/ready`), when the
+    session that launched this server waits for it (`LATE_MCP` in
+    `sessions.ts`: Codex starts its MCP servers without waiting). */
+export type ReadyLink = { origin: string; id: string };
+
+export function readyLinkFromEnv(env: Record<string, string | undefined>): ReadyLink | null {
+  const { BYTNODE_AI_ORIGIN: origin, BYTNODE_AI_READY_ID: id } = env;
+  return origin && id ? { origin, id } : null;
+}
+
+/** Tells the Next server the tool list has been served. Best effort: the
+    waiting side gives up on its own after a few seconds. */
+export async function announceReady(link: ReadyLink): Promise<void> {
+  try {
+    await fetch(`${link.origin}/api/acp/ready`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: link.id }),
+      signal: AbortSignal.timeout(5_000),
+    });
+  } catch {
+    /* nobody listening: the prompt goes out after its wait */
+  }
+}
+
+/** Asks BytNode-AI's user to confirm a money action this server is about
+    to run (`/api/acp/confirm` → `confirmCall` in `sessions.ts`). The answer
+    streams (ticks while the user decides, then `done`); anything but an
+    explicit `allowed: true` is a refusal — the app unreachable included. */
+export async function confirmThroughApp(link: ParentLink, tool: string, args: Record<string, unknown>, signal: AbortSignal, fetchImpl: typeof fetch = fetch): Promise<ConfirmVerdict> {
+  const refused = (reason: string): ConfirmVerdict => ({ allowed: false, reason });
+  try {
+    const res = await fetchImpl(`${link.origin}/api/acp/confirm`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ conversationId: link.conversationId, token: link.token, tool, args }),
+      signal,
+    });
+    if (!res.ok || !res.body) {
+      const body = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+      return refused(`BytNode-AI refused to ask (${body?.error?.message ?? `status ${res.status}`}): nothing was sent.`);
+    }
+    let verdict: ConfirmVerdict | null = null;
+    await readNdjson(res.body, (msg) => {
+      if (msg.type !== "done") return false;
+      verdict = msg.allowed === true ? { allowed: true } : refused(typeof msg.reason === "string" && msg.reason ? msg.reason : "Not confirmed: nothing was sent.");
+      return true;
+    });
+    return verdict ?? refused("BytNode-AI closed the connection before the user's answer: nothing was sent.");
+  } catch (e) {
+    return refused(`BytNode-AI could not be asked (${e instanceof Error ? e.message : String(e)}): nothing was sent.`);
+  }
+}
+
+/** Reads an NDJSON body line by line until `onLine` returns true. */
+async function readNdjson(body: ReadableStream<Uint8Array>, onLine: (msg: Record<string, unknown>) => boolean): Promise<void> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) return;
+      buffer += decoder.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buffer.indexOf("\n")) >= 0) {
+        const line = buffer.slice(0, nl).trim();
+        buffer = buffer.slice(nl + 1);
+        if (line && onLine(JSON.parse(line) as Record<string, unknown>)) return;
+      }
+    }
+  } finally {
+    void reader.cancel().catch(() => {});
+  }
 }
 
 type Args = { tasks: unknown; context?: string };

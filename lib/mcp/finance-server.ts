@@ -4,12 +4,11 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import type { Tool, ToolContext } from "@/lib/tools/types";
 import { allTools } from "@/lib/tools/registry";
 import { parseAccountsHeader } from "@/lib/tools/exchange/accounts";
-import { validateArgs } from "@/lib/tools/validate";
 import { parsePluginIds } from "@/lib/tools/transport";
 import { startToolsRuntime } from "@/lib/plugins/host";
 import type { PluginsState } from "@/lib/domain/plugins";
-import { CARD_URI } from "@/lib/acp/wire";
-import { acpWorkflowTool, agentModels, parentLinkFromEnv } from "./acp-workflow";
+import { acpWorkflowTool, agentModels, announceReady, confirmThroughApp, parentLinkFromEnv, readyLinkFromEnv } from "./acp-workflow";
+import { serveCall } from "./serve-call";
 
 /* ---------------------------------------------------------------------------
    BytNode-AI's own tools, served over MCP (stdio) to subscription agents.
@@ -24,9 +23,14 @@ import { acpWorkflowTool, agentModels, parentLinkFromEnv } from "./acp-workflow"
 
    The depth (`BYTNODE_AI_DEPTH`) says whom we serve: a main agent (0) gets
    everything; a sub-agent (1) only what its policy allows it — neither
-   Workflow nor any tool that commits funds: it has nobody to ask.
+   Workflow nor any tool that commits funds: it has nobody to ask. And a
+   tool that commits funds never runs before BytNode-AI's user has
+   confirmed it (`serveCall` → `/api/acp/confirm`), whatever the agent's
+   own permission mode.
 
-   Launched by: node node_modules/tsx/dist/cli.mjs lib/mcp/finance-server.ts
+   Launched by `sessions.ts` through `server-launch.ts`: from the bundle
+   prepack builds (`.next/finance-server.mjs`) in an installed package,
+   through tsx on this file in development.
 --------------------------------------------------------------------------- */
 
 const workspace = process.env.BYTNODE_AI_WORKSPACE ?? process.cwd();
@@ -64,18 +68,25 @@ const toolset = () =>
 
 const server = new Server({ name: "bytnode-ai", version: "0.1.0" }, { capabilities: { tools: {} } });
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: (await toolset()).map((t) => ({ name: t.name, description: t.description, inputSchema: t.parameters })),
-}));
+/* The session that launched us may be waiting for our tools before its
+   first prompt (Codex does not wait for its MCP servers): once the list
+   has gone out, we say so. */
+const ready = readyLinkFromEnv(process.env);
+let announced = false;
+
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+  const listed = { tools: (await toolset()).map((t) => ({ name: t.name, description: t.description, inputSchema: t.parameters })) };
+  if (ready && !announced) {
+    announced = true;
+    setTimeout(() => void announceReady(ready), 0);
+  }
+  return listed;
+});
 
 server.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
   const tool = (await toolset()).find((t) => t.name === req.params.name);
   if (!tool) return { content: [{ type: "text", text: `Unknown tool: ${req.params.name}` }], isError: true };
   const args = (req.params.arguments ?? {}) as Record<string, unknown>;
-  /* Like the OpenRouter loop: an ill-formed call goes back to the model in
-     one sentence, without running. */
-  const invalid = validateArgs(tool.parameters, args);
-  if (invalid) return { content: [{ type: "text", text: `Invalid arguments for ${tool.name}: ${invalid} Fix the call.` }], isError: true };
   const ctx: ToolContext = {
     workspace,
     scope: "workspace",
@@ -90,29 +101,10 @@ server.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
     plugins,
     agentId,
   };
-  try {
-    const result = await tool.execute(args, ctx);
-    const content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string } | { type: "resource"; resource: { uri: string; mimeType: string; text: string } }> = [
-      { type: "text", text: result.output },
-    ];
-    for (const a of result.attachments ?? []) {
-      if (a.type !== "image") continue;
-      const m = /^data:([^;]+);base64,(.*)$/s.exec(a.dataUrl);
-      if (m) content.push({ type: "image", data: m[2], mimeType: m[1] });
-    }
-    /* The plugin's card for the thread, as a resource the translation
-       picks up (`lib/acp/translate.ts`, `cardOf`). */
-    if (result.card) {
-      content.push({ type: "resource", resource: { uri: CARD_URI, mimeType: "application/json", text: JSON.stringify(result.card) } });
-      /* ⚠️ Some agents drop or rewrite a resource block (Claude Code turns
-         it into text, or into the resource's own text): the same card on a
-         marked line, which the translation finds in any text. */
-      content.push({ type: "text", text: `${CARD_URI} ${JSON.stringify(result.card)}` });
-    }
-    return { content, isError: !result.ok };
-  } catch (e) {
-    return { content: [{ type: "text", text: `The tool failed: ${e instanceof Error ? e.message : String(e)}` }], isError: true };
-  }
+  /* A money action waits for the user's yes in BytNode-AI (`serveCall`):
+     only a main agent's server can ask — a sub-agent's has no parent link,
+     and refuses. */
+  return serveCall(tool, args, ctx, parent ? (name, a, signal) => confirmThroughApp(parent, name, a, signal) : null);
 });
 
 void server.connect(new StdioServerTransport());

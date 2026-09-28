@@ -1,6 +1,7 @@
 import { reloadUserPlugins } from "@/lib/plugins/core/active";
 import { checkUserPlugin } from "@/lib/plugins/user/check";
 import { activate, manifestOf, readFiles, readGrant, readRequest, writeDraftFile } from "@/lib/plugins/user/files";
+import { isTrustedGrant } from "@/lib/plugins/user/approval";
 import { covers } from "@/lib/plugins/user/permissions";
 import type { Tool } from "../types";
 import { fail, ok } from "../types";
@@ -56,8 +57,9 @@ export const pluginWriteTool: Tool<Args> = {
   },
 };
 
-/** An approved plugin whose draft passes and asks nothing new: it runs now. */
-async function goLive(id: string): Promise<string> {
+/** An approved plugin whose draft passes and asks nothing new: it runs now.
+    Shared with PluginEdit, whose writes go live under the same rule. */
+export async function goLive(id: string): Promise<string> {
   const grant = await readGrant(id);
   if (!grant) return "Draft only (never activated): when it is complete, PluginCheck then PluginActivate.";
   const report = await checkUserPlugin(id, { taken: await takenToolNames() });
@@ -65,6 +67,7 @@ async function goLive(id: string): Promise<string> {
     const failed = report.steps.find((s) => !s.ok);
     return `Not live yet — the draft does not pass the check${failed ? ` (${failed.name}: ${failed.lines[0] ?? "failed"})` : ""}. The user still sees the previous version. Run PluginCheck for the details.`;
   }
+  if (!isTrustedGrant(id, grant)) return "Not live: its approval must be given again by the user (it is not signed by their browser). PluginActivate — the user approves it in the conversation.";
   if (!covers(grant.permissions, report.manifest.permissions)) return "Not live: it asks for a new permission. PluginActivate — the user approves it in the conversation.";
   if (report.digest === grant.digest) return "Live already: this is the version that runs.";
   if (await readRequest(id)) return "Not live: an approval is pending for this plugin. PluginActivate again once done.";

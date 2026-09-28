@@ -21,6 +21,9 @@ import { dataDir } from "@/lib/server/data-dir";
 const LOCK_WAIT_MS = 10_000;
 const STALE_MS = 30_000;
 const RETRY_MS = 25;
+/** The take-over itself lasts milliseconds: a guard older than this was
+    left by a crash. */
+const TAKEOVER_STALE_MS = 5_000;
 
 export const pluginsDir = (): string => path.join(dataDir(), "plugins");
 
@@ -93,22 +96,27 @@ export async function renameRetry(from: string, to: string): Promise<void> {
 /** Runs `fn` holding the file's lock, across processes. */
 export async function withLock<T>(file: string, fn: () => Promise<T>): Promise<T> {
   const lock = `${file}.lock`;
+  /* Our mark in the lock: released only if it is still ours. */
+  const token = randomUUID();
   await fs.mkdir(path.dirname(file), { recursive: true });
   const deadline = Date.now() + LOCK_WAIT_MS;
   for (;;) {
     try {
       const handle = await fs.open(lock, "wx");
+      try {
+        await handle.writeFile(token);
+      } catch (e) {
+        await handle.close();
+        await fs.rm(lock, { force: true });
+        throw e;
+      }
       await handle.close();
       break;
     } catch (e) {
       /* Windows answers EPERM, not EEXIST, while the holder's lock is being
          deleted: the lock is taken all the same. */
       if ((e as NodeJS.ErrnoException).code !== "EEXIST" && !busy(e)) throw e;
-      const stat = await fs.stat(lock).catch(() => null);
-      if (stat && Date.now() - stat.mtimeMs > STALE_MS) {
-        await fs.rm(lock, { force: true });
-        continue;
-      }
+      if (await takeOverStale(lock)) continue;
       if (Date.now() > deadline) throw new Error(`Busy: ${path.basename(file)} is locked by another process.`);
       await sleep(RETRY_MS);
     }
@@ -116,7 +124,35 @@ export async function withLock<T>(file: string, fn: () => Promise<T>): Promise<T
   try {
     return await fn();
   } finally {
-    await fs.rm(lock, { force: true });
+    /* Taken over meanwhile (we held it past `STALE_MS`): not ours to remove. */
+    const holder = await fs.readFile(lock, "utf8").catch(() => null);
+    if (holder === token) await fs.rm(lock, { force: true });
+  }
+}
+
+/** Removes a lock left by a dead process — ONE waiter at a time. ⚠️ A bare
+    `stat → rm` let a late waiter remove the lock the first one had just
+    re-created: two writers inside, an update lost. So the take-over runs
+    under a second, short-lived lock, and looks at the lock again once
+    inside: a fresh one belongs to a live holder and is left alone. */
+async function takeOverStale(lock: string): Promise<boolean> {
+  const stat = await fs.stat(lock).catch(() => null);
+  if (!stat || Date.now() - stat.mtimeMs <= STALE_MS) return false;
+  const guard = `${lock}.takeover`;
+  try {
+    await (await fs.open(guard, "wx")).close();
+  } catch {
+    /* Someone else is taking it over; a guard left by a crash goes after a while. */
+    const g = await fs.stat(guard).catch(() => null);
+    if (g && Date.now() - g.mtimeMs > TAKEOVER_STALE_MS) await fs.rm(guard, { force: true });
+    return false;
+  }
+  try {
+    const again = await fs.stat(lock).catch(() => null);
+    if (again && Date.now() - again.mtimeMs > STALE_MS) await fs.rm(lock, { force: true });
+    return true;
+  } finally {
+    await fs.rm(guard, { force: true });
   }
 }
 

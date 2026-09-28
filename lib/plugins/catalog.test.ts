@@ -1,10 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { PLUGIN_MANIFESTS } from "./catalog";
 import { PLUGINS } from "./definitions";
 import { startOrder } from "./core/graph";
-import { validValue } from "./core/state";
+import { togglePlugin, validValue } from "./core/state";
+import { harness, type Harness } from "./test-fixture";
 
 describe("the shipped plugins", () => {
   it("the catalog and the server side list the same plugins, same manifests", () => {
@@ -18,6 +19,14 @@ describe("the shipped plugins", () => {
     const views = PLUGIN_MANIFESTS.flatMap((m) => m.views.map((v) => v.id));
     expect(new Set(views).size).toBe(views.length);
     for (const m of PLUGIN_MANIFESTS) for (const dep of m.optional) expect(ids).toContain(dep);
+  });
+
+  /* ⚠️ The user's decision: every plugin is independent. What several of
+     them use lives in the core (the clock) or `shared/`; a plugin may use
+     another OPTIONALLY and must work without it. */
+  it("none requires another: switching one off never switches another off", () => {
+    for (const m of PLUGIN_MANIFESTS) expect(m.requires, m.id).toEqual([]);
+    for (const m of PLUGIN_MANIFESTS) expect(togglePlugin(PLUGIN_MANIFESTS, {}, m.id, false).also, m.id).toEqual([]);
   });
 
   it("each tells the agents what it is for, in full sentences about the user", () => {
@@ -58,4 +67,23 @@ describe("no plugin acts on an exchange account by itself", () => {
     expect(text).not.toMatch(/tools\/exchange\/(place-order|cancel-order|close-position|transfer|set-leverage)/);
     expect(text).not.toMatch(/\.(createOrder|cancelOrder|cancelAllOrders|withdraw|transfer|setLeverage|setMarginMode)\s*\(/);
   });
+});
+
+describe("the shipped plugins, running", () => {
+  let h: Harness;
+  afterAll(async () => h?.close());
+
+  it("switching any one off leaves the nine others running", async () => {
+    h = await harness(PLUGINS);
+    const ids = PLUGIN_MANIFESTS.map((m) => m.id);
+    expect(h.runtime.status().filter((s) => s.state !== "active")).toEqual([]);
+    for (const id of ids) {
+      await h.runtime.apply({ [id]: { enabled: false, config: {}, agentIds: null } });
+      const status = h.runtime.status();
+      expect(status.filter((s) => s.id !== id && s.state !== "active"), `with ${id} off`).toEqual([]);
+      expect(status.find((s) => s.id === id)?.state).toBe("disabled");
+    }
+    await h.runtime.apply({});
+    expect(h.runtime.status().filter((s) => s.state !== "active")).toEqual([]);
+  }, 60_000);
 });

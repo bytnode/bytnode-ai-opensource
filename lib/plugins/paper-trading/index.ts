@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { resolveWorkspace } from "@/lib/server/workspace";
 import { definePlugin } from "../core/contract";
 import type { ReportService } from "../report-export/service";
-import type { SchedulerService } from "../scheduler/service";
 import type { PriceSources } from "../shared/prices";
 import { bytnodePairs, candles, quote } from "../shared/prices";
 import { isInterval } from "../shared/candle";
@@ -24,9 +23,11 @@ import type { PaperService } from "./service";
 /* Paper trading: the simulated portfolios (`books.ts` — several, each with
    its name, the first the default), their four tools, the prompt section,
    the service the DCA buys through (into the default portfolio), a job
-   that watches every portfolio's open limits and positions every minute
-   (when the scheduler runs), and the view's actions, each on the
+   on the core's clock that watches every portfolio's open limits and
+   positions every minute, and the view's actions, each on the
    portfolio it names. */
+
+const CAPITAL_RANGE = "A starting capital between 100 and 10 000 000 USDT.";
 
 /** Maintenance margin of the simulated futures: a typical first tier. */
 const MMR = 0.005;
@@ -117,7 +118,7 @@ export const paperTradingPlugin = definePlugin({
       },
     }));
 
-    ctx.optional<SchedulerService>("scheduler")?.job({
+    ctx.job({
       id: "orders",
       title: "Paper orders",
       every: "every 1 minute",
@@ -153,7 +154,7 @@ export const paperTradingPlugin = definePlugin({
     });
     ctx.api("create", async (params) => {
       const capital = typeof params.capital === "number" && Number.isFinite(params.capital) ? params.capital : settings().capital;
-      if (capital < 100 || capital > 10_000_000) throw new Error("A starting capital between 100 and 10 000 000 USDT.");
+      if (capital < 100 || capital > 10_000_000) throw new Error(CAPITAL_RANGE);
       const id = randomUUID().replace(/-/g, "").slice(0, 8);
       const books = await change((current) => addBook(current, String(params.name ?? ""), id, new Date()));
       const made = books.find((b) => b.id === id)!;
@@ -242,7 +243,14 @@ export const paperTradingPlugin = definePlugin({
       if ("error" in r) throw new Error(r.error);
       return r;
     });
-    ctx.api("reset", async (params) => (await picked(params)).desk.reset(typeof params.capital === "number" ? params.capital : undefined));
+    /* Checked like `create`; no capital: the portfolio's own starting one
+       (what the view's dialog says), not the plugin's default. */
+    ctx.api("reset", async (params) => {
+      const { desk } = await picked(params);
+      const capital = params.capital === undefined || params.capital === null ? (await desk.read()).capital : params.capital;
+      if (typeof capital !== "number" || !Number.isFinite(capital) || capital < 100 || capital > 10_000_000) throw new Error(CAPITAL_RANGE);
+      return desk.reset(capital);
+    });
     ctx.api("export", async (params, { transport, signal }) => {
       const report = ctx.optional<ReportService>("report-export");
       if (!report) throw new Error("Report export is off: switch it on in Settings → Plugins.");

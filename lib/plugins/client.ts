@@ -46,8 +46,33 @@ export const clearPluginData = async (id: string): Promise<void> => void (await 
 
 /** The open tab speaks: the settings (keys included) for the background.
     Answers where each plugin stands. */
+/** The browser's approval key (`lib/plugins/user/approval.ts`): 32 random
+    bytes made once and kept in this browser only. It proves to the server
+    that an approval comes from the user's own tab — an agent's script does
+    not have it. `null` when storage is unavailable (nothing can be approved
+    then, which is the safe side). */
+const APPROVAL_KEY = "agentchat:approval-key";
+export function browserApprovalKey(): string | null {
+  try {
+    let key = localStorage.getItem(APPROVAL_KEY);
+    if (!key || !/^[0-9a-f]{64}$/.test(key)) {
+      const bytes = crypto.getRandomValues(new Uint8Array(32));
+      key = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+      localStorage.setItem(APPROVAL_KEY, key);
+    }
+    return key;
+  } catch {
+    return null;
+  }
+}
+
+const approvalHeader = (): Record<string, string> => {
+  const key = browserApprovalKey();
+  return key ? { "x-bytnode-approval": key } : {};
+};
+
 export async function syncSession(settings: Settings): Promise<PluginStatus[]> {
-  const res = await fetch("/api/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(settings) });
+  const res = await fetch("/api/session", { method: "POST", headers: { "content-type": "application/json", ...approvalHeader() }, body: JSON.stringify(settings) });
   return (await json<{ status: PluginStatus[] }>(res)).status;
 }
 
@@ -80,7 +105,7 @@ export const fetchUserPlugins = async (): Promise<UserPluginInfo[]> => (await js
 export async function decideUserPlugin(id: string, digest: string, allow: boolean, accounts: string[]): Promise<void> {
   const res = await fetch(`/api/user-plugins/${encodeURIComponent(id)}/approve`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...approvalHeader() },
     body: JSON.stringify({ digest, allow, accounts }),
   });
   await json(res);

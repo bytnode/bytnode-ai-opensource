@@ -16,6 +16,17 @@ import { buildChartSvg, type Candle, type ChartSpec } from "./svg";
    to the result: the model sees it, and the thread shows it.
 --------------------------------------------------------------------------- */
 
+/* ⚠️ The schema's bounds are NOT enforced by every caller (a direct
+   `/api/tools/execute`, an MCP client): the rendering is synchronous on the
+   server's thread, and a 100 000 × 100 000 bitmap froze then killed the
+   app. So the sizes are clamped here, whatever arrives. */
+const MAX_POINTS = 3000;
+const MAX_OVERLAYS = 12;
+const MAX_MARKS = 500;
+
+/** An integer within [min, max]; anything else (absent, a string, NaN) gives `fallback`. */
+export const bounded = (v: unknown, min: number, max: number, fallback: number): number => (typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, Math.round(v))) : fallback);
+
 type Args = {
   data: string;
   output?: string;
@@ -84,10 +95,13 @@ export const chartTool: Tool<Args> = {
       return fail(`Cannot read ${displayPath(ctx.workspace, src)}: ${errorText(e)}`);
     }
     const cols = detectColumns(table.columns);
-    if (!cols.close) return fail(`No price column recognised in ${table.columns.join(", ")}. Expected: close / price / value (and time / date).`);
+    if (!cols.close) {
+      const file = displayPath(ctx.workspace, src);
+      return fail(table.columns.length ? `No price column recognised in ${file} (columns: ${table.columns.join(", ")}). Expected: close / price / value (and time / date).` : `${file} is empty: no header, no rows. Expected columns: time / date and close / price / value.`);
+    }
     let rows = table.rows;
-    if (args.last && rows.length > args.last) rows = rows.slice(-args.last);
-    if (rows.length > 3000) rows = rows.slice(-3000);
+    const keep = bounded(args.last, 2, MAX_POINTS, MAX_POINTS);
+    if (rows.length > keep) rows = rows.slice(-keep);
     const num = (r: Row, c?: string) => (c !== undefined && typeof r[c] === "number" ? (r[c] as number) : undefined);
     const series: Candle[] = rows
       .map((r, i) => ({
@@ -101,17 +115,18 @@ export const chartTool: Tool<Args> = {
       .filter((c) => Number.isFinite(c.close));
     if (series.length < 2) return fail("Fewer than two usable points.");
     const hasOhlc = series.every((c) => c.open !== undefined && c.high !== undefined && c.low !== undefined);
-    const missing = (args.overlays ?? []).filter((o) => !table.columns.includes(o));
+    const overlays = (Array.isArray(args.overlays) ? args.overlays : []).slice(0, MAX_OVERLAYS);
+    const missing = overlays.filter((o) => !table.columns.includes(o));
     if (missing.length) return fail(`Columns missing from the CSV: ${missing.join(", ")}. Available columns: ${table.columns.join(", ")}.`);
     const spec: ChartSpec = {
       title: args.title ?? path.basename(args.data),
       type: args.type ?? (hasOhlc ? "candles" : "line"),
       series,
-      overlays: (args.overlays ?? []).map((name) => ({ name, values: rows.map((r) => (typeof r[name] === "number" ? (r[name] as number) : null)) })),
-      markers: (args.markers ?? []).map((m) => ({ ...m, time: toMillis(m.time) ?? 0 })),
-      hlines: args.hlines ?? [],
-      width: args.width ?? 1100,
-      height: args.height ?? 520,
+      overlays: overlays.map((name) => ({ name, values: rows.map((r) => (typeof r[name] === "number" ? (r[name] as number) : null)) })),
+      markers: (Array.isArray(args.markers) ? args.markers : []).slice(0, MAX_MARKS).map((m) => ({ ...m, time: toMillis(m.time) ?? 0 })),
+      hlines: (Array.isArray(args.hlines) ? args.hlines : []).slice(0, MAX_MARKS),
+      width: bounded(args.width, 320, 2400, 1100),
+      height: bounded(args.height, 200, 1600, 520),
     };
     const svg = buildChartSvg(spec);
     let png: Buffer;

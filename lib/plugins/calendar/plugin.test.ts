@@ -15,9 +15,6 @@ const scheduler = definePlugin({
   manifest: manifest("scheduler"),
   setup(ctx) {
     ctx.provide<SchedulerService>(() => ({
-      job: () => undefined,
-      trigger: async () => undefined,
-      runAgent: async () => ({ ok: false, error: "not in tests" }),
       planned: async (from, to) => [brief].filter((r) => Date.parse(r.at) >= from.getTime() && Date.parse(r.at) <= to.getTime()),
     }));
   },

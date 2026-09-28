@@ -128,11 +128,14 @@ globalThis.plugin = Object.freeze({
   notifications: () => __call("test.notifications", []),
   confirmations: () => __call("test.confirmations", []),
   confirm: (id, outcome) => __call("test.confirmed", [id, outcome || "allowed"]),
+  /* One test, one world: everything a test mocked or stored is dropped
+     before the next one runs — a leak between tests is impossible. */
+  resetWorld: () => __call("test.resetWorld", []),
 });
 globalThis.__runTests = async () => {
   const out = [];
   for (const t of __tests) {
-    try { await t.fn(); out.push({ name: t.name, ok: true }); }
+    try { await plugin.resetWorld(); await t.fn(); out.push({ name: t.name, ok: true }); }
     catch (e) { out.push({ name: t.name, ok: false, error: String((e && e.message) || e) }); }
   }
   return out;

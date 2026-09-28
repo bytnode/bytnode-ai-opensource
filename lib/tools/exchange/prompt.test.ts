@@ -22,6 +22,7 @@ describe("exchangePromptSection", () => {
     expect(lines).toContain("Limits:");
     expect(lines).toContain("Bybit: no Transfer");
     expect(lines).toContain("Funding wallet");
+    expect(lines).toContain("Outcome UNKNOWN");
   });
   test("a sub-agent: read-only, no action tool named", () => {
     const lines = exchangePromptSection([bybit], "natif", 0, true).join("\n");

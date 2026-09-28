@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { pluginStore, withLock } from "./store";
+import { pluginStore, updateJson, withLock } from "./store";
 
 let root: string;
 beforeEach(async () => {
@@ -75,5 +75,41 @@ describe("withLock", () => {
     const old = new Date(Date.now() - 60_000);
     await fs.utimes(`${file}.lock`, old, old);
     expect(await withLock(file, async () => "ran")).toBe("ran");
+  });
+
+  it("several waiters on a stale lock: ONE takes it over, no update is lost", async () => {
+    let worst = 0;
+    let lost = 0;
+    for (let trial = 0; trial < 10; trial++) {
+      const file = path.join(root, `f${trial}.json`);
+      await fs.writeFile(file, JSON.stringify({ n: 0 }));
+      await fs.writeFile(`${file}.lock`, "");
+      const old = new Date(Date.now() - 60_000);
+      await fs.utimes(`${file}.lock`, old, old);
+      let inside = 0;
+      await Promise.all(
+        Array.from({ length: 4 }, () =>
+          updateJson<{ n: number }>(file, { n: 0 }, async (cur) => {
+            inside++;
+            worst = Math.max(worst, inside);
+            await new Promise((r) => setTimeout(r, 15));
+            inside--;
+            return { n: cur.n + 1 };
+          }),
+        ),
+      );
+      if ((JSON.parse(await fs.readFile(file, "utf8")) as { n: number }).n !== 4) lost++;
+    }
+    expect(worst).toBe(1);
+    expect(lost).toBe(0);
+  }, 60_000);
+
+  it("a holder whose lock was taken over does not remove the new holder's lock", async () => {
+    const file = path.join(root, "t.json");
+    await withLock(file, async () => {
+      /* Someone took it over while we were slow. */
+      await fs.writeFile(`${file}.lock`, "someone-else");
+    });
+    expect(await fs.readFile(`${file}.lock`, "utf8")).toBe("someone-else");
   });
 });

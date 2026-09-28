@@ -31,3 +31,11 @@ export function machinePathNeedles(root: string): string[] {
     path, for instance: it names the user). */
 export const containing = (files: { path: string; text: string }[], needles: string[]): string[] =>
   files.filter((f) => needles.some((n) => n.length > 0 && f.text.includes(n))).map((f) => f.path);
+
+/** What the archive must contain, or a subscription agent started from the
+    package gets no BytNode-AI tool: the finance MCP server bundled by
+    prepack (tsx cannot run the TypeScript source from node_modules —
+    `lib/mcp/server-launch.ts`). */
+export const REQUIRED = [".next/finance-server.mjs", ".next/BUILD_ID", "bin/bytnode-ai.mjs"];
+
+export const missingPaths = (paths: string[], required: string[] = REQUIRED): string[] => required.filter((r) => !paths.includes(r));

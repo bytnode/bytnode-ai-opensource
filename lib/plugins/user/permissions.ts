@@ -43,6 +43,10 @@ export type Grant = {
   /** The digest of the files that run. */
   digest: string;
   at: string;
+  /** The user's approval: HMAC of id + permissions + accounts with the
+      key only their browser holds (`approval.ts`). Absent or wrong: the
+      plugin does not run. */
+  sig?: string;
 };
 
 const HOST = /^(\*\.)?([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;

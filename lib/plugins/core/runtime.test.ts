@@ -203,16 +203,16 @@ describe("PluginRuntime: stopping and changing", () => {
 });
 
 describe("PluginRuntime: services, events, prompts", () => {
-  it("a service is injected through a declared dependency, bound to its caller", async () => {
+  it("a service is reached through a declared optional dependency, bound to its caller", async () => {
     const jobs: string[] = [];
     let seen: string | undefined;
     const rt = new PluginRuntime(
       [
         plugin("scheduler", (ctx) => ctx.provide((caller: PluginContext) => ({ job: (name: string) => void jobs.push(`${caller.id}:${name}`) }))),
-        plugin("alerts", (ctx) => ctx.inject<{ job: (n: string) => void }>("scheduler").job("evaluate"), ["scheduler"]),
+        plugin("alerts", (ctx) => ctx.optional<{ job: (n: string) => void }>("scheduler")?.job("evaluate"), [], ["scheduler"]),
         plugin("sneaky", (ctx) => {
           try {
-            ctx.inject("scheduler");
+            ctx.optional("scheduler");
           } catch (e) {
             seen = (e as Error).message;
           }
@@ -222,7 +222,37 @@ describe("PluginRuntime: services, events, prompts", () => {
     );
     await rt.apply({});
     expect(jobs).toEqual(["alerts:evaluate"]);
-    expect(seen).toBe("sneaky did not declare scheduler in `requires`.");
+    expect(seen).toBe("sneaky did not declare scheduler in `optional`.");
+  });
+
+  it("jobs go on the runtime's own clock, keyed by their plugin, and go when it stops", async () => {
+    const rt = new PluginRuntime([plugin("alerts", (ctx) => ctx.job({ id: "check", title: "Alerts", every: "every 1 minute", run: async () => "ok" }))], env({ background: false }));
+    await rt.apply({});
+    expect(rt.clock.list().map((j) => j.id)).toEqual(["alerts:check"]);
+    await rt.apply(off("alerts"));
+    expect(rt.clock.list()).toEqual([]);
+  });
+
+  it("switching any plugin off leaves every other one running (no plugin needs another)", async () => {
+    const ids = ["scheduler", "watchlist", "calendar", "alerts", "paper-trading", "dca"];
+    const rt = new PluginRuntime(
+      [
+        plugin("scheduler", (ctx) => ctx.provide(() => ({ planned: async () => [] }))),
+        plugin("watchlist", (ctx) => ctx.provide(() => ({ symbols: async () => [] }))),
+        plugin("calendar", (ctx) => void ctx.optional("scheduler"), [], ["watchlist", "scheduler"]),
+        plugin("alerts", (ctx) => ctx.job({ id: "check", title: "Alerts", every: "every 1 minute", run: async () => "ok" }), [], ["watchlist", "calendar"]),
+        plugin("paper-trading", (ctx) => ctx.provide(() => ({ cash: "USDT" }))),
+        plugin("dca", (ctx) => ctx.job({ id: "due", title: "DCA", every: "every 1 minute", run: async () => "ok" }), [], ["paper-trading"]),
+      ],
+      env({ background: false }),
+    );
+    for (const id of ids) {
+      await rt.apply(off(id));
+      for (const other of ids.filter((x) => x !== id)) expect(rt.isRunning(other), `${other} with ${id} off`).toBe(true);
+      expect(rt.isRunning(id)).toBe(false);
+    }
+    await rt.apply({});
+    expect(rt.status().every((s) => s.state === "active")).toBe(true);
   });
 
   it("an optional service appears and disappears with its provider", async () => {

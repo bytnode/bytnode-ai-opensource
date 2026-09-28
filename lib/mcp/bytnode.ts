@@ -4,17 +4,16 @@ import type { JsonSchema, Tool } from "@/lib/tools/types";
 import { fail, ok, errorText } from "@/lib/tools/types";
 
 /* ---------------------------------------------------------------------------
-   BytNode, la source de donnees : un serveur MCP distant (Streamable HTTP),
-   authentifie par l'en-tete X-API-KEY.
+   BytNode, the data source: a remote MCP server (Streamable HTTP),
+   authenticated by the X-API-KEY header.
 
-   Les outils qu'il expose sont DECOUVERTS a la connexion (`tools/list`) et
-   presentes aux agents sous leurs propres noms, avec leurs descriptions —
-   c'est le serveur qui explique quelles donnees existent, pas nous. Une
-   session par cle, gardee ouverte et reconnectee au besoin ; la liste des
-   outils est mise en cache dix minutes.
+   The tools it exposes are DISCOVERED at connection (`tools/list`) and
+   shown to the agents under their own names, with their descriptions — the
+   server explains which data exists, not us. One session per key, kept
+   open and reconnected when needed; the tool list is cached ten minutes.
 
-   ⚠️ CE FICHIER EST SERVEUR SEULEMENT : la cle ne quitte jamais le serveur
-   autrement que vers BytNode.
+   ⚠️ THIS FILE IS SERVER ONLY: the key never leaves the server except
+   towards BytNode.
 --------------------------------------------------------------------------- */
 
 export const BYTNODE_MCP_URL = process.env.BYTNODE_MCP_URL ?? "https://api.bytnode.com/mcp";
@@ -46,8 +45,8 @@ async function listTools(client: Client): Promise<McpToolInfo[]> {
   }));
 }
 
-/* Le schema MCP est du JSON Schema ; OpenRouter (format OpenAI) veut un
-   objet avec `properties`. On garantit cette forme. */
+/* The MCP schema is JSON Schema; OpenRouter (OpenAI format) wants an
+   object with `properties`. This guarantees that shape. */
 function normalizeSchema(schema: Record<string, unknown> | undefined): JsonSchema {
   const s = schema ?? {};
   return {
@@ -70,14 +69,14 @@ async function session(apiKey: string): Promise<Session> {
       s.tools = await listTools(s.client);
       s.listedAt = Date.now();
     } catch {
-      /* la liste precedente reste valable */
+      /* the previous list stays valid */
     }
   }
   return s;
 }
 
-/** Oublie la session d'une cle : apres une erreur de transport, la
-    prochaine demande reconnecte. */
+/** Forgets a key's session: after a transport error, the next request
+    reconnects. */
 function drop(apiKey: string) {
   const p = sessions.get(apiKey);
   sessions.delete(apiKey);
@@ -89,8 +88,8 @@ export async function bytnodeTools(apiKey: string): Promise<McpToolInfo[]> {
   return (await session(apiKey.trim())).tools;
 }
 
-/** Le contenu d'une reponse MCP, en texte : les blocs texte tels quels, les
-    autres decrits. */
+/** An MCP answer's content, as text: text blocks as they are, the others
+    described. */
 export function contentToText(content: unknown): string {
   if (!Array.isArray(content)) return typeof content === "string" ? content : JSON.stringify(content);
   return content
@@ -98,7 +97,7 @@ export function contentToText(content: unknown): string {
       const b = block as { type?: string; text?: string; mimeType?: string; uri?: string };
       if (b.type === "text" && typeof b.text === "string") return b.text;
       if (b.type === "image") return `[image ${b.mimeType ?? ""}]`;
-      if (b.type === "resource") return `[ressource ${b.uri ?? ""}]`;
+      if (b.type === "resource") return `[resource ${b.uri ?? ""}]`;
       return JSON.stringify(block);
     })
     .join("\n");
@@ -116,11 +115,12 @@ export async function readBytnodeTool(apiKey: string, name: string, args: Record
     const res = await s.client.callTool({ name, arguments: args }, undefined, { signal, timeout: CALL_TIMEOUT });
     const r = res as { content?: unknown; isError?: boolean; structuredContent?: unknown };
     const text = r.content !== undefined ? contentToText(r.content) : JSON.stringify(r.structuredContent ?? r);
-    return r.isError ? { ok: false, message: text || "BytNode a signalé une erreur." } : { ok: true, text };
+    return r.isError ? { ok: false, message: text || "BytNode reported an error." } : { ok: true, text };
   } catch (e) {
     const message = errorText(e);
-    if (/fetch|ECONN|socket|transport|closed|401|403/i.test(message)) drop(key);
-    return { ok: false, message: `BytNode (${name}) a échoué : ${message}` };
+    const status = statusOf(e);
+    if (status === 401 || status === 403 || /fetch|ECONN|socket|transport|closed|401|403/i.test(message)) drop(key);
+    return { ok: false, message: `BytNode (${name}) failed: ${describeBytnodeError(e)}` };
   }
 }
 
@@ -130,11 +130,11 @@ export async function callBytnodeTool(apiKey: string, name: string, args: Record
   return res.ok ? ok(res.text) : fail(res.message);
 }
 
-/** Les outils BytNode, sous la forme que le registre et la boucle attendent. */
+/** The BytNode tools, in the shape the registry and the loop expect. */
 export function wrapBytnodeTools(apiKey: string, infos: McpToolInfo[]): Tool[] {
   return infos.map((info) => ({
     name: info.name,
-    description: `[BytNode, source de données] ${info.description}`.trim(),
+    description: `[BytNode, data source] ${info.description}`.trim(),
     parameters: info.inputSchema,
     /* Market data: reading only, for every agent and every run. */
     policy: { readOnly: true, subagent: true },
@@ -142,14 +142,45 @@ export function wrapBytnodeTools(apiKey: string, infos: McpToolInfo[]): Tool[] {
   }));
 }
 
-/** Verifie une cle : la connexion aboutit et la liste des outils arrive. */
+/** Checks a key: the connection succeeds and the tool list arrives. */
 export async function checkBytnodeKey(apiKey: string): Promise<{ ok: true; tools: string[] } | { ok: false; message: string }> {
   try {
     const tools = await bytnodeTools(apiKey);
     return { ok: true, tools: tools.map((t) => t.name) };
   } catch (e) {
     drop(apiKey.trim());
-    const message = errorText(e);
-    return { ok: false, message: /401|403|unauthorized/i.test(message) ? "Clé refusée par BytNode." : `BytNode injoignable : ${message}` };
+    return { ok: false, message: describeBytnodeError(e) };
   }
+}
+
+/** The HTTP status the MCP transport attached to its error, if any. */
+function statusOf(e: unknown): number | null {
+  const code = (e as { code?: unknown } | null)?.code;
+  return typeof code === "number" && code >= 100 && code < 600 ? code : null;
+}
+
+/* ⚠️ THE MCP TRANSPORT PUTS THE STATUS IN `code`, AND THE RAW BODY IN THE
+   MESSAGE: "Streamable HTTP error: Error POSTing to endpoint:
+   {"status":"error",…,"detail":"Cle API absente, invalide ou revoquee."}".
+   Matching "401" in the message missed a refused key (it was reported as
+   "unreachable", with the JSON and the engine's French wording on screen).
+   The status decides; the body is never shown. */
+const REFUSED = /cl[eé] api|api key|unauthori[sz]ed|forbidden|invalid|revoked|revoqu/i;
+
+/** A BytNode failure in plain English, for the user and the model. */
+export function describeBytnodeError(e: unknown): string {
+  const status = statusOf(e);
+  const message = errorText(e);
+  const body = message.match(/\{[\s\S]*\}/)?.[0] ?? "";
+  if (status === 401 || status === 403 || (status === null && (/\b(401|403)\b/.test(message) || REFUSED.test(body))))
+    return "Key refused by BytNode: it is missing, invalid or revoked. Check it on bytnode.com.";
+  if (status === 429) return "BytNode refused the request: the rate limit or your plan's quota is reached. Try again in a moment.";
+  if (status !== null) return `BytNode answered with an error (HTTP ${status}). Try again in a moment.`;
+  const text = message
+    .replace(body, "")
+    .replace(/^Streamable HTTP error:\s*/i, "")
+    .replace(/Error POSTing to endpoint:?\s*/i, "")
+    .trim()
+    .replace(/[:\s]+$/, "");
+  return text ? `BytNode is unreachable: ${text}` : "BytNode is unreachable.";
 }

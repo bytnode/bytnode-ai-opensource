@@ -3,7 +3,7 @@ import path from "node:path";
 import type { Tool } from "../types";
 import { errorText, fail, ok } from "../types";
 import { describeRun, run } from "./run";
-import { findOutsideReferences, outsideMessage } from "./guard";
+import { workspaceRefusal } from "./guard";
 import { findOnPath } from "@/lib/acp/detect";
 
 /* ---------------------------------------------------------------------------
@@ -23,7 +23,10 @@ type Args = { command: string; timeout?: number; description?: string };
 const DEFAULT_TIMEOUT = 120_000;
 const MAX_TIMEOUT = 600_000;
 
-const clampTimeout = (ms?: number) => Math.min(MAX_TIMEOUT, Math.max(1_000, ms ?? DEFAULT_TIMEOUT));
+/* ⚠️ Git bash's login shell takes 0.7–1.2 s just to start on Windows: a
+   1 s floor stopped an instant `echo` for "time limit exceeded". */
+export const MIN_TIMEOUT = 5_000;
+export const clampTimeout = (ms?: number, fallback = DEFAULT_TIMEOUT) => Math.min(MAX_TIMEOUT, Math.max(MIN_TIMEOUT, ms ?? fallback));
 
 /* What a script prints reaches us in UTF-8: Python on Windows otherwise
    writes to a pipe in the ANSI code page ("é" came back as "�"). */
@@ -31,6 +34,10 @@ export const UTF8_ENV = { PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" };
 /* Windows PowerShell 5.1 writes to a pipe in the OEM code page (pwsh 7
    already in UTF-8): every accent of its output was lost. */
 const PS_UTF8 = "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8; ";
+/* pwsh 7.2+ colours its errors even into a pipe; `$PSStyle` does not exist
+   in Windows PowerShell 5.1, hence the test. (`describeRun` also strips
+   any escape that still comes through.) */
+const PS_PLAIN = "if ($PSStyle) { $PSStyle.OutputRendering = 'PlainText' }; ";
 
 export function findBash(): string | null {
   if (process.platform !== "win32") return "bash";
@@ -99,8 +106,8 @@ export const bashTool: Tool<Args> = {
     const bash = findBash();
     if (!bash) return fail("No bash found on this machine (Git for Windows is not installed). Use PowerShell.");
     if (ctx.scope === "workspace") {
-      const refs = findOutsideReferences(args.command, ctx.workspace);
-      if (refs.length) return fail(outsideMessage(refs));
+      const refused = workspaceRefusal(args.command, ctx.workspace);
+      if (refused) return fail(refused);
     }
     try {
       const r = await run(bash, bashArgs(args.command), {
@@ -130,11 +137,11 @@ export const powershellTool: Tool<Args> = {
   async execute(args, ctx) {
     if (process.platform !== "win32" && !findOnPath("pwsh")) return fail("PowerShell is not installed on this system (macOS / Linux): use Bash.");
     if (ctx.scope === "workspace") {
-      const refs = findOutsideReferences(args.command, ctx.workspace);
-      if (refs.length) return fail(outsideMessage(refs));
+      const refused = workspaceRefusal(args.command, ctx.workspace);
+      if (refused) return fail(refused);
     }
     try {
-      const r = await run(findPowerShell(), ["-NoProfile", "-NonInteractive", "-Command", PS_UTF8 + args.command], {
+      const r = await run(findPowerShell(), ["-NoProfile", "-NonInteractive", "-Command", PS_UTF8 + PS_PLAIN + args.command], {
         cwd: ctx.workspace,
         timeoutMs: clampTimeout(args.timeout),
         signal: ctx.signal,

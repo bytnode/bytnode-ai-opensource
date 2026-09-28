@@ -1,6 +1,7 @@
 import type { PluginStatus } from "@/lib/domain/plugins";
 import { activePlugins, digestOf, manifestOf, readFiles, readGrant, readLog, readMeta, readRequest, userPluginIds } from "./files";
 import { added } from "./permissions";
+import { UNTRUSTED_GRANT } from "./approval";
 import type { UserPluginInfo } from "./types";
 
 /* ---------------------------------------------------------------------------
@@ -53,6 +54,7 @@ export async function userPluginInfos(status: PluginStatus[]): Promise<UserPlugi
       updatedAt: meta?.updatedAt ?? "",
       manifest,
       granted: grant ? { permissions: grant.permissions, accounts: grant.accounts, at: grant.at } : null,
+      ...(grant && problem?.message === UNTRUSTED_GRANT ? { unsigned: { digest: grant.digest } } : {}),
       request: pending,
       log: log.filter((l) => l.level !== "info").slice(-10),
     });

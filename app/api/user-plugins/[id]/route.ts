@@ -1,7 +1,7 @@
 import { reloadUserPlugins } from "@/lib/plugins/core/active";
 import { readPluginReviewNotices } from "@/lib/plugins/core/notifications";
 import { readyRuntime } from "@/lib/plugins/host";
-import { removeUserPlugin, revoke } from "@/lib/plugins/user/files";
+import { removeUserPlugin, revoke, userPluginIds } from "@/lib/plugins/user/files";
 import { isUserPluginId } from "@/lib/plugins/user/manifest";
 
 /* One plugin written by an agent, from the library:
@@ -12,9 +12,12 @@ import { isUserPluginId } from "@/lib/plugins/user/manifest";
 
 type Params = { params: Promise<{ id: string }> };
 
+/** A well-formed id is not yet a plugin: one that has no folder is unknown. */
+const known = async (id: string) => isUserPluginId(id) && (await userPluginIds()).includes(id);
+
 export async function POST(req: Request, { params }: Params) {
   const { id } = await params;
-  if (!isUserPluginId(id)) return Response.json({ error: { message: `Unknown plugin: ${id}` } }, { status: 404 });
+  if (!(await known(id))) return Response.json({ error: { message: `Unknown plugin: ${id}` } }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as { action?: string };
   if (body.action !== "revoke") return Response.json({ error: { message: 'Expected { action: "revoke" }.' } }, { status: 400 });
   await readyRuntime();
@@ -26,7 +29,7 @@ export async function POST(req: Request, { params }: Params) {
 
 export async function DELETE(req: Request, { params }: Params) {
   const { id } = await params;
-  if (!isUserPluginId(id)) return Response.json({ error: { message: `Unknown plugin: ${id}` } }, { status: 404 });
+  if (!(await known(id))) return Response.json({ error: { message: `Unknown plugin: ${id}` } }, { status: 404 });
   await readyRuntime();
   await revoke(id);
   await reloadUserPlugins();

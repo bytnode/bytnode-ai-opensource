@@ -4,7 +4,6 @@ import { fail, ok } from "@/lib/tools/types";
 import { definePlugin, type PluginContext, type PluginDefinition } from "../core/contract";
 import { isFrequency } from "../core/frequency";
 import { factsCard, tableCard } from "../shared/cards";
-import type { SchedulerService } from "../scheduler/service";
 import { appendLog, type ActivePlugin, type LogEntry } from "./files";
 import { liveOps, type Keys } from "./host-ops";
 import { Sandbox, type Limits } from "./sandbox";
@@ -21,6 +20,15 @@ import { Sandbox, type Limits } from "./sandbox";
    Its tools ask the user in "Ask before acting" mode unless it declares
    them read-only; they reach sub-agents and scheduled runs only when
    read-only and the plugin cannot propose orders.
+
+   ⚠️ WHAT IT OFFERS IS WHAT THE USER REVIEWED. Tools, actions, prompt
+   sections, jobs and `onConfirmed` are registered during `setup(ctx)`
+   only; one registered later (from a tool's run…) is refused.
+
+   A sandbox stopped for good (over its CPU budget, past a call's timeout,
+   interrupted mid-promise — `sandbox.ts`) is replaced by a fresh one at
+   the next call: the same code runs `setup` again, and each registration
+   is bound anew to its function there — no new one may appear.
    SERVER-ONLY.
 --------------------------------------------------------------------------- */
 
@@ -82,13 +90,54 @@ export function userPluginDefinition(p: ActivePlugin, opts: DefinitionOptions = 
     manifest,
     async setup(ctx: PluginContext) {
       let sandbox: Sandbox | null = null;
+      let stopped = false;
+      let restarting: Promise<Sandbox> | null = null;
+      /** Registration → the function that serves it in the CURRENT sandbox. */
+      const bound = new Map<string, number>();
+      /** `setup`: registering; `sealed`: running; `rebind`: a fresh sandbox
+          runs `setup` again, only to bind what was registered the first time. */
+      let phase: "setup" | "sealed" | "rebind" = "setup";
+      let prompts = 0;
+      /** The sandbox now, as it is (a host op of a call in flight). */
       const box = () => {
         if (!sandbox) throw new Error("The plugin is not running.");
         return sandbox;
       };
-      const run = async (fn: number, args: unknown[], what: string, source: LogEntry["source"] = "call", timeoutMs?: number) => {
+      /** A sandbox that runs: the current one, or a fresh one in its place. */
+      const live = async (): Promise<Sandbox> => {
+        if (stopped) throw new Error("The plugin is not running.");
+        if (sandbox && !sandbox.dead) return sandbox;
+        restarting ??= (async () => {
+          log("call", "warn", `Restarting after: ${sandbox?.dead ?? "no sandbox"}`);
+          sandbox?.dispose();
+          const fresh = await start();
+          phase = "rebind";
+          prompts = 0;
+          try {
+            await fresh.setup(p.files["server.js"] ?? "", "server.js");
+          } catch (e) {
+            fresh.dispose();
+            throw e;
+          } finally {
+            phase = "sealed";
+          }
+          if (stopped) {
+            fresh.dispose();
+            throw new Error("The plugin is not running.");
+          }
+          sandbox = fresh;
+          return fresh;
+        })().finally(() => {
+          restarting = null;
+        });
+        return restarting;
+      };
+      const run = async (key: string, args: unknown[], what: string, source: LogEntry["source"] = "call", timeoutMs?: number) => {
         try {
-          return await box().invoke(fn, args, timeoutMs, what);
+          const b = await live();
+          const fn = bound.get(key);
+          if (fn === undefined) throw new Error(`${what} is no longer offered by the plugin.`);
+          return await b.invoke(fn, args, timeoutMs, what);
         } catch (e) {
           log(source, "error", `${what}: ${e instanceof Error ? e.message : String(e)}`);
           throw e;
@@ -99,7 +148,6 @@ export function userPluginDefinition(p: ActivePlugin, opts: DefinitionOptions = 
         if (s) return { bytnodeKey: s.bytnodeKey, accounts: s.exchangeAccounts };
         return opts.fallbackKeys?.() ?? null;
       };
-      const scheduler = permissions.schedule ? ctx.optional<SchedulerService>("scheduler") : undefined;
 
       const register = (op: string, raw: Record<string, unknown> | unknown[]): unknown => {
         if (op === "log") {
@@ -108,6 +156,15 @@ export function userPluginDefinition(p: ActivePlugin, opts: DefinitionOptions = 
           return undefined;
         }
         const a = raw as Registration;
+        const name = op === "confirmed" ? "ctx.onConfirmed" : `ctx.${op}`;
+        if (phase === "sealed") throw new Error(`${name} can only be called during setup(ctx): what the plugin offers is what the user reviewed.`);
+        const key = op === "tool" || op === "action" ? `${op}:${String(a.name ?? "")}` : op === "job" ? `job:${String(a.id ?? "")}` : op === "prompt" ? `prompt:${prompts++}` : op;
+        if (phase === "rebind") {
+          if (!bound.has(key)) throw new Error(`${name}: ${key} was not registered when the plugin was reviewed and started.`);
+          bound.set(key, a.fn);
+          return undefined;
+        }
+        if (bound.has(key) && op !== "prompt") throw new Error(`${name}: ${key} is registered twice.`);
         switch (op) {
           case "tool": {
             const d = readToolDeclaration(a);
@@ -118,25 +175,28 @@ export function userPluginDefinition(p: ActivePlugin, opts: DefinitionOptions = 
               policy: { readOnly: d.readOnly, gated: !d.readOnly, subagent: d.readOnly && grant.permissions.exchange !== "orders" },
               async execute(args) {
                 try {
-                  return toToolResult(await run(a.fn, [args], d.name));
+                  return toToolResult(await run(key, [args], d.name));
                 } catch (e) {
                   return fail(`${d.name} (plugin ${manifest.name}) failed: ${e instanceof Error ? e.message : String(e)}`);
                 }
               },
             };
             ctx.tool(tool as Tool<never>);
+            bound.set(key, a.fn);
             return undefined;
           }
           case "action": {
-            const name = String(a.name ?? "");
-            ctx.api(name, (params) => run(a.fn, [params], `Action ${name}`));
+            const action = String(a.name ?? "");
+            ctx.api(action, (params) => run(key, [params], `Action ${action}`));
+            bound.set(key, a.fn);
             return undefined;
           }
           case "prompt":
             ctx.prompt(async (target) => {
-              const out = await run(a.fn, [{ engine: target.engine, subagent: target.subagent }], "The prompt section");
+              const out = await run(key, [{ engine: target.engine, subagent: target.subagent }], "The prompt section");
               return typeof out === "string" ? out : "";
             });
+            bound.set(key, a.fn);
             return undefined;
           case "job": {
             if (!permissions.schedule) throw new Error('ctx.job: this plugin was not granted "schedule": true.');
@@ -145,24 +205,22 @@ export function userPluginDefinition(p: ActivePlugin, opts: DefinitionOptions = 
             const every = String(a.every ?? "");
             if (!JOB_ID.test(id)) throw new Error(`ctx.job: "${id}" is not a valid job id (lowercase, digits, dashes).`);
             if (!isFrequency(every)) throw new Error(`ctx.job ${id}: "${every}" is not a frequency. Say "every 5 minutes", "every 2 hours", "daily at 08:00", "every monday at 09:30".`);
-            if (!scheduler) {
-              if (ctx.background) log("setup", "warn", `The job ${id} does not run: the Scheduler plugin is off.`);
-              return undefined;
-            }
-            scheduler.job({
+            ctx.job({
               id,
               title: `${manifest.name}: ${title}`,
               every,
               catchUp: a.catchUp === "run-once-on-start" ? "run-once-on-start" : "skip",
               run: async ({ reason }) => {
-                const out = await run(a.fn, [{ reason }], `Job ${id}`, "job", 5 * 60_000);
+                const out = await run(key, [{ reason }], `Job ${id}`, "job", 5 * 60_000);
                 return typeof out === "string" ? out.slice(0, 200) : undefined;
               },
             });
+            bound.set(key, a.fn);
             return undefined;
           }
           case "confirmed":
-            ctx.onConfirmed(async (c) => void (await run(a.fn, [decided(c)], "onConfirmed")));
+            ctx.onConfirmed(async (c) => void (await run(key, [decided(c)], "onConfirmed")));
+            bound.set(key, a.fn);
             return undefined;
           default:
             throw new Error(`Unknown registration: ${op}.`);
@@ -180,14 +238,19 @@ export function userPluginDefinition(p: ActivePlugin, opts: DefinitionOptions = 
         invoke: (fnId, args, timeoutMs) => box().invoke(fnId, args, timeoutMs, "ctx.store.update"),
       });
 
-      sandbox = await Sandbox.create({ id: p.id, config: ctx.config(), ops: { call, register }, limits: opts.limits });
-      ctx.onDispose(() => sandbox?.dispose());
+      const start = () => Sandbox.create({ id: p.id, config: ctx.config(), ops: { call, register }, limits: opts.limits });
+      sandbox = await start();
+      ctx.onDispose(() => {
+        stopped = true;
+        sandbox?.dispose();
+      });
       try {
         await sandbox.setup(p.files["server.js"] ?? "", "server.js");
       } catch (e) {
         log("setup", "error", e instanceof Error ? e.message : String(e));
         throw e;
       }
+      phase = "sealed";
     },
   });
 }

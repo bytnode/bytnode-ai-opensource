@@ -1,10 +1,16 @@
-/* Before `npm publish` / `npm pack`: clean build, cache removed, archive
-   checked. Refuses to publish if a forbidden file or a key is in it.
-   `--ignore-scripts` on the inner `npm pack`: otherwise prepack runs again. */
+/* Before `npm publish` / `npm pack`: clean build, cache removed, finance
+   MCP server bundled, archive checked. Refuses to publish if a forbidden
+   file or a key is in it, or if the bundle is missing.
+   `--ignore-scripts` on the inner `npm pack`: otherwise prepack runs again.
+   ⚠️ EVERYTHING HERE WRITES TO STDERR: npm runs this script with its own
+   stdout, and `npm pack --json` must stay valid JSON (the Next banner and
+   our lines used to come before it). */
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
-import { containing, forbiddenPaths, isTextFile, leakedSecrets, machinePathNeedles } from "../lib/publish/pack-check";
+import { containing, forbiddenPaths, isTextFile, leakedSecrets, machinePathNeedles, missingPaths } from "../lib/publish/pack-check";
+import { SERVER_BUNDLE } from "../lib/mcp/server-launch";
 
 const root = process.cwd();
 
@@ -16,7 +22,7 @@ const dotNext = path.join(root, ".next");
 for (const e of fs.existsSync(dotNext) ? fs.readdirSync(dotNext) : []) {
   if (e !== "dev") fs.rmSync(path.join(dotNext, e), { recursive: true, force: true });
 }
-const build = spawnSync(process.execPath, [next, "build"], { cwd: root, stdio: "inherit" });
+const build = spawnSync(process.execPath, [next, "build"], { cwd: root, stdio: ["ignore", 2, 2] });
 if (build.status !== 0) {
   console.error(`prepack: next build failed (${build.status}).`);
   process.exit(1);
@@ -59,10 +65,41 @@ function unaliasExternals(): number {
     }
   }
   fs.rmSync(links, { recursive: true, force: true });
-  console.log(`prepack: ${aliases.length} external aliases restored to their real names in ${rewritten} files (${aliases.map(([, r]) => r).join(", ")}).`);
+  console.error(`prepack: ${aliases.length} external aliases restored to their real names in ${rewritten} files (${aliases.map(([, r]) => r).join(", ")}).`);
   return rewritten;
 }
 unaliasExternals();
+
+/* ⚠️ THE FINANCE MCP SERVER, BUNDLED. Subscription agents launch
+   `lib/mcp/finance-server.ts`; from an installed package tsx cannot run it
+   (it ignores the tsconfig `paths` under node_modules: "Cannot find module
+   '@/lib/tools/registry'"), and every agent lost its BytNode-AI tools,
+   silently. One ESM file: the `@/` aliases resolved now, every package
+   left external (Node finds them in the user's node_modules), a `require`
+   for the CommonJS ones. `lib/mcp/server-launch.ts` launches it.
+   esbuild comes with tsx, a dependency. */
+function bundleFinanceServer(): void {
+  const req = createRequire(path.join(root, "package.json"));
+  const esbuild = req(req.resolve("esbuild", { paths: [path.dirname(req.resolve("tsx/package.json"))] })) as typeof import("esbuild");
+  const outfile = path.join(root, SERVER_BUNDLE);
+  const t0 = Date.now();
+  esbuild.buildSync({
+    entryPoints: [path.join(root, "lib", "mcp", "finance-server.ts")],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    target: "node20",
+    packages: "external",
+    tsconfig: path.join(root, "tsconfig.json"),
+    outfile,
+    logLevel: "warning",
+    /* No absolute path of this machine in the output (checked below). */
+    absWorkingDir: root,
+    banner: { js: "import { createRequire as __bytnodeRequire } from 'node:module'; const require = __bytnodeRequire(import.meta.url);" },
+  });
+  console.error(`prepack: finance MCP server bundled into ${SERVER_BUNDLE} in ${((Date.now() - t0) / 1000).toFixed(1)} s.`);
+}
+bundleFinanceServer();
 
 /* `required-server-files.json` carries the ABSOLUTE path of the project
    (`appDir`): the user name and the directory tree of the build machine.
@@ -84,14 +121,16 @@ const [pack] = JSON.parse(npm.stdout) as { files: { path: string; size: number }
 const paths = pack.files.map((f) => f.path);
 
 const bad = forbiddenPaths(paths);
+const missing = missingPaths(paths);
 const texts = paths.filter(isTextFile).map((p) => ({ path: p, text: fs.readFileSync(path.join(root, p), "utf8") }));
 const leaks = leakedSecrets(texts);
 const machine = containing(texts, machinePathNeedles(root));
-if (bad.length || leaks.length || machine.length) {
+if (bad.length || missing.length || leaks.length || machine.length) {
   console.error("prepack: PUBLISH REFUSED.");
   for (const p of bad) console.error(`  forbidden file: ${p}`);
+  for (const p of missing) console.error(`  missing file: ${p}`);
   for (const p of leaks) console.error(`  key detected in: ${p}`);
   for (const p of machine) console.error(`  this machine's path in: ${p}`);
   process.exit(1);
 }
-console.log(`prepack: ${paths.length} files, ${(pack.size / 1e6).toFixed(1)} MB compressed, ${(pack.unpackedSize / 1e6).toFixed(1)} MB unpacked — archive clean.`);
+console.error(`prepack: ${paths.length} files, ${(pack.size / 1e6).toFixed(1)} MB compressed, ${(pack.unpackedSize / 1e6).toFixed(1)} MB unpacked — archive clean.`);

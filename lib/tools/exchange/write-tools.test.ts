@@ -12,12 +12,15 @@ const mocked = vi.mocked(clientFor);
 
 beforeEach(() => mocked.mockReset());
 
+/** The client id every order carries, so a lost answer can be found. */
+const CID = expect.stringMatching(/^bnai[0-9a-f]{12}$/);
+
 describe("PlaceOrder", () => {
   test("spot market: rounded quantity, order placed, readable result", async () => {
     const ex = fakeExchange();
     mocked.mockResolvedValue(ex);
     const r = await placeOrderTool.execute({ symbol: "btcusdt", side: "buy", type: "market", amount: 0.0040000001 }, ctx());
-    expect(ex.createOrder).toHaveBeenCalledWith("BTC/USDT", "market", "buy", 0.004, undefined, {});
+    expect(ex.createOrder).toHaveBeenCalledWith("BTC/USDT", "market", "buy", 0.004, undefined, { clientOrderId: CID });
     expect(r.ok).toBe(true);
     expect(r.output).toBe("Order #o1 closed · BUY 0.004 BTC/USDT market · average 50000 · filled 0.004");
   });
@@ -26,7 +29,7 @@ describe("PlaceOrder", () => {
     mocked.mockResolvedValue(ex);
     await placeOrderTool.execute({ symbol: "BTC/USDT", side: "buy", type: "market", quoteAmount: 200 }, ctx());
     expect(ex.fetchTicker).toHaveBeenCalledWith("BTC/USDT");
-    expect(ex.createOrder).toHaveBeenCalledWith("BTC/USDT", "market", "buy", 0.004, undefined, {});
+    expect(ex.createOrder).toHaveBeenCalledWith("BTC/USDT", "market", "buy", 0.004, undefined, { clientOrderId: CID });
   });
   test("amount and quoteAmount together, or neither: refused without a call", async () => {
     const ex = fakeExchange();
@@ -49,22 +52,22 @@ describe("PlaceOrder", () => {
     expect(r.ok).toBe(false);
     expect(r.output).toBe("Quantity 0.00001 below the market minimum (0.0001 BTC).");
   });
-  test("stop_limit and take_profit: ccxt params, reduceOnly, leverage on futures", async () => {
+  test("stop_limit and take_profit: ccxt params, reduceOnly, leverage on futures (no triggerDirection on Binance)", async () => {
     const ex = fakeExchange();
     mocked.mockResolvedValue(ex);
     await placeOrderTool.execute({ symbol: "BTC/USDT", market: "futures", side: "sell", type: "stop_limit", amount: 0.01, price: 60000, stopPrice: 60500, reduceOnly: true, leverage: 3, timeInForce: "GTC" }, ctx());
     expect(ex.setLeverage).toHaveBeenCalledWith(3, "BTC/USDT:USDT");
-    expect(ex.createOrder).toHaveBeenCalledWith("BTC/USDT:USDT", "limit", "sell", 0.01, 60000, { triggerPrice: 60500, triggerDirection: "ascending", reduceOnly: true, timeInForce: "GTC" });
+    expect(ex.createOrder).toHaveBeenCalledWith("BTC/USDT:USDT", "limit", "sell", 0.01, 60000, { triggerPrice: 60500, reduceOnly: true, timeInForce: "GTC", clientOrderId: CID });
     await placeOrderTool.execute({ symbol: "BTC/USDT", market: "futures", side: "sell", type: "take_profit", amount: 0.01, stopPrice: 70000 }, ctx());
-    expect(ex.createOrder).toHaveBeenLastCalledWith("BTC/USDT:USDT", "market", "sell", 0.01, undefined, { takeProfitPrice: 70000 });
+    expect(ex.createOrder).toHaveBeenLastCalledWith("BTC/USDT:USDT", "market", "sell", 0.01, undefined, { takeProfitPrice: 70000, clientOrderId: CID });
   });
   test("stop: the trigger direction comes from the last price; never on Bybit spot", async () => {
     const ex = fakeExchange({ id: "bybit" });
     mocked.mockResolvedValue(ex);
     await placeOrderTool.execute({ symbol: "BTC/USDT", market: "futures", side: "sell", type: "stop", amount: 0.01, stopPrice: 45000 }, ctx([TESTNET]));
-    expect(ex.createOrder).toHaveBeenLastCalledWith("BTC/USDT:USDT", "market", "sell", 0.01, undefined, { triggerPrice: 45000, triggerDirection: "descending" });
+    expect(ex.createOrder).toHaveBeenLastCalledWith("BTC/USDT:USDT", "market", "sell", 0.01, undefined, { triggerPrice: 45000, triggerDirection: "descending", clientOrderId: CID });
     await placeOrderTool.execute({ symbol: "BTC/USDT", side: "sell", type: "stop", amount: 0.01, stopPrice: 45000 }, ctx([TESTNET]));
-    expect(ex.createOrder).toHaveBeenLastCalledWith("BTC/USDT", "market", "sell", 0.01, undefined, { triggerPrice: 45000 });
+    expect(ex.createOrder).toHaveBeenLastCalledWith("BTC/USDT", "market", "sell", 0.01, undefined, { triggerPrice: 45000, clientOrderId: CID });
   });
   test("spot only (Coinbase, Kraken): futures refused before any call", async () => {
     const ex = fakeExchange({ id: "kraken" });
@@ -152,14 +155,14 @@ describe("ClosePosition", () => {
     const ex = fakeExchange({ fetchPositions: vi.fn(async () => [long]), createOrder: vi.fn(async () => ({ id: "c1", status: "closed" })) });
     mocked.mockResolvedValue(ex);
     const r = await closePositionTool.execute({ symbol: "BTC/USDT" }, ctx());
-    expect(ex.createOrder).toHaveBeenCalledWith("BTC/USDT:USDT", "market", "sell", 0.05, undefined, { reduceOnly: true });
+    expect(ex.createOrder).toHaveBeenCalledWith("BTC/USDT:USDT", "market", "sell", 0.05, undefined, { reduceOnly: true, clientOrderId: CID });
     expect(r.output).toBe("Position BTC/USDT:USDT LONG closed at 100 % (0.05) · order #c1 closed");
   });
   test("a fraction", async () => {
     const ex = fakeExchange({ fetchPositions: vi.fn(async () => [long]), createOrder: vi.fn(async () => ({ id: "c2", status: "closed" })) });
     mocked.mockResolvedValue(ex);
     const r = await closePositionTool.execute({ symbol: "BTC/USDT", fraction: 0.5 }, ctx());
-    expect(ex.createOrder).toHaveBeenCalledWith("BTC/USDT:USDT", "market", "sell", 0.025, undefined, { reduceOnly: true });
+    expect(ex.createOrder).toHaveBeenCalledWith("BTC/USDT:USDT", "market", "sell", 0.025, undefined, { reduceOnly: true, clientOrderId: CID });
     expect(r.output).toBe("Position BTC/USDT:USDT LONG closed at 50 % (0.025) · order #c2 closed");
   });
   test("no position", async () => {

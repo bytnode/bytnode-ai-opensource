@@ -73,6 +73,9 @@ export const watchTool: Tool<Args> = {
       if (ctx.signal.aborted) return done("interrupted.");
       try {
         const sample = await read(r.ex, symbol, r.market === "futures");
+        /* ⚠️ No price is a missed reading, never a price of 0: `price<60000`
+           fired on a ticker that simply carried no `last`. */
+        if (sample === undefined) throw new NoPrice();
         misses = 0;
         push(describe(sample));
         if (wasOpen === undefined) wasOpen = sample.open;
@@ -80,7 +83,7 @@ export const watchTool: Tool<Args> = {
         if (wasOpen && !sample.open) return done("position closed.");
       } catch (e) {
         misses++;
-        push(`(reading missed: ${describeExchangeError(e)})`);
+        push(`(reading missed: ${e instanceof NoPrice ? e.message : describeExchangeError(e)})`);
         if (misses >= MAX_MISSES) return fail([...lines, `Stopped: ${MAX_MISSES} readings missed in a row.`].join("\n"));
       }
       const left = deadline - Date.now();
@@ -91,9 +94,28 @@ export const watchTool: Tool<Args> = {
   },
 };
 
-async function read(ex: Resolved["ex"], symbol: string, futures: boolean): Promise<Sample> {
+class NoPrice extends Error {
+  constructor() {
+    super("the ticker carries no price");
+  }
+}
+
+const num = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n > 0;
+
+/** The ticker's price: `last`, else the bid/ask midpoint, else `close`. */
+export function tickerPrice(t: Pick<Ticker, "last" | "bid" | "ask" | "close">): number | undefined {
+  if (num(t.last)) return t.last;
+  if (num(t.bid) && num(t.ask)) return (t.bid + t.ask) / 2;
+  if (num(t.close)) return t.close;
+  return undefined;
+}
+
+/** One reading, or `undefined` when neither the ticker nor the position
+    gives a price. */
+async function read(ex: Resolved["ex"], symbol: string, futures: boolean): Promise<Sample | undefined> {
   const t = (await ex.fetchTicker(symbol)) as Ticker;
-  const sample: Sample = { price: t.last ?? 0, open: false };
+  const price = tickerPrice(t);
+  const sample: Sample = { price: price ?? NaN, open: false };
   if (futures && ex.has["fetchPositions"]) {
     const positions = (await ex.fetchPositions([symbol])) as Position[];
     const p = positions.find((x) => x.symbol === symbol && (x.contracts ?? 0) > 0);
@@ -105,7 +127,7 @@ async function read(ex: Resolved["ex"], symbol: string, futures: boolean): Promi
       if (p.markPrice) sample.price = p.markPrice;
     }
   }
-  return sample;
+  return Number.isNaN(sample.price) ? undefined : sample;
 }
 
 function describe(s: Sample): string {

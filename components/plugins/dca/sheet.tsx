@@ -199,7 +199,7 @@ export function Sheet(props: Props) {
                   </span>
                 </p>
               ) : (
-                <p className="dcv-hero-move">{f.purchases ? "Reading the current prices…" : `Nothing bought yet${next ? ` — the first purchase is due ${when(next)}` : ""}.`}</p>
+                <p className="dcv-hero-move">{f.purchases ? "Reading the current prices…" : nothingYet(bought, next ? when(next) : null)}</p>
               )}
             </div>
 
@@ -299,6 +299,15 @@ export function Sheet(props: Props) {
       </div>
     </main>
   );
+}
+
+/** The header before anything was bought: a first attempt that went
+    wrong is said, not "the first purchase is due" as if nothing happened. */
+function nothingYet(attempts: Purchase[], due: string | null): string {
+  const last = attempts.reduce<Purchase | undefined>((a, b) => (!a || b.at > a.at ? b : a), undefined);
+  if (!last || last.status === "filled") return `Nothing bought yet${due ? ` — the first purchase is due ${due}` : ""}.`;
+  const detail = last.detail ? `: ${last.detail.length > 120 ? `${last.detail.slice(0, 119)}…` : last.detail}` : "";
+  return `Nothing bought yet — the last attempt: ${STATUS[last.status].toLowerCase()}${detail}${due ? `. Next due ${due}` : ""}.`;
 }
 
 function Part({ title, sub, children }: { title: string; sub?: string; children: ReactNode }) {

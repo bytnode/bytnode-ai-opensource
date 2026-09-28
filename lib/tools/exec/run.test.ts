@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { run } from "./run";
+import os from "node:os";
+import { HeadTail, describeRun, run, stripAnsi } from "./run";
+import { OUTPUT_LIMIT, ok } from "../types";
 
 /* The line reader must not keep a stream without newlines in memory:
    beyond a bound, the line is delivered as is. */
@@ -45,5 +47,46 @@ describe("run: the end of a command", () => {
     const r = await run(process.execPath, ["-e", script], { cwd: process.cwd(), timeoutMs: 10_000, onLine: (l) => lines.push(l) });
     expect(r.stdout).toBe("é\n");
     expect(lines[0]).toBe("é");
+  });
+});
+
+/* A long output: the END is where the failing summary and the exit status
+   are. Keeping only the head lost both, silently. */
+describe("run: what is kept of a long output", () => {
+  test("HeadTail keeps the start and the end and counts the cut", () => {
+    const h = new HeadTail(10);
+    h.push("abcdefgh");
+    h.push("ijklmnopqrstuvwxyz");
+    expect(h.toString()).toBe("abcde\n[… 16 characters cut …]\nvwxyz");
+    const small = new HeadTail(100);
+    small.push("short");
+    expect(small.toString()).toBe("short");
+  });
+
+  test("the summary line and the exit status reach the model", async () => {
+    const script = "for(let i=0;i<5000;i++)console.log('test ' + i + ' passed ' + 'x'.repeat(60)); console.log('SUMMARY: 3 FAILED, 4997 passed'); process.exit(3);";
+    const r = await run(process.execPath, ["-e", script], { cwd: os.tmpdir(), timeoutMs: 30_000 });
+    const out = describeRun(r, "Bash");
+    expect(out).toContain("SUMMARY: 3 FAILED");
+    expect(out).toMatch(/characters cut/);
+    expect(out.endsWith("]")).toBe(true);
+    expect(out).toMatch(/\[Bash finished with code 3 in [\d.]+ s\]$/);
+    /* And `ok()`'s own bound no longer cuts it. */
+    expect(ok(out).output).toBe(out);
+    expect(out.length).toBeLessThanOrEqual(OUTPUT_LIMIT);
+  });
+
+  test("a signal already aborted launches nothing", async () => {
+    const c = new AbortController();
+    c.abort();
+    const r = await run(process.execPath, ["-e", "setTimeout(()=>console.log('ran anyway'), 300)"], { cwd: os.tmpdir(), timeoutMs: 30_000, signal: c.signal });
+    expect(r.aborted).toBe(true);
+    expect(r.stdout).not.toContain("ran anyway");
+  });
+
+  test("terminal colour codes are stripped for the model", () => {
+    const r = { code: 1, stdout: "out", stderr: "\u001b[31;1mWrite-Error: \u001b[31;1merr\u001b[0m", timedOut: false, aborted: false, matched: false, durationMs: 10 };
+    expect(describeRun(r, "PowerShell")).toBe("out\n[stderr]\nWrite-Error: err\n[PowerShell finished with code 1 in 0.0 s]");
+    expect(stripAnsi("\u001b]0;title\u0007plain")).toBe("plain");
   });
 });

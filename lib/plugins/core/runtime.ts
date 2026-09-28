@@ -1,6 +1,7 @@
 import type { AppNotification, Confirmation, PluginConfig, PluginManifest, PluginNeed, PluginStatus, PluginsState, PluginView } from "@/lib/domain/plugins";
 import type { Tool } from "@/lib/tools/types";
 import { resolvePolicy } from "@/lib/tools/policy";
+import { CLOCK_STORE, Clock } from "./clock";
 import type { ApiHandler, ConfirmationRequest, NotificationInput, PluginContext, PluginDefinition, PromptRender, PromptTarget, Session } from "./contract";
 import { EventBus } from "./events";
 import { affectedBy, startOrder } from "./graph";
@@ -21,9 +22,16 @@ import type { PluginStore } from "./store";
    `setupTimeoutMs`, marks the plugin `error` (its partial registrations
    are undone) and its dependents `blocked`; everything else runs.
 
-   Two instances exist per machine: the Next server's (`background`: jobs,
-   notifications, confirmations) and one per subscription session in its
-   MCP server (tools only). They share the disk, never memory.
+   ⚠️ NO PLUGIN NEEDS ANOTHER. The background every plugin uses is the
+   runtime's own clock (`clock.ts`), not a plugin: switching any plugin
+   off leaves every other one running. (`requires` still exists in the
+   manifest's type and is honoured here, but no plugin may declare one —
+   `catalog.test.ts`.)
+
+   Two instances exist per machine: the Next server's (`background`: the
+   clock ticks, notifications, confirmations) and one per subscription
+   session in its MCP server (tools only; its `trigger`s reach the Next
+   server's clock through the disk). They share the disk, never memory.
 --------------------------------------------------------------------------- */
 
 export type NotificationSink = { add(plugin: string, input: NotificationInput): Promise<AppNotification> };
@@ -61,6 +69,8 @@ type Instance = {
 
 export class PluginRuntime {
   readonly bus: EventBus;
+  /** The background of every plugin. Ticks only where `background`. */
+  readonly clock: Clock;
   private defs = new Map<string, PluginDefinition>();
   private order: string[];
   private readonly running = new Map<string, Instance>();
@@ -81,6 +91,8 @@ export class PluginRuntime {
     for (const d of definitions) this.defs.set(d.manifest.id, d);
     this.order = startOrder(this.manifests);
     this.bus = new EventBus((event, e) => env.log(`[plugins] listener of ${event} failed: ${e instanceof Error ? e.message : String(e)}`));
+    this.clock = new Clock({ store: env.store(CLOCK_STORE), session: () => env.session(), notify: (owner, n) => env.notifications.add(owner, n), log: (m) => env.log(m) });
+    if (env.background) this.clock.start();
   }
 
   get manifests(): PluginManifest[] {
@@ -135,7 +147,7 @@ export class PluginRuntime {
   shutdown(): Promise<void> {
     const run = this.apply(Object.fromEntries(this.order.map((id) => [id, { enabled: false, config: {}, agentIds: null }])));
     this.closed = true;
-    return run;
+    return run.finally(() => this.clock.stop());
   }
 
   private async reconcile(state: PluginsState): Promise<void> {
@@ -235,13 +247,11 @@ export class PluginRuntime {
       onConfirmed: (handler) => void (instance.confirmed = handler),
       on: (event, listener) => instance.scope.add(this.bus.on(event, listener)),
       emit: (event, payload) => this.bus.emit(`${id}:${event}`, payload),
+      job: (spec) => instance.scope.add(this.clock.register(`${id}:${spec.id}`, id, spec)),
+      jobs: (list) => instance.scope.add(this.clock.source(id, list)),
+      trigger: (jobId) => this.clock.trigger(`${id}:${jobId}`),
+      jobRunning: (jobId) => this.clock.isRunning(`${id}:${jobId}`),
       provide: (factory) => void (instance.service = factory as (caller: PluginContext) => unknown),
-      inject: <T>(dep: string): T => {
-        if (!manifest.requires.includes(dep)) throw new Error(`${id} did not declare ${dep} in \`requires\`.`);
-        const service = serviceOf(dep);
-        if (!service) throw new Error(`${dep} offers no service.`);
-        return service(ctx) as T;
-      },
       optional: <T>(dep: string): T | undefined => {
         if (!manifest.optional.includes(dep)) throw new Error(`${id} did not declare ${dep} in \`optional\`.`);
         const service = serviceOf(dep);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { containing, forbiddenPaths, isTextFile, leakedSecrets, machinePathNeedles } from "./pack-check";
+import { containing, forbiddenPaths, isTextFile, leakedSecrets, machinePathNeedles, missingPaths } from "./pack-check";
 
 describe("forbiddenPaths", () => {
   it("refuses environment files, data and MCP keys", () => {
@@ -66,5 +66,12 @@ describe("the dev server's output", () => {
   it("never goes out", () => {
     expect(forbiddenPaths([".next/dev/lock", ".next/server/app.js"])).toEqual([".next/dev/lock"]);
     expect(isTextFile(".next/server/a.js.map")).toBe(true);
+  });
+});
+
+describe("missingPaths", () => {
+  it("refuses an archive without the bundled finance MCP server", () => {
+    expect(missingPaths(["bin/bytnode-ai.mjs", ".next/BUILD_ID", "lib/mcp/finance-server.ts"])).toEqual([".next/finance-server.mjs"]);
+    expect(missingPaths(["bin/bytnode-ai.mjs", ".next/BUILD_ID", ".next/finance-server.mjs"])).toEqual([]);
   });
 });

@@ -32,7 +32,19 @@ import { backgroundFrame, findAgent } from "./tasks";
 
 const TURNS = 25;
 
+/** Never throws: whatever breaks — the workspace folder refused, a
+    profession unreadable, the model — comes back as `{ ok: false, error }`,
+    which the scheduler records and announces. (A throw before the run
+    used to go unrecorded, and the task was launched again every 15 s.) */
 export async function runAgentInBackground(input: AgentRunInput, session: Session): Promise<AgentRunResult> {
+  try {
+    return await run(input, session);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+async function run(input: AgentRunInput, session: Session): Promise<AgentRunResult> {
   const agent = findAgent(session.agents, input.agentId);
   if (!agent) return { ok: false, error: `No agent "${input.agentId}" in the settings.` };
   const runtime = activeRuntime();
@@ -111,6 +123,10 @@ export async function runAgentInBackground(input: AgentRunInput, session: Sessio
         emit: () => {},
         tools: toToolSpecs(tools),
         maxTurns: TURNS,
+        /* A background run reports in text; its model may not accept
+           images. Its charts stay on disk and are cited by path — never
+           pushed to the model. */
+        modelSeesImages: false,
         signal: input.signal,
       },
     );

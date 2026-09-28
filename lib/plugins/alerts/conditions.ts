@@ -64,7 +64,8 @@ const FUNDING = new RegExp(`^funding\\s*(<=|>=|<|>)\\s*${NUM}\\s*%?$`, "i");
 const EVENT = /^event\s*<\s*(\d{1,3})\s*h$/i;
 const POSITION = /^(pnl%?|liq)\s*(<=|>=|<|>)|^closed$/i;
 const COMPARE = /^(.+?)\s*(crosses[_\s]?above|crosses[_\s]?below|<=|>=|<|>)\s*(.+)$/i;
-const NUMBER = /^(-?\d+(?:\.\d+)?)\s*%?$/;
+/* Scientific notation too: `price>1e9` is a level, not a metric named "1e9". */
+const NUMBER = /^(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)\s*%?$/i;
 const MAX_EVENT_HOURS = 168;
 
 export function parseCondition(text: string): AlertCondition | { error: string } {

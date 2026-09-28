@@ -129,8 +129,8 @@ export function readUserManifest(id: string, raw: unknown): { ok: true; value: U
     forAgents,
     description: description || summary,
     requires: [],
-    /* Its jobs go through the scheduler when it runs. */
-    optional: permissions.schedule ? ["scheduler"] : [],
+    /* Its jobs run on the core's clock: no other plugin needed. */
+    optional: [],
     needs: [],
     config: { type: "object", properties: config, additionalProperties: false },
     views: view ? [{ id, ...view }] : [],

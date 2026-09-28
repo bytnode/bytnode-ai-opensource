@@ -20,6 +20,7 @@ import { resolvePolicy } from "./policy";
 import { openViewTool } from "./views/open-view";
 import { pluginReadTool } from "./plugins/plugin-read";
 import { pluginWriteTool } from "./plugins/plugin-write";
+import { pluginEditTool } from "./plugins/plugin-edit";
 import { pluginCheckTool } from "./plugins/plugin-check";
 import { pluginActivateTool } from "./plugins/plugin-activate";
 import type { ExchangeAccount } from "@/lib/domain/types";
@@ -73,11 +74,11 @@ export function generalTools(platform: string): Tool[] {
 }
 
 /** BytNode-AI's own core tools, served to both engines: the agent's
-    memory, the four tools it writes plugins with (main agent only: their
+    memory, the five tools it writes plugins with (main agent only: their
     policy keeps them from sub-agents) and, for an agent with an account,
     the exchange tools. The rest comes from the plugins. */
 export function bytnodeAiTools(opts: Pick<ToolsetOptions, "exchangeAccounts">): Tool[] {
-  const core = [memoryTool, pluginReadTool, pluginWriteTool, pluginCheckTool, pluginActivateTool] as Tool[];
+  const core = [memoryTool, pluginReadTool, pluginWriteTool, pluginEditTool, pluginCheckTool, pluginActivateTool] as Tool[];
   return opts.exchangeAccounts?.length ? [...core, ...exchangeTools()] : core;
 }
 

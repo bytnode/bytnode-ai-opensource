@@ -77,11 +77,12 @@ export async function runAcpTurn(input: AcpTurnInput, onEvent: (e: WireEvent) =>
   }
 }
 
-export async function answerAcpPermission(conversationId: string, callId: string, allow: boolean, always: boolean): Promise<void> {
+/** `nonce`: the one BytNode-AI's own confirmation came with, if any. */
+export async function answerAcpPermission(conversationId: string, callId: string, allow: boolean, always: boolean, nonce?: string): Promise<void> {
   await fetch("/api/acp/permission", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ conversationId, callId, allow, always }),
+    body: JSON.stringify({ conversationId, callId, allow, always, ...(nonce ? { nonce } : {}) }),
   }).catch(() => {});
 }
 

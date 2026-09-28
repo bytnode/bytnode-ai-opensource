@@ -11,10 +11,26 @@ import { PRELUDE } from "./prelude";
    HOST OPS the caller gives (`host-ops.ts`), which check the permissions
    the user granted. Nothing of the host crosses in but JSON.
 
-   Bounds: memory (`memoryBytes`), stack, and CPU — every entry into the
-   interpreter gets `sliceMs` before it is interrupted (an infinite loop
-   ends as "interrupted", the host stays up) — and every call a wall-clock
-   `timeoutMs` (a promise that never settles does not hold the caller).
+   Bounds, all enforced here, none trusted to the plugin:
+   - MEMORY. Each sandbox has its OWN WebAssembly instance, so its own
+     heap, freed with it. ⚠️ QuickJS's `setMemoryLimit` does not count
+     long strings (`"x".repeat(1e6)` sailed past 64 MB to 350 MB, and an
+     unbounded loop nearly emptied the machine's RAM): the limit that
+     holds is the instance's heap, which may not grow past `memoryBytes`
+     + `HEAP_OVERHEAD` (`capHeap`) — beyond, the allocation fails and the
+     plugin gets "out of memory", in well under a second.
+   - CPU. Every entry into the interpreter gets `sliceMs` (an endless loop
+     ends as "interrupted", the host stays up), AND every call a
+     CUMULATIVE budget of `cpuMs` across all its entries — a plugin that
+     busies itself for 1.9 s, awaits a host call, and starts again, used
+     to get a fresh slice each time and could hold the server for good.
+   - TIME. Every call gets a wall-clock `timeoutMs`.
+   A call that runs out of CPU budget or of time, or an entry interrupted
+   while its promise was pending, KILLS the sandbox: its pending work is
+   dropped, no host call of it lands any more (it kept writing to its
+   store after "did not finish within 30 s"), every call waiting on it is
+   rejected, and `dead` says why. Its owner starts a fresh one at the next
+   call (`definition.ts`).
 
    Pure WebAssembly: installs anywhere `npx` does, no native build.
    SERVER-ONLY.
@@ -29,47 +45,121 @@ export type HostOps = {
   register(op: string, args: Record<string, unknown> | unknown[]): unknown;
 };
 
-export type Limits = { memoryBytes: number; sliceMs: number; timeoutMs: number; setupMs: number };
+export type Limits = { memoryBytes: number; sliceMs: number; cpuMs: number; timeoutMs: number; setupMs: number };
 
-export const DEFAULT_LIMITS: Limits = { memoryBytes: 64 * 1024 * 1024, sliceMs: 2_000, timeoutMs: 30_000, setupMs: 5_000 };
+export const DEFAULT_LIMITS: Limits = { memoryBytes: 64 * 1024 * 1024, sliceMs: 2_000, cpuMs: 5_000, timeoutMs: 30_000, setupMs: 5_000 };
+
+/** What the WebAssembly heap holds besides the plugin's data: the
+    interpreter, its stack, the prelude (the instance starts at 16 MB). */
+export const HEAP_OVERHEAD = 32 * 1024 * 1024;
 
 let wasm: Promise<QuickJSWASMModule> | null = null;
 
-/** The interpreter's module, loaded once per process. */
+/** The interpreter's module shared by the syntax checks (nothing runs in
+    it), loaded once per process. */
 function quickjs(): Promise<QuickJSWASMModule> {
-  wasm ??= (async () => {
-    const { newQuickJSWASMModuleFromVariant } = await import("quickjs-emscripten-core");
-    const variant = (await import("@jitl/quickjs-wasmfile-release-sync")).default;
-    return newQuickJSWASMModuleFromVariant(variant);
-  })();
+  wasm ??= isolatedModule();
   return wasm;
 }
+
+/** A module of its own: a fresh WebAssembly instance, with its own heap. */
+async function isolatedModule(): Promise<QuickJSWASMModule> {
+  const { newQuickJSWASMModuleFromVariant } = await import("quickjs-emscripten-core");
+  const variant = (await import("@jitl/quickjs-wasmfile-release-sync")).default;
+  return newQuickJSWASMModuleFromVariant(variant);
+}
+
+/* --- The heap cap ------------------------------------------------------------
+
+   Emscripten grows an instance's heap with `WebAssembly.Memory#grow`, from
+   inside its allocator; a refused grow makes that allocation fail, which
+   QuickJS reports as "out of memory". The Memory object is internal to the
+   module, so `grow` is wrapped once for the process: it looks the memory
+   up (by the heap's buffer the first time, then by the object) and
+   refuses to go past its cap. Any other WebAssembly in the process passes
+   straight through. Kept on `globalThis`: a development reload must not
+   wrap it twice with maps the other copy cannot see. */
+
+type HeapCaps = { byMemory: WeakMap<WebAssembly.Memory, number>; byBuffer: WeakMap<ArrayBufferLike, number> };
+const CAPS_KEY = Symbol.for("bytnode-ai.sandbox.heap-caps");
+
+function heapCaps(): HeapCaps {
+  const holder = globalThis as { [CAPS_KEY]?: HeapCaps };
+  if (holder[CAPS_KEY]) return holder[CAPS_KEY];
+  const caps: HeapCaps = { byMemory: new WeakMap(), byBuffer: new WeakMap() };
+  holder[CAPS_KEY] = caps;
+  const proto = WebAssembly.Memory.prototype;
+  const grow = proto.grow;
+  proto.grow = function (this: WebAssembly.Memory, delta: number): number {
+    let cap = caps.byMemory.get(this);
+    if (cap === undefined) {
+      cap = caps.byBuffer.get(this.buffer);
+      if (cap !== undefined) caps.byMemory.set(this, cap);
+    }
+    if (cap !== undefined && this.buffer.byteLength + delta * 65_536 > cap) throw new RangeError("The plugin's memory is full.");
+    return grow.call(this, delta);
+  };
+  return caps;
+}
+
+/** Caps the heap of this module's instance; false when the library no
+    longer exposes it (the tests catch that). */
+export function capHeap(module: QuickJSWASMModule, bytes: number): boolean {
+  const heap = (module as unknown as { module?: { HEAP8?: Int8Array } }).module?.HEAP8;
+  if (!heap) return false;
+  heapCaps().byBuffer.set(heap.buffer, bytes);
+  return true;
+}
+
+/** The size of this module's heap now. For the tests. */
+export const heapSize = (module: QuickJSWASMModule): number => (module as unknown as { module?: { HEAP8?: Int8Array } }).module?.HEAP8?.length ?? 0;
 
 export class SandboxError extends Error {}
 
 export class Sandbox {
+  /** The current entry into the interpreter ends here (`sliceMs`). */
   private deadline = Infinity;
+  private entryStart = 0;
+  /** Interpreter time used by the calls in flight, and what they may use. */
+  private spent = 0;
+  private budget: number;
+  private inFlight = 0;
   private readonly pending = new Set<QuickJSDeferredPromise>();
+  private readonly waiting = new Set<(e: Error) => void>();
   private disposed = false;
+  private killedBecause: string | null = null;
 
   private constructor(
     private readonly rt: QuickJSRuntime,
     private readonly vm: QuickJSContext,
     private readonly ops: HostOps,
     readonly limits: Limits,
-  ) {}
+    /** Its own WebAssembly instance (the heap it may not outgrow). */
+    readonly module: QuickJSWASMModule,
+  ) {
+    this.budget = limits.cpuMs;
+  }
+
+  /** Why it was stopped for good, or null while it runs. */
+  get dead(): string | null {
+    return this.killedBecause ?? (this.disposed ? "The plugin has stopped." : null);
+  }
 
   /** A fresh interpreter with the prelude's `ctx`, the plugin's id and
       configuration. */
   static async create(opts: { id: string; config: Record<string, unknown>; ops: HostOps; limits?: Partial<Limits>; extraPrelude?: string }): Promise<Sandbox> {
     const limits = { ...DEFAULT_LIMITS, ...opts.limits };
-    const qjs = await quickjs();
+    const qjs = await isolatedModule();
+    capHeap(qjs, limits.memoryBytes + HEAP_OVERHEAD);
     const rt = qjs.newRuntime();
     rt.setMemoryLimit(limits.memoryBytes);
     rt.setMaxStackSize(512 * 1024);
     const vm = rt.newContext();
-    const box = new Sandbox(rt, vm, opts.ops, limits);
-    rt.setInterruptHandler(() => Date.now() > box.deadline);
+    const box = new Sandbox(rt, vm, opts.ops, limits, qjs);
+    rt.setInterruptHandler(() => {
+      const now = Date.now();
+      return box.killedBecause !== null || now > box.deadline || box.spent + (now - box.entryStart) > box.budget;
+    });
     box.install(opts.id, opts.config);
     box.evalGlobal(PRELUDE, "prelude.js");
     if (opts.extraPrelude) box.evalGlobal(opts.extraPrelude, "test-prelude.js");
@@ -127,24 +217,50 @@ export class Sandbox {
   }
 
   private enter(ms = this.limits.sliceMs): void {
-    this.deadline = Date.now() + ms;
+    this.entryStart = Date.now();
+    this.deadline = this.entryStart + ms;
   }
 
+  /** Out of the interpreter: the entry's time counts against the budget. */
+  private leave(): void {
+    this.spent += Date.now() - this.entryStart;
+    this.deadline = Infinity;
+  }
+
+  private overBudget = () => this.spent > this.budget;
+
+  private budgetMessage = () => `The plugin used more than ${Math.round(this.budget / 1000)} s of processor time for one call and was stopped.`;
+
   /** Runs the promise jobs queued inside (a resolved host call wakes the
-      plugin's `await`). */
+      plugin's `await`). An interruption here leaves a call's promise
+      pending forever: the sandbox is stopped, its callers told at once. */
   private pump(): void {
+    if (this.disposed) return;
     this.enter();
     const r = this.rt.executePendingJobs();
-    if (r.error) r.error.dispose();
+    this.leave();
+    if (!r.error) return;
+    this.kill(this.overBudget() ? this.budgetMessage() : this.describe(r.error, true));
   }
 
   private check(): void {
+    if (this.killedBecause) throw new SandboxError(this.killedBecause);
     if (this.disposed) throw new SandboxError("The plugin has stopped.");
+  }
+
+  /** Stops it for good: pending work dropped, waiting calls rejected. */
+  kill(message: string): void {
+    if (this.killedBecause || this.disposed) return;
+    this.killedBecause = message;
+    for (const reject of this.waiting) reject(new SandboxError(message));
+    this.waiting.clear();
+    this.dispose();
   }
 
   private evalGlobal(code: string, filename: string): void {
     this.enter();
     const r = this.vm.evalCode(code, filename, { type: "global" });
+    this.leave();
     if (r.error) throw new SandboxError(this.describe(r.error, true));
     r.value.dispose();
   }
@@ -172,13 +288,16 @@ export class Sandbox {
   /** Evaluates the plugin's module and runs its `setup(ctx)`. */
   async setup(code: string, filename = "server.js"): Promise<void> {
     this.check();
+    this.spent = 0;
+    this.budget = this.limits.setupMs;
     this.enter(this.limits.setupMs);
     const r = this.vm.evalCode(code, filename, { type: "module" });
+    this.leave();
     if (r.error) throw new SandboxError(this.describe(r.error, true));
     const exports = await this.settleValue(r.value, this.limits.setupMs, "Loading server.js");
     this.vm.setProp(this.vm.global, "__module", exports);
     exports.dispose();
-    await this.callGlobal("__setup", [], this.limits.setupMs, "setup(ctx)");
+    await this.callGlobal("__setup", [], this.limits.setupMs, "setup(ctx)", this.limits.setupMs);
   }
 
   /** Like `settle`, but keeps the value as a handle (a module's exports,
@@ -187,31 +306,67 @@ export class Sandbox {
   private async settleValue(handle: QuickJSHandle, timeoutMs: number, what: string): Promise<QuickJSHandle> {
     const native = this.vm.resolvePromise(handle);
     handle.dispose();
-    this.pump();
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new SandboxError(`${what} did not finish within ${Math.round(timeoutMs / 1000)} s.`)), timeoutMs);
+    let stopped: (e: Error) => void = () => {};
+    const killed = new Promise<never>((_, reject) => {
+      stopped = reject;
+      this.waiting.add(reject);
     });
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        /* ⚠️ Releasing the caller is not enough: the plugin's work would go
+           on (writing to its store, using the CPU). It is stopped. */
+        const message = `${what} did not finish within ${Math.round(timeoutMs / 1000)} s: the plugin was stopped (it starts again at its next call).`;
+        this.kill(message);
+        reject(new SandboxError(message));
+      }, timeoutMs);
+    });
+    this.pump();
     try {
-      const r = await Promise.race([native, timeout]);
-      if (r.error) throw new SandboxError(this.describe(r.error, true));
+      const r = await Promise.race([native, timeout, killed]);
+      if (r.error) {
+        const message = this.describe(r.error, true);
+        /* An interruption turned into the call's rejection: over budget,
+           the sandbox stops (its other work would go on otherwise). */
+        if (!this.overBudget()) throw new SandboxError(message);
+        this.kill(this.budgetMessage());
+        throw new SandboxError(this.budgetMessage());
+      }
       return r.value;
     } finally {
       clearTimeout(timer);
+      this.waiting.delete(stopped);
     }
   }
 
-  /** Calls an async global function of the prelude (`__setup`, `__runTests`). */
-  async callGlobal(name: string, args: unknown[], timeoutMs = this.limits.timeoutMs, what = name): Promise<unknown> {
+  /** Calls an async global function of the prelude (`__setup`, `__runTests`).
+      `cpuMs`: the processor time it may use in all, across its awaits. */
+  async callGlobal(name: string, args: unknown[], timeoutMs = this.limits.timeoutMs, what = name, cpuMs = this.limits.cpuMs): Promise<unknown> {
     this.check();
-    const fn = this.vm.getProp(this.vm.global, name);
-    const handles = args.map((a) => (typeof a === "number" ? this.vm.newNumber(a) : this.vm.newString(typeof a === "string" ? a : JSON.stringify(a))));
-    this.enter();
-    const r = this.vm.callFunction(fn, this.vm.undefined, ...handles);
-    fn.dispose();
-    for (const h of handles) h.dispose();
-    if (r.error) throw new SandboxError(this.describe(r.error, true));
-    return this.settle(r.value, timeoutMs, what);
+    /* The budget counts from the first call in flight: overlapping calls
+       share it (one plugin, one interpreter). */
+    if (this.inFlight === 0) {
+      this.spent = 0;
+      this.budget = cpuMs;
+    }
+    this.inFlight++;
+    try {
+      const fn = this.vm.getProp(this.vm.global, name);
+      const handles = args.map((a) => (typeof a === "number" ? this.vm.newNumber(a) : this.vm.newString(typeof a === "string" ? a : JSON.stringify(a))));
+      this.enter();
+      const r = this.vm.callFunction(fn, this.vm.undefined, ...handles);
+      this.leave();
+      fn.dispose();
+      for (const h of handles) h.dispose();
+      if (r.error) {
+        const message = this.overBudget() ? this.budgetMessage() : this.describe(r.error, true);
+        if (this.overBudget()) this.kill(message);
+        throw new SandboxError(message);
+      }
+      return await this.settle(r.value, timeoutMs, what);
+    } finally {
+      this.inFlight--;
+    }
   }
 
   /** Calls back one of the plugin's functions (a tool's `run`…). */
@@ -225,6 +380,7 @@ export class Sandbox {
     this.check();
     this.enter(this.limits.setupMs);
     const r = this.vm.evalCode(code, filename, { type: "module" });
+    this.leave();
     if (r.error) throw new SandboxError(this.describe(r.error, true));
     (await this.settleValue(r.value, this.limits.setupMs, `Loading ${filename}`)).dispose();
   }
@@ -232,6 +388,8 @@ export class Sandbox {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    for (const reject of this.waiting) reject(new SandboxError(this.killedBecause ?? "The plugin has stopped."));
+    this.waiting.clear();
     for (const d of this.pending) if (d.alive) d.dispose();
     this.pending.clear();
     try {

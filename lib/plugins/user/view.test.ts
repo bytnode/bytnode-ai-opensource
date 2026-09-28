@@ -59,6 +59,35 @@ describe("the page of a plugin written by an agent", () => {
   });
 });
 
+describe("a form submission is neutralised by the frame", () => {
+  const fix = /neutralises submission/;
+
+  it("refuses a submit button, an action, onSubmit and a submit listener — each with its line", async () => {
+    const html = [
+      '<form><button type="submit">Save</button></form>',
+      '<form action="./x"></form>',
+      '<form onSubmit="go()"></form>',
+      '<script>el.addEventListener("submit", go)</script>',
+    ].join("\n");
+    const r = await viewProblems({ "view/index.html": `<div class="bn-app"></div>\n${html}\n<script>bn.call("x")</script>` }, true);
+    const text = r.errors.join("\n");
+    expect(text).toMatch(fix);
+    expect(text).toMatch(/type="submit".*Save/);
+    expect(text).toMatch(/action attribute/);
+    expect(text).toMatch(/an onSubmit handler/);
+    expect(text).toMatch(/submit listener/);
+    expect(text).toMatch(/index\.html:\d/);
+  });
+
+  it("passes with type=\"button\" and a click handler", async () => {
+    const r = await viewProblems(
+      { "view/index.html": '<div class="bn-app"></div><form><button type="button" onclick="save()">Save</button></form><script>function save(){}</script>' },
+      true,
+    );
+    expect(r.errors).toEqual([]);
+  });
+});
+
 describe("the kit is not overridden", () => {
   it("refuses !important and rules on the page's frame", async () => {
     const r = await viewProblems({ "view/index.html": '<style>.bn-sheet { background: transparent !important; } html, body { background: #000; }</style><div class="bn-app"></div><script>bn.call("x")</script>' }, true);

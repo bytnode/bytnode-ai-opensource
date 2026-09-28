@@ -99,3 +99,15 @@ function show(value: unknown): string {
   const text = typeof value === "string" ? JSON.stringify(value) : JSON.stringify(value) ?? String(value);
   return text.length > 60 ? `${text.slice(0, 57)}…` : text;
 }
+
+/** The failed result's sentence for a call whose arguments do not fit the
+    tool — `null` when they do. Used by `/api/tools/execute`, which is also
+    reached by callers that never went through the agent loop: the tool must
+    never see arguments outside its schema (bounds included). */
+export function invalidCall(tool: { name: string; parameters: JsonSchema }, args: unknown): string | null {
+  const problem =
+    typeof args !== "object" || args === null || Array.isArray(args)
+      ? "the arguments must be a JSON object."
+      : validateArgs(tool.parameters, args as Record<string, unknown>);
+  return problem ? `Invalid arguments for ${tool.name}: ${problem} Fix the call.` : null;
+}

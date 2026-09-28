@@ -74,12 +74,14 @@ export function describeFrequency(f: Frequency): string {
     for a time of day, the first occurrence strictly after `after`. */
 export function nextRun(f: Frequency, after: number): number {
   if (f.kind === "interval") return after + f.minutes * MINUTE;
-  const d = new Date(after);
-  d.setSeconds(0, 0);
-  d.setHours(f.hour, f.minute);
-  if (f.kind === "weekly") d.setDate(d.getDate() + ((f.weekday - d.getDay() + 7) % 7));
-  while (d.getTime() <= after) d.setDate(d.getDate() + (f.kind === "weekly" ? 7 : 1));
-  return d.getTime();
+  const from = new Date(after);
+  /* ⚠️ Each candidate day is built from its date AND the wanted time. On
+     the spring change, 02:30 does not exist and the Date lands on 03:30;
+     moving THAT object day by day kept 03:30 for every run after it. */
+  const on = (dayOffset: number) => new Date(from.getFullYear(), from.getMonth(), from.getDate() + dayOffset, f.hour, f.minute).getTime();
+  let offset = f.kind === "weekly" ? (f.weekday - from.getDay() + 7) % 7 : 0;
+  while (on(offset) <= after) offset += f.kind === "weekly" ? 7 : 1;
+  return on(offset);
 }
 
 /** Was a run due between the last one and now, while nothing was running

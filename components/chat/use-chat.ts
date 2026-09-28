@@ -40,6 +40,8 @@ import {
   patchLastMessage,
   saveConversation,
 } from "@/lib/state/conversations";
+import { currentSettings } from "@/lib/state/settings";
+import { STOPPED, restoreAfterFailedRecovery } from "@/lib/agent/stop";
 import { acpAgentOf, acpModelId } from "@/lib/acp/agents";
 import {
   AcpError,
@@ -71,9 +73,13 @@ import type { WireEvent } from "@/lib/acp/wire";
 
    In "ask" mode, a tool that acts (its declared policy, see
    `lib/tools/policy.ts`) shows up with two buttons and the loop waits.
-   `answer` decides; "always" flips the agent to direct mode. This mode
+   `answer` decides; "always" records a rule for that call. This mode
    ONLY concerns agents on OpenRouter: a subscription agent has its own
    modes.
+   ⚠️ THE MODE AND THE RULES ARE READ AT EVERY TOOL CALL, from the current
+   settings — not once per turn. The header's toggle stays live while the
+   agent works: switching to "Ask before acting" must stop the very next
+   command, not the next turn's (up to 40 model calls later).
 
    TWO ENGINES, ONE THREAD. An agent on OpenRouter runs our loop right here
    (model + our tools). A subscription agent (`acp:…`) delegates the turn to
@@ -112,8 +118,9 @@ type Options = {
       compacting. `null`: unknown, we do not compact on our own. */
   window: number | null;
   onConversationCreated: (id: string) => void;
-  /** Memorise an allow rule for this agent ("Always"). */
-  onAllowRule: (rule: string) => void;
+  /** Memorise an allow rule ("Always") for the agent that ran the turn —
+      the one on screen may have changed since. */
+  onAllowRule: (agentId: string, rule: string) => void;
 };
 
 type ToolStep = Extract<Step, { type: "tool" }>;
@@ -129,7 +136,13 @@ type TurnOptions = SendOptions & {
   compactedBy?: CompactedBy;
   hardPrune?: boolean;
   recovered?: boolean;
-  thenReplay?: { text: string; opts: TurnOptions };
+  thenReplay?: {
+    text: string;
+    opts: TurnOptions;
+    /** The exchange taken out of the thread to compact it (the user's
+        message and its empty reply): put back if the compaction fails. */
+    taken?: Message[];
+  };
   /** Retry after an interrupted reply: no new message — the agent goes on
       IN the reply it had started, from where it stopped. */
   resume?: boolean;
@@ -143,7 +156,7 @@ const CONTINUE_PROMPT = "Continue: pick the task up where it stopped, relying on
 /* What the model reads (never shown) when the user retries an interrupted
    reply: it sees its own reply so far, and goes on from there. */
 const RESUME_PROMPT =
-  "Your previous reply was interrupted (connection lost). Continue it from exactly where it stopped: do not repeat what you already wrote, and do not redo a tool call that already has a result — rerun only the ones marked interrupted, if still needed.";
+  "Your previous reply was interrupted (connection lost, or stopped by the user). Continue it from exactly where it stopped: do not repeat what you already wrote, and do not redo a tool call that already has a result — rerun only the ones marked interrupted, if still needed.";
 const COMPACT_HINT = "Type /compact to summarise the thread, or open a new conversation.";
 
 const STORED_OUTPUT = 12_000;
@@ -171,7 +184,6 @@ export function useChat({
   const waiting = useRef(
     new Map<string, (allow: boolean, always: boolean) => void>(),
   );
-  const skipAll = useRef(false);
   /* What the turn consumes, for the thread's meter: the last known count
      and the measured rate. Replaced per frame, never mutated. */
   const [live, setLive] = useState<{ usage?: UsageInfo; rate: number | null; produced: number }>({ rate: null, produced: 0 });
@@ -198,9 +210,9 @@ export function useChat({
      shell. A dangerous command, or a tool that always asks, produces no
      rule — `ruleFor` refuses it upstream. */
   const rememberRule = useCallback(
-    (name: string, args: Record<string, unknown>, critical: boolean) => {
+    (agentId: string, name: string, args: Record<string, unknown>, critical: boolean) => {
       const rule = ruleFor(name, args, critical);
-      if (rule) onAllowRule(rule);
+      if (rule) onAllowRule(agentId, rule);
     },
     [onAllowRule],
   );
@@ -277,7 +289,9 @@ export function useChat({
 
         const controller = new AbortController();
         abort.current = controller;
-        skipAll.current = agent.permissionMode === "skip";
+        /* This agent as the settings hold it NOW (see the header note):
+           its mode and its rules can change during the turn. */
+        const liveAgent = (): AgentConfig => currentSettings().agents.find((a) => a.id === agent.id) ?? agent;
         setStreamingId(conversation.id);
 
         /* The steps of the current message, held here and applied per
@@ -337,9 +351,16 @@ export function useChat({
         const tool = (id: string) =>
           steps.find((s): s is ToolStep => s.type === "tool" && s.id === id);
 
+        const acp = acpAgentOf(agent.providerId);
         /* The turn's count, and the rate: tokens produced since the first
-           character, measured on every frame. */
-        let usage: UsageInfo | undefined;
+           character, measured on every frame.
+           ⚠️ The COST adds up over the turn's model calls: OpenRouter prices
+           each request, and a turn with ten tool calls is eleven requests
+           (a resumed reply starts from what it had already cost). A
+           subscription agent's `usage_update` already carries a running
+           total: replaced, never added. The tokens are always the last
+           call's — they are what the context meter shows. */
+        let usage: UsageInfo | undefined = acp ? undefined : resumed?.usage;
         let produced = 0;
         let firstAt = 0;
         const pushLive = () => {
@@ -350,7 +371,7 @@ export function useChat({
         const emit = (e: AgentEvent) => {
           switch (e.type) {
             case "usage":
-              usage = mergeUsage(usage, e.usage);
+              usage = mergeUsage(usage, e.usage, { addCost: !acp });
               pushLive();
               break;
             case "retry":
@@ -450,7 +471,6 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
 
         let error: string | undefined;
         let caught: unknown;
-        const acp = acpAgentOf(agent.providerId);
         try {
           /* What THIS agent's requests carry: the keys, the exchange
              accounts it may drive (they decide which tools it sees). */
@@ -529,13 +549,14 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
                   waiting.current.set(e.id, (allow, always) => {
                     const step = tool(e.id);
                     if (step) step.status = allow ? "running" : "denied";
-                    if (allow && always && step) rememberRule(step.name, step.args, step.alwaysAsk === true);
+                    if (allow && always && step) rememberRule(agent.id, step.name, step.args, step.alwaysAsk === true);
                     mark(true);
                     void answerAcpPermission(
                       conversation.id,
                       e.id,
                       allow,
                       always,
+                      e.nonce,
                     );
                   });
                   break;
@@ -642,11 +663,11 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
                  it (`Write`, `Bash(git status *)`…). What commits funds
                  always asks. The policy is the one each tool declares
                  (`lib/tools/policy.ts`). */
-              gated: (name) => mustAsk(policyIn(toolset.policies, name), skipAll.current),
+              gated: (name) => mustAsk(policyIn(toolset.policies, name), liveAgent().permissionMode === "skip"),
               permission: (call: ToolCall) =>
                 new Promise<boolean>((resolve) => {
                   const critical = policyIn(toolset.policies, call.name).alwaysAsk;
-                  if (matchesRule(agent.allowRules, call.name, call.args, critical)) {
+                  if (matchesRule(liveAgent().allowRules, call.name, call.args, critical)) {
                     resolve(true);
                     return;
                   }
@@ -660,7 +681,7 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
                     const step = tool(call.id);
                     if (step) step.status = allow ? "running" : "denied";
                     mark(true);
-                    if (allow && always) rememberRule(call.name, call.args, critical);
+                    if (allow && always) rememberRule(agent.id, call.name, call.args, critical);
                     resolve(allow);
                   });
                 }),
@@ -697,6 +718,9 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
           controller.signal.aborted &&
           last.content.length === 0 &&
           (last.steps?.length ?? 0) === 0;
+        /* Stopped with something written: kept, and marked as stopped (the
+           thread offers to continue it — see `lib/agent/stop.ts`). */
+        if (controller.signal.aborted && !stopped && !compact) error = STOPPED;
         const closed = (m: Message): Message => ({
           ...m,
           error,
@@ -728,6 +752,17 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
                meter starts again from the new one's estimate. */
             setLive({ rate: null, produced: 0 });
             if (opts.thenReplay) await turn(conversation.id, opts.thenReplay.text, opts.thenReplay.opts);
+            return;
+          }
+          const taken = opts.thenReplay?.taken;
+          if (taken?.length) {
+            /* This compaction was the recovery of an overflow that had taken
+               the user's message out of the thread: it comes back, with
+               why, instead of vanishing. Retry sends it again. */
+            const why = aborted
+              ? `The context window is full and compacting the thread was stopped. ${COMPACT_HINT}`
+              : `The context window is full and compacting the thread failed: ${error ?? "the agent produced no summary."} ${COMPACT_HINT}`;
+            saveConversation({ ...finished, updatedAt: Date.now(), messages: restoreAfterFailedRecovery(finished.messages, taken, why) });
             return;
           }
           saveConversation({ ...finished, updatedAt: Date.now(), messages: finished.messages.slice(0, -1) });
@@ -769,7 +804,11 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
             compactedBy: "overflow",
             hardPrune: true,
             recovered: true,
-            thenReplay: { text: worked ? CONTINUE_PROMPT : content, opts: replay },
+            thenReplay: {
+              text: worked ? CONTINUE_PROMPT : content,
+              opts: replay,
+              ...(worked ? {} : { taken: finished.messages.slice(-2) }),
+            },
           });
           return;
         }

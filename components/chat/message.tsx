@@ -4,6 +4,7 @@ import { memo, useState } from "react";
 import type { Message as MessageT } from "@/lib/domain/types";
 import type { PlanEntry } from "@/lib/agent/events";
 import { compactLabel } from "@/lib/agent/compact";
+import { isStopped } from "@/lib/agent/stop";
 import { Markdown } from "./markdown";
 import { ChevronDown, Spinner } from "@/components/ui/icons";
 import { ToolStepView } from "./tool-step";
@@ -120,7 +121,18 @@ export const Message = memo(function Message({ message, author, streaming, onRet
           <span />
         </div>
       )}
-      {message.error && (
+      {/* Stopped by the user: a quiet mark, and the way to go on — the same
+          resume as after a cut connection. */}
+      {message.error && isStopped(message) ? (
+        <div className="msg-stopped" role="status">
+          <span>Stopped</span>
+          {onRetry && (
+            <button type="button" className="msg-stopped-go" onClick={onRetry}>
+              Continue
+            </button>
+          )}
+        </div>
+      ) : message.error && (
         <div className="notice msg-error" role="alert">
           <p>{message.error}</p>
           {onRetry && (

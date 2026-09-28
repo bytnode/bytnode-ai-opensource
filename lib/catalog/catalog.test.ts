@@ -136,6 +136,33 @@ describe("searchModels", () => {
   test("never returns models from another provider", () => {
     expect(searchModels(models(), "openai", "claude")).toEqual([]);
   });
+
+  test("matches word by word, in any order", () => {
+    expect(searchModels(models(), "anthropic", "opus 4 claude").map((m) => m.id)).toEqual([
+      "anthropic/claude-opus-4",
+      "anthropic/claude-opus-4:batch",
+    ]);
+    expect(searchModels(models(), "anthropic", "haiku 3.5").map((m) => m.id)).toEqual(["anthropic/claude-3.5-haiku"]);
+  });
+
+  test("allVendors: a key agent's search covers every vendor, its own first, never a subscription's", () => {
+    const all = [
+      ...models(),
+      ...parseOpenRouterModels({
+        data: [
+          { id: "google/gemini-3.5-flash-lite", name: "Google: Gemini 3.5 Flash Lite", created: 1_700_000_500 },
+          { id: "deepseek/deepseek-v4.1-flash", name: "DeepSeek: DeepSeek V4.1 Flash", created: 1_700_000_600 },
+          { id: "acp:gemini/gemini-flash-lite", name: "Gemini Flash Lite", created: 1_700_000_700 },
+        ],
+      }),
+    ];
+    expect(searchModels(all, "deepseek", "gemini flash lite", { allVendors: true }).map((m) => m.id)).toEqual(["google/gemini-3.5-flash-lite"]);
+    expect(searchModels(all, "deepseek", "flash v4.1", { allVendors: true }).map((m) => m.id)).toEqual(["deepseek/deepseek-v4.1-flash"]);
+    /* Own vendor first, then the others newest first. */
+    expect(searchModels(all, "openai", "o", { allVendors: true })[0].id).toBe("openai/gpt-4o");
+    /* Without the option (a subscription), only the vendor's own. */
+    expect(searchModels(all, "deepseek", "gemini")).toEqual([]);
+  });
 });
 
 describe("searchProviders", () => {

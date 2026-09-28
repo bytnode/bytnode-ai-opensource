@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cardOf, eventsOfUpdate, modelsOfConfig, modelsOfSession, effortsOfConfig, pickPermissionOption, toolOutputOf, DEFAULT_MODEL } from "./translate";
+import { cardOf, eventsOfUpdate, isServerConfirmedCall, isUngatedMcpCall, matchServedCall, mcpToolOf, mergeCallInfo, permissionSubject, modelsOfConfig, modelsOfSession, effortsOfConfig, pickPermissionOption, toolOutputOf, turnMode, TurnCost, DEFAULT_MODEL, type AgentModes } from "./translate";
 import type { SessionConfigOption, SessionUpdate, PermissionOption } from "@agentclientprotocol/sdk";
 
 describe("eventsOfUpdate", () => {
@@ -198,6 +198,133 @@ describe("pickPermissionOption", () => {
   it("without a reject option, returns null", () => {
     expect(pickPermissionOption(options.slice(0, 2), false, false)).toBeNull();
   });
+  /* S1: a one-time answer must never be recorded as a permanent one. */
+  it("never turns a one-time Allow into allow_always: without allow_once, null (cancelled)", () => {
+    const onlyAlways: PermissionOption[] = [
+      { optionId: "yes-always", name: "Always allow", kind: "allow_always" },
+      { optionId: "no", name: "Reject", kind: "reject_once" },
+    ];
+    expect(pickPermissionOption(onlyAlways, true, false)).toBeNull();
+    expect(pickPermissionOption(onlyAlways, true, true)).toBe("yes-always");
+  });
+  it("never turns a one-time Deny into reject_always: without reject_once, null (cancelled)", () => {
+    const onlyNever: PermissionOption[] = [
+      { optionId: "ok", name: "Allow", kind: "allow_once" },
+      { optionId: "never", name: "Never", kind: "reject_always" },
+    ];
+    expect(pickPermissionOption(onlyNever, false, false)).toBeNull();
+    expect(pickPermissionOption(onlyNever, false, true)).toBe("never");
+    expect(pickPermissionOption(options, false, true)).toBe("r1");
+  });
+});
+
+describe("Codex MCP calls (F2)", () => {
+  const rawInput = { server: "bytnode-ai", tool: "PositionSize", arguments: { capital: 1000, side: "long" } };
+  it("names the call after the MCP tool and keeps only its arguments", () => {
+    const u = { sessionUpdate: "tool_call", toolCallId: "exec-1", title: "mcp.bytnode-ai.PositionSize", kind: "execute", status: "in_progress", rawInput, _meta: { is_mcp_tool_call: true } } as SessionUpdate;
+    expect(eventsOfUpdate(u)).toEqual([{ type: "tool_call", id: "exec-1", name: "mcp__bytnode-ai__PositionSize", args: { capital: 1000, side: "long" } }]);
+    const w = { sessionUpdate: "tool_call", toolCallId: "exec-2", kind: "execute", status: "in_progress", rawInput: { server: "bytnode-ai", tool: "Workflow", arguments: { tasks: [] } } } as unknown as SessionUpdate;
+    expect(eventsOfUpdate(w)[0]).toMatchObject({ name: "mcp__bytnode-ai__Workflow", args: { tasks: [] } });
+  });
+  it("reads the card and the text from the Codex envelope { result: { content }, error }", () => {
+    const card = { kind: "facts", data: { title: "Position size" } };
+    const rawOutput = {
+      result: {
+        content: [
+          { type: "text", text: "Size: 1.95" },
+          { type: "resource", resource: { uri: "bytnode-ai://card", mimeType: "application/json", text: JSON.stringify(card) } },
+          { type: "text", text: `bytnode-ai://card ${JSON.stringify(card)}` },
+        ],
+        structuredContent: null,
+        _meta: null,
+      },
+      error: null,
+    };
+    const events = eventsOfUpdate({ sessionUpdate: "tool_call_update", toolCallId: "exec-1", status: "completed", rawInput, rawOutput } as SessionUpdate);
+    expect(events).toEqual([{ type: "tool_result", id: "exec-1", ok: true, output: "Size: 1.95", card }]);
+  });
+  it("shows the envelope's error", () => {
+    expect(toolOutputOf({ toolCallId: "x", status: "completed", rawOutput: { result: null, error: "tool timed out" } })).toBe("tool timed out");
+  });
+});
+
+describe("mcpToolOf / isUngatedMcpCall (F4)", () => {
+  const ungated = new Set(["PositionSize"]);
+  it("finds the MCP tool behind Claude and Codex calls", () => {
+    expect(mcpToolOf({ title: "mcp__bytnode-ai__PositionSize" })).toEqual({ server: "bytnode-ai", tool: "PositionSize" });
+    expect(mcpToolOf({ title: "Run", _meta: { claudeCode: { toolName: "mcp__bytnode__get_market_data" } } })).toEqual({ server: "bytnode", tool: "get_market_data" });
+    expect(mcpToolOf({ title: "Approve", rawInput: { server: "bytnode-ai", tool: "PlaceOrder", arguments: {} } })).toEqual({ server: "bytnode-ai", tool: "PlaceOrder" });
+    expect(mcpToolOf({ title: "Bash echo hi" })).toBeNull();
+  });
+  it("lets through only our ungated tools and the BytNode data server", () => {
+    expect(isUngatedMcpCall({ title: "mcp__bytnode-ai__PositionSize" }, ungated)).toBe(true);
+    expect(isUngatedMcpCall({ title: "mcp__bytnode-ai__Workflow" }, ungated)).toBe(false);
+    expect(isUngatedMcpCall({ title: "mcp__bytnode__get_market_data" }, ungated)).toBe(true);
+    expect(isUngatedMcpCall({ title: "mcp__other__PositionSize" }, ungated)).toBe(false);
+    expect(isUngatedMcpCall({ title: "Write notes.md" }, ungated)).toBe(false);
+  });
+});
+
+describe("permissionSubject (Codex asks with an empty title)", () => {
+  const known = mergeCallInfo(undefined, { title: "mcp.bytnode-ai.PlaceOrder", rawInput: { server: "bytnode-ai", tool: "PlaceOrder", arguments: {} } });
+  it("completes the request with what the call said, and names it", () => {
+    const s = permissionSubject({ title: "" }, known);
+    expect(mcpToolOf(s.call)).toEqual({ server: "bytnode-ai", tool: "PlaceOrder" });
+    expect(s.title).toBe("mcp__bytnode-ai__PlaceOrder");
+    expect(s.identified).toBe(true);
+  });
+  it("keeps the request's own title, and says when nothing identifies the call", () => {
+    expect(permissionSubject({ title: "Edit files" }, undefined)).toMatchObject({ title: "Edit files", identified: true });
+    expect(permissionSubject({ title: "" }, undefined).identified).toBe(false);
+  });
+});
+
+describe("turnMode (Codex asks by default, the user's pick wins)", () => {
+  const modes: AgentModes = {
+    configId: "mode",
+    current: "agent",
+    options: [
+      { value: "read-only", name: "Ask for approval" },
+      { value: "agent", name: "Approve for me" },
+      { value: "agent-full-access", name: "Full access" },
+    ],
+  };
+  it("with nothing picked, starts in the asking mode", () => {
+    expect(turnMode(modes, { requested: null, askMode: "read-only", restore: null })).toBe("read-only");
+  });
+  it("a mode the user picked wins over the asking default (Full access asks nothing but money)", () => {
+    expect(turnMode(modes, { requested: "agent-full-access", askMode: "read-only", restore: null })).toBe("agent-full-access");
+    expect(turnMode(modes, { requested: "unknown-mode", askMode: "read-only", restore: null })).toBe("read-only");
+  });
+  it("in Run directly: the mode picked, else the one before we forced it, else nothing", () => {
+    expect(turnMode(modes, { requested: "agent-full-access", askMode: null, restore: "agent" })).toBe("agent-full-access");
+    expect(turnMode(modes, { requested: null, askMode: null, restore: "agent" })).toBe("agent");
+    expect(turnMode(modes, { requested: null, askMode: null, restore: null })).toBeNull();
+    expect(turnMode(null, { requested: "x", askMode: "read-only", restore: null })).toBeNull();
+  });
+});
+
+describe("TurnCost (the meter shows the turn, not the process total)", () => {
+  it("subtracts the total at the start of the turn", () => {
+    const c = new TurnCost();
+    c.begin();
+    expect(c.of(0.0192)).toBeCloseTo(0.0192);
+    c.begin();
+    expect(c.of(0.0226)).toBeCloseTo(0.0034);
+    c.begin();
+    expect(c.of(0.03)).toBeCloseTo(0.0074);
+    expect(c.of(0.0359)).toBeCloseTo(0.0133);
+  });
+  it("ignores the 0 of a cancelled turn, and restarts from zero when the counter goes down", () => {
+    const c = new TurnCost();
+    c.begin();
+    c.of(0.05);
+    c.begin();
+    expect(c.of(0)).toBeNull();
+    expect(c.of(0.06)).toBeCloseTo(0.01);
+    c.begin();
+    expect(c.of(0.004)).toBeCloseTo(0.004);
+  });
 });
 
 describe("cardOf", () => {
@@ -226,8 +353,46 @@ describe("cardOf", () => {
     const update = { toolCallId: "t", status: "completed" as const, content: [{ type: "content" as const, content: { type: "text" as const, text: "Activated." } }, { type: "content" as const, content: { type: "text" as const, text: JSON.stringify(resource) } }, { type: "content" as const, content: { type: "text" as const, text: `bytnode-ai://card ${JSON.stringify(card)}` } }] };
     expect(toolOutputOf(update)).toBe("Activated.");
   });
+  it("hides the Claude Code rendering of the resource (F1)", () => {
+    const card = { kind: "facts", data: { title: "Position size · long" } };
+    const text = `Size: 1.9542701 (base asset)\nFees 0.060 % per side.\n[Resource from bytnode-ai at bytnode-ai://card] ${JSON.stringify(card)}`;
+    const update = { toolCallId: "t", status: "completed" as const, content: [{ type: "content" as const, content: { type: "text" as const, text } }] };
+    expect(toolOutputOf(update)).toBe("Size: 1.9542701 (base asset)\nFees 0.060 % per side.");
+    expect(cardOf(update)).toEqual(card);
+  });
   it("rides on the result event", () => {
     const events = eventsOfUpdate({ sessionUpdate: "tool_call_update", toolCallId: "t1", status: "completed", content: [{ type: "content", content: resource as never }] });
     expect(events[0]).toMatchObject({ type: "tool_result", card });
+  });
+});
+
+describe("isServerConfirmedCall / matchServedCall (money actions confirmed by our server)", () => {
+  const money = ["PlaceOrder", "ClosePosition", "Transfer"];
+  it("only OUR server's tools that always ask, whatever way the agent names them", () => {
+    expect(isServerConfirmedCall({ title: "mcp__bytnode-ai__PlaceOrder" }, money)).toBe(true);
+    expect(isServerConfirmedCall({ title: "", rawInput: { server: "bytnode-ai", tool: "Transfer", arguments: {} } }, money)).toBe(true);
+    expect(isServerConfirmedCall({ title: "x", _meta: { claudeCode: { toolName: "mcp__bytnode-ai__ClosePosition" } } }, money)).toBe(true);
+    /* Another server, the agent's own tool, a title that merely mentions it, a tool of ours that does not always ask. */
+    expect(isServerConfirmedCall({ title: "mcp__other__PlaceOrder" }, money)).toBe(false);
+    expect(isServerConfirmedCall({ title: "PlaceOrder" }, money)).toBe(false);
+    expect(isServerConfirmedCall({ title: "Run PlaceOrder script" }, money)).toBe(false);
+    expect(isServerConfirmedCall({ title: "mcp__bytnode-ai__PlaceOrderX" }, money)).toBe(false);
+    expect(isServerConfirmedCall({ title: "mcp__bytnode-ai__CancelOrder" }, money)).toBe(false);
+  });
+
+  it("finds the agent's call behind the server's: same arguments first, else the latest to that tool", () => {
+    const order = (args: unknown) => ({ title: "mcp__bytnode-ai__PlaceOrder", rawInput: args });
+    const calls = [
+      { id: "a", call: order({ symbol: "BTC/USDT", amount: 1 }) },
+      { id: "b", call: order({ amount: 2, symbol: "BTC/USDT" }) },
+      { id: "c", call: { title: "", rawInput: { server: "bytnode-ai", tool: "PlaceOrder", arguments: { symbol: "ETH/USDT" } } } },
+      { id: "d", call: { title: "mcp__other__PlaceOrder", rawInput: { symbol: "BTC/USDT", amount: 1 } } },
+    ];
+    expect(matchServedCall(calls, "PlaceOrder", { symbol: "BTC/USDT", amount: 1 })).toBe("a");
+    expect(matchServedCall(calls, "PlaceOrder", { symbol: "BTC/USDT", amount: 2 })).toBe("b");
+    expect(matchServedCall(calls, "PlaceOrder", { symbol: "ETH/USDT" })).toBe("c");
+    expect(matchServedCall(calls, "PlaceOrder", { symbol: "SOL/USDT" })).toBe("c");
+    expect(matchServedCall(calls, "Transfer", {})).toBeNull();
+    expect(matchServedCall([{ id: "x", call: undefined }], "PlaceOrder", {})).toBeNull();
   });
 });

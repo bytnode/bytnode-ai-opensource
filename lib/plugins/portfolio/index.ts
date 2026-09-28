@@ -3,7 +3,6 @@ import { resolveWorkspace } from "@/lib/server/workspace";
 import type { Transport } from "@/lib/tools/transport";
 import { definePlugin } from "../core/contract";
 import type { ReportService } from "../report-export/service";
-import type { SchedulerService } from "../scheduler/service";
 import { history, snapshotOf, summarize, type Snapshot } from "./aggregate";
 import { priceBook, readAccounts } from "./collect";
 import { portfolioManifest } from "./manifest";
@@ -21,7 +20,7 @@ import { STABLES } from "./aggregate";
 import { addGroup, editGroup, removeGroup, type AccountGroup } from "./groups";
 
 /* The consolidated portfolio: two read-only tools, a daily snapshot of the
-   total while the app is open (when the scheduler runs), and the view's
+   total while the app is open (a job on the core's clock), and the view's
    actions — the summary, the history, and the export as a report (when
    the report export runs). */
 
@@ -39,7 +38,7 @@ export const portfolioPlugin = definePlugin({
     ctx.tool(portfolioSummaryTool(currency));
     ctx.tool(portfolioHistoryTool(snapshots, currency));
 
-    ctx.optional<SchedulerService>("scheduler")?.job({
+    ctx.job({
       id: "snapshot",
       title: "Portfolio snapshot",
       every: `daily at ${String(ctx.config().snapshotAt)}`,
@@ -87,7 +86,8 @@ export const portfolioPlugin = definePlugin({
       return group ?? { deleted: id };
     });
     ctx.api("history", async (params) => {
-      const days = typeof params.days === "number" ? params.days : 90;
+      /* The tool's bounds (PortfolioHistory): a huge `days` made an invalid date. */
+      const days = typeof params.days === "number" && Number.isFinite(params.days) ? Math.max(2, Math.min(3650, Math.round(params.days))) : 90;
       return { points: history(await snapshots(), days, new Date()) };
     });
     /* The history before the snapshots. Per live account: its real

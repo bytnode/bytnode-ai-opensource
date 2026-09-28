@@ -108,6 +108,15 @@ export function truncate(text: string, limit = OUTPUT_LIMIT): string {
   return `${text.slice(0, limit)}\n\n[… output truncated: ${text.length - limit} more characters]`;
 }
 
+/** Keeps the START and the END of a text that is too long, and says how
+    much was cut between: the end of a command's output is where the error,
+    the summary and the exit status are. */
+export function clipMiddle(text: string, limit: number): string {
+  if (text.length <= limit) return text;
+  const head = Math.floor(limit / 2);
+  return `${text.slice(0, head)}\n[… ${text.length - limit} characters cut …]\n${text.slice(text.length - (limit - head))}`;
+}
+
 export const ok = (output: string, attachments?: ToolAttachment[]): ToolResult => ({
   ok: true,
   output: truncate(output),

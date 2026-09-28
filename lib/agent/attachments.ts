@@ -14,6 +14,8 @@
    Pure: shared by browser and server, tested.
 --------------------------------------------------------------------------- */
 
+import { BIDI_CONTROLS, WINDOWS_RESERVED } from "@/lib/tools/file-names";
+
 export type AttachmentKind = "image" | "file";
 
 export type Attachment = {
@@ -33,15 +35,20 @@ export const isImageName = (name: string) => IMAGE_EXT.test(name);
 const MAX_NAME = 80;
 
 /** A file name that can be written to without surprises: no path, no
-    forbidden character, never empty, never hidden, bounded. */
+    forbidden character, never empty, never hidden, bounded — and none of
+    what Windows refuses or mangles (`file-names.ts`): a device name
+    (`CON`, `NUL.txt`) gets a `_` in front, trailing dots and spaces go, and
+    so do the bidi controls that disguise an extension. */
 export function safeFileName(raw: string): string {
   const base = raw.split(/[/\\]/).pop() ?? "";
-  let name = base.replace(/[<>:"|?*\x00-\x1f]/g, "").replace(/^\.+/, "").trim();
+  const clean = (s: string) => s.replace(/^\.+/, "").trim().replace(/[. ]+$/, "");
+  let name = clean(base.replace(/[<>:"|?*\x00-\x1f\x7f]/g, "").replace(BIDI_CONTROLS, ""));
   if (!name) name = `file-${Date.now().toString(36)}`;
+  if (WINDOWS_RESERVED.test(name)) name = `_${name}`;
   if (name.length > MAX_NAME) {
     const m = name.match(/\.[A-Za-z0-9]{1,8}$/);
     const ext = m ? m[0] : "";
-    name = name.slice(0, MAX_NAME - ext.length) + ext;
+    name = clean(name.slice(0, MAX_NAME - ext.length)) + ext;
   }
   return name;
 }

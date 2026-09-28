@@ -24,6 +24,8 @@ describe("alert conditions", () => {
     expect(cond("closed")).toEqual({ kind: "until", until: { field: "closed" } });
     expect(parseCondition("event<500h")).toMatchObject({ error: expect.stringMatching(/between 1 and 168/) });
     expect(parseCondition("moon soon")).toMatchObject({ error: expect.stringMatching(/^Unreadable condition/) });
+    /* A level in scientific notation is a number, not a metric named "1e9". */
+    expect(parseCondition("price>1e9")).toMatchObject({ kind: "compare", right: { value: 1e9 } });
   });
 
   it("evaluates, or says what it could not read", () => {

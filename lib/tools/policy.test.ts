@@ -67,7 +67,7 @@ describe("the core tools keep their behaviour", () => {
       .filter(([, p]) => p.gated)
       .map(([n]) => n)
       .sort();
-    expect(gated).toEqual(["Backtest", "Bash", "CancelOrder", "ClosePosition", "Edit", "Monitor", "NotebookEdit", "PlaceOrder", "PluginActivate", "PluginWrite", "PowerShell", "SetLeverage", "Transfer", "Workflow", "Write"]);
+    expect(gated).toEqual(["Backtest", "Bash", "CancelOrder", "ClosePosition", "Edit", "Monitor", "NotebookEdit", "PlaceOrder", "PluginActivate", "PluginEdit", "PluginWrite", "PowerShell", "SetLeverage", "Transfer", "Workflow", "Write"]);
   });
 
   it("the same three always ask", () => {
@@ -78,13 +78,13 @@ describe("the core tools keep their behaviour", () => {
     expect(always).toEqual(["ClosePosition", "PlaceOrder", "Transfer"]);
   });
 
-  /* Nor the four tools a plugin is written with: that is a conversation
+  /* Nor the five tools a plugin is written with: that is a conversation
      with the user (the create-plugin skill starts with questions). */
   it("a sub-agent gets everything but Workflow, the exchange actions and the plugin writing", () => {
     const refused = Object.entries(policies)
       .filter(([, p]) => !p.subagent)
       .map(([n]) => n)
       .sort();
-    expect(refused).toEqual(["CancelOrder", "ClosePosition", "PlaceOrder", "PluginActivate", "PluginCheck", "PluginRead", "PluginWrite", "SetLeverage", "Transfer", "Workflow"]);
+    expect(refused).toEqual(["CancelOrder", "ClosePosition", "PlaceOrder", "PluginActivate", "PluginCheck", "PluginEdit", "PluginRead", "PluginWrite", "SetLeverage", "Transfer", "Workflow"]);
   });
 });

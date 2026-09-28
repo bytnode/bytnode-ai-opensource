@@ -1,6 +1,8 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { getConversation } from "./conversations";
+import { currentSettings, updateSettings } from "./settings";
 import { createStore } from "./store";
 import { HOME, activateTab } from "./tabs";
 
@@ -24,11 +26,25 @@ export const useNavigation = (): Navigation => useSyncExternalStore(store.subscr
 
 export const setActiveConversation = (conversation: string | null) => store.set((n) => ({ ...n, conversation }));
 
+/** Opens a conversation AND makes its agent the active one.
+    ⚠️ The thread runs with the ACTIVE agent's prompt, tools, workspace and
+    permissions: opening another agent's conversation without switching
+    had that agent's thread answered by the wrong one (and its earlier
+    replies labelled with the wrong name). */
+export function openConversation(id: string) {
+  const c = getConversation(id);
+  if (c) {
+    const s = currentSettings();
+    if (s.activeAgentId !== c.agentId && s.agents.some((a) => a.id === c.agentId)) updateSettings((p) => ({ ...p, activeAgentId: c.agentId }));
+  }
+  setActiveConversation(id);
+}
+
 export const openSettings = (settings: SettingsRequest | null) => store.set((n) => ({ ...n, settings }));
 
 /** From anywhere: back to the conversations, on this one. */
 export function goToConversation(conversation: string) {
-  setActiveConversation(conversation);
+  openConversation(conversation);
   activateTab(HOME);
 }
 

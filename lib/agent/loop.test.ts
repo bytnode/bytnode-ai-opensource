@@ -122,6 +122,52 @@ describe("runAgentLoop", () => {
     const res = events.find((e) => e.type === "tool_result");
     expect(res && res.type === "tool_result" && !res.ok && res.output).toBe("Invalid arguments for Read: `file_path` required (string). Fix the call.");
   });
+
+  test("image attachments are pushed to the model by default", async () => {
+    const complete = scripted([
+      [{ text: "", toolCalls: [{ index: 0, id: "c", name: "Glob", args: "{}" }], finish: "tool_calls" }],
+      [{ text: "fait", finish: "stop" }],
+    ]);
+    const seen: unknown[] = [];
+    await runAgentLoop([{ role: "user", content: "x" }], {
+      complete: (m) => {
+        seen.push(m);
+        return complete();
+      },
+      execute: async () => ({ ok: true, output: "chart at out/charts/a.png", attachments: [{ type: "image", name: "out/charts/a.png", dataUrl: "data:image/png;base64,AAAA" }] }),
+      emit: () => {},
+      tools,
+      signal: new AbortController().signal,
+    });
+    const second = seen[1] as Array<{ role: string; content: unknown }>;
+    const image = second.find((m) => m.role === "user" && Array.isArray(m.content));
+    expect(image).toBeDefined();
+    expect(JSON.stringify(image?.content)).toContain("data:image/png;base64");
+  });
+
+  test("a text-only model (sub-agent, background) is never sent an image", async () => {
+    const complete = scripted([
+      [{ text: "", toolCalls: [{ index: 0, id: "c", name: "Glob", args: "{}" }], finish: "tool_calls" }],
+      [{ text: "fait", finish: "stop" }],
+    ]);
+    const seen: unknown[] = [];
+    await runAgentLoop([{ role: "user", content: "x" }], {
+      complete: (m) => {
+        seen.push(m);
+        return complete();
+      },
+      execute: async () => ({ ok: true, output: "chart at out/charts/a.png", attachments: [{ type: "image", name: "out/charts/a.png", dataUrl: "data:image/png;base64,AAAA" }] }),
+      emit: () => {},
+      tools,
+      modelSeesImages: false,
+      signal: new AbortController().signal,
+    });
+    /* Every message after the tool run must be text-only: no image_url ever
+       reaches a model that would reject it. */
+    const second = seen[1] as Array<{ role: string; content: unknown }>;
+    expect(JSON.stringify(second)).not.toContain("data:image/png;base64");
+    expect(second.filter((m) => m.role === "tool")[0]?.content).toBe("chart at out/charts/a.png");
+  });
 });
 
 describe("runAgentLoop: guard rails", () => {
@@ -166,5 +212,50 @@ describe("runAgentLoop: guard rails", () => {
     expect(out.turns).toBe(2);
     expect(executions).toBe(1);
     expect(out.finishReason).toBe("max_turns");
+  });
+});
+
+/* A text-only model refuses any history holding an image: the turn is
+   replayed once with the images replaced by a note, instead of failing. */
+describe("runAgentLoop: a model that does not read images", () => {
+  test("images are replaced by a note and the turn is replayed", async () => {
+    const sent: unknown[] = [];
+    let calls = 0;
+    const deps: LoopDeps = {
+      complete: (messages) => {
+        calls++;
+        sent.push(JSON.stringify(messages));
+        const refuse = calls === 1;
+        return (async function* () {
+          if (refuse) throw new Error("No endpoints found that support image input");
+          yield { text: "Read it as text." } as Delta;
+          yield { text: "", finish: "stop" } as Delta;
+        })();
+      },
+      execute: async () => ({ ok: true, output: "" }),
+      emit: () => {},
+      tools,
+      signal: new AbortController().signal,
+    };
+    const history = [{ role: "user" as const, content: [{ type: "text" as const, text: "Look" }, { type: "image_url" as const, image_url: { url: "data:image/png;base64,AAAA" } }] }];
+    const out = await runAgentLoop(history, deps);
+    expect(out.text).toBe("Read it as text.");
+    expect(calls).toBe(2);
+    expect(sent[1]).not.toContain("image_url");
+    expect(sent[1]).toContain("image not shown");
+  });
+
+  test("without any image, the refusal is not swallowed", async () => {
+    const deps: LoopDeps = {
+      complete: () =>
+        (async function* () {
+          throw new Error("No endpoints found that support image input");
+        })(),
+      execute: async () => ({ ok: true, output: "" }),
+      emit: () => {},
+      tools,
+      signal: new AbortController().signal,
+    };
+    await expect(runAgentLoop([{ role: "user", content: "hi" }], deps)).rejects.toThrow(/image input/);
   });
 });

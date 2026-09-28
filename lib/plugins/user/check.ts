@@ -143,6 +143,17 @@ function checkOps(p: Permissions, registered: Registered, mocks: Mock[], record:
       }
       case "sleep":
         return null;
+      case "test.resetWorld": {
+        /* One test, one world (point 2): a mock or a stored value left by
+           the previous test must never leak into the next — a price set in
+           test N would silently falsify test N+1. Called before each test. */
+        mocks.length = 0;
+        store.clear();
+        lines.clear();
+        record.notifications.length = 0;
+        record.confirmations.length = 0;
+        return null;
+      }
       case "test.tool": {
         const t = registered.tools.find((x) => x.name === a[0]);
         if (!t) throw new Error(`No tool ${String(a[0])}. Registered: ${registered.tools.map((x) => x.name).join(", ") || "none"}.`);
@@ -302,7 +313,7 @@ export async function checkUserPlugin(id: string, opts: CheckOptions): Promise<C
       else {
         try {
           await sandbox.evalModule(tests, "tests.js");
-          const results = (await sandbox.callGlobal("__runTests", [], 120_000, "The tests")) as Array<{ name: string; ok: boolean; error?: string }>;
+          const results = (await sandbox.callGlobal("__runTests", [], 120_000, "The tests", 60_000)) as Array<{ name: string; ok: boolean; error?: string }>;
           const failed = results.filter((r) => !r.ok);
           if (!results.length) steps.push({ name: "tests.js", ok: false, lines: ["tests.js declares no test: test(\"…\", async () => { … })."] });
           else

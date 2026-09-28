@@ -2,7 +2,7 @@ import { allTools, toToolSpecs } from "@/lib/tools/registry";
 import { policiesOf } from "@/lib/tools/policy";
 import { listSkills } from "@/lib/tools/skills/skill";
 import { readTransport } from "@/lib/tools/transport";
-import { PROJECT_ROOT, resolveWorkspace } from "@/lib/server/workspace";
+import { PROJECT_ROOT, resolveWorkspace, workspaceError } from "@/lib/server/workspace";
 import { loadProfession } from "@/lib/professions/load";
 import { DEFAULT_PROFESSION, isProfessionId } from "@/lib/professions/catalog";
 import { readyRuntime } from "@/lib/plugins/host";
@@ -18,7 +18,12 @@ export async function GET(req: Request) {
   const agentId = url.searchParams.get("agentId") ?? "";
   const professionParam = url.searchParams.get("profession");
   const profession = isProfessionId(professionParam) ? professionParam : DEFAULT_PROFESSION;
-  const workspace = await resolveWorkspace(agentId, url.searchParams.get("workspace") ?? "");
+  let workspace: string;
+  try {
+    workspace = await resolveWorkspace(agentId, url.searchParams.get("workspace") ?? "");
+  } catch (e) {
+    return workspaceError(e);
+  }
   const { bytnodeKey, exchangeAccounts, plugins } = readTransport(req.headers);
   const runtime = await readyRuntime();
   const t0 = Date.now();

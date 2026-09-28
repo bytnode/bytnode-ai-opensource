@@ -139,7 +139,12 @@ const HEAD = new RegExp(`^## (.+?) — (${PROFESSIONS.map((p) => escapeRe(p.labe
 
 export const reportSection = (task: SubagentTask, body: string) => `## ${task.title.replace(/\n/g, " ")} — ${professionInfo(task.profession).label}\n\n${body.trim() || "(empty report)"}`;
 
-export const failureBody = (why: string) => `[failed: ${why}]`;
+/* An interruption (the user's Stop, a cancelled turn) reached the report as
+   the platform's raw "signal is aborted without reason": said plainly, so the
+   agent does not take it for a fault of the task. */
+const ABORTED = /abort(ed)?\b|AbortError/i;
+export const failureBody = (why: string) =>
+  `[failed: ${ABORTED.test(why) ? "interrupted — the run was stopped before this task finished (not an error of the task)" : why}]`;
 
 export type ReportSection = { title: string; profession: ProfessionId; body: string; failed: boolean };
 

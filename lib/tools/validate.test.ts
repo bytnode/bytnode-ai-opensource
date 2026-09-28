@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { validateArgs } from "./validate";
+import { invalidCall, validateArgs } from "./validate";
 import type { JsonSchema } from "./types";
 
 /* An ill-formed call must come back to the model as one sentence it can
@@ -83,5 +83,28 @@ describe("validateArgs", () => {
     expect(validateArgs(nested, { tasks: [{ title: "a", profession: "analyste" }, { title: "b" }] })).toBe("`tasks[1].profession` required (string).");
     expect(validateArgs(nested, { tasks: [{ title: "a", profession: "trader" }] })).toBe("`tasks[0].profession`: value not in list (standard, analyste), got \"trader\".");
     expect(validateArgs(nested, { tasks: ["a"] })).toBe("`tasks[0]`: object expected, got \"a\".");
+  });
+});
+
+/* `/api/tools/execute` checks the call too: callers that skip the agent
+   loop must not hand a tool arguments outside its schema. */
+describe("invalidCall", () => {
+  const chart = {
+    name: "Chart",
+    parameters: {
+      type: "object" as const,
+      properties: { file: { type: "string" }, width: { type: "integer", minimum: 320, maximum: 2400 }, height: { type: "integer", minimum: 200, maximum: 1600 } },
+      required: ["file"],
+      additionalProperties: false,
+    },
+  };
+  test("refuses a value past the schema's bounds", () => {
+    expect(invalidCall(chart, { file: "a.csv", width: 100000, height: 100000 })).toBe("Invalid arguments for Chart: `width`: at most 2400, got 100000. Fix the call.");
+  });
+  test("refuses arguments that are not an object", () => {
+    for (const args of [null, "x", 3, ["a"]]) expect(invalidCall(chart, args)).toBe("Invalid arguments for Chart: the arguments must be a JSON object. Fix the call.");
+  });
+  test("lets a valid call through", () => {
+    expect(invalidCall(chart, { file: "a.csv", width: 800 })).toBeNull();
   });
 });

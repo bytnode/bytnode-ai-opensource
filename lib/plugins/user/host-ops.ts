@@ -6,7 +6,7 @@ import { readBytnodeTool } from "@/lib/mcp/bytnode";
 import { clientFor } from "@/lib/tools/exchange/client";
 import { describeExchangeError } from "@/lib/tools/exchange/errors";
 import { toSymbol, type Market } from "@/lib/tools/exchange/symbols";
-import { assertPublic } from "@/lib/tools/web/fetch";
+import { publicFetch } from "@/lib/tools/web/public-fetch";
 import type { ConfirmationRequest, NotificationInput } from "../core/contract";
 import type { PluginStore } from "../core/store";
 import { isQuote, quote } from "../shared/prices";
@@ -87,34 +87,22 @@ export async function guardedFetch(rawUrl: string, init: Record<string, unknown>
       headers["content-type"] ??= "application/json";
     }
   }
-  const signal = AbortSignal.timeout(FETCH_TIMEOUT);
-  for (let hop = 0; ; hop++) {
-    if (!hostAllowed(url.hostname, allowed)) throw new Error(`${url.hostname} is not in this plugin's permissions (network: ${allowed.join(", ") || "none"}). Declare it in plugin.json → permissions.network.`);
-    await assertPublic(url);
-    const res = await fetch(url, { method, headers, body: method === "GET" || method === "HEAD" ? undefined : body, redirect: "manual", signal });
-    const location = res.headers.get("location");
-    if (res.status >= 300 && res.status < 400 && location) {
-      if (hop >= MAX_REDIRECTS) throw new Error("Too many redirects.");
-      url = new URL(location, url);
-      continue;
-    }
-    const reader = res.body?.getReader();
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-    if (reader) {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        size += value.byteLength;
-        if (size > FETCH_MAX_BYTES) {
-          await reader.cancel();
-          throw new Error(`The answer of ${url.hostname} is larger than ${FETCH_MAX_BYTES / 1024 / 1024} MB.`);
-        }
-        chunks.push(value);
-      }
-    }
-    return { status: res.status, ok: res.ok, url: url.toString(), headers: Object.fromEntries(res.headers.entries()), text: Buffer.concat(chunks).toString("utf8") };
-  }
+  /* Every hop — the first included — must be a host the user granted, and
+     a public address; the address checked is the one connected to (no
+     second DNS lookup a rebinding could answer differently). */
+  const res = await publicFetch(url.toString(), {
+    method,
+    headers,
+    body: method === "GET" || method === "HEAD" ? undefined : body,
+    signal: AbortSignal.timeout(FETCH_TIMEOUT),
+    maxBytes: FETCH_MAX_BYTES + 1,
+    maxRedirects: MAX_REDIRECTS,
+    beforeHop: (u) => {
+      if (!hostAllowed(u.hostname, allowed)) throw new Error(`${u.hostname} is not in this plugin's permissions (network: ${allowed.join(", ") || "none"}). Declare it in plugin.json → permissions.network.`);
+    },
+  });
+  if (res.truncated) throw new Error(`The answer of ${new URL(res.url).hostname} is larger than ${FETCH_MAX_BYTES / 1024 / 1024} MB.`);
+  return { status: res.status, ok: res.status >= 200 && res.status < 300, url: res.url, headers: res.headers, text: res.body.toString("utf8") };
 }
 
 /** The granted accounts this process knows (the MCP server of a

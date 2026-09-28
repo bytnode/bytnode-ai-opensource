@@ -20,6 +20,16 @@ describe("safeFileName", () => {
     expect(safeFileName(".env")).toBe("env");
   });
 
+  it("never a Windows device name, a trailing dot or space, nor a bidi control", () => {
+    for (const n of ["CON", "AUX", "COM1", "NUL.txt", "con.txt", "LPT1.log", "prn.csv", "CONIN$"]) expect(safeFileName(n), n).toBe(`_${n}`);
+    expect(safeFileName("trailing.")).toBe("trailing");
+    expect(safeFileName("report.csv . ")).toBe("report.csv");
+    expect(safeFileName(`${String.fromCharCode(0x202e)}gnp.exe`)).toBe("gnp.exe");
+    expect(safeFileName(`a${String.fromCharCode(0x2066)}b${String.fromCharCode(0x2069)}.txt`)).toBe("ab.txt");
+    expect(safeFileName("console.log")).toBe("console.log");
+    expect(safeFileName("nullable.csv")).toBe("nullable.csv");
+  });
+
   it("bounds the length while keeping the extension", () => {
     const n = safeFileName("a".repeat(300) + ".csv");
     expect(n.length).toBeLessThanOrEqual(80);

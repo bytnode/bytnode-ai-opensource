@@ -66,6 +66,9 @@ export type PlanInput = { symbol?: unknown; quoteAmount?: unknown; frequency?: u
 export const firstDue = (f: Frequency, start: number) => (f.kind === "interval" ? start : nextRun(f, start - 1));
 
 const MAX_NAME = 60;
+/** Above this, an amount is a typo (the paper portfolios' own ceiling). */
+export const MAX_QUOTE_AMOUNT = 10_000_000;
+const AMOUNT_TOO_BIG = `The amount each time is at most ${MAX_QUOTE_AMOUNT.toLocaleString("en-US")}.`;
 const cleanName = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim().replace(/\s+/g, " ").slice(0, MAX_NAME) : undefined);
 
 export function newPlan(input: PlanInput, id: string, now: Date): DcaPlan | { error: string } {
@@ -73,6 +76,7 @@ export function newPlan(input: PlanInput, id: string, now: Date): DcaPlan | { er
   if (!symbol) return { error: "Give the asset to buy, as a pair (BTC/USDT)." };
   const quoteAmount = typeof input.quoteAmount === "number" ? input.quoteAmount : NaN;
   if (!(quoteAmount > 0)) return { error: "Give the amount to spend at each purchase (`quoteAmount`), in the pair's quote currency." };
+  if (quoteAmount > MAX_QUOTE_AMOUNT) return { error: AMOUNT_TOO_BIG };
   const frequency = typeof input.frequency === "string" ? input.frequency.trim() : "";
   const f = parseFrequency(frequency);
   if ("error" in f) return { error: f.error };
@@ -153,6 +157,7 @@ export function editPlan(plans: DcaPlan[], id: string, patch: PlanEdit, now: Dat
   const plan: DcaPlan = { ...found };
   if (patch.quoteAmount !== undefined) {
     if (!(typeof patch.quoteAmount === "number" && patch.quoteAmount > 0)) return { error: "The amount each time must be above zero." };
+    if (patch.quoteAmount > MAX_QUOTE_AMOUNT) return { error: AMOUNT_TOO_BIG };
     plan.quoteAmount = patch.quoteAmount;
   }
   let f = parseFrequency(plan.frequency);
@@ -171,6 +176,10 @@ export function editPlan(plans: DcaPlan[], id: string, patch: PlanEdit, now: Dat
     else {
       const end = typeof patch.endAt === "string" ? Date.parse(patch.endAt) : NaN;
       if (!Number.isFinite(end)) return { error: `Not a date: ${String(patch.endAt)}.` };
+      /* Checked as at creation: a typo in the year used to end the plan
+         for good, with no way back. Clearing the end is how to go on. */
+      if (!(end > (Date.parse(plan.startAt) || 0))) return { error: "The end must come after the start." };
+      if (!(end > now.getTime())) return { error: "The end must be in the future (clear it to keep the plan running)." };
       plan.endAt = new Date(end).toISOString();
     }
   }

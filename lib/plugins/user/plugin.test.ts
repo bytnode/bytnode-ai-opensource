@@ -5,12 +5,18 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ToolContext } from "@/lib/tools/types";
 import { pluginActivateTool } from "@/lib/tools/plugins/plugin-activate";
 import { pluginCheckTool } from "@/lib/tools/plugins/plugin-check";
+import { pluginEditTool } from "@/lib/tools/plugins/plugin-edit";
 import { pluginReadTool } from "@/lib/tools/plugins/plugin-read";
 import { pluginWriteTool } from "@/lib/tools/plugins/plugin-write";
 import { harness, type Harness } from "../test-fixture";
 import { listNotifications } from "../core/notifications";
-import { activate, activePlugins, readRequest, userPluginsDir } from "./files";
+import { activate, activePlugins, readFiles, readRequest, userPluginsDir } from "./files";
 import { userDefinitions } from "./load";
+import { approvalKey, signGrant } from "./approval";
+
+/* The user's browser key: an approval is signed with it (`approval.ts`). */
+const KEY = "ab".repeat(32);
+const signed = (permissions: Parameters<typeof signGrant>[2]["permissions"]) => signGrant(KEY, "u-dividends", { permissions, accounts: [] });
 
 /* The whole road of a plugin written by an agent, tools and all: written,
    checked (its own tests with mocks), asked for, approved, run by the
@@ -87,6 +93,7 @@ const ctx = (): ToolContext => ({
 const write = (file: string, content: string) => pluginWriteTool.execute({ plugin: "dividends", file, content }, ctx());
 
 beforeEach(async () => {
+  approvalKey().register(KEY);
   home = await fs.mkdtemp(path.join(os.tmpdir(), "bnai-user-plugin-"));
   process.env.BYTNODE_AI_HOME = home;
 });
@@ -149,7 +156,7 @@ describe("a plugin written by an agent", { timeout: 30_000 }, () => {
     /* The user approves (what the approve route does). */
     const request = (await readRequest("u-dividends"))!;
     expect(request.tools).toEqual([{ name: "DividendList", readOnly: true }]);
-    await activate("u-dividends", { permissions: request.permissions, accounts: [], digest: request.digest, at: new Date().toISOString() });
+    await activate("u-dividends", { permissions: request.permissions, accounts: [], digest: request.digest, at: new Date().toISOString(), sig: signed(request.permissions) });
 
     const { definitions } = await userDefinitions();
     h = await harness(definitions);
@@ -177,7 +184,7 @@ describe("a plugin written by an agent", { timeout: 30_000 }, () => {
     await writeAll();
     await pluginActivateTool.execute({ plugin: "dividends" }, ctx());
     const request = (await readRequest("u-dividends"))!;
-    await activate("u-dividends", { permissions: request.permissions, accounts: [], digest: request.digest, at: new Date().toISOString() });
+    await activate("u-dividends", { permissions: request.permissions, accounts: [], digest: request.digest, at: new Date().toISOString(), sig: signed(request.permissions) });
 
     /* An approved plugin changes LIVE with the write that makes the draft
        pass — no PluginActivate needed when it asks nothing new. */
@@ -200,7 +207,7 @@ describe("a plugin written by an agent", { timeout: 30_000 }, () => {
     await writeAll();
     await pluginActivateTool.execute({ plugin: "dividends" }, ctx());
     const request = (await readRequest("u-dividends"))!;
-    await activate("u-dividends", { permissions: request.permissions, accounts: [], digest: request.digest, at: new Date().toISOString() });
+    await activate("u-dividends", { permissions: request.permissions, accounts: [], digest: request.digest, at: new Date().toISOString(), sig: signed(request.permissions) });
 
     await write("plugin.json", PLUGIN_JSON.replace('"notify":true', '"notify":true,"bytnode":true'));
     const r = await pluginActivateTool.execute({ plugin: "dividends" }, ctx());
@@ -212,17 +219,143 @@ describe("a plugin written by an agent", { timeout: 30_000 }, () => {
     await writeAll();
     await pluginActivateTool.execute({ plugin: "dividends" }, ctx());
     const request = (await readRequest("u-dividends"))!;
-    await activate("u-dividends", { permissions: request.permissions, accounts: [], digest: request.digest, at: new Date().toISOString() });
+    await activate("u-dividends", { permissions: request.permissions, accounts: [], digest: request.digest, at: new Date().toISOString(), sig: signed(request.permissions) });
     /* Its active copy replaced by a failing one, grant updated as an
        approval would. */
     const dir = path.join(userPluginsDir(), "u-dividends");
     await fs.writeFile(path.join(dir, "draft", "server.js"), "export function setup() { throw new Error('boom'); }");
     const { readFiles, digestOf } = await import("./files");
     const digest = digestOf(await readFiles("u-dividends", "draft"));
-    await activate("u-dividends", { permissions: request.permissions, accounts: [], digest, at: new Date().toISOString() });
+    await activate("u-dividends", { permissions: request.permissions, accounts: [], digest, at: new Date().toISOString(), sig: signed(request.permissions) });
     const { definitions } = await userDefinitions();
     h = await harness(definitions);
     /* With the line, for the agent reading the log. */
     expect(h.runtime.status()).toEqual([{ id: "u-dividends", state: "error", message: expect.stringMatching(/^boom \(.*server\.js:1/) }]);
+  });
+
+  it("changes one fragment and leaves the rest of the file untouched", async () => {
+    await writeAll();
+    const before = (await readFiles("u-dividends", "draft"))["server.js"];
+    const r = await pluginEditTool.execute({ plugin: "dividends", file: "server.js", edits: [{ old: "No dividend followed.", new: "Nothing followed yet." }] }, ctx());
+    expect(r.ok).toBe(true);
+    expect(r.output).toContain("Edited server.js of u-dividends (1/1 changes applied)");
+    const after = (await readFiles("u-dividends", "draft"))["server.js"];
+    expect(after).toContain("Nothing followed yet.");
+    expect(after).not.toContain("No dividend followed.");
+    /* Everything else is identical: the same length shift as the words. */
+    expect(after.replace("Nothing followed yet.", "No dividend followed.")).toBe(before);
+  });
+
+  it("a batch is best-effort by default: the good edits apply, the rest are reported", async () => {
+    await writeAll();
+    /* A no-op sits between two good edits: the two apply, the no-op is
+       reported with its cause — nothing of the batch is lost over it. */
+    const r = await pluginEditTool.execute(
+      {
+        plugin: "dividends",
+        file: "server.js",
+        edits: [
+          { old: "DividendList", new: "HoldingList" },
+          { old: "DividendList", new: "DividendList" }, // the no-op
+          { old: "No dividend followed.", new: "Nothing yet." },
+        ],
+      },
+      ctx(),
+    );
+    expect(r.ok).toBe(true);
+    expect(r.output).toContain("(2/3 changes applied");
+    expect(r.output).toContain("edit 2: no-op");
+    const after = (await readFiles("u-dividends", "draft"))["server.js"];
+    expect(after).toContain("HoldingList");
+    expect(after).toContain("Nothing yet.");
+  });
+
+  it("atomic applies all or nothing, and the report names every edit", async () => {
+    await writeAll();
+    const before = (await readFiles("u-dividends", "draft"))["server.js"];
+    const r = await pluginEditTool.execute(
+      { plugin: "dividends", file: "server.js", mode: "atomic", edits: [{ old: "DividendList", new: "HoldingList" }, { old: "Not in this file", new: "x" }, { old: "a", new: "a" }] },
+      ctx(),
+    );
+    expect(r.ok).toBe(false);
+    expect(r.output).toContain("atomic");
+    expect(r.output).toMatch(/edit 1: applied/);
+    expect(r.output).toMatch(/edit 2: not found/);
+    expect(r.output).toMatch(/edit 3: not applied/);
+    /* Nothing was written. */
+    expect((await readFiles("u-dividends", "draft"))["server.js"]).toBe(before);
+  });
+
+  it("an ambiguous fragment is refused unless replaceAll is set", async () => {
+    await writeAll();
+    const two = "export default { setup(ctx) { ctx.tool({ name: 'A' }); ctx.tool({ name: 'B' }); } }";
+    await write("server.js", two);
+    const ambiguous = await pluginEditTool.execute({ plugin: "dividends", file: "server.js", edits: [{ old: "ctx.tool(", new: "ctx.reg(" }] }, ctx());
+    expect(ambiguous.ok).toBe(false);
+    expect(ambiguous.output).toContain("appears 2 times");
+    expect((await readFiles("u-dividends", "draft"))["server.js"]).toBe(two);
+
+    const all = await pluginEditTool.execute({ plugin: "dividends", file: "server.js", edits: [{ old: "ctx.tool(", new: "ctx.reg(", replaceAll: true }] }, ctx());
+    expect(all.ok).toBe(true);
+    expect((await readFiles("u-dividends", "draft"))["server.js"]).toBe(two.replaceAll("ctx.tool(", "ctx.reg("));
+  });
+
+  it("reads, edits and goes LIVE on an already approved plugin under the same permissions", async () => {
+    await writeAll();
+    await pluginActivateTool.execute({ plugin: "dividends" }, ctx());
+    const request = (await readRequest("u-dividends"))!;
+    await activate("u-dividends", { permissions: request.permissions, accounts: [], digest: request.digest, at: new Date().toISOString(), sig: signed(request.permissions) });
+
+    const r = await pluginEditTool.execute({ plugin: "dividends", file: "server.js", edits: [{ old: "No dividend followed.", new: "Nothing followed yet." }] }, ctx());
+    expect(r.output).toContain("LIVE: the running plugin is updated");
+    const { definitions } = await userDefinitions();
+    h = await harness(definitions);
+    expect((await h.tool("DividendList").execute({}, h.ctx())).output).toBe("Nothing followed yet.");
+  });
+
+  it("refuses the wrong file, an empty edit, and a no-op", async () => {
+    await writeAll();
+    const missing = await pluginEditTool.execute({ plugin: "dividends", file: "nope.js", edits: [{ old: "a", new: "b" }] }, ctx());
+    expect(missing.ok).toBe(false);
+    expect(missing.output).toContain("has no file nope.js");
+    const empty = await pluginEditTool.execute({ plugin: "dividends", file: "server.js", edits: [{ old: "", new: "x" }] }, ctx());
+    expect(empty.ok).toBe(false);
+    expect(empty.output).toContain("`old` is empty");
+    const noop = await pluginEditTool.execute({ plugin: "dividends", file: "server.js", edits: [{ old: "DividendList", new: "DividendList" }] }, ctx());
+    expect(noop.ok).toBe(false);
+    expect(noop.output).toContain("no-op");
+    expect(noop.output).toContain("old and new are identical");
+  });
+
+  it("each test() starts with a fresh world: the store never leaks between tests", async () => {
+    /* The scene the developer names: test A writes, test B reads WITHOUT
+       re-mocking. Before the fix, B saw A's leftover and failed for a reason
+       not in its own code. Now the second test sees the empty state. */
+    const isolation = [
+      'test("adds and reads it back", async () => {',
+      '  await plugin.action("add", { symbol: "AAPL", amount: 1.5 });',
+      '  assertIncludes((await plugin.tool("DividendList", {})).output, "AAPL 1.5");',
+      "});",
+      'test("starts empty — nothing of the previous test survives", async () => {',
+      '  assertIncludes((await plugin.tool("DividendList", {})).output, "No dividend followed.");',
+      "});",
+    ].join("\n");
+    await write("plugin.json", PLUGIN_JSON);
+    await write("server.js", SERVER);
+    await write("tests.js", isolation);
+    await write("view/index.html", VIEW);
+    const r = await pluginCheckTool.execute({ plugin: "dividends" }, ctx());
+    expect(r.ok, r.output).toBe(true);
+    expect(r.output).toContain("2/2 passed");
+  });
+
+  it("a grant.json the agent writes itself does not run (it is not signed by the user's browser)", async () => {
+    await writeAll();
+    await pluginActivateTool.execute({ plugin: "dividends" }, ctx());
+    const request = (await readRequest("u-dividends"))!;
+    await activate("u-dividends", { permissions: request.permissions, accounts: [], digest: request.digest, at: new Date().toISOString(), sig: "0".repeat(64) });
+    const { plugins, problems } = await activePlugins();
+    expect(plugins).toEqual([]);
+    expect(problems[0].message).toMatch(/not signed by your browser/);
   });
 });

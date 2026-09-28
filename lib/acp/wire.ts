@@ -8,7 +8,9 @@ import type { PermissionOption } from "@agentclientprotocol/sdk";
 export type WireEvent =
   | AgentEvent
   | { type: "session"; sessionId: string }
-  | { type: "permission"; id: string; title: string; options: PermissionOption[] }
+  /** `nonce`: set on BytNode-AI's own confirmation of a money action; the
+      answer must carry it back (only this stream ever saw it). */
+  | { type: "permission"; id: string; title: string; options: PermissionOption[]; nonce?: string }
   | { type: "tool_update"; id: string; name?: string; args?: Record<string, unknown>; line?: string };
 
 /** The address of a plugin card inside an MCP tool result: the external

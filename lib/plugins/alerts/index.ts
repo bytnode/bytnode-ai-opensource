@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { CalendarService } from "../calendar/service";
 import { definePlugin } from "../core/contract";
-import type { SchedulerService } from "../scheduler/service";
 import type { WatchlistService } from "../watchlist/service";
 import { alertCreateTool } from "./alert-create";
 import { alertDeleteTool } from "./alert-delete";
@@ -13,10 +12,13 @@ import { normalizeSymbol } from "../shared/quote";
 import { alertsManifest } from "./manifest";
 import { readAll, type Sources } from "./read";
 
-/* Alerts: the user's conditions on the market, checked by a scheduler job
-   in one grouped reading, fired into the notification center once per
-   crossing. The watchlist gives the assets of `watchlist` alerts; the
-   calendar, when it runs, the events of `event<Nh`. */
+/* Alerts: the user's conditions on the market, checked by a job on the
+   core's clock in one grouped reading, fired into the notification center
+   once per crossing. Two plugins are used when they run, never needed:
+   the watchlist gives the assets of `watchlist` alerts (off: such an alert
+   says it cannot be checked), the calendar the events of `event<Nh`. */
+
+const WATCHLIST_OFF = "The watchlist is off (Settings → Plugins): this alert has no assets to check.";
 
 const ALERTS = "alerts.json";
 const TRIGGERS = "triggers.jsonl";
@@ -25,14 +27,13 @@ const MAX_TRIGGERS = 500;
 export const alertsPlugin = definePlugin({
   manifest: alertsManifest,
   setup(ctx) {
-    const scheduler = ctx.inject<SchedulerService>("scheduler");
-    const watchlist = ctx.inject<WatchlistService>("watchlist");
+    const watchlist = () => ctx.optional<WatchlistService>("watchlist");
     const calendar = () => ctx.optional<CalendarService>("calendar");
     const read = () => ctx.store.read<Alert[]>(ALERTS, []);
     /* A new alert is checked at once, not at the next tick. */
     const add = async (alert: Alert) => {
       await ctx.store.update<Alert[]>(ALERTS, [], (list) => [...list, alert]);
-      await scheduler.trigger("check");
+      await ctx.trigger("check");
     };
     const remove = async (id: string) => {
       let removed: Alert[] = [];
@@ -47,7 +48,8 @@ export const alertsPlugin = definePlugin({
     const check = async (sources: Sources) => {
       const active = (await read()).filter((a) => a.status === "active");
       if (active.length === 0) return "No active alert.";
-      const listed = active.some((a) => a.target === WATCHLIST) ? await watchlist.symbols() : [];
+      const list = watchlist();
+      const listed = list && active.some((a) => a.target === WATCHLIST) ? await list.symbols() : [];
       const wants = active.flatMap((a) => (a.target === WATCHLIST ? listed : [a.target]).map((symbol) => ({ alertId: a.id, symbol, condition: parseCondition(a.condition) as AlertCondition, accountId: a.accountId })));
       const reading = await readAll(wants, sources, calendar());
       const now = new Date();
@@ -57,6 +59,11 @@ export const alertsPlugin = definePlugin({
       await ctx.store.update<Alert[]>(ALERTS, [], (list) =>
         list.map((alert) => {
           let a = alert;
+          if (!list && alert.status === "active" && alert.target === WATCHLIST) {
+            const s = step(a, WATCHLIST, { error: WATCHLIST_OFF }, now, cooldown);
+            a = s.alert;
+            if (s.failing) failing.push({ alert: a, symbol: WATCHLIST, error: s.failing });
+          }
           for (const w of wants.filter((x) => x.alertId === alert.id)) {
             const s = step(a, w.symbol, evaluate(w.condition, reading(w.symbol, a.accountId), now), now, cooldown);
             a = s.alert;
@@ -77,11 +84,11 @@ export const alertsPlugin = definePlugin({
       return `${active.length} alert(s) checked, ${fired.length} fired${failing.length ? `, ${failing.length} cannot be checked` : ""}.`;
     };
 
-    scheduler.job({ id: "check", title: "Alerts", every: String(ctx.config().every), run: ({ session, signal }) => check({ bytnodeKey: session.bytnodeKey, accounts: session.exchangeAccounts, signal }) });
+    ctx.job({ id: "check", title: "Alerts", every: String(ctx.config().every), run: ({ session, signal }) => check({ bytnodeKey: session.bytnodeKey, accounts: session.exchangeAccounts, signal }) });
 
     const hasCalendar = () => calendar() !== undefined;
     const listing = async () => ({ alerts: await read(), triggers: await ctx.store.lines<Trigger>(TRIGGERS) });
-    ctx.tool(alertCreateTool(add, hasCalendar));
+    ctx.tool(alertCreateTool(add, hasCalendar, () => watchlist() !== undefined));
     ctx.tool(alertListTool(listing));
     ctx.tool(alertDeleteTool(remove));
 
@@ -98,6 +105,7 @@ export const alertsPlugin = definePlugin({
       const accountId = typeof params.accountId === "string" && transport.exchangeAccounts.some((a) => a.id === params.accountId) ? params.accountId : undefined;
       const made = newAlert({ target: params.target, condition: params.condition, once: params.once, note: params.note, accountId }, randomUUID().slice(0, 8), new Date());
       if ("error" in made) throw new Error(made.error);
+      if (made.alert.target === WATCHLIST && !watchlist()) throw new Error(WATCHLIST_OFF);
       await add(made.alert);
       return made.alert;
     });
@@ -114,7 +122,7 @@ export const alertsPlugin = definePlugin({
         }),
       );
       if (!found) throw new Error("This alert cannot be paused: it is done or gone.");
-      if (!paused) await scheduler.trigger("check");
+      if (!paused) await ctx.trigger("check");
       return { paused };
     });
     /* The pairs the form offers: BytNode's. */
@@ -124,8 +132,11 @@ export const alertsPlugin = definePlugin({
       const condition = parseCondition(String(params.condition ?? ""));
       if ("error" in condition) throw new Error(condition.error);
       const raw = String(params.target ?? "");
-      const symbol = raw.toLowerCase() === WATCHLIST ? (await watchlist.symbols())[0] : normalizeSymbol(raw);
-      if (!symbol) throw new Error(raw.toLowerCase() === WATCHLIST ? "The watchlist is empty." : `Not a pair: "${raw}".`);
+      const onList = raw.toLowerCase() === WATCHLIST;
+      const list = watchlist();
+      if (onList && !list) throw new Error(WATCHLIST_OFF);
+      const symbol = onList ? (await list!.symbols())[0] : normalizeSymbol(raw);
+      if (!symbol) throw new Error(onList ? "The watchlist is empty." : `Not a pair: "${raw}".`);
       if (onPosition(condition)) return { symbol, error: "Read on the position at the first check." };
       const accountId = typeof params.accountId === "string" ? params.accountId : undefined;
       const reading = await readAll([{ symbol, condition, accountId }], { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal }, calendar());

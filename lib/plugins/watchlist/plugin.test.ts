@@ -36,9 +36,9 @@ describe("watchlist plugin", () => {
     expect(r.card?.kind).toBe("table");
   });
 
-  it("offers its symbols as a service to the plugins that require it", async () => {
+  it("offers its symbols as a service to the plugins that use it", async () => {
     let service: WatchlistService | undefined;
-    const user = { manifest: { ...watchlistPlugin.manifest, id: "alerts", requires: ["watchlist"], views: [] }, setup: (ctx: import("../core/contract").PluginContext) => void (service = ctx.inject<WatchlistService>("watchlist")) };
+    const user = { manifest: { ...watchlistPlugin.manifest, id: "alerts", optional: ["watchlist"], views: [] }, setup: (ctx: import("../core/contract").PluginContext) => void (service = ctx.optional<WatchlistService>("watchlist")) };
     h = await harness([watchlistPlugin, user]);
     await h.tool("WatchlistEdit").execute({ add: ["sol"] }, h.ctx());
     expect(await service!.symbols()).toEqual(["SOL/USDT"]);

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Exchange } from "ccxt";
 import type { ExchangeAccount } from "@/lib/domain/types";
 import type { ToolContext, ToolResult } from "../types";
@@ -5,7 +6,8 @@ import { fail } from "../types";
 import { pickAccount } from "./accounts";
 import { exchangeInfo } from "./catalog";
 import { clientFor } from "./client";
-import { describeExchangeError, withRetry } from "./errors";
+import { describeExchangeError, isTransientExchangeError, withRetry } from "./errors";
+import { n8 } from "./format";
 import { toSymbol, type Market } from "./symbols";
 
 /* ---------------------------------------------------------------------------
@@ -43,13 +45,73 @@ export function symbolOn(ex: Exchange, raw: string, market: Market): { symbol: s
 }
 
 /** Runs an exchange call: a second attempt if transient, a readable error
-    otherwise. */
+    otherwise. An action sent through `sendOnce` inside `fn` is never part
+    of that second attempt: its `OutcomeUnknown` is not transient, so the
+    retry only ever replays the READS that came before the send. */
 export async function attempt(fn: () => Promise<ToolResult>): Promise<ToolResult> {
   try {
     return await withRetry(fn);
   } catch (e) {
+    if (e instanceof OutcomeUnknown) return fail(e.message);
     return fail(describeExchangeError(e));
   }
+}
+
+/* ⚠️ An ACTION (an order, a close, a transfer) is sent ONCE. A timeout or a
+   dropped connection after the request left says nothing about the
+   exchange: it may have executed it and only its answer was lost. Sending
+   it again would place a second order on the user's single consent — so
+   the outcome is said UNKNOWN and the agent is told to check before
+   anything else. A lost or unreadable answer (BadResponse, NullResponse)
+   is the same case. */
+const UNKNOWN_AFTER_SEND = new Set(["BadResponse", "NullResponse"]);
+
+export class OutcomeUnknown extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OutcomeUnknown";
+  }
+}
+
+/** Sends one action that moves money or a position, never retried. On a
+    transient error, throws `OutcomeUnknown` carrying `notice(detail)` —
+    what was sent and what to check before trying again. */
+export async function sendOnce<T>(send: () => Promise<T>, notice: (detail: string) => string): Promise<T> {
+  try {
+    return await send();
+  } catch (e) {
+    if (isTransientExchangeError(e) || (e instanceof Error && UNKNOWN_AFTER_SEND.has(e.name))) throw new OutcomeUnknown(notice(describeExchangeError(e)));
+    throw e;
+  }
+}
+
+/** The client id put on an order so that, if its answer is lost, it can be
+    found among the account's orders (`ExchangeOrders` shows it). Every
+    ccxt class of the catalog maps `clientOrderId` to the exchange's own
+    field; the format fits them all — 16 letters and digits, not starting
+    with `t` (Gate prefixes `t-` otherwise), under Kraken's 18 characters
+    and Gate's 28. ⚠️ HTX futures only take a NUMBER there, and ccxt then
+    forwards a text id raw into the request: none is sent on HTX futures. */
+export function orderClientId(exchangeId: string, market: Market): string | undefined {
+  if (exchangeId === "htx" && market === "futures") return undefined;
+  return `${CLIENT_ID_PREFIX}${randomUUID().replace(/-/g, "").slice(0, 12)}`;
+}
+
+export const CLIENT_ID_PREFIX = "bnai";
+
+/** The size of one contract in base asset on a contract market (OKX BTC
+    swap: 0.01 BTC), 1 elsewhere. ⚠️ ccxt counts the `amount` of a contract
+    market in CONTRACTS, and its precision and minimum too. */
+export function contractSizeOf(market: { contractSize?: number } | undefined): number {
+  const cs = market?.contractSize;
+  return typeof cs === "number" && cs > 0 ? cs : 1;
+}
+
+/** A quantity counted in contracts, said in base asset then in contracts:
+    `0.1 BTC (10 contracts)`. Only for a contract size other than 1 — the
+    two numbers are the same otherwise. */
+export function unitsText(contracts: number, cs: number, base: string | undefined): string {
+  return `${n8(contracts * cs)} ${base ?? "base"} (${n8(contracts)} contract${contracts === 1 ? "" : "s"})`;
 }
 
 /** The action tools on the futures of an exchange that does not allow them
@@ -89,11 +151,19 @@ export async function hedgeModeError(ex: Exchange, symbol: string): Promise<stri
   return undefined;
 }
 
+/** The exchanges whose ccxt class reads `triggerDirection`, on futures:
+    Bybit (required on contracts, REFUSED on spot) and KuCoin (its futures
+    class, `kucoinfutures`; required on a unified account). ⚠️ Everywhere
+    else ccxt forwards an unknown parameter raw into the request, and
+    Binance refuses any parameter it did not read (-1104): stop orders on
+    Binance, OKX, Gate… failed. */
+const TRIGGER_DIRECTION = new Set(["bybit", "kucoin", "kucoinfutures"]);
+
 /** The direction of a trigger order, for the exchanges that require it
-    (Bybit and KuCoin on futures): `ascending` if the price must rise to
-    the trigger. Bybit REFUSES it on spot. */
+    (see `TRIGGER_DIRECTION`): `ascending` if the price must rise to the
+    trigger. `undefined` everywhere else: the parameter is then not sent. */
 export async function triggerDirection(ex: Exchange, symbol: string, market: Market, stop: number): Promise<"ascending" | "descending" | undefined> {
-  if (ex.id === "bybit" && market === "spot") return undefined;
+  if (market !== "futures" || !TRIGGER_DIRECTION.has(ex.id)) return undefined;
   const t = (await ex.fetchTicker(symbol)) as { last?: number | null };
   if (typeof t.last !== "number") return undefined;
   return stop > t.last ? "ascending" : "descending";

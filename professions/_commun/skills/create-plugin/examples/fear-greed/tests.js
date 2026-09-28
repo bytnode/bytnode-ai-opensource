@@ -22,6 +22,7 @@ test("today's value, the trend, and a card", async () => {
 });
 
 test("the tab gets the days in order, oldest first", async () => {
+  mock.fetch("https://api.alternative.me/fng/", { json: sample });
   const days = await plugin.action("history", {});
   assertEqual(days.map((d) => d.value), [38, 65, 72]);
   assertEqual(days[2].date, "2025-09-25");

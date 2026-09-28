@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentConfig } from "@/lib/domain/types";
 import type { CalendarService } from "../calendar/service";
 import { definePlugin, type Session } from "../core/contract";
+import { pluginStore } from "../core/store";
 import { manifest } from "../core/test-fixture";
-import type { JobSpec, SchedulerService } from "../scheduler/service";
 import { candles, quotes } from "../shared/prices";
 import type { ApiRequest } from "../core/contract";
 import { harness, type Harness } from "../test-fixture";
@@ -12,19 +12,6 @@ import { alertsPlugin } from ".";
 
 vi.mock("../shared/prices", async (orig) => ({ ...(await orig<typeof import("../shared/prices")>()), quotes: vi.fn(), candles: vi.fn(), fundingRate: vi.fn(async () => undefined) }));
 
-const jobs = new Map<string, JobSpec>();
-const triggered: string[] = [];
-const scheduler = definePlugin({
-  manifest: manifest("scheduler"),
-  setup(ctx) {
-    ctx.provide<SchedulerService>((caller) => ({
-      job: (spec) => void jobs.set(`${caller.id}:${spec.id}`, spec),
-      trigger: async (id) => void triggered.push(`${caller.id}:${id}`),
-      runAgent: async () => ({ ok: false, error: "not in tests" }),
-      planned: async () => [],
-    }));
-  },
-});
 const calendar = definePlugin({
   manifest: manifest("calendar"),
   setup(ctx) {
@@ -36,12 +23,12 @@ const calendar = definePlugin({
 
 const prices: Record<string, { price: number; change24h?: number }> = {};
 const SESSION = { bytnodeKey: "k", exchangeAccounts: [], agents: [] as AgentConfig[] } as unknown as Session;
-const check = () => jobs.get("alerts:check")!.run({ session: SESSION, signal: new AbortController().signal, reason: "schedule" });
+const check = () => h.job("alerts:check").run({ session: SESSION, signal: new AbortController().signal, reason: "schedule", cancelled: () => false });
+/* What was asked to run now: the core clock's requests, on disk. */
+const triggered = () => pluginStore("scheduler", h.root).read<string[]>("triggers.json", []);
 
 let h: Harness;
 beforeEach(() => {
-  jobs.clear();
-  triggered.length = 0;
   for (const k of Object.keys(prices)) delete prices[k];
   vi.mocked(quotes).mockImplementation(async (symbols) => new Map(symbols.map((s) => [s, prices[s] ? { symbol: s, ...prices[s], source: "bytnode", at: "" } : { symbol: s, error: `No price for ${s}.` }])));
 });
@@ -49,10 +36,10 @@ afterEach(async () => h?.close());
 
 describe("alerts plugin", () => {
   it("fires once per crossing, into the notification center", async () => {
-    h = await harness([scheduler, watchlistPlugin, alertsPlugin]);
+    h = await harness([watchlistPlugin, alertsPlugin]);
     const made = await h.tool("AlertCreate").execute({ symbol: "btc", condition: "price >= 70000", once: false, note: "take profit" }, h.ctx());
     expect(made.output).toMatch(/^Alert \[\w+\] set: BTC\/USDT, price>=70000 \(Price ≥ 70000\), at every crossing\./);
-    expect(triggered).toEqual(["alerts:check"]);
+    expect(await triggered()).toEqual(["alerts:check"]);
 
     prices["BTC/USDT"] = { price: 69_000 };
     expect(await check()).toBe("1 alert(s) checked, 0 fired.");
@@ -64,7 +51,7 @@ describe("alerts plugin", () => {
   });
 
   it("watches the whole watchlist, and says when an asset has no price", async () => {
-    h = await harness([scheduler, watchlistPlugin, alertsPlugin]);
+    h = await harness([watchlistPlugin, alertsPlugin]);
     await h.tool("WatchlistEdit").execute({ add: ["BTC", "ETH", "XYZ"] }, h.ctx());
     await h.tool("AlertCreate").execute({ symbol: "watchlist", condition: "change24h>5%" }, h.ctx());
     prices["BTC/USDT"] = { price: 1, change24h: 1 };
@@ -78,12 +65,12 @@ describe("alerts plugin", () => {
   });
 
   it("event alerts need the calendar; position alerts need an account", async () => {
-    h = await harness([scheduler, watchlistPlugin, alertsPlugin]);
+    h = await harness([watchlistPlugin, alertsPlugin]);
     expect(await h.tool("AlertCreate").execute({ symbol: "BTC", condition: "event<6h" }, h.ctx())).toMatchObject({ ok: false, output: expect.stringMatching(/need the market calendar/) });
     expect((await h.tool("AlertCreate").execute({ symbol: "BTC", condition: "liq<3%" }, h.ctx())).ok).toBe(false);
     await h.close();
 
-    h = await harness([scheduler, watchlistPlugin, calendar, alertsPlugin]);
+    h = await harness([watchlistPlugin, calendar, alertsPlugin]);
     await h.tool("AlertCreate").execute({ symbol: "BTC", condition: "event<6h" }, h.ctx());
     prices["BTC/USDT"] = { price: 1 };
     expect(await check()).toBe("1 alert(s) checked, 1 fired.");
@@ -91,7 +78,7 @@ describe("alerts plugin", () => {
   });
 
   it("deletes one alert or all", async () => {
-    h = await harness([scheduler, watchlistPlugin, alertsPlugin]);
+    h = await harness([watchlistPlugin, alertsPlugin]);
     await h.tool("AlertCreate").execute({ symbol: "BTC", condition: "price<1" }, h.ctx());
     await h.tool("AlertCreate").execute({ symbol: "ETH", condition: "price<1" }, h.ctx());
     expect((await h.tool("AlertDelete").execute({ id: "all" }, h.ctx())).output).toMatch(/^Deleted: \[\w+\] BTC\/USDT price<1; \[\w+\] ETH\/USDT price<1\.$/);
@@ -99,7 +86,7 @@ describe("alerts plugin", () => {
   });
 
   it("an indicator alert reads the candles once per pair and timeframe, and can be paused", async () => {
-    h = await harness([scheduler, watchlistPlugin, alertsPlugin]);
+    h = await harness([watchlistPlugin, alertsPlugin]);
     const api = (action: string, params: Record<string, unknown>) => h.runtime.handler("alerts", action)!(params, { transport: { bytnodeKey: "k", exchangeAccounts: [] }, signal: new AbortController().signal } as unknown as ApiRequest);
     /* Falling closes: the RSI sits at 0 until the last bar jumps. */
     let closes = Array.from({ length: 200 }, (_, i) => 200 - i * 0.5);
@@ -126,5 +113,15 @@ describe("alerts plugin", () => {
     await api("pause", { id: rsiAlert.id, paused: false });
     /* Resumed while across: it waits for the next crossing. */
     expect(await check()).toMatch(/^1 alert\(s\) checked, 0 fired/);
+  });
+
+  it("runs without the watchlist: a pair alert works, a watchlist alert says it cannot be checked", async () => {
+    h = await harness([alertsPlugin]);
+    const api = (action: string, params: Record<string, unknown>) => h.runtime.handler("alerts", action)!(params, { transport: { bytnodeKey: "k", exchangeAccounts: [] }, signal: new AbortController().signal } as unknown as ApiRequest);
+    await expect(h.tool("AlertCreate").execute({ symbol: "watchlist", condition: "price>1" }, h.ctx())).resolves.toMatchObject({ ok: false, output: expect.stringMatching(/need the watchlist: it is off/) });
+    await expect(api("preview", { target: "watchlist", condition: "price>1" })).rejects.toThrow(/watchlist is off/);
+    expect((await h.tool("AlertCreate").execute({ symbol: "BTC/USDT", condition: "price>=70000" }, h.ctx())).ok).toBe(true);
+    prices["BTC/USDT"] = { price: 71_000 };
+    expect(await check()).toBe("1 alert(s) checked, 1 fired.");
   });
 });

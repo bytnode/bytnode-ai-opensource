@@ -39,6 +39,35 @@ const EXTERNAL = [
   { re: /\bnavigator\.sendBeacon\b/, what: "a network call" },
 ];
 
+/* --- Forms -----------------------------------------------------------------
+
+   The frame neutralises submission (`sandbox`, `form-action 'none'`): a
+   submit button is a DEAD click — the user presses it and nothing happens,
+   with no error. The check refuses the four ways a page submits, so the
+   plugin fails at check time — with the line and, for a button, its label —
+   instead of shipping a button that does nothing. */
+const SUBMIT_FIX = 'This button submits a form: the view\'s frame neutralises submission. Use type="button" with a click handler.';
+
+/** The lines that submit a form, each with the cause said back plainly. */
+function submitErrors(files: Record<string, string>, view: string[]): string[] {
+  const errors: string[] = [];
+  for (const name of view.filter((f) => f.endsWith(".html") || f.endsWith(".js"))) {
+    const text = files[name] ?? "";
+    const lineOf = (index: number) => text.slice(0, index).split("\n").length;
+    const report = (index: number, found: string) => errors.push(`${name}:${lineOf(index)}: found ${found}. ${SUBMIT_FIX}`);
+
+    for (const m of text.matchAll(/<button\b[^>]*\btype\s*=\s*["']submit["'][^>]*>([^<]*)/gi)) {
+      const label = m[1].trim();
+      report(m.index ?? 0, `a <button type="submit">${label ? ` (“${label.slice(0, 48)}”)` : ""}`);
+    }
+    for (const m of text.matchAll(/<input\b[^>]*\btype\s*=\s*["']submit["']/gi)) report(m.index ?? 0, 'an <input type="submit">');
+    for (const m of text.matchAll(/<form\b[^>]*\baction\s*=/gi)) report(m.index ?? 0, "a <form> with an action attribute");
+    for (const m of text.matchAll(/\bon(?:s|S)ubmit\s*=/g)) report(m.index ?? 0, "an onSubmit handler");
+    for (const m of text.matchAll(/\.addEventListener\(\s*["']submit["']\s*,/g)) report(m.index ?? 0, 'a submit listener (addEventListener("submit"…))');
+  }
+  return errors;
+}
+
 const LINK = /<link\b[^>]*\bhref\s*=\s*["']?([^"'\s>]+)["']?[^>]*>/gi;
 const SCRIPT_SRC = /<script\b[^>]*\bsrc\s*=\s*["']?([^"'\s>]+)["']?[^>]*>\s*<\/script>/gi;
 const INLINE_SCRIPT = /<script\b(?![^>]*\bsrc\s*=)[^>]*>([\s\S]*?)<\/script>/gi;
@@ -60,6 +89,10 @@ export async function viewProblems(files: Record<string, string>, declared: bool
   }
   for (const m of html.matchAll(LINK)) if (!files[`view/${local(m[1])}`]) errors.push(`index.html links ${m[1]}, which is not a file of the view.`);
   for (const m of html.matchAll(SCRIPT_SRC)) if (!files[`view/${local(m[1])}`]) errors.push(`index.html loads ${m[1]}, which is not a file of the view.`);
+
+  /* A submit path that the frame would neutralise: dead at runtime, so
+     refuse it here, with the line and the button's label. */
+  errors.push(...submitErrors(files, view));
 
   const scripts: Array<[string, string]> = [...html.matchAll(INLINE_SCRIPT)].map((m, i) => [`index.html <script> #${i + 1}`, m[1]]);
   for (const name of view.filter((f) => f.endsWith(".js"))) scripts.push([name, files[name]]);

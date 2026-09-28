@@ -32,6 +32,9 @@ export type UserPluginInfo = {
   /** The running version's manifest (active), else the draft's when valid. */
   manifest: PluginManifest | null;
   granted: { permissions: Permissions; accounts: string[]; at: string } | null;
+  /** Granted before approvals were signed (or signed with another key):
+      it does not run until the user approves the SAME grant again. */
+  unsigned?: { digest: string };
   /** The activation waiting for the user. */
   request: {
     digest: string;

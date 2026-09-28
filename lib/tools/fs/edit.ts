@@ -2,6 +2,8 @@ import fs from "node:fs/promises";
 import type { Tool } from "../types";
 import { errorText, fail, ok } from "../types";
 import { OutsideWorkspaceError, displayPath, resolvePath } from "../paths";
+import { serialized, writeFileAtomic } from "./safe-write";
+import { decodeText, encodeText } from "./text-encoding";
 
 /* ---------------------------------------------------------------------------
    Edit: replace an exact string in a file.
@@ -58,27 +60,41 @@ export const editTool: Tool<Args> = {
       throw e;
     }
     const shown = displayPath(ctx.workspace, target);
-    let content: string;
-    try {
-      content = await fs.readFile(target, "utf8");
-    } catch (e) {
-      return fail(`Could not read ${shown}: ${errorText(e)}`);
-    }
-    const out = applyEdit(content, args.old_string, args.new_string, args.replace_all === true);
-    if (!out.ok) {
-      const why = {
-        empty: "old_string is empty.",
-        same: "old_string and new_string are identical.",
-        not_found: `old_string does not appear in ${shown}. Re-read the file: the excerpt must be exact, spaces and indentation included.`,
-        ambiguous: `old_string appears ${out.count} times in ${shown}. Widen the excerpt to make it unique, or pass replace_all: true.`,
-      }[out.reason];
-      return fail(why);
-    }
-    try {
-      await fs.writeFile(target, out.content, "utf8");
-    } catch (e) {
-      return fail(`Could not write ${shown}: ${errorText(e)}`);
-    }
-    return ok(`${shown}: ${out.count} replacement${out.count > 1 ? "s" : ""}.`);
+    /* One Edit of a given file at a time: the next one reads what this one wrote. */
+    return serialized(target, async () => {
+      let buf: Buffer;
+      try {
+        buf = await fs.readFile(target);
+      } catch (e) {
+        return fail(`Could not read ${shown}: ${errorText(e)}`);
+      }
+      /* ⚠️ A file that is not UTF-8 text is REFUSED: decoded as UTF-8 and
+         written back, every byte outside the excerpt that is not UTF-8 (the
+         é of a Windows-1252 CSV) became U+FFFD — and Edit reported success. */
+      const decoded = decodeText(buf);
+      if (!decoded.ok) {
+        return fail(
+          decoded.reason === "binary"
+            ? `${shown} looks binary: Edit only changes text files.`
+            : `${shown} is not UTF-8 text (probably Windows-1252 / Latin-1): Edit would corrupt its accented characters, so nothing was changed. Rewrite it with a script that keeps its encoding (Python: open(path, encoding="cp1252")), or convert it to UTF-8 first.`,
+        );
+      }
+      const out = applyEdit(decoded.text, args.old_string, args.new_string, args.replace_all === true);
+      if (!out.ok) {
+        const why = {
+          empty: "old_string is empty.",
+          same: "old_string and new_string are identical.",
+          not_found: `old_string does not appear in ${shown}. Re-read the file: the excerpt must be exact, spaces and indentation included.`,
+          ambiguous: `old_string appears ${out.count} times in ${shown}. Widen the excerpt to make it unique, or pass replace_all: true.`,
+        }[out.reason];
+        return fail(why);
+      }
+      try {
+        await writeFileAtomic(target, encodeText(out.content, decoded.encoding));
+      } catch (e) {
+        return fail(`Could not write ${shown}: ${errorText(e)}`);
+      }
+      return ok(`${shown}: ${out.count} replacement${out.count > 1 ? "s" : ""}.`);
+    });
   },
 };

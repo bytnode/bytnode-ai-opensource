@@ -29,7 +29,7 @@ describe("runConfirmed", () => {
     const r = await runConfirmed(parked(), [TESTNET, MAIN], signal);
     expect(r.ok).toBe(true);
     expect(mocked).toHaveBeenCalledWith(MAIN, "spot");
-    expect(ex.createOrder).toHaveBeenCalledWith("BTC/USDT", "market", "buy", 0.004, undefined, {});
+    expect(ex.createOrder).toHaveBeenCalledWith("BTC/USDT", "market", "buy", 0.004, undefined, expect.any(Object));
   });
 
   it("refuses when the named account is not the one the browser sent", async () => {

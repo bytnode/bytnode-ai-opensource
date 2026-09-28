@@ -6,6 +6,7 @@ import { dataDir } from "@/lib/server/data-dir";
 import { WINDOWS_RESERVED, appendJsonl, pluginStore, pluginsDir, readJson, readJsonl, renameRetry, writeJsonAtomic, writeTextAtomic, type PluginStore } from "../core/store";
 import { isUserPluginId, readUserManifest, type UserManifest } from "./manifest";
 import type { Grant, Permissions } from "./permissions";
+import { UNTRUSTED_GRANT, approvalKey, isTrustedGrant, verifyGrant } from "./approval";
 
 /* ---------------------------------------------------------------------------
    The plugins written by agents, on disk — ONE FOLDER PER PLUGIN, holding
@@ -28,6 +29,11 @@ import type { Grant, Permissions } from "./permissions";
 --------------------------------------------------------------------------- */
 
 export const USER_PLUGINS_FOLDER = "bytnode-plugin-user";
+
+/* `turbopackIgnore` on every file system call below: the paths are built
+   at run time from the data folder, and without it Turbopack's build
+   warns "Dynamic filesystem access causes tracing of the whole project"
+   (the approve and log routes) and traces the whole project. */
 
 export const userPluginsDir = (): string => path.join(dataDir(), USER_PLUGINS_FOLDER);
 
@@ -53,19 +59,19 @@ export function migrateLegacyLayout(): void {
   const root = userPluginsDir();
   const legacy = path.join(home, "user-plugins");
   try {
-    if (fs.existsSync(legacy)) {
-      fs.mkdirSync(root, { recursive: true });
-      for (const e of fs.readdirSync(legacy, { withFileTypes: true })) {
+    if (fs.existsSync(/*turbopackIgnore: true*/ legacy)) {
+      fs.mkdirSync(/*turbopackIgnore: true*/ root, { recursive: true });
+      for (const e of fs.readdirSync(/*turbopackIgnore: true*/ legacy, { withFileTypes: true })) {
         const to = path.join(root, e.name);
-        if (e.isDirectory() && isUserPluginId(e.name) && !fs.existsSync(to)) fs.renameSync(path.join(legacy, e.name), to);
+        if (e.isDirectory() && isUserPluginId(e.name) && !fs.existsSync(/*turbopackIgnore: true*/ to)) fs.renameSync(/*turbopackIgnore: true*/ path.join(legacy, e.name), to);
       }
-      if (fs.readdirSync(legacy).length === 0) fs.rmdirSync(legacy);
+      if (fs.readdirSync(/*turbopackIgnore: true*/ legacy).length === 0) fs.rmdirSync(/*turbopackIgnore: true*/ legacy);
     }
     const oldData = pluginsDir();
-    if (fs.existsSync(oldData)) {
-      for (const e of fs.readdirSync(oldData, { withFileTypes: true })) {
+    if (fs.existsSync(/*turbopackIgnore: true*/ oldData)) {
+      for (const e of fs.readdirSync(/*turbopackIgnore: true*/ oldData, { withFileTypes: true })) {
         const home = path.join(root, e.name);
-        if (e.isDirectory() && isUserPluginId(e.name) && fs.existsSync(home) && !fs.existsSync(path.join(home, "data"))) fs.renameSync(path.join(oldData, e.name), path.join(home, "data"));
+        if (e.isDirectory() && isUserPluginId(e.name) && fs.existsSync(/*turbopackIgnore: true*/ home) && !fs.existsSync(/*turbopackIgnore: true*/ path.join(home, "data"))) fs.renameSync(/*turbopackIgnore: true*/ path.join(oldData, e.name), path.join(home, "data"));
       }
     }
   } catch {
@@ -87,9 +93,9 @@ export type Which = "draft" | "active";
 
 async function walk(dir: string): Promise<string[]> {
   const out: string[] = [];
-  for (const name of ["plugin.json", "server.js", "tests.js"]) if (fs.existsSync(path.join(dir, name))) out.push(name);
+  for (const name of ["plugin.json", "server.js", "tests.js"]) if (fs.existsSync(path.join(/*turbopackIgnore: true*/ dir, name))) out.push(name);
   const view = path.join(dir, "view");
-  if (fs.existsSync(view)) for (const f of (await fsp.readdir(view)).sort()) if (allowedFile(`view/${f}`)) out.push(`view/${f}`);
+  if (fs.existsSync(/*turbopackIgnore: true*/ view)) for (const f of (await fsp.readdir(/*turbopackIgnore: true*/ view)).sort()) if (allowedFile(`view/${f}`)) out.push(`view/${f}`);
   return out;
 }
 
@@ -97,7 +103,7 @@ async function walk(dir: string): Promise<string[]> {
 export async function readFiles(id: string, which: Which): Promise<Record<string, string>> {
   const dir = path.join(dirOf(id), which);
   const out: Record<string, string> = {};
-  for (const name of await walk(dir)) out[name] = await fsp.readFile(path.join(dir, name), "utf8");
+  for (const name of await walk(dir)) out[name] = await fsp.readFile(/*turbopackIgnore: true*/ path.join(dir, name), "utf8");
   return out;
 }
 
@@ -123,7 +129,7 @@ export type ActivationRequest = {
 };
 export const readRequest = (id: string) => readJson<ActivationRequest | null>(path.join(dirOf(id), "request.json"), null);
 export const writeRequest = (id: string, r: ActivationRequest) => writeJsonAtomic(path.join(dirOf(id), "request.json"), r);
-export const clearRequest = (id: string) => fsp.rm(path.join(dirOf(id), "request.json"), { force: true });
+export const clearRequest = (id: string) => fsp.rm(/*turbopackIgnore: true*/ path.join(dirOf(id), "request.json"), { force: true });
 
 /** Writes one draft file; `null` deletes it. Checks the layout and sizes. */
 export async function writeDraftFile(id: string, name: string, content: string | null, agentId: string): Promise<void> {
@@ -131,7 +137,7 @@ export async function writeDraftFile(id: string, name: string, content: string |
   const dir = path.join(dirOf(id), "draft");
   const file = path.join(dir, name);
   if (content === null) {
-    await fsp.rm(file, { force: true });
+    await fsp.rm(/*turbopackIgnore: true*/ file, { force: true });
   } else {
     const bytes = Buffer.byteLength(content, "utf8");
     if (bytes > MAX_FILE_BYTES) throw new Error(`${name} is too large (${Math.round(bytes / 1024)} kB, ${MAX_FILE_BYTES / 1024} kB at most).`);
@@ -154,15 +160,15 @@ export async function activate(id: string, grant: Grant): Promise<void> {
   const root = dirOf(id);
   const staging = path.join(root, `active.${randomUUID().slice(0, 8)}.tmp`);
   for (const [name, text] of Object.entries(files)) {
-    await fsp.mkdir(path.dirname(path.join(staging, name)), { recursive: true });
-    await fsp.writeFile(path.join(staging, name), text);
+    await fsp.mkdir(/*turbopackIgnore: true*/ path.dirname(path.join(staging, name)), { recursive: true });
+    await fsp.writeFile(/*turbopackIgnore: true*/ path.join(staging, name), text);
   }
   /* The old version is moved aside BEFORE the swap and removed after: a
      refused rename (Windows holding a file) used to leave no `active/` at
      all while `grant.json` still named the old one. */
   const active = path.join(root, "active");
   const old = path.join(root, `active.old.${randomUUID().slice(0, 8)}.tmp`);
-  const hadOne = fs.existsSync(active);
+  const hadOne = fs.existsSync(/*turbopackIgnore: true*/ active);
   try {
     if (hadOne) await renameRetry(active, old);
     try {
@@ -172,27 +178,27 @@ export async function activate(id: string, grant: Grant): Promise<void> {
       throw e;
     }
   } catch (e) {
-    await fsp.rm(staging, { recursive: true, force: true });
+    await fsp.rm(/*turbopackIgnore: true*/ staging, { recursive: true, force: true });
     throw e;
   }
   await writeJsonAtomic(path.join(root, "grant.json"), grant);
-  await fsp.rm(old, { recursive: true, force: true }).catch(() => {});
+  await fsp.rm(/*turbopackIgnore: true*/ old, { recursive: true, force: true }).catch(() => {});
   await clearRequest(id);
 }
 
 /** Stops it for good: what ran and what was granted go; the draft stays. */
 export async function revoke(id: string): Promise<void> {
   const root = dirOf(id);
-  await fsp.rm(path.join(root, "grant.json"), { force: true });
-  await fsp.rm(path.join(root, "active"), { recursive: true, force: true });
+  await fsp.rm(/*turbopackIgnore: true*/ path.join(root, "grant.json"), { force: true });
+  await fsp.rm(/*turbopackIgnore: true*/ path.join(root, "active"), { recursive: true, force: true });
   await clearRequest(id);
 }
 
 /** Deletes the plugin — its data too, unless asked to keep it. */
 export async function removeUserPlugin(id: string, withData: boolean): Promise<void> {
   const dir = dirOf(id);
-  if (withData) return fsp.rm(dir, { recursive: true, force: true });
-  for (const name of await fsp.readdir(dir).catch(() => [] as string[])) if (name !== "data") await fsp.rm(path.join(dir, name), { recursive: true, force: true });
+  if (withData) return fsp.rm(/*turbopackIgnore: true*/ dir, { recursive: true, force: true });
+  for (const name of await fsp.readdir(/*turbopackIgnore: true*/ dir).catch(() => [] as string[])) if (name !== "data") await fsp.rm(/*turbopackIgnore: true*/ path.join(dir, name), { recursive: true, force: true });
 }
 
 export type LogEntry = { at: string; level: "info" | "warn" | "error"; source: "setup" | "call" | "job" | "view" | "check" | "log"; message: string };
@@ -206,8 +212,8 @@ export const readLog = async (id: string, last = 30): Promise<LogEntry[]> => (aw
 export const userPluginIds = async (): Promise<string[]> => {
   migrateLegacyLayout();
   const dir = userPluginsDir();
-  if (!fs.existsSync(dir)) return [];
-  return (await fsp.readdir(dir, { withFileTypes: true })).filter((e) => e.isDirectory() && isUserPluginId(e.name)).map((e) => e.name).sort();
+  if (!fs.existsSync(/*turbopackIgnore: true*/ dir)) return [];
+  return (await fsp.readdir(/*turbopackIgnore: true*/ dir, { withFileTypes: true })).filter((e) => e.isDirectory() && isUserPluginId(e.name)).map((e) => e.name).sort();
 };
 
 /** A version's manifest, read and checked. */
@@ -233,6 +239,12 @@ export async function activePlugins(): Promise<{ plugins: ActivePlugin[]; proble
     try {
       const grant = await readGrant(id);
       if (!grant) continue;
+      /* ⚠️ Only an approval signed with the key of the user's browser runs:
+         a grant.json an agent wrote itself does not (`approval.ts`). */
+      if (!isTrustedGrant(id, grant)) {
+        problems.push({ id, message: UNTRUSTED_GRANT });
+        continue;
+      }
       const files = await readFiles(id, "active");
       if (digestOf(files) !== grant.digest) {
         problems.push({ id, message: "Its files are not the ones you approved: it does not run. Ask the agent to activate it again." });
@@ -251,18 +263,39 @@ export async function activePlugins(): Promise<{ plugins: ActivePlugin[]; proble
   return { plugins, problems };
 }
 
+/** The approvals that verify with the browser's key, as `{ id: sig }` —
+    what an MCP server of a subscription agent may run
+    (`BYTNODE_AI_VERIFIED_GRANTS`: it never gets the key). Synchronous: read
+    when the server's environment is built. Empty without a key. */
+export function verifiedGrantSigs(): Record<string, string> {
+  const key = approvalKey().current();
+  const dir = userPluginsDir();
+  const out: Record<string, string> = {};
+  if (!key || !fs.existsSync(/*turbopackIgnore: true*/ dir)) return out;
+  for (const e of fs.readdirSync(/*turbopackIgnore: true*/ dir, { withFileTypes: true })) {
+    if (!e.isDirectory() || !isUserPluginId(e.name)) continue;
+    try {
+      const grant = JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ path.join(dir, e.name, "grant.json"), "utf8")) as Grant;
+      if (verifyGrant(key, e.name, grant) && grant.sig) out[e.name] = grant.sig;
+    } catch {
+      /* no grant, or unreadable: not approved */
+    }
+  }
+  return out;
+}
+
 /** Changes when what runs changes (an activation, a revocation, a
     removal): the host reloads, a subscription session restarts its MCP
     server. Synchronous and cheap: a few `stat`s. */
 export function userPluginsVersion(): string {
   migrateLegacyLayout();
   const dir = userPluginsDir();
-  if (!fs.existsSync(dir)) return "0";
+  if (!fs.existsSync(/*turbopackIgnore: true*/ dir)) return "0";
   const parts: string[] = [];
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+  for (const e of fs.readdirSync(/*turbopackIgnore: true*/ dir, { withFileTypes: true })) {
     if (!e.isDirectory() || !isUserPluginId(e.name)) continue;
     const grant = path.join(dir, e.name, "grant.json");
-    parts.push(`${e.name}:${fs.existsSync(grant) ? Math.floor(fs.statSync(grant).mtimeMs) : 0}`);
+    parts.push(`${e.name}:${fs.existsSync(/*turbopackIgnore: true*/ grant) ? Math.floor(fs.statSync(/*turbopackIgnore: true*/ grant).mtimeMs) : 0}`);
   }
   return createHash("sha256").update(parts.join("|")).digest("hex").slice(0, 16);
 }

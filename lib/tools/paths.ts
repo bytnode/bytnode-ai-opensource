@@ -30,7 +30,9 @@ const norm = (p: string) => (process.platform === "win32" || process.platform ==
 
 export function isInside(workspace: string, absolute: string): boolean {
   const rel = path.relative(norm(path.resolve(workspace)), norm(absolute));
-  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+  /* A `..` SEGMENT climbs out; a name that merely starts with dots
+     (`..notes.md`) is a file inside. */
+  return rel === "" || (rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel));
 }
 
 /** `~` is the user's folder, as in every shell: `~/Desktop/x.md` used to

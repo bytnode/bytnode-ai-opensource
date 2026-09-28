@@ -19,7 +19,7 @@ export function paperResetTool(shelf: Shelf): Tool<Args> {
       additionalProperties: false,
     },
     async execute(args) {
-      if (args.capital !== undefined && !(args.capital >= 100)) return fail("A capital of at least 100 USDT.");
+      if (args.capital !== undefined && !(args.capital >= 100 && args.capital <= 10_000_000)) return fail("A capital between 100 and 10 000 000 USDT.");
       const picked = await shelf.pick(args.portfolio);
       if ("error" in picked) return fail(picked.error);
       const book = await picked.desk.reset(args.capital);

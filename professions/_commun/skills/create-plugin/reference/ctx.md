@@ -159,11 +159,13 @@ await ctx.confirm({
 
 ### Limits
 
-64 MB of memory; 2 seconds of computation without awaiting anything (an endless loop is stopped); 30 seconds per call (5 minutes per job run). Only JSON goes in and out: no functions, no `Date` objects (send ISO strings), no `Map`.
+64 MB of memory (long strings included); 2 seconds of computation without awaiting anything (an endless loop is stopped); 5 seconds of computation in all per call, awaits included; 30 seconds per call (5 minutes per job run). A call that runs out of computation or of time STOPS the plugin: what it was doing is dropped, and it starts again from `setup` at its next call — so keep what matters in `ctx.store`, not in variables. Only JSON goes in and out: no functions, no `Date` objects (send ISO strings), no `Map`.
+
+Tools, actions, `ctx.prompt`, jobs and `ctx.onConfirmed` are registered **inside `setup(ctx)` only**: one registered later (from a tool's `run`, an action…) is refused — what the plugin offers is what the user reviewed.
 
 ## tests.js
 
-Run by `PluginCheck`, after `setup`, against a fake world: nothing real is called, the store starts empty, the settings are their defaults. The tests run in order and share the store; a mock set again for the same key replaces the previous one, and a mock written at the top of the file holds for every test.
+Run by `PluginCheck`, after `setup`, against a fake world: nothing real is called. **Every `test()` starts with a fresh world** — the store is empty, the settings are their defaults, and no mock carries over from the previous test. Set the mocks you need INSIDE each test (or in a small function you call at its top); a price left by test N can never falsify test N+1.
 
 ```js
 test("adds a dividend and lists it", async () => {
@@ -182,7 +184,7 @@ test("refuses an empty symbol", async () => {
 
 - ⚠️ `plugin.tool(name, args)` **never throws**: it resolves to `{ ok, output, card }` — a failing tool gives `ok: false` and its message in `output` (test it with `assertEqual(r.ok, false)` and `assertIncludes(r.output, "…")`). `plugin.action(name, params)` **rejects** when the handler throws (test it with `await assertThrows(() => plugin.action(…), "…")`).
 - Calls: `plugin.tool(name, args)`, `plugin.action(name, params)`, `plugin.job(id)`, `plugin.prompt()`, `plugin.notifications()`, `plugin.confirmations()`, `plugin.confirm(id, "allowed" | "denied")` (calls your `onConfirmed`).
-- Mocks: `mock.fetch(urlPrefix, { json | text, status })`, `mock.bytnode(tool, answer)`, `mock.price(symbol, price)`, `mock.exchange("balance" | "positions" | "orders" | "ticker" | "trades" | "fetchDeposits"…, answer)` (for `ctx.exchange.read`, the method's name), `mock.accounts([{ id, label, exchange, testnet }])` (default: one testnet account `test-account`).
+- Mocks: `mock.fetch(urlPrefix, { json | text, status })`, `mock.bytnode(tool, answer)`, `mock.price(symbol, price)`, `mock.exchange("balance" | "positions" | "orders" | "ticker" | "trades" | "fetchDeposits"…, answer)` (for `ctx.exchange.read`, the method's name), `mock.accounts([{ id, label, exchange, testnet }])` (default: one testnet account `test-account`). A mock set inside a test lasts for that test only.
 - Assertions: `assert(cond, message)`, `assertEqual(actual, expected)` (deep, by JSON), `assertIncludes(text, part)`, `await assertThrows(fn, partOfMessage)`.
 - A permission used but not declared fails the call with "without declaring": the check catches it before the user does.
 

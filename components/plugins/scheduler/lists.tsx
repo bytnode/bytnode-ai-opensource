@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { AgentConfig } from "@/lib/domain/types";
-import { findAgent, taskKey } from "@/lib/plugins/scheduler/tasks";
+import { findAgent } from "@/lib/plugins/scheduler/tasks";
 import { frequencyText, relative } from "@/lib/plugins/scheduler/timeline";
 import { Switch } from "@/components/ui/switch";
 import { ChevronRight } from "@/components/ui/icons";
@@ -61,7 +61,7 @@ export function Tasks({ tasks, agents, now, onAct }: { tasks: TaskRow[]; agents:
                 <p className="sdv-task-prompt">{t.prompt}</p>
                 {s.lastStatus === "failed" && s.lastMessage && <p className="sdv-task-error">Last run failed: {s.lastMessage}</p>}
                 <div className="sdv-task-actions">
-                  <button type="button" className="sdv-link" disabled={t.running || busy !== null} onClick={() => void run(`now:${t.id}`, "run-now", { id: taskKey(t.id) })}>
+                  <button type="button" className="sdv-link" disabled={t.running || busy !== null} onClick={() => void run(`now:${t.id}`, "run-now", { id: t.id })}>
                     {busy === `now:${t.id}` ? "Starting…" : "Run now"}
                   </button>
                   <button type="button" className="sdv-link is-danger" disabled={busy !== null} onClick={() => void run(`del:${t.id}`, "update", { id: t.id, action: "delete" })}>

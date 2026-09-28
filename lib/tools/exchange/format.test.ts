@@ -52,6 +52,16 @@ describe("formatOrders", () => {
     ] as unknown as Order[];
     expect(formatOrders(o)).toBe("2023-11-14T22:13:20Z · #123 · BTC/USDT · BUY limit 0.1 @ 60000 · filled 0.04 · open · fee 0.12 USDT");
   });
+  test("our client id is shown (an order whose answer was lost is found by it), an exchange's own is not", () => {
+    const o = [
+      { id: "9", clientOrderId: "t-bnai0123456789ab", symbol: "BTC/USDT", type: "market", side: "sell", amount: 1, status: "closed", timestamp: 1700000000000 },
+      { id: "8", clientOrderId: "x-xcKtGhcu1234", symbol: "BTC/USDT", type: "market", side: "sell", amount: 1, status: "closed", timestamp: 1700000000000 },
+    ] as unknown as Order[];
+    expect(formatOrders(o).split("\n")).toEqual([
+      "2023-11-14T22:13:20Z · #9 (client id bnai0123456789ab) · BTC/USDT · SELL market 1 · closed",
+      "2023-11-14T22:13:20Z · #8 · BTC/USDT · SELL market 1 · closed",
+    ]);
+  });
   test("no order", () => {
     expect(formatOrders([])).toBe("No order.");
   });

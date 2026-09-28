@@ -29,6 +29,13 @@ export type AcpAgentInfo = {
   /** The fixed effort levels when the agent does not publish them in its
       session options (Claude Code: a setting fixed at creation). */
   staticEfforts: string[];
+  /** The agent's own mode in which it asks before writing or running a
+      command, when its default mode does not: set in « Ask before acting »
+      (`sessions.ts`). Codex's default « Approve for me » lets its reviewer
+      approve everything the user asked for — our prompt never showed.
+      ⚠️ In that mode a refusal ENDS Codex's turn: it does not carry on
+      without the action. */
+  askMode?: string;
 };
 
 export const ACP_PREFIX = "acp:";
@@ -49,6 +56,7 @@ export const ACP_AGENTS: AcpAgentInfo[] = [
     plan: "ChatGPT Plus, Pro or Business",
     providerId: `${ACP_PREFIX}openai`,
     staticEfforts: [],
+    askMode: "read-only",
   },
   {
     id: "gemini",

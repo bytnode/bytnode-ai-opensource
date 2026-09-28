@@ -211,6 +211,22 @@ export class AcpConnection {
     });
   }
 
+  /** `session/close` then `session/resume`: the same session (same id, same
+      history) on a fresh start of the agent's own machinery, without a new
+      process. Only where the agent announces both. */
+  get canRestartSession(): boolean {
+    const caps = this.capabilities.sessionCapabilities;
+    return Boolean(caps?.close && caps?.resume);
+  }
+
+  closeSession(sessionId: string) {
+    return this.conn.closeSession({ sessionId });
+  }
+
+  resumeSession(sessionId: string, cwd: string, mcpServers: McpServer[], meta?: Record<string, unknown>) {
+    return this.conn.resumeSession({ sessionId, cwd, mcpServers, ...(meta ? { _meta: meta } : {}) });
+  }
+
   /** A turn: the text, and the attached images as content blocks (agents
       that announce `promptCapabilities.image` accept them). */
   prompt(sessionId: string, text: string, images: string[] = []): Promise<PromptResponse> {

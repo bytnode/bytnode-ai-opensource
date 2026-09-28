@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
 import { groupSpawnOptions, killTree, trackGroup } from "@/lib/server/process-groups";
+import { OUTPUT_LIMIT, clipMiddle } from "../types";
 
 /* ---------------------------------------------------------------------------
    Launch a process and collect its output.
@@ -46,16 +47,51 @@ const MAX_LINE = 1_000_000;
    a kill, the pipes are dropped after as long. */
 const EXIT_GRACE_MS = 1500;
 
+/** Keeps the start and the end of a stream within `max` characters, and
+    counts what fell between. ⚠️ The END is what matters most: the failing
+    test summary, the build error, the last lines of a log — keeping only
+    the head dropped them without a word. */
+export class HeadTail {
+  private head = "";
+  private tail = "";
+  private cut = 0;
+  constructor(private readonly max: number) {}
+  push(text: string): void {
+    const headMax = Math.floor(this.max / 2);
+    if (this.head.length < headMax) {
+      const take = text.slice(0, headMax - this.head.length);
+      this.head += take;
+      text = text.slice(take.length);
+    }
+    if (!text) return;
+    this.tail += text;
+    const tailMax = this.max - headMax;
+    if (this.tail.length > tailMax) {
+      this.cut += this.tail.length - tailMax;
+      this.tail = this.tail.slice(this.tail.length - tailMax);
+    }
+  }
+  toString(): string {
+    return this.cut ? `${this.head}\n[… ${this.cut} characters cut …]\n${this.tail}` : this.head + this.tail;
+  }
+}
+
 export function run(command: string, args: string[], opts: RunOptions): Promise<RunResult> {
   return new Promise((resolve) => {
     const started = Date.now();
+    /* Stopped before it began (a Stop between the loop's check and here):
+       nothing is launched — the listener below would never fire. */
+    if (opts.signal?.aborted) {
+      resolve({ code: null, stdout: "", stderr: "", timedOut: false, aborted: true, matched: false, durationMs: 0 });
+      return;
+    }
     /* A process group of its own on macOS / Linux, so that stopping the
        command stops what it launched too (`process-groups.ts`). */
     const child = spawn(command, args, { cwd: opts.cwd, env: { ...process.env, ...opts.env }, windowsHide: true, ...groupSpawnOptions(), stdio: ["ignore", "pipe", "pipe"] });
     trackGroup(child);
     const max = opts.maxBytes ?? DEFAULT_MAX;
-    let stdout = "";
-    let stderr = "";
+    const stdout = new HeadTail(max);
+    const stderr = new HeadTail(max);
     let timedOut = false;
     let aborted = false;
     let matched = false;
@@ -97,8 +133,7 @@ export function run(command: string, args: string[], opts: RunOptions): Promise<
       const decoder = new StringDecoder("utf8");
       return (chunk: Buffer) => {
         const text = decoder.write(chunk);
-        if (stream === "stdout") stdout = stdout.length < max ? stdout + text : stdout;
-        else stderr = stderr.length < max ? stderr + text : stderr;
+        (stream === "stdout" ? stdout : stderr).push(text);
         if (!opts.onLine && !opts.until) return;
         rest += text;
         const lines = rest.split(/\r?\n/);
@@ -125,10 +160,10 @@ export function run(command: string, args: string[], opts: RunOptions): Promise<
       clearTimeout(timer);
       clearTimeout(dropTimer);
       opts.signal?.removeEventListener("abort", onAbort);
-      resolve({ code, stdout, stderr, timedOut, aborted, matched, durationMs: Date.now() - started });
+      resolve({ code, stdout: stdout.toString(), stderr: stderr.toString(), timedOut, aborted, matched, durationMs: Date.now() - started });
     };
     child.on("error", (e) => {
-      stderr += `\n${e.message}`;
+      stderr.push(`\n${e.message}`);
       finish(null);
     });
     child.on("exit", (code) => {
@@ -139,11 +174,21 @@ export function run(command: string, args: string[], opts: RunOptions): Promise<
   });
 }
 
-/** What is returned to the model after a command: the output, then the state. */
+/* Terminal colours and cursor moves: pwsh 7 colours its errors even into a
+   pipe (`ESC[31;1mWrite-Error: …`). The model and the thread want text. */
+const ANSI = /\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[@-Z\\-_])/g;
+export const stripAnsi = (text: string) => text.replace(ANSI, "");
+
+/** What is returned to the model after a command: the output, then the
+    state. ⚠️ The status line (exit code, time limit) must ALWAYS reach the
+    model: the output is cut in the middle to leave room for it, rather than
+    letting `ok()`'s bound cut it off the end. */
 export function describeRun(r: RunResult, label: string): string {
   const parts: string[] = [];
-  if (r.stdout.trim()) parts.push(r.stdout.trimEnd());
-  if (r.stderr.trim()) parts.push(`[stderr]\n${r.stderr.trimEnd()}`);
+  const out = stripAnsi(r.stdout);
+  const err = stripAnsi(r.stderr);
+  if (out.trim()) parts.push(out.trimEnd());
+  if (err.trim()) parts.push(`[stderr]\n${err.trimEnd()}`);
   const status = r.aborted
     ? "interrupted"
     : r.timedOut
@@ -153,6 +198,7 @@ export function describeRun(r: RunResult, label: string): string {
         : r.code === 0
           ? "finished (code 0)"
           : `finished with code ${r.code}`;
-  parts.push(`[${label} ${status} in ${(r.durationMs / 1000).toFixed(1)} s]`);
-  return parts.join("\n");
+  const line = `[${label} ${status} in ${(r.durationMs / 1000).toFixed(1)} s]`;
+  const body = clipMiddle(parts.join("\n"), OUTPUT_LIMIT - line.length - 100);
+  return body ? `${body}\n${line}` : line;
 }

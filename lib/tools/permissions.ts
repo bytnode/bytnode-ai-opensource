@@ -16,6 +16,7 @@
 --------------------------------------------------------------------------- */
 
 import { alwaysAsks } from "./names";
+import { targetsLocalApi } from "./exec/local-api";
 
 /** The tools whose first command word makes the rule. */
 const SHELLS = new Set(["Bash", "PowerShell", "Monitor"]);
@@ -66,21 +67,37 @@ const DANGERS: RegExp[] = [
 ];
 
 /** An irreversible command, or one that touches the system? (the file
-    tools, bounded by the scope, are not concerned) */
+    tools, bounded by the scope, are not concerned) A call to the app's own
+    API (`curl …127.0.0.1…/api/…`) is one too: it could approve a plugin
+    the agent wrote itself (`exec/local-api.ts`). */
 export function isDangerous(name: string, args: Record<string, unknown>): boolean {
   if (!SHELLS.has(name)) return false;
   const cmd = commande(args);
-  return cmd.length > 0 && DANGERS.some((r) => r.test(cmd));
+  return cmd.length > 0 && (DANGERS.some((r) => r.test(cmd)) || targetsLocalApi(cmd));
 }
+
+/* ⚠️ A RULE NAMES ONE PROGRAM, SO IT MAY ONLY COVER ONE PROGRAM. The rule is
+   made from the first word(s); `ls && del notes.txt`, `Get-Date; Remove-Item x`,
+   `cat r.md | curl --data-binary @- …` or `echo $(…)` start with an allowed
+   word and run something else. Anything that chains, pipes, substitutes,
+   redirects, groups or spans lines — in bash or PowerShell (`;`, `&`, `|`,
+   backtick, `$(`, `@(`, `(…)`, `{…}` script blocks, `<`, `>`, newlines) — or
+   hands a command to `find -exec`, is not simple: it asks. Deliberately
+   broad: `python -c "print(1)"` asks too, one prompt too many costs nothing. */
+const NOT_SIMPLE = [/[;&|`<>\r\n{}()]/, /(^|\s)-(exec|execdir|ok|okdir)(\s|$)/i];
+
+/** One program with its arguments, nothing chained or substituted? */
+export const isSimpleCommand = (cmd: string): boolean => cmd.trim().length > 0 && !NOT_SIMPLE.some((r) => r.test(cmd));
 
 /** The rule an "Always" would store for this call, or `null` when the call
     does not lend itself to one. `critical`: the tool's own policy says it
-    always asks (beyond the core's floor). */
+    always asks (beyond the core's floor). A compound command gets none: the
+    rule would promise "ls …" and never match that line again. */
 export function ruleFor(name: string, args: Record<string, unknown>, critical = false): string | null {
   if (critical || alwaysAsks(name)) return null;
   if (!SHELLS.has(name)) return name;
   const cmd = commande(args);
-  if (!cmd) return null;
+  if (!cmd || !isSimpleCommand(cmd)) return null;
   const mots = cmd.split(/\s+/);
   const tete = mots[0];
   const prefixe = COMPOSEES.has(tete.toLowerCase()) && sousCommande(mots[1]) ? `${tete} ${mots[1]}` : tete;
@@ -91,6 +108,8 @@ export function ruleFor(name: string, args: Record<string, unknown>, critical = 
 export function matchesRule(rules: string[] | undefined, name: string, args: Record<string, unknown>, critical = false): boolean {
   if (!rules?.length) return false;
   if (critical || alwaysAsks(name) || isDangerous(name, args)) return false;
+  /* Even a rule on the whole shell (`Bash`) covers simple commands only. */
+  if (SHELLS.has(name) && !isSimpleCommand(commande(args))) return false;
   if (rules.includes(name)) return true;
   const r = ruleFor(name, args);
   return r !== null && rules.includes(r);

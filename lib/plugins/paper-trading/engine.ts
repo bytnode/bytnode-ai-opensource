@@ -1,3 +1,4 @@
+import { PAPER_CASH } from "../shared/paper";
 import { baseOf } from "../shared/quote";
 import { isolatedLiquidation } from "../shared/margin";
 
@@ -21,7 +22,7 @@ import { isolatedLiquidation } from "../shared/margin";
    Tested.
 --------------------------------------------------------------------------- */
 
-export const CASH = "USDT";
+export const CASH = PAPER_CASH;
 
 export type PaperMarket = "spot" | "futures";
 export type Side = "buy" | "sell";

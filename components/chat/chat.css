@@ -935,6 +935,46 @@ body.is-resizing {
   width: 100%;
 }
 
+/* A reply the user stopped: a mark in the margin of the text, not an
+   alert — and the way to go on. */
+.msg-stopped {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--label-3);
+}
+
+.msg-stopped > span::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  border-radius: 1.5px;
+  background: currentColor;
+  vertical-align: 0.5px;
+}
+
+.msg-stopped-go {
+  height: 26px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label-2);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.msg-stopped-go:hover {
+  background: var(--fill-strong);
+  color: var(--label);
+}
+
 /* Three dots that breathe, while the first word is on its way. */
 .msg-wait {
   display: flex;
@@ -1142,6 +1182,10 @@ body.is-resizing {
   padding: 10px 14px;
   background: var(--tile);
   vertical-align: top;
+  /* ⚠️ `.md` breaks ANYWHERE, which lets a table squeeze a narrow column
+     down to a few letters ("Bitco/in"). In a cell, words stay whole: a
+     table too wide for the thread scrolls sideways (`.md-table`). */
+  overflow-wrap: break-word;
 }
 
 .md-table tbody tr:first-child td:first-child {
@@ -1396,6 +1440,16 @@ body.is-resizing {
   text-align: center;
   font-size: 12px;
   color: var(--label-3);
+}
+
+/* ⚠️ The meter sits in the page's corner, the caption in the middle of the
+   conversation column: below ~1280 px (or with a wide column) the two meet
+   and the figures are drawn across the caption. There, the caption rises
+   one line and the meter has the bottom line to itself. */
+@media (max-width: 1280px) {
+  .chat-composer {
+    padding-bottom: 28px;
+  }
 }
 
 /* --- Narrow --------------------------------------------------------------- */

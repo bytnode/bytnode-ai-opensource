@@ -70,9 +70,9 @@ describe("paper trading plugin", () => {
   it("the DCA buys through its service", async () => {
     let service: PaperService | undefined;
     const dca = definePlugin({
-      manifest: manifest("dca", ["paper-trading"]),
+      manifest: manifest("dca", [], ["paper-trading"]),
       setup(ctx) {
-        service = ctx.inject<PaperService>("paper-trading");
+        service = ctx.optional<PaperService>("paper-trading");
       },
     });
     h = await harness([paperTradingPlugin, dca], ZERO);
@@ -135,5 +135,11 @@ describe("paper trading plugin", () => {
     /* The default is now Swing BTC: an order naming none goes there. */
     expect((await h.tool("PaperPortfolio").execute({}, h.ctx())).output).toContain("Cash 1 500.00 USDT.");
     await expect(api("delete", { portfolio: swing.id })).rejects.toThrow("The last paper portfolio cannot be deleted");
+
+    /* F3: `reset` is checked like `create`, and without a capital goes back
+       to the portfolio's own (2 000), not the plugin's default (1 000). */
+    for (const capital of [-500, 0, 1e15, "lots"]) await expect(api("reset", { portfolio: swing.id, capital })).rejects.toThrow("A starting capital between 100 and 10 000 000 USDT.");
+    expect(await api("reset", { portfolio: swing.id })).toMatchObject({ capital: 2000, balances: { USDT: 2000 } });
+    expect(await api("reset", { portfolio: swing.id, capital: 3000 })).toMatchObject({ capital: 3000 });
   });
 });
