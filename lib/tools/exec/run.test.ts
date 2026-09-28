@@ -63,8 +63,11 @@ describe("run: what is kept of a long output", () => {
     expect(small.toString()).toBe("short");
   });
 
+  /* `process.exitCode`, not `process.exit()`: on macOS/Linux stdout into a
+     pipe is asynchronous and `exit()` drops what is still queued — the
+     child itself lost its last lines (Windows pipes are synchronous). */
   test("the summary line and the exit status reach the model", async () => {
-    const script = "for(let i=0;i<5000;i++)console.log('test ' + i + ' passed ' + 'x'.repeat(60)); console.log('SUMMARY: 3 FAILED, 4997 passed'); process.exit(3);";
+    const script = "for(let i=0;i<5000;i++)console.log('test ' + i + ' passed ' + 'x'.repeat(60)); console.log('SUMMARY: 3 FAILED, 4997 passed'); process.exitCode = 3;";
     const r = await run(process.execPath, ["-e", script], { cwd: os.tmpdir(), timeoutMs: 30_000 });
     const out = describeRun(r, "Bash");
     expect(out).toContain("SUMMARY: 3 FAILED");
