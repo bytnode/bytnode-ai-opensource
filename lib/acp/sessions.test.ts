@@ -16,11 +16,19 @@ type Perm = (req: RequestPermissionRequest) => Promise<RequestPermissionResponse
 type Update = (n: SessionNotification) => void;
 
 const log: string[] = [];
+/** The whole text of every prompt sent. */
+const sent: string[] = [];
 const script: {
   openDelay: number;
   onPrompt: (c: FakeConnT, id: string, text: string) => Promise<{ stopReason: string }>;
   onNewSession: (servers: McpServer[]) => void;
-} = { openDelay: 0, onPrompt: async () => ({ stopReason: "end_turn" }), onNewSession: () => {} };
+  /** What the session published as its commands (`commandsOf`). */
+  commands: Array<{ name: string; description: string; trigger?: "/" | "$" }> | null;
+  /** What Claude Code's transcript holds for a local command. */
+  localOutputs: string[];
+  /** `/goal`'s verdict in the transcript. */
+  goal: string | null;
+} = { openDelay: 0, onPrompt: async () => ({ stopReason: "end_turn" }), onNewSession: () => {}, commands: null, localOutputs: [], goal: null };
 const conns: FakeConnT[] = [];
 
 type FakeConnT = {
@@ -37,6 +45,14 @@ const MODES = {
 } as const;
 
 vi.mock("./prepare", () => ({ prepareWorkspace: async () => {} }));
+/* Claude Code's transcript, as the tests script it (never the user's real
+   `~/.claude`). */
+vi.mock("./claude-transcript", async (original) => ({
+  ...(await original<typeof import("./claude-transcript")>()),
+  claudeLocalOutputs: async () => script.localOutputs,
+  recentTranscripts: () => script.localOutputs.map((text) => JSON.stringify({ type: "system", subtype: "local_command", content: `<local-command-stdout>${text}</local-command-stdout>`, timestamp: new Date(Date.now() + 60_000).toISOString() })),
+  claudeGoalVerdict: () => script.goal,
+}));
 vi.mock("@/lib/mcp/bytnode", () => ({ BYTNODE_MCP_URL: "http://bytnode.test/mcp", bytnodeTools: async () => [] }));
 vi.mock("@/lib/plugins/user/files", () => ({ userPluginsVersion: () => "0", verifiedGrantSigs: () => ({}) }));
 vi.mock("@/lib/plugins/extras", () => ({ pluginPrompt: async () => "" }));
@@ -93,7 +109,11 @@ vi.mock("./connection", () => {
     }
     async prompt(id: string, text: string) {
       log.push(`prompt ${text.slice(-12)}`);
+      sent.push(text);
       return script.onPrompt(this, id, text);
+    }
+    commandsOf() {
+      return script.commands;
     }
     async cancel() {
       log.push("cancel");
@@ -111,7 +131,7 @@ vi.mock("./connection", () => {
       this.alive = false;
     }
   }
-  return { AcpConnection: FakeConn, runningProcesses: () => 0, onAgentIdle: () => {} };
+  return { AcpConnection: FakeConn, runningProcesses: () => 0, onAgentIdle: () => {}, knownCommands: () => null };
 });
 
 const sessions = await import("./sessions");
@@ -154,10 +174,14 @@ function blockingPrompt() {
 beforeEach(() => {
   n++;
   log.length = 0;
+  sent.length = 0;
   conns.length = 0;
   script.openDelay = 0;
   script.onPrompt = async () => ({ stopReason: "end_turn" });
   script.onNewSession = () => {};
+  script.commands = null;
+  script.localOutputs = [];
+  script.goal = null;
 });
 
 describe("a Stop or a cancel while the session opens (F7 / A3, F8)", () => {
@@ -566,5 +590,123 @@ describe("a message sent right after Stop (NEW-1)", () => {
     expect(await sessions.claimTurnAfterStop("still-running", new AbortController().signal, 5_000)).toBeNull();
     expect(Date.now() - started).toBeLessThan(500);
     sessions.releaseTurn(running);
+  });
+});
+
+/* The agents' own commands (`/goal`, `/usage`…) behave as in their
+   terminals: they must reach the agent exactly as typed. */
+describe("an agent's own command", () => {
+  const COMMANDS = [
+    { name: "goal", description: "Set a goal" },
+    { name: "status", description: "Status" },
+    { name: "pdf:pdf", description: "PDF skill", trigger: "$" as const },
+  ];
+  beforeEach(() => {
+    /* Codex waits for our MCP server's tools: announced at once here. */
+    script.onNewSession = (servers) => {
+      const id = (servers[0] as { env: Array<{ name: string; value: string }> }).env.find((e) => e.name === "BYTNODE_AI_READY_ID")?.value;
+      if (id) setTimeout(() => markToolsReady(id), 5);
+    };
+  });
+
+  it("Codex: a first message that is a command goes as typed; the context waits for the next ordinary message", async () => {
+    script.commands = COMMANDS;
+    await runTurn(input({ agent: "openai", text: "/goal ship the report" }), () => {}, new AbortController().signal);
+    expect(sent.at(-1)).toBe("/goal ship the report");
+    await runTurn(input({ agent: "openai", text: "and now?", firstTurn: false }), () => {}, new AbortController().signal);
+    expect(sent.at(-1)).toContain("<bytnode_ai_context>\nsys\n</bytnode_ai_context>");
+    expect(sent.at(-1)!.endsWith("and now?")).toBe(true);
+    /* Told once: the message after that goes alone. */
+    await runTurn(input({ agent: "openai", text: "thanks", firstTurn: false }), () => {}, new AbortController().signal);
+    expect(sent.at(-1)).toBe("thanks");
+  });
+
+  it("an ordinary first message still carries the context, a $skill included, and a /path that is no command too", async () => {
+    script.commands = COMMANDS;
+    await runTurn(input({ agent: "openai", text: "$pdf:pdf read the file" }), () => {}, new AbortController().signal);
+    expect(sent.at(-1)).toContain("<bytnode_ai_context>");
+    n++;
+    await runTurn(input({ agent: "openai", text: "/api/v3 returns 500" }), () => {}, new AbortController().signal);
+    expect(sent.at(-1)).toContain("<bytnode_ai_context>");
+  });
+
+  it("with no list published yet, a /word is taken as a command", async () => {
+    await runTurn(input({ agent: "openai", text: "/status" }), () => {}, new AbortController().signal);
+    expect(sent.at(-1)).toBe("/status");
+  });
+
+  it("Claude reopened on an old thread: the command goes alone, the previous thread comes with the next message", async () => {
+    script.commands = [{ name: "usage", description: "Usage" }];
+    await runTurn(input({ text: "/usage", firstTurn: false, history: "user: hi" }), () => {}, new AbortController().signal);
+    expect(sent.at(-1)).toBe("/usage");
+    await runTurn(input({ text: "go on", firstTurn: false, history: "user: hi" }), () => {}, new AbortController().signal);
+    expect(sent.at(-1)).toBe("<previous_thread>\nuser: hi\n</previous_thread>\n\ngo on");
+  });
+
+  it("Claude: a local command's answer is read back from its transcript, and /model moves the conversation's picker", async () => {
+    script.commands = [{ name: "model", description: "Set the model" }];
+    script.localOutputs = ["Set model to `Haiku 4.5` for this session only"];
+    const events: WireEvent[] = [];
+    const MODEL = { id: "model", name: "Model", category: "model", type: "select", currentValue: "opus", options: [{ value: "opus", name: "Opus 5.5" }, { value: "haiku", name: "Haiku 4.5" }] };
+    script.onNewSession = () => {};
+    const newSession = (await import("./connection")).AcpConnection.prototype as unknown as { newSession: () => Promise<unknown> };
+    const original = newSession.newSession;
+    newSession.newSession = async function () {
+      return { sessionId: "s1", configOptions: [MODES.claude, MODEL] };
+    };
+    try {
+      await runTurn(input({ text: "/model haiku" }), (e) => events.push(e), new AbortController().signal);
+    } finally {
+      newSession.newSession = original;
+    }
+    expect(events).toContainEqual({ type: "text", text: "Set model to `Haiku 4.5` for this session only" });
+    expect(events).toContainEqual({ type: "agent_config", modelId: "acp:claude/haiku" });
+    expect(events).toContainEqual({ type: "commands", commands: script.commands });
+    /* The next turn, with the picker on haiku, changes nothing. */
+    await runTurn(input({ text: "hi", firstTurn: false, modelId: "haiku" }), () => {}, new AbortController().signal);
+    expect(log.filter((l) => l.startsWith("setConfig model"))).toEqual([]);
+  });
+
+  it("a turn that spoke is not doubled by the transcript", async () => {
+    script.commands = [{ name: "context", description: "Context" }];
+    script.localOutputs = ["## Context Usage"];
+    script.onPrompt = async (c, id) => {
+      c.updates.get(id)!({ sessionId: id, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "## Context Usage" } } });
+      return { stopReason: "end_turn" };
+    };
+    const events: WireEvent[] = [];
+    await runTurn(input({ text: "/context" }), (e) => events.push(e), new AbortController().signal);
+    expect(events.filter((e) => e.type === "text")).toHaveLength(1);
+  });
+
+  it("the agent leaving its plan mode moves the conversation's mode picker", async () => {
+    script.onPrompt = async (c, id) => {
+      c.updates.get(id)!({ sessionId: id, update: { sessionUpdate: "current_mode_update", currentModeId: "default" } });
+      return { stopReason: "end_turn" };
+    };
+    const events: WireEvent[] = [];
+    await runTurn(input({ text: "plan it", mode: "plan" }), (e) => events.push(e), new AbortController().signal);
+    expect(events).toContainEqual({ type: "agent_config", mode: "default" });
+  });
+
+  it("/goal: « Goal set » comes before the model's first word, the verdict closes the reply", async () => {
+    script.commands = [{ name: "goal", description: "Set a goal" }];
+    script.localOutputs = ["Goal set: say kiwi"];
+    script.goal = "**Goal met** — the last message is kiwi";
+    script.onPrompt = async (c, id) => {
+      c.updates.get(id)!({ sessionId: id, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "kiwi" } } });
+      return { stopReason: "end_turn" };
+    };
+    const events: WireEvent[] = [];
+    await runTurn(input({ text: "/goal say kiwi" }), (e) => events.push(e), new AbortController().signal);
+    expect(events.filter((e) => e.type === "text")).toEqual([
+      { type: "text", text: "Goal set: say kiwi\n\n" },
+      { type: "text", text: "kiwi" },
+      { type: "text", text: "\n\n**Goal met** — the last message is kiwi" },
+    ]);
+    /* Met: the next turn no longer looks for a verdict. */
+    const after: WireEvent[] = [];
+    await runTurn(input({ text: "thanks", firstTurn: false }), (e) => after.push(e), new AbortController().signal);
+    expect(after.filter((e) => e.type === "text").map((e) => (e as { text: string }).text)).toEqual(["kiwi"]);
   });
 });

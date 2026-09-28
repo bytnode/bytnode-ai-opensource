@@ -13,8 +13,10 @@ import { subagentFrame } from "@/lib/tools/agents/subagent";
 import { resolvePolicy } from "@/lib/tools/policy";
 import { allTools } from "@/lib/tools/registry";
 import { userSkills, type SkillInfo } from "@/lib/tools/skills/skill";
-import { acpAgentInfo, type AcpAgentId } from "./agents";
-import { AcpConnection } from "./connection";
+import { ACP_PREFIX, acpAgentInfo, type AcpAgentId } from "./agents";
+import { claudeGoalVerdict, claudeLocalOutputs, localOutputsIn, recentTranscripts, settingsChanged, withTerminalLines } from "./claude-transcript";
+import { isAgentCommandText } from "./commands";
+import { AcpConnection, knownCommands } from "./connection";
 import { prepareWorkspace } from "./prepare";
 import { buildAcpPrompt, wrapContext } from "./prompt";
 import { syncSkills } from "./skills-sync";
@@ -167,6 +169,14 @@ type Live = {
       that starts its MCP servers in the background (`LATE_MCP`); the first
       prompt waits for it. */
   toolsReady: Promise<void> | null;
+  /** What the session has not been told yet — BytNode-AI's context (Codex,
+      Gemini) or the previous thread (Claude) — because the message that
+      should have carried it was one of the agent's own commands, sent as
+      typed (`isAgentCommandText`). The next ordinary message carries it. */
+  pendingIntro: ((text: string) => string) | null;
+  /** A Claude `/goal` is running on this session: each turn's end looks for
+      its verdict (« Goal met — … ») in the transcript, as the terminal shows. */
+  goalActive: boolean;
 };
 
 const IDLE_TTL = 15 * 60_000;
@@ -518,6 +528,8 @@ async function ensureSession(input: TurnInput): Promise<{ l: Live; fresh: boolea
     /* Armed BEFORE the agent can launch our server: its signal must not
        arrive before anyone listens. */
     toolsReady: LATE_MCP.has(input.agent) ? expectTools(tokenFor(input.conversationId)) : null,
+    pendingIntro: null,
+    goalActive: false,
   };
   let loaded = false;
   if (input.sessionId && conn.capabilities.loadSession) {
@@ -718,13 +730,24 @@ export async function runTurn(input: TurnInput, emit: (e: WireEvent) => void, si
     }
     const ungated = await ungatedTools(input);
 
-    let text = input.text;
+    /* What goes before the message: BytNode-AI's context on a session that
+       has not had it (Codex, Gemini — Claude gets it at creation), the
+       previous thread on a Claude session opened again. ⚠️ Never around
+       one of the agent's own commands: `/goal …` wrapped in our context is
+       no longer a command to Codex or Gemini CLI, nor to Claude once
+       preceded by the thread. It goes as typed, and the intro waits for
+       the next ordinary message. */
+    let intro: ((text: string) => string) | null = l.pendingIntro;
     if (input.agent !== "claude" && (input.firstTurn || fresh)) {
       const system = input.history && !input.firstTurn ? `${input.system}\n\n## Previous thread\n${input.history}` : input.system;
-      text = wrapContext(system, text);
+      intro = (text) => wrapContext(system, text);
     } else if (input.agent === "claude" && fresh && !input.firstTurn && input.history) {
-      text = `<previous_thread>\n${input.history}\n</previous_thread>\n\n${text}`;
+      const history = input.history;
+      intro = (text) => `<previous_thread>\n${history}\n</previous_thread>\n\n${text}`;
     }
+    const command = isAgentCommandText(input.text, l.conn.commandsOf(l.sessionId) ?? knownCommands(input.agent));
+    const text = command || !intro ? input.text : intro(input.text);
+    l.pendingIntro = command ? intro : null;
 
     const session = l;
     const answered = clock();
@@ -736,6 +759,14 @@ export async function runTurn(input: TurnInput, emit: (e: WireEvent) => void, si
     const refused = new Set<string>();
     /* What each call said of itself: a permission request may not. */
     const known = new Map<string, CallInfo>();
+    /* The turn wrote something: a command that did not has its answer
+       read back from Claude Code's transcript. */
+    let spoke = false;
+    /* When the prompt left, and the command answers already shown. */
+    let sent = Date.now();
+    const shown: string[] = [];
+    const claudeCommand = command && l.agent === "claude";
+    if (claudeCommand && /^\/goal\s+\S/i.test(input.text.trim())) l.goalActive = !/^\/goal\s+clear\s*$/i.test(input.text.trim());
     session.cost.begin();
     session.conn.listen(
       session.sessionId,
@@ -747,6 +778,35 @@ export async function runTurn(input: TurnInput, emit: (e: WireEvent) => void, si
         }
         const u = n.update;
         if (u.sessionUpdate === "tool_call" || u.sessionUpdate === "tool_call_update") known.set(u.toolCallId, mergeCallInfo(known.get(u.toolCallId), u));
+        if (u.sessionUpdate === "agent_message_chunk" && u.content.type === "text" && u.content.text.trim()) {
+          /* A Claude command that also runs the model (`/goal`, a skill):
+             its own answer — « Goal set: … » — comes first, as in the
+             terminal. It is already in the transcript when the model
+             speaks. `/context`'s answer is forwarded by the adapter itself:
+             not twice. */
+          if (claudeCommand && !spoke) {
+            const first = u.content.text.trim();
+            const answers = recentTranscripts(session.cwd, session.sessionId, sent)
+              .flatMap((t) => localOutputsIn(t, sent))
+              .filter((a) => !first.startsWith(a.slice(0, 60)));
+            if (answers.length) {
+              shown.push(...answers);
+              emit({ type: "text", text: `${answers.map(withTerminalLines).join("\n\n")}\n\n` });
+            }
+          }
+          spoke = true;
+        }
+        /* The session changed by itself (a command, the agent leaving its
+           plan mode): what we know of it follows, so the next turn does not
+           undo it — and so do the conversation's pickers. */
+        if (u.sessionUpdate === "current_mode_update" && session.modes) session.modes = { ...session.modes, current: u.currentModeId };
+        if (u.sessionUpdate === "config_option_update") {
+          const before = session.modes?.current ?? null;
+          session.configOptions = u.configOptions;
+          session.modes = modesOfSession({ configOptions: u.configOptions }) ?? session.modes;
+          const mode = session.modes?.current ?? null;
+          if (mode && mode !== before) emit({ type: "agent_config", mode });
+        }
         for (const e of eventsOfUpdate(u)) {
           if (e.type === "tool_call") open.add(e.id);
           else if (e.type === "tool_result") open.delete(e.id);
@@ -797,6 +857,10 @@ export async function runTurn(input: TurnInput, emit: (e: WireEvent) => void, si
       },
     );
     t.confirm = confirmInThread({ session, emit, stopped: () => t.cancelled, calls: () => [...open].map((cid) => ({ id: cid, call: known.get(cid) })) });
+    /* The composer's list for this session (its workspace's skills
+       included) — it may have arrived before anyone listened. */
+    const commands = session.conn.commandsOf(session.sessionId);
+    if (commands) emit({ type: "commands", commands });
 
     if (t.cancelled) {
       emit({ type: "done", finishReason: "cancelled" });
@@ -804,7 +868,10 @@ export async function runTurn(input: TurnInput, emit: (e: WireEvent) => void, si
     }
     t.prompting = true;
     try {
-      const res = await session.conn.prompt(session.sessionId, text, input.images ?? []);
+      sent = Date.now();
+      const res = await session.conn.prompt(session.sessionId, text, command ? [] : (input.images ?? []));
+      if (claudeCommand && !t.cancelled) await replayLocalAnswers(session, sent, spoke ? shown : null, emit);
+      if (session.goalActive && !t.cancelled) await goalVerdict(session, sent, emit);
       closeRefused(open, refused, emit);
       /* A turn the agent ended on the user's refusal is not an interrupted
          one: nothing to resume. */
@@ -828,6 +895,45 @@ export async function runTurn(input: TurnInput, emit: (e: WireEvent) => void, si
       } else if (t.cancelSent && l.agent === "claude" && l.conn.canRestartSession) l.restarting = restartSession(l);
     }
     releaseTurn(t);
+  }
+}
+
+/** A Claude Code command's answer, read back from its transcript
+    (`claude-transcript.ts`) and shown as the reply. `/model` and `/effort`
+    changed the session: what we know of it follows, and so do the
+    conversation's pickers — otherwise the next turn would put the picker's
+    model back, or reopen the session for an effort it already has. */
+async function replayLocalAnswers(l: Live, since: number, shown: string[] | null, emit: (e: WireEvent) => void): Promise<void> {
+  /* `shown`: the turn spoke, and these answers already came before its
+     first word. Otherwise they are the whole reply. */
+  const outputs = shown ?? (await claudeLocalOutputs(l.cwd, l.sessionId, since).catch(() => [] as string[]));
+  if (outputs.length === 0) return;
+  if (!shown) emit({ type: "text", text: outputs.map(withTerminalLines).join("\n\n") });
+  const modelCfg = modelConfigId(l.configOptions);
+  const select = l.configOptions.find((o): o is SessionConfigOption & { type: "select" } => o.id === modelCfg && o.type === "select");
+  const models = select ? select.options.flatMap((o) => ("group" in o ? o.options : [o])) : [];
+  const changed = settingsChanged(outputs, models);
+  if (changed.model && select) {
+    const model = changed.model;
+    l.configOptions = l.configOptions.map((o) => (o.id === select.id && o.type === "select" ? { ...o, currentValue: model } : o));
+  }
+  if (changed.effort) l.effort = changed.effort;
+  if (changed.model || changed.effort) {
+    emit({ type: "agent_config", ...(changed.model ? { modelId: `${ACP_PREFIX}${l.agent}/${changed.model}` } : {}), ...(changed.effort ? { effort: changed.effort } : {}) });
+  }
+}
+
+/** `/goal`'s verdict, when Claude Code wrote one during the turn: « Goal
+    met — … » closes the reply, as in the terminal, and ends the watch. It
+    is written right after the last answer: a few looks. */
+async function goalVerdict(l: Live, since: number, emit: (e: WireEvent) => void): Promise<void> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 250));
+    const verdict = claudeGoalVerdict(l.cwd, l.sessionId, since);
+    if (!verdict) continue;
+    emit({ type: "text", text: `\n\n${verdict}` });
+    if (verdict.startsWith("**Goal met**")) l.goalActive = false;
+    return;
   }
 }
 
@@ -1120,6 +1226,8 @@ async function throwawayTurn(t: Throwaway, signal: AbortSignal): Promise<string>
       restarting: null,
       origin: t.origin ?? "",
       toolsReady: null,
+      pendingIntro: null,
+      goalActive: false,
     };
     await applyConfig(l, config);
     if (ready) {

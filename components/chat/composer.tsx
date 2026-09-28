@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from "react";
 import type { Attachment } from "@/lib/agent/attachments";
-import { completeCommand, isCommandText, matchCommands, runCommand, type SlashCommand } from "@/lib/agent/commands";
+import { COMMANDS, commandOf, completeCommand, matchCommands, runCommand, type SlashCommand } from "@/lib/agent/commands";
 import { ArrowUp, Camera, Check, Close, File as FileIcon, Plus, Search, Spinner, Stop } from "@/components/ui/icons";
 import { ComposerPopover } from "./composer-popover";
 import { ModelPicker } from "./model-picker";
@@ -33,6 +33,9 @@ type Props = {
   focusKey: string;
   /** The conversation has begun: one line under it, not the centred pane. */
   docked?: boolean;
+  /** The commands offered on `/`: BytNode-AI's, and a subscription agent's
+      own (`mergeCommands`). */
+  commands?: readonly SlashCommand[];
 };
 
 /** The glass's corner radius, CSS px: `composer.css` (`.cmp`) and the rim's
@@ -60,7 +63,8 @@ const RADIUS = 26;
    of those that match opens above the field, with a word of explanation
    (`lib/agent/commands.ts`): ↑↓ to choose, Tab to complete (and add
    instructions), Enter to run, Escape to close. A space after the name
-   closes it: the command is complete.
+   closes it: the command is complete. A subscription agent's own commands
+   are in the list too, named after the agent that runs them.
 --------------------------------------------------------------------------- */
 export function Composer({
   providerId,
@@ -82,6 +86,7 @@ export function Composer({
   onScreenshot,
   focusKey,
   docked = false,
+  commands: offered = COMMANDS,
 }: Props) {
   const [text, setText] = useState("");
   const area = useRef<HTMLTextAreaElement>(null);
@@ -101,7 +106,8 @@ export function Composer({
      (Escape) — it only reopens if the text changes. */
   const [selected, setSelected] = useState(0);
   const [dismissed, setDismissed] = useState<string | null>(null);
-  const commands = disabled ? [] : matchCommands(text);
+  const commands = disabled ? [] : matchCommands(text, offered);
+  const list = useRef<HTMLDivElement>(null);
   const palette = commands.length > 0 && dismissed !== text;
   const index = Math.min(selected, Math.max(0, commands.length - 1));
 
@@ -148,11 +154,13 @@ export function Composer({
     el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
   };
 
-  /* A command (`/compact`) leaves alone: the attachments and the deep
-     research stay in the field for the next message. */
+  /* A command (`/compact`, `/usage`) leaves alone: the attachments and the
+     deep research stay in the field for the next message. A `$skill` is
+     read inside an ordinary message: it takes them. */
   const submitText = (value: string) => {
     if ((!value.trim() && attachments.length === 0) || disabled || streaming || !modelId) return;
-    const command = isCommandText(value);
+    const hit = commandOf(value, offered);
+    const command = hit !== null && (hit.command.trigger ?? "/") === "/";
     onSend(value, command ? { attachments: [], research: false } : { attachments, research });
     setText("");
     if (!command) {
@@ -182,7 +190,11 @@ export function Composer({
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault();
         const d = e.key === "ArrowDown" ? 1 : -1;
-        setSelected((index + d + commands.length) % commands.length);
+        const next = (index + d + commands.length) % commands.length;
+        setSelected(next);
+        /* A long list (Claude Code publishes some fifty) scrolls with the
+           choice. */
+        list.current?.querySelectorAll<HTMLElement>("[role=option]")[next]?.scrollIntoView({ block: "nearest" });
         return;
       }
       if (e.key === "Tab") {
@@ -275,10 +287,11 @@ export function Composer({
         aria-controls={palette ? "composer-commands" : undefined}
       />
       {palette && (
-        <div className="cmp-commands" id="composer-commands" role="listbox" aria-label="Commands">
+        <div className="cmp-commands" id="composer-commands" role="listbox" aria-label="Commands" ref={list}>
+          <div className="cmp-commands-list">
           {commands.map((c, i) => (
             <button
-              key={c.name}
+              key={`${c.trigger ?? "/"}${c.name}`}
               type="button"
               role="option"
               aria-selected={i === index}
@@ -289,12 +302,15 @@ export function Composer({
               onClick={() => run(c)}
             >
               <span className="cmp-command-name">
-                /{c.name}
+                {c.trigger ?? "/"}
+                {c.name}
                 {c.args && <span className="cmp-command-args"> {c.args}</span>}
+                {c.source && <span className="cmp-command-source">{c.source}</span>}
               </span>
-              <small>{c.description}</small>
+              {c.description && <small>{c.description}</small>}
             </button>
           ))}
+          </div>
           <p className="cmp-commands-hint">↑↓ to choose · Tab to complete · Enter to run · Esc to close</p>
         </div>
       )}

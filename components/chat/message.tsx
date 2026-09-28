@@ -97,6 +97,12 @@ export const Message = memo(function Message({ message, author, streaming, onRet
           <span />
           <span />
         </div>
+      ) : empty && message.command && !message.error ? (
+        /* One of the agent's own commands that answers nothing (`/rename`,
+           `/goal clear`): it ran — not an empty reply. */
+        <p className="msg-command-ran" role="status">
+          <code>{message.command}</code> ran — nothing to show.
+        </p>
       ) : steps.length > 0 ? (
         steps.map((s, i) =>
           s.type === "text" ? (

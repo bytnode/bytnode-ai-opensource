@@ -17,7 +17,9 @@ import {
   type SessionNotification,
   type Stream,
 } from "@agentclientprotocol/sdk";
+import type { SlashCommand } from "@/lib/agent/commands";
 import type { AcpAgentId } from "./agents";
+import { agentCommands } from "./commands";
 import { installDone } from "./install";
 import { spawnAcp } from "./launch";
 
@@ -73,9 +75,20 @@ export function onAgentIdle(listener: (agent: AcpAgentId) => void): void {
   idleListeners.add(listener);
 }
 
+/* The last command list each agent published, whatever the session: the
+   composer offers it before a conversation has its own session, and a
+   first message is recognised as a command with it. */
+const lastCommands = new Map<AcpAgentId, SlashCommand[]>();
+export const knownCommands = (agent: AcpAgentId): SlashCommand[] | null => lastCommands.get(agent) ?? null;
+
 export class AcpConnection {
   private readonly updates = new Map<string, UpdateListener>();
   private readonly permissions = new Map<string, PermissionHandler>();
+  /* ⚠️ AN AGENT PUBLISHES ITS COMMANDS BEFORE ANYONE LISTENS: right after
+     `session/new`, while the turn is still applying the mode and the
+     model. Kept here per session, whoever listens (`commandsOf`). */
+  private readonly commands = new Map<string, SlashCommand[]>();
+  private readonly commandWaiters = new Map<string, () => void>();
   private stderr = "";
   private closed = false;
   /** Resolves once the process has exited. */
@@ -124,6 +137,7 @@ export class AcpConnection {
           return h(params);
         },
         sessionUpdate: (params) => {
+          if (self && params.update.sessionUpdate === "available_commands_update") self.recordCommands(params.sessionId, params.update.availableCommands);
           self?.updates.get(params.sessionId)?.(params);
         },
       }),
@@ -167,6 +181,34 @@ export class AcpConnection {
       throw e;
     }
     return self;
+  }
+
+  private recordCommands(sessionId: string, list: Parameters<typeof agentCommands>[0]) {
+    const commands = agentCommands(list);
+    this.commands.set(sessionId, commands);
+    lastCommands.set(this.agent, commands);
+    this.commandWaiters.get(sessionId)?.();
+  }
+
+  /** The commands the session published, if it has yet. */
+  commandsOf(sessionId: string): SlashCommand[] | null {
+    return this.commands.get(sessionId) ?? null;
+  }
+
+  /** The session's commands, waiting up to `ms` for the list to arrive
+      (it follows `session/new` by a few milliseconds to a second). */
+  waitForCommands(sessionId: string, ms: number): Promise<SlashCommand[] | null> {
+    const have = this.commands.get(sessionId);
+    if (have) return Promise.resolve(have);
+    return new Promise((resolve) => {
+      const done = () => {
+        clearTimeout(timer);
+        this.commandWaiters.delete(sessionId);
+        resolve(this.commands.get(sessionId) ?? null);
+      };
+      const timer = setTimeout(done, ms);
+      this.commandWaiters.set(sessionId, done);
+    });
   }
 
   get alive() {

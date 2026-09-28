@@ -39,6 +39,13 @@ describe("eventsOfUpdate", () => {
     ]);
   });
 
+  it("passes the agent's commands to the composer, and its own mode changes to the picker", () => {
+    expect(
+      eventsOfUpdate({ sessionUpdate: "available_commands_update", availableCommands: [{ name: "goal", description: "Set a goal", input: { hint: "[objective]" } }] }),
+    ).toEqual([{ type: "commands", commands: [{ name: "goal", description: "Set a goal", args: "[objective]" }] }]);
+    expect(eventsOfUpdate({ sessionUpdate: "current_mode_update", currentModeId: "acceptEdits" })).toEqual([{ type: "agent_config", mode: "acceptEdits" }]);
+  });
+
   it("opens a tool call with its title and raw arguments", () => {
     const u: SessionUpdate = {
       sessionUpdate: "tool_call",

@@ -790,9 +790,21 @@ html[data-theme="light"] .cmp.is-docked {
   animation: cmp-pop-in 160ms cubic-bezier(0.3, 0.68, 0.25, 1) both;
 }
 
+/* Claude Code publishes some fifty commands: the list scrolls, the hint
+   stays under it. Its height fits above a CENTRED composer too (a new
+   conversation: half the window, less the tab bar and the title). */
+.cmp-commands-list {
+  display: grid;
+  gap: 1px;
+  max-height: max(150px, min(320px, calc(50vh - 150px)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .cmp-commands button {
   display: grid;
   gap: 2px;
+  min-width: 0;
   padding: 9px 12px;
   border: 0;
   border-radius: 11px;
@@ -806,15 +818,38 @@ html[data-theme="light"] .cmp.is-docked {
 }
 
 .cmp-command-name {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
   font-family: var(--font-mono), ui-monospace, monospace;
   font-size: 13px;
 }
 
 .cmp-command-args {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
   color: var(--cmp-label-3);
+  white-space: pre;
+  text-overflow: ellipsis;
 }
 
+/* Who runs it: « Claude Code », « Codex »… */
+.cmp-command-source {
+  flex: none;
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--cmp-label-3);
+  font-family: var(--font-sans, inherit);
+  font-size: 11px;
+}
+
+/* An agent's description can run to a paragraph: two lines. */
 .cmp-commands small {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   color: var(--cmp-label-3);
   font-size: 12px;
 }

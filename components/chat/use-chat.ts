@@ -18,6 +18,8 @@ import {
 } from "@/lib/agent/compact";
 import { contextEstimate, estimateTokens, mergeUsage, rate, usageState } from "@/lib/agent/usage";
 import { withDirectives, type Attachment } from "@/lib/agent/attachments";
+import { commandOf } from "@/lib/agent/commands";
+import { agentCommandsNow, setAgentCommands } from "@/lib/state/agent-commands";
 import type { UsageInfo } from "@/lib/agent/events";
 import { matchesRule, ruleFor } from "@/lib/tools/permissions";
 import { buildSystemPrompt } from "@/lib/agent/prompt";
@@ -225,10 +227,18 @@ export function useChat({
         const content = text.trim();
         if (!content && joints.length === 0) return;
 
+        /* A subscription agent's own command (`/goal`, `/usage`, `/model
+           haiku`, `$skill`…) goes to it as typed: it runs it as in its
+           terminal. The reply remembers which one it answers. */
+        const acpNow = acpAgentOf(agent.providerId);
+        const own = acpNow ? agentCommandsNow(agent.id, acpNow.id) : [];
+        const agentCommand = commandOf(content, own);
         /* `/compact`: the agent summarises the thread, and that summary
            replaces it at the end of the turn. What we send it is not what
-           the user typed — it is the summary request. */
-        const compact = isCompactCommand(content);
+           the user typed — it is the summary request. Unless the agent has
+           its own `/compact` (Claude Code, Codex): then it compacts its own
+           session, as in its terminal. */
+        const compact = agentCommand ? null : isCompactCommand(content);
         /* What the model receives: the deep research directive, the
            message, then the attachments note (paths in the workspace). What
            the thread displays stays what the user typed. */
@@ -271,6 +281,7 @@ export function useChat({
           effort: effort ?? undefined,
           steps: [],
           ...(compact ? { compacting: true } : {}),
+          ...(agentCommand ? { command: `${agentCommand.command.trigger ?? "/"}${agentCommand.command.name}` } : {}),
         };
         const conversation: Conversation = {
           ...base,
@@ -516,6 +527,25 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
                   const c = getConversation(conversation.id);
                   if (c && c.acpSessionId !== e.sessionId)
                     saveConversation({ ...c, acpSessionId: e.sessionId });
+                  break;
+                }
+                /* The agent's own commands, for the composer. */
+                case "commands":
+                  setAgentCommands(agent.id, e.commands);
+                  break;
+                /* The session changed by itself (`/model haiku`, `/effort
+                   low`, the agent leaving its plan mode): the
+                   conversation's pickers follow, so the next turn keeps it. */
+                case "agent_config": {
+                  const c = getConversation(conversation.id);
+                  if (!c) break;
+                  const next = {
+                    ...c,
+                    ...(e.modelId ? { modelId: e.modelId } : {}),
+                    ...(e.effort ? { effort: e.effort } : {}),
+                    ...(e.mode ? { mode: e.mode } : {}),
+                  };
+                  if (next.modelId !== c.modelId || next.effort !== c.effort || next.mode !== c.mode) saveConversation(next);
                   break;
                 }
                 case "tool_update": {

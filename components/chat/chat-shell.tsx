@@ -27,6 +27,8 @@ import {
   professionInfo,
 } from "@/lib/professions/catalog";
 import { acpAgentOf } from "@/lib/acp/agents";
+import { COMMANDS, mergeCommands } from "@/lib/agent/commands";
+import { useAgentCommands } from "@/lib/state/agent-commands";
 import { useAcpAuth } from "@/lib/acp/use-auth";
 import { closeAcpConversation } from "@/lib/acp/client";
 import { SettingsPanel, type SettingsTarget } from "@/components/settings/settings-panel";
@@ -164,6 +166,10 @@ export function ChatShell({ settings }: Props) {
   const pickedMode = acp ? (conversation?.mode ?? pendingMode ?? agent?.defaultMode ?? null) : null;
   const askDefault = acp?.askMode && agentModes?.options.some((o) => o.value === acp.askMode) ? acp.askMode : null;
   const mode = acp ? (pickedMode ?? askDefault ?? agentModes?.current ?? null) : (agent?.permissionMode ?? "ask");
+  /* The commands offered on `/`: ours, and a subscription agent's own —
+     named after it, sent to it as typed. */
+  const agentCommands = useAgentCommands(agent?.id, acp?.id);
+  const commands = acp ? mergeCommands(agentCommands.map((c) => ({ ...c, source: acp.product }))) : COMMANDS;
 
   const { send, stop, retry, answer, streamingId, usage, rate, produced, compactError, dismissCompactError } =
     useChat({
@@ -515,6 +521,7 @@ export function ChatShell({ settings }: Props) {
             onScreenshot={() => attachScreenshot(cible)}
             focusKey={`${agent?.id ?? ""}:${active ?? "new"}`}
             docked={!fresh}
+            commands={commands}
           />
           <p className="chat-foot">
             The agent can make mistakes. Check what matters.

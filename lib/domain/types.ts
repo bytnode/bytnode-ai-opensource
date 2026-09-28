@@ -149,6 +149,10 @@ export type Message = {
       reply. It is removed at the end of the turn (replaced by the summary,
       or deleted). */
   compacting?: boolean;
+  /** The reply to one of a subscription agent's own commands (`/usage`,
+      `/goal`, `$pdf`…): a command that answers nothing is shown as run,
+      not as an empty reply. */
+  command?: string;
 };
 
 export type Conversation = {

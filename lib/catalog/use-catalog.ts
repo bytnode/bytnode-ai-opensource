@@ -2,6 +2,8 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import type { Model, Provider } from "@/lib/domain/types";
+import type { SlashCommand } from "@/lib/agent/commands";
+import { setDiscoveredCommands } from "@/lib/state/agent-commands";
 import { createStore } from "@/lib/state/store";
 import { isAcpProvider } from "@/lib/acp/agents";
 import type { AgentModes } from "@/lib/acp/translate";
@@ -94,8 +96,10 @@ export function loadAcpModels(force = false): Promise<void> {
   acpInflight = (async () => {
     try {
       const res = await fetch(`/api/acp/models${force ? "?force=1" : ""}`);
-      const json = (await res.json()) as { models?: Model[]; modes?: Record<string, AgentModes> };
+      const json = (await res.json()) as { models?: Model[]; modes?: Record<string, AgentModes>; commands?: Record<string, SlashCommand[]> };
       if (!res.ok || !json.models) return;
+      /* The agents' own commands come with their models: the composer's list. */
+      if (json.commands) setDiscoveredCommands(json.commands);
       const current = store.get();
       const openrouter = current.models.filter((m) => !isAcpProvider(m.providerId));
       const models = merge(openrouter, json.models);

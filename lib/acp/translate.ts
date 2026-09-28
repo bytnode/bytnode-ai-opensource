@@ -11,6 +11,7 @@ import type { Model } from "@/lib/domain/types";
 import { ACP_PREFIX, type AcpAgentId } from "./agents";
 import type { PlanEntry, UsageInfo } from "@/lib/agent/events";
 import { CARD_URI, type WireEvent } from "./wire";
+import { agentCommands } from "./commands";
 import type { ToolCard } from "@/lib/tools/types";
 
 /* ---------------------------------------------------------------------------
@@ -183,10 +184,20 @@ export function eventsOfUpdate(update: SessionUpdate): WireEvent[] {
         }));
       return plan.length ? [{ type: "plan", entries: plan }] : [];
     }
+    /* The agent's commands changed (skills reloaded, a plugin installed):
+       the composer's list follows. */
+    case "available_commands_update":
+      return [{ type: "commands", commands: agentCommands(update.availableCommands) }];
+    /* The agent changed its mode by itself (Claude leaving its plan mode
+       once the plan is accepted): the mode picker follows. */
+    case "current_mode_update":
+      return [{ type: "agent_config", mode: update.currentModeId }];
     case "usage_update": {
       const u = update as { used?: number; size?: number; cost?: { amount?: number } };
       const usage: UsageInfo = {};
-      if (typeof u.used === "number") usage.context = u.used;
+      /* ⚠️ A local command (`/usage`, `/model`) reports `used: 0`: no
+         session is ever empty — it would drop the context meter to zero. */
+      if (typeof u.used === "number" && u.used > 0) usage.context = u.used;
       if (typeof u.size === "number") usage.window = u.size;
       if (typeof u.cost?.amount === "number") usage.cost = u.cost.amount;
       return Object.keys(usage).length ? [{ type: "usage", usage }] : [];

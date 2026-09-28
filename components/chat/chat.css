@@ -1844,6 +1844,19 @@ body.is-resizing {
   color: var(--label-3);
 }
 
+/* One of the agent's own commands, run, that answered nothing. */
+.msg-command-ran {
+  margin: 4px 0 10px;
+  color: var(--label-3);
+  font-size: 13.5px;
+}
+
+.msg-command-ran code {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 12.5px;
+  color: var(--label-2);
+}
+
 /* After: a boundary in the thread — a 2 px rule on each side of the label,
    and the summary folded behind it. A three-column grid: the two rules are
    the pseudo-elements, the opened summary takes the full width below. */
