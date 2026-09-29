@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
 import type { AgentConfig, Conversation, Settings } from "@/lib/domain/types";
 import { ChevronDown, Clock, Dots, Pencil, Plus, Settings as SettingsIcon, Trash } from "@/components/ui/icons";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { professionInfo } from "@/lib/professions/catalog";
 
 type Props = {
@@ -21,7 +20,6 @@ type Props = {
   onRemoveConversation: (id: string) => void;
   onRenameConversation: (id: string, title: string) => void;
   onSettings: () => void;
-  onTheme: (theme: Settings["theme"]) => void;
   /** Clicking the brand collapses the column. */
   onCollapse: () => void;
   /** The right-edge handle, in pixels. */
@@ -52,7 +50,6 @@ export function Sidebar({
   onRemoveConversation,
   onRenameConversation,
   onSettings,
-  onTheme,
   onCollapse,
   onResize,
 }: Props) {
@@ -92,7 +89,6 @@ export function Sidebar({
         <button type="button" className="sb-brand" onClick={onCollapse} title="Collapse the column">
           BytNode-AI
         </button>
-        <ThemeToggle theme={settings.theme} onChange={onTheme} />
       </div>
 
       <button type="button" className="sb-new" onClick={onNewAgent}>

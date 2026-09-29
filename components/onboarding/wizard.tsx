@@ -4,7 +4,6 @@ import { useState } from "react";
 import type { AgentConfig, ApiKeys, AuthMode, Profile, Theme } from "@/lib/domain/types";
 import { useAcpAuth } from "@/lib/acp/use-auth";
 import { ArrowLeft, ArrowRight, Close } from "@/components/ui/icons";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { StepProfil } from "./step-profil";
 import { StepAuth } from "./step-auth";
 import { StepAgent } from "./step-agent";
@@ -40,12 +39,9 @@ type Props = {
   onDone: (draft: WizardDraft) => void;
   /** Present when the wizard can close without changing anything. */
   onCancel?: () => void;
-  /** The theme applies right away, draft or not: we want to see the result
-      before finishing. */
-  onTheme: (theme: Theme) => void;
 };
 
-export function Wizard({ steps, initial, finishLabel, onDone, onCancel, onTheme }: Props) {
+export function Wizard({ steps, initial, finishLabel, onDone, onCancel }: Props) {
   const [draft, setDraft] = useState<WizardDraft>(initial);
   const [index, setIndex] = useState(0);
   const [attempted, setAttempted] = useState(false);
@@ -80,13 +76,6 @@ export function Wizard({ steps, initial, finishLabel, onDone, onCancel, onTheme 
         <header className="ob-head">
           <span className="ob-brand">BytNode-AI</span>
           <div className="ob-head-actions">
-            <ThemeToggle
-              theme={draft.theme}
-              onChange={(theme) => {
-                setDraft({ ...draft, theme });
-                onTheme(theme);
-              }}
-            />
             {onCancel && (
               <button type="button" className="ob-close" onClick={onCancel} aria-label="Close without saving">
                 <Close />

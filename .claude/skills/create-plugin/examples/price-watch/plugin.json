@@ -1,0 +1,11 @@
+{
+  "name": "Price watch",
+  "version": "1.0.0",
+  "category": "market",
+  "summary": "Warns you when an asset you watch moves more than your threshold.",
+  "forAgents": "Watches the assets the user asked for and notifies the user when one moves more than their threshold since the last warning; PriceWatchAdd adds one, PriceWatchList shows them.",
+  "permissions": { "bytnode": true, "schedule": true, "notify": true },
+  "config": {
+    "threshold": { "type": "number", "title": "Move that warns you (%)", "default": 3, "minimum": 0.5, "maximum": 50 }
+  }
+}

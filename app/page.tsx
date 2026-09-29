@@ -38,7 +38,6 @@ export default function Page() {
           agent: blankAgent(),
         }}
         finishLabel="Open the chat"
-        onTheme={(theme) => updateSettings((s) => ({ ...s, theme }))}
         onDone={(d) => {
           const agent = stamp(d.agent);
           updateSettings((s) => ({

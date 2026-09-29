@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COMMANDS, commandOf, completeCommand, isCommandText, matchCommands, mergeCommands, runCommand, type SlashCommand } from "./commands";
+import { COMMANDS, commandOf, completeCommand, groupBySource, isCommandText, matchCommands, mergeCommands, runCommand, type SlashCommand } from "./commands";
 
 const liste: SlashCommand[] = [
   { name: "compact", args: "[instructions]", description: "summarise" },
@@ -87,6 +87,22 @@ describe("an agent's own commands", () => {
     expect(commandOf("$pdf:pdf read it", agent)).toMatchObject({ command: { name: "pdf:pdf", trigger: "$" } });
     expect(commandOf("/goal", agent)).toBeNull();
     expect(commandOf("hello /memory", agent)).toBeNull();
+  });
+
+  it("groupBySource: one caption per source, in the order of the matches; the keyboard walks the shown order", () => {
+    const list: SlashCommand[] = [
+      { name: "compact", description: "" },
+      { name: "goal", description: "", source: "Claude Code" },
+      { name: "status", description: "", source: "Codex" },
+      { name: "usage", description: "", source: "Claude Code" },
+    ];
+    const { groups, flat } = groupBySource(list);
+    expect(groups.map((g) => [g.source, g.items.map((c) => c.name)])).toEqual([
+      ["BytNode-AI", ["compact"]],
+      ["Claude Code", ["goal", "usage"]],
+      ["Codex", ["status"]],
+    ]);
+    expect(flat.map((c) => c.name)).toEqual(["compact", "goal", "usage", "status"]);
   });
 
   it("mergeCommands: ours first, the agent's same name wins", () => {

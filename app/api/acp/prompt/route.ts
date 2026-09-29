@@ -1,6 +1,7 @@
 import { readTransport } from "@/lib/tools/transport";
 import { isAcpAgentId } from "@/lib/acp/agents";
-import { claimTurnAfterStop, releaseTurn, runTurn, type WireEvent } from "@/lib/acp/sessions";
+import { cancelTurn, claimTurnAfterStop, releaseTurn, runTurn } from "@/lib/acp/sessions";
+import { ndjsonOf, turnLogs } from "@/lib/acp/turn-stream";
 import { syncSkills } from "@/lib/acp/skills-sync";
 import { loadProfession } from "@/lib/professions/load";
 import { DEFAULT_PROFESSION, isProfessionId } from "@/lib/professions/catalog";
@@ -15,7 +16,13 @@ import { pluginSkills } from "@/lib/plugins/extras";
    NDJSON stream: `{type:"session"}` first (the id to remember), then the
    thread events (text, calls, results), the permission requests
    (`{type:"permission"}`, to be answered through /api/acp/permission), and
-   `done`. Closing the request interrupts the turn.
+   `done`.
+
+   ⚠️ CLOSING THE REQUEST NO LONGER INTERRUPTS THE TURN. The turn writes
+   into its log (`turn-log.ts`), this response only reads it: a broken
+   connection is read again from where it stopped through
+   `/api/acp/stream` (`turnId` + `from`). Stop goes through
+   `/api/acp/cancel`; a turn nobody reads for 90 s is cancelled.
 
    The conversation is claimed FIRST (`claimTurn`): a second prompt while
    one runs — or is still being prepared — is refused at once (409), and a
@@ -38,6 +45,8 @@ type Body = {
   firstTurn?: boolean;
   images?: string[];
   history?: string;
+  /** Drawn by the browser: what `/api/acp/stream` asks for again. */
+  turnId?: string;
 };
 
 export async function POST(req: Request) {
@@ -85,52 +94,37 @@ export async function POST(req: Request) {
     return Response.json({ error: { message: `Could not prepare the turn: ${e instanceof Error ? e.message : String(e)}` } }, { status: 500 });
   }
 
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const send = (obj: WireEvent) => {
-        try {
-          controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
-        } catch {
-          /* stream closed */
-        }
-      };
-      try {
-        await runTurn(
-          {
-            conversationId: body.conversationId!,
-            agent,
-            agentId,
-            workspace,
-            origin: new URL(req.url).origin,
-            bytnodeKey,
-            exchangeAccounts,
-            plugins,
-            system: body.system ?? "",
-            text: body.text!,
-            modelId: body.modelId ?? null,
-            effort: body.effort ?? null,
-            mode: body.mode ?? null,
-            permissionMode: body.permissionMode === "skip" ? "skip" : "ask",
-            sessionId: body.sessionId ?? null,
-            firstTurn: body.firstTurn === true,
-            images: Array.isArray(body.images) ? body.images.filter((x): x is string => typeof x === "string") : [],
-            history: body.history,
-          },
-          send,
-          req.signal,
-          claim,
-        );
-      } catch (e) {
-        send({ type: "error", message: e instanceof Error ? e.message : String(e) });
-      } finally {
-        try {
-          controller.close();
-        } catch {
-          /* already closed */
-        }
-      }
+  /* The turn runs on its own, detached from this request: its events go
+     to the log, and this response is only its first reader. */
+  const conversationId = body.conversationId;
+  const log = turnLogs.open(conversationId, body.turnId || crypto.randomUUID(), () => cancelTurn(conversationId));
+  const detached = new AbortController().signal;
+  void runTurn(
+    {
+      conversationId,
+      agent,
+      agentId,
+      workspace,
+      origin: new URL(req.url).origin,
+      bytnodeKey,
+      exchangeAccounts,
+      plugins,
+      system: body.system ?? "",
+      text: body.text,
+      modelId: body.modelId ?? null,
+      effort: body.effort ?? null,
+      mode: body.mode ?? null,
+      permissionMode: body.permissionMode === "skip" ? "skip" : "ask",
+      sessionId: body.sessionId ?? null,
+      firstTurn: body.firstTurn === true,
+      images: Array.isArray(body.images) ? body.images.filter((x): x is string => typeof x === "string") : [],
+      history: body.history,
     },
-  });
-  return new Response(stream, { headers: { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-cache" } });
+    (e) => log.push(e),
+    detached,
+    claim,
+  )
+    .catch((e: unknown) => log.push({ type: "error", message: e instanceof Error ? e.message : String(e) }))
+    .finally(() => log.finish());
+  return ndjsonOf(log, 0, req.signal);
 }

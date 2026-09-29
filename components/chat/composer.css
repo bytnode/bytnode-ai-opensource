@@ -29,11 +29,14 @@
   --cmp-label: rgba(var(--ink), 0.94);
   --cmp-label-2: rgba(var(--ink), 0.66);
   --cmp-label-3: rgba(var(--ink), 0.44);
-  /* The backdrop's navy, lit (`MARINE.scene.lumiere` raised), and the
-     steel blue of the rim's glints: what is live or chosen. */
-  --cmp-lit-hi: 118, 150, 212;
-  --cmp-lit: 60, 92, 170;
-  --cmp-lit-lo: 34, 58, 124;
+  /* What is live or chosen (send, the chosen command, deep research on):
+     a FLAT, quiet fill of the backdrop's deep navy (`MARINE.scene.lumiere`,
+     30 56 118, taken down toward its black ground) — no gradient, no ring,
+     no glow. The user asked for it sober (2026-09-28): the bright sky blue,
+     then a lit navy, both shone too much. */
+  --cmp-on-bg: rgb(22, 36, 70);
+  --cmp-on-bg-hover: rgb(28, 45, 86);
+  --cmp-on-fg: rgba(255, 255, 255, 0.86);
   --cmp-accent: rgb(132, 168, 234);
   --cmp-shadow: 0 26px 60px -26px rgba(0, 0, 0, 0.8), 0 2px 10px -4px rgba(0, 0, 0, 0.5);
   --cmp-pop-shadow: 0 30px 70px -20px rgba(0, 0, 0, 0.85), 0 4px 14px -6px rgba(0, 0, 0, 0.5);
@@ -72,6 +75,10 @@ html[data-theme="light"] .cmp {
   --cmp-label-2: rgba(var(--ink), 0.64);
   --cmp-label-3: rgba(var(--ink), 0.46);
   --cmp-accent: rgb(38, 84, 190);
+  /* Light: a pale wash of the same navy, the navy for the glyph. */
+  --cmp-on-bg: rgba(30, 56, 118, 0.12);
+  --cmp-on-bg-hover: rgba(30, 56, 118, 0.18);
+  --cmp-on-fg: rgb(30, 56, 118);
   --cmp-shadow: 0 22px 50px -24px rgba(24, 40, 80, 0.35), 0 2px 8px -4px rgba(24, 40, 80, 0.18);
   --cmp-pop-shadow: 0 26px 60px -20px rgba(24, 40, 80, 0.35), 0 4px 12px -6px rgba(24, 40, 80, 0.2);
 }
@@ -176,7 +183,7 @@ html[data-theme="light"] .cmp.is-docked {
 
 .cmp.is-docked > .cmp-joints {
   grid-column: 1 / -1;
-  grid-row: 1;
+  grid-row: 2;
   padding: 4px 4px 8px;
 }
 
@@ -190,12 +197,12 @@ html[data-theme="light"] .cmp.is-docked {
 
 .cmp.is-docked .cmp-anchor:first-child {
   grid-column: 1;
-  grid-row: 2;
+  grid-row: 3;
 }
 
 .cmp.is-docked > .cmp-input {
   grid-column: 2;
-  grid-row: 2;
+  grid-row: 3;
   min-height: 36px;
   padding: 7px 6px;
   font-size: 15px;
@@ -203,12 +210,26 @@ html[data-theme="light"] .cmp.is-docked {
 
 .cmp.is-docked .cmp-bar > .cmp-anchor:not(:first-child) {
   grid-column: 3;
-  grid-row: 2;
+  grid-row: 3;
 }
 
 .cmp.is-docked .cmp-send {
   grid-column: 4;
-  grid-row: 2;
+  grid-row: 3;
+}
+
+/* More than one line: the text takes the whole width, over the buttons'
+   room, and the buttons move to a row of their own under it (`tall` in
+   `composer.tsx`). */
+.cmp.is-docked.is-tall > .cmp-input {
+  grid-column: 1 / -1;
+  padding: 7px 10px 6px;
+}
+
+.cmp.is-docked.is-tall .cmp-anchor:first-child,
+.cmp.is-docked.is-tall .cmp-bar > .cmp-anchor:not(:first-child),
+.cmp.is-docked.is-tall .cmp-send {
+  grid-row: 4;
 }
 
 .cmp.is-docked .cmp-round,
@@ -327,17 +348,14 @@ html[data-theme="light"] .cmp.is-docked {
 }
 
 .cmp-send.is-ready {
-  background: radial-gradient(130% 130% at 30% 18%, rgb(var(--cmp-lit-hi)) 0%, rgb(var(--cmp-lit)) 46%, rgb(var(--cmp-lit-lo)) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.26),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 6px 16px -6px rgba(var(--cmp-lit), 0.55);
-  color: #fff;
+  background: var(--cmp-on-bg);
+  box-shadow: none;
+  color: var(--cmp-on-fg);
 }
 
 .cmp-send.is-ready:hover {
-  filter: brightness(1.08);
-  color: #fff;
+  background: var(--cmp-on-bg-hover);
+  color: var(--cmp-on-fg);
 }
 
 .cmp-send svg {
@@ -511,9 +529,9 @@ html[data-theme="light"] .cmp.is-docked {
 }
 
 .cmp-action.is-on .cmp-action-icon {
-  background: radial-gradient(130% 130% at 30% 18%, rgb(var(--cmp-lit-hi)), rgb(var(--cmp-lit)) 50%, rgb(var(--cmp-lit-lo)));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
-  color: #fff;
+  background: var(--cmp-on-bg);
+  box-shadow: none;
+  color: var(--cmp-on-fg);
 }
 
 .cmp-action-text,
@@ -768,44 +786,113 @@ html[data-theme="light"] .cmp.is-docked {
   outline: none;
 }
 
-/* --- The commands, above the field -------------------------------------- */
+/* --- The commands, above the field --------------------------------------
+   A section of the pane itself, not a popover: it opens above the field,
+   the glass grows upward and pushes the thread up. The rows are the "+"
+   menu's (a small glass tile, a name, a grey line), grouped under who runs
+   them like the settings pane's captions; the keys sit in the head as the
+   chip's small keycaps. */
 
 .cmp-commands {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: calc(100% + 12px);
-  z-index: 30;
-  display: grid;
-  gap: 1px;
-  padding: 6px;
-  border-radius: 18px;
-  background: var(--cmp-pane);
-  -webkit-backdrop-filter: blur(30px) saturate(1.8);
-  backdrop-filter: blur(30px) saturate(1.8);
-  box-shadow:
-    inset 0 0 0 1px var(--cmp-hair),
-    inset 0 1px 0 var(--cmp-catch),
-    var(--cmp-pop-shadow);
-  animation: cmp-pop-in 160ms cubic-bezier(0.3, 0.68, 0.25, 1) both;
+  --cmp-command-h: 44px;
+  --cmp-caption-h: 26px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 8px 8px 6px;
+  border-bottom: 1px solid var(--cmp-hair);
+  animation: cmp-commands-in 170ms cubic-bezier(0.3, 0.68, 0.25, 1) both;
 }
 
-/* Claude Code publishes some fifty commands: the list scrolls, the hint
-   stays under it. Its height fits above a CENTRED composer too (a new
-   conversation: half the window, less the tab bar and the title). */
+@keyframes cmp-commands-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cmp-commands {
+    animation: none;
+  }
+}
+
+.cmp-commands-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 10px 6px 12px;
+  color: var(--cmp-label-2);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.cmp-commands-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  overflow: hidden;
+  color: var(--cmp-label-3);
+  font-size: 11.5px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.cmp-commands-keys > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cmp-commands kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--cmp-fill);
+  box-shadow: inset 0 0 0 1px var(--cmp-hair);
+  color: var(--cmp-label-2);
+  font-family: inherit;
+  font-size: 10.5px;
+  line-height: 1;
+}
+
+/* Claude Code publishes some fifty commands: three rows show at once (and
+   the caption above them), the rest scrolls — the list stays a short
+   strip over the field, centred or docked. */
 .cmp-commands-list {
   display: grid;
-  gap: 1px;
-  max-height: max(150px, min(320px, calc(50vh - 150px)));
+  gap: 6px;
+  max-height: calc(var(--cmp-caption-h) + 3 * var(--cmp-command-h) + 2px);
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--ink), 0.2) transparent;
 }
 
-.cmp-commands button {
+.cmp-commands-group {
   display: grid;
-  gap: 2px;
-  min-width: 0;
-  padding: 9px 12px;
+  gap: 1px;
+}
+
+.cmp-commands-group > .cmp-caption {
+  height: var(--cmp-caption-h);
+  padding-top: 6px;
+  padding-bottom: 0;
+}
+
+/* A row: the "+" menu's, a little tighter — fifty of them. */
+.cmp-command {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  height: var(--cmp-command-h);
+  padding: 6px 10px 6px 8px;
   border: 0;
   border-radius: 11px;
   background: transparent;
@@ -813,52 +900,65 @@ html[data-theme="light"] .cmp.is-docked {
   text-align: left;
 }
 
-.cmp-commands button.is-selected {
+.cmp-command.is-selected {
   background: var(--cmp-fill-hover);
 }
 
-.cmp-command-name {
-  display: flex;
-  align-items: baseline;
-  min-width: 0;
+/* The tile carries what starts it: `/`, or `$` for a Codex skill. */
+.cmp-command-glyph {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--cmp-fill);
+  box-shadow: inset 0 0 0 1px var(--cmp-hair);
+  color: var(--cmp-label-2);
   font-family: var(--font-mono), ui-monospace, monospace;
   font-size: 13px;
 }
 
+/* The chosen (or pointed) row's tile: the same quiet navy as send. */
+.cmp-command.is-selected .cmp-command-glyph {
+  background: var(--cmp-on-bg);
+  box-shadow: none;
+  color: var(--cmp-on-fg);
+}
+
+.cmp-command .cmp-item-text b {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* What may follow the name, quieter. */
 .cmp-command-args {
-  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   color: var(--cmp-label-3);
-  white-space: pre;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 11.5px;
+  font-weight: 400;
   text-overflow: ellipsis;
 }
 
-/* Who runs it: « Claude Code », « Codex »… */
-.cmp-command-source {
-  flex: none;
-  margin-left: auto;
-  padding-left: 12px;
-  color: var(--cmp-label-3);
-  font-family: var(--font-sans, inherit);
-  font-size: 11px;
+/* One line each: the rows keep one height, three fill the strip. The
+   whole description is the row's tooltip. */
+.cmp-command small {
+  white-space: nowrap;
 }
 
-/* An agent's description can run to a paragraph: two lines. */
-.cmp-commands small {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  color: var(--cmp-label-3);
-  font-size: 12px;
+.cmp-command-enter {
+  align-self: center;
 }
 
-.cmp-commands-hint {
-  margin: 4px 0 2px;
-  padding: 0 12px;
-  color: var(--cmp-label-3);
-  font-size: 11.5px;
+/* Docked, the pane is a grid: the list takes the whole first row, the
+   attachments the second, the field and its buttons the third. */
+.cmp.is-docked > .cmp-commands {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  margin: -8px -8px 6px;
+  padding: 10px 10px 6px;
 }
 
 /* --- What leaves with the message ------------------------------------------ */

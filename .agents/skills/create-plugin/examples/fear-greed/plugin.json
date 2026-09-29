@@ -1,0 +1,9 @@
+{
+  "name": "Fear & Greed",
+  "version": "1.0.0",
+  "category": "market",
+  "summary": "The crypto Fear & Greed index, today and over the last month.",
+  "forAgents": "Reads the crypto Fear & Greed index from alternative.me, today and its last 30 days; FearGreedIndex answers with today's value and the month's trend.",
+  "permissions": { "network": ["api.alternative.me"] },
+  "view": { "title": "Fear & Greed", "description": "The market's mood, today and over 30 days." }
+}

@@ -98,7 +98,10 @@ export function Thread({ settings, agent, conversation, streaming, onRetry, onAn
     toBottom();
   }, []);
 
-  /* Anything that changes the content height carries the pinned reader along. */
+  /* Anything that changes the content height carries the pinned reader
+     along — and so does the thread's own height: the composer grows when
+     its command list opens, and the last lines move up above it instead of
+     being covered. */
   useEffect(() => {
     const el = inner.current;
     if (!el) return;
@@ -109,6 +112,7 @@ export function Thread({ settings, agent, conversation, streaming, onRetry, onAn
       else toBottom();
     });
     ro.observe(el);
+    if (scroller.current) ro.observe(scroller.current);
     return () => ro.disconnect();
   }, []);
 

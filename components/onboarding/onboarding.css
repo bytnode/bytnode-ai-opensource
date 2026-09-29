@@ -78,7 +78,6 @@ html[data-theme="light"] .ob {
   gap: 6px;
 }
 
-.theme-toggle,
 .ob-close {
   display: inline-flex;
   align-items: center;
@@ -93,13 +92,11 @@ html[data-theme="light"] .ob {
   transition: color 140ms ease, background-color 140ms ease;
 }
 
-.theme-toggle:hover,
 .ob-close:hover {
   color: var(--fg);
   background: var(--matter);
 }
 
-.theme-toggle svg,
 .ob-close svg {
   width: 16px;
   height: 16px;

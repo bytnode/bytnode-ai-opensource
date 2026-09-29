@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Fear &amp; Greed</title>
+  </head>
+  <body>
+    <!-- Pattern 2 of the plugin-design skill (like DCA): one sheet over the
+         tab, the hero figure and its pill, the curve in a block, tiles. -->
+    <div class="bn-app">
+      <main class="bn-sheet">
+        <header class="bn-head">
+          <div class="bn-head-text">
+            <h1 class="bn-title">Fear &amp; Greed</h1>
+            <p class="bn-sub">The crypto market's mood, from alternative.me</p>
+          </div>
+          <div class="bn-actions">
+            <span class="bn-status" id="status"></span>
+            <button class="bn-icon" id="refresh" title="Refresh" aria-label="Refresh">
+              <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.9-3.5M4 4v4h4M4 13a8 8 0 0 0 14.9 3.5M20 20v-4h-4" /></svg>
+            </button>
+          </div>
+        </header>
+        <div class="bn-body" id="main"><p class="bn-loading">Loading…</p></div>
+      </main>
+    </div>
+    <script>
+      const main = document.getElementById("main");
+      const status = document.getElementById("status");
+
+      async function load() {
+        try {
+          render(await bn.call("history"));
+          status.innerHTML = '<span class="bn-dot is-on"></span>Updated ' + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        } catch (e) {
+          main.innerHTML = '<section class="bn-section"><p class="bn-error">' + bn.esc(e.message) + "</p></section>";
+        }
+      }
+
+      function render(days) {
+        if (!days.length) {
+          main.innerHTML = '<div class="bn-empty"><b>No value yet</b>alternative.me returned nothing. Try again in a minute.</div>';
+          return;
+        }
+        const today = days[days.length - 1];
+        const first = days[0];
+        const change = today.value - first.value;
+        const low = Math.min(...days.map((d) => d.value));
+        const high = Math.max(...days.map((d) => d.value));
+        main.innerHTML =
+          '<div class="bn-figure"><span class="bn-figure-value">' + today.value + '</span><span class="bn-figure-unit">/ 100</span>' +
+          '<span class="bn-pill ' + bn.tone(change) + '">' + (change > 0 ? "+" : "") + change + " pts</span>" +
+          '<span class="bn-muted">' + bn.esc(today.label) + " today</span></div>" +
+          '<section class="bn-section"><h2 class="bn-section-title">Last 30 days <small>0 = extreme fear, 100 = extreme greed</small></h2>' +
+          '<div class="bn-block"><div class="bn-chart" id="curve"></div></div></section>' +
+          '<section class="bn-section"><div class="bn-tiles" style="--cols: 3">' +
+          tile("Change", (change > 0 ? "+" : "") + change + " pts", "over 30 days", bn.tone(change)) +
+          tile("Lowest", String(low), "in 30 days", "") +
+          tile("Highest", String(high), "in 30 days", "") +
+          "</div></section>" +
+          '<p class="bn-footnote">Source: alternative.me, read at most every 30 minutes.</p>';
+        bn.chart("#curve", days.map((d) => ({ t: d.date, v: d.value })), { format: (v) => Math.round(v) });
+      }
+
+      function tile(label, value, sub, tone) {
+        return '<div class="bn-tile"><span class="bn-tile-label">' + label + '</span><span class="bn-tile-value ' + tone + '">' + bn.esc(value) + '</span><span class="bn-tile-sub">' + sub + "</span></div>";
+      }
+
+      document.getElementById("refresh").addEventListener("click", load);
+      load();
+    </script>
+  </body>
+</html>

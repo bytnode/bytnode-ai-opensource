@@ -1,0 +1,12 @@
+{
+  "name": "BTC rebalance",
+  "version": "1.0.0",
+  "category": "portfolio",
+  "summary": "Keeps BTC at your target share of an account, by proposing the orders you confirm.",
+  "forAgents": "Compares the share of BTC in the user's exchange account with their target and proposes the rebalancing order, which the user confirms; RebalanceCheck reads the drift, RebalancePropose proposes the order.",
+  "permissions": { "exchange": "orders" },
+  "config": {
+    "target": { "type": "number", "title": "Target share of BTC (%)", "default": 50, "minimum": 0, "maximum": 100 },
+    "band": { "type": "number", "title": "Drift that triggers a proposal (points)", "default": 5, "minimum": 1, "maximum": 50 }
+  }
+}

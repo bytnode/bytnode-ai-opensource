@@ -86,6 +86,24 @@ export const completeCommand = (c: SlashCommand) => `${triggerOf(c)}${c.name} `;
 /** What is sent when it is run from the list (Enter): the command alone. */
 export const runCommand = (c: SlashCommand) => `${triggerOf(c)}${c.name}`;
 
+/** Who runs a command without a `source`: BytNode-AI itself. */
+export const OWN_SOURCE = "BytNode-AI";
+
+/** The matches grouped under who runs them, each group where its first
+    match falls — the list reads « BytNode-AI », then « Claude Code »,
+    instead of repeating the name on every row. `flat` is the order shown:
+    the keyboard walks it. */
+export function groupBySource(list: readonly SlashCommand[]): { groups: Array<{ source: string; items: SlashCommand[] }>; flat: SlashCommand[] } {
+  const groups: Array<{ source: string; items: SlashCommand[] }> = [];
+  for (const c of list) {
+    const source = c.source ?? OWN_SOURCE;
+    const group = groups.find((g) => g.source === source);
+    if (group) group.items.push(c);
+    else groups.push({ source, items: [c] });
+  }
+  return { groups, flat: groups.flatMap((g) => g.items) };
+}
+
 /** The composer's list for an agent: BytNode-AI's own commands, then the
     agent's. An agent's command of the same name wins — `/compact` then
     compacts the agent's OWN session, as in its terminal. */

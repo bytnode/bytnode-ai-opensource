@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from "react";
 import type { Attachment } from "@/lib/agent/attachments";
-import { COMMANDS, commandOf, completeCommand, matchCommands, runCommand, type SlashCommand } from "@/lib/agent/commands";
+import { COMMANDS, commandOf, completeCommand, groupBySource, matchCommands, runCommand, type SlashCommand } from "@/lib/agent/commands";
 import { ArrowUp, Camera, Check, Close, File as FileIcon, Plus, Search, Spinner, Stop } from "@/components/ui/icons";
 import { ComposerPopover } from "./composer-popover";
 import { ModelPicker } from "./model-picker";
@@ -36,11 +36,17 @@ type Props = {
   /** The commands offered on `/`: BytNode-AI's, and a subscription agent's
       own (`mergeCommands`). */
   commands?: readonly SlashCommand[];
+  /** The command list opened or closed: it takes room in the page (the
+      composer grows upward), the shell keeps the field where it was. */
+  onPalette?: (open: boolean) => void;
 };
 
 /** The glass's corner radius, CSS px: `composer.css` (`.cmp`) and the rim's
     shader draw the same curve. */
 const RADIUS = 26;
+/** The docked field's height on one line (36 px, see `.cmp.is-docked >
+    .cmp-input`), with a margin: above it, the message wraps. */
+const ONE_LINE = 44;
 
 /* ---------------------------------------------------------------------------
    The composer: a pane of frosted glass on the backdrop's light.
@@ -64,7 +70,11 @@ const RADIUS = 26;
    (`lib/agent/commands.ts`): ↑↓ to choose, Tab to complete (and add
    instructions), Enter to run, Escape to close. A space after the name
    closes it: the command is complete. A subscription agent's own commands
-   are in the list too, named after the agent that runs them.
+   are in the list too, grouped under the agent that runs them.
+
+   ⚠️ THE LIST IS PART OF THE GLASS, NOT A POPOVER OVER THE THREAD. It opens
+   inside the pane, above the field: the composer grows upward and the
+   thread (or the greeting) moves up to make room — nothing is covered.
 --------------------------------------------------------------------------- */
 export function Composer({
   providerId,
@@ -87,6 +97,7 @@ export function Composer({
   focusKey,
   docked = false,
   commands: offered = COMMANDS,
+  onPalette,
 }: Props) {
   const [text, setText] = useState("");
   const area = useRef<HTMLTextAreaElement>(null);
@@ -102,14 +113,26 @@ export function Composer({
   const [focused, setFocused] = useState(false);
   const [busy, setBusy] = useState<"fichiers" | "capture" | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  /* Docked, a message longer than one line takes the capsule's whole width,
+     the buttons on a row under it — instead of a narrow column between
+     them with empty room above them (the user's request, 2026-09-29).
+     Back to one line only once the field is empty: switching on every
+     keystroke would make the text jump between the two widths. */
+  const [tall, setTall] = useState(false);
   /* The command list: the chosen row, and the text for which it was closed
      (Escape) — it only reopens if the text changes. */
   const [selected, setSelected] = useState(0);
   const [dismissed, setDismissed] = useState<string | null>(null);
-  const commands = disabled ? [] : matchCommands(text, offered);
+  /* Shown grouped by who runs them; the keyboard walks the shown order. */
+  const { groups, flat: commands } = groupBySource(disabled ? [] : matchCommands(text, offered));
   const list = useRef<HTMLDivElement>(null);
   const palette = commands.length > 0 && dismissed !== text;
   const index = Math.min(selected, Math.max(0, commands.length - 1));
+
+  /* The shell keeps the field in place while the list takes its room. */
+  useEffect(() => {
+    onPalette?.(palette);
+  }, [palette, onPalette]);
 
   const rim: RimState = streaming ? "busy" : focused || text.length > 0 ? "focus" : "idle";
   useRimLight(rimCanvas, rim, RADIUS, docked);
@@ -152,6 +175,17 @@ export function Composer({
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
+    if (!el.value) setTall(false);
+    else if (!tall && el.scrollHeight > ONE_LINE) {
+      setTall(true);
+      /* Wider now: measured again once laid out. */
+      requestAnimationFrame(() => {
+        const again = area.current;
+        if (!again) return;
+        again.style.height = "auto";
+        again.style.height = `${Math.min(again.scrollHeight, 220)}px`;
+      });
+    }
   };
 
   /* A command (`/compact`, `/usage`) leaves alone: the attachments and the
@@ -223,7 +257,7 @@ export function Composer({
 
   return (
     <div
-      className={`cmp${docked ? " is-docked" : ""}${focused ? " is-focused" : ""}${streaming ? " is-busy" : ""}`}
+      className={`cmp${docked ? " is-docked" : ""}${docked && tall ? " is-tall" : ""}${focused ? " is-focused" : ""}${streaming ? " is-busy" : ""}`}
       onFocus={onFocusIn}
       onBlur={onFocusOut}
       /* Files dropped on the composer are attached, like the `+` menu's. */
@@ -238,6 +272,72 @@ export function Composer({
       }}
     >
       <canvas ref={rimCanvas} className="cmp-rim" aria-hidden />
+      {palette && (
+        <div className="cmp-commands" id="composer-commands" role="listbox" aria-label="Commands" ref={list}>
+          <div className="cmp-commands-head">
+            <span>Commands</span>
+            <span className="cmp-commands-keys" aria-hidden>
+              <span>
+                <kbd>↑</kbd>
+                <kbd>↓</kbd>
+                choose
+              </span>
+              <span>
+                <kbd>Tab</kbd>
+                complete
+              </span>
+              <span>
+                <kbd>↵</kbd>
+                run
+              </span>
+              <span>
+                <kbd>esc</kbd>
+                close
+              </span>
+            </span>
+          </div>
+          <div className="cmp-commands-list">
+            {groups.map((g) => (
+              <div key={g.source} role="group" aria-label={g.source} className="cmp-commands-group">
+                <p className="cmp-caption">{g.source}</p>
+                {g.items.map((c) => {
+                  const i = commands.indexOf(c);
+                  return (
+                    <button
+                      key={`${c.trigger ?? "/"}${c.name}`}
+                      type="button"
+                      role="option"
+                      aria-selected={i === index}
+                      className={`cmp-command${i === index ? " is-selected" : ""}`}
+                      /* The click must not take focus away from the field. */
+                      onMouseDown={(e) => e.preventDefault()}
+                      onMouseEnter={() => setSelected(i)}
+                      onClick={() => run(c)}
+                      title={c.description || undefined}
+                    >
+                      <span className="cmp-command-glyph" aria-hidden>
+                        {c.trigger ?? "/"}
+                      </span>
+                      <span className="cmp-item-text">
+                        <b>
+                          {c.name}
+                          {c.args && <span className="cmp-command-args">{c.args}</span>}
+                        </b>
+                        {c.description && <small>{c.description}</small>}
+                      </span>
+                      {i === index && (
+                        <kbd className="cmp-command-enter" aria-hidden>
+                          ↵
+                        </kbd>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {(attachments.length > 0 || research || failure) && (
         <div className="cmp-joints">
           {research && (
@@ -286,34 +386,6 @@ export function Composer({
         aria-autocomplete="list"
         aria-controls={palette ? "composer-commands" : undefined}
       />
-      {palette && (
-        <div className="cmp-commands" id="composer-commands" role="listbox" aria-label="Commands" ref={list}>
-          <div className="cmp-commands-list">
-          {commands.map((c, i) => (
-            <button
-              key={`${c.trigger ?? "/"}${c.name}`}
-              type="button"
-              role="option"
-              aria-selected={i === index}
-              className={i === index ? "is-selected" : ""}
-              /* The click must not take focus away from the field. */
-              onMouseDown={(e) => e.preventDefault()}
-              onMouseEnter={() => setSelected(i)}
-              onClick={() => run(c)}
-            >
-              <span className="cmp-command-name">
-                {c.trigger ?? "/"}
-                {c.name}
-                {c.args && <span className="cmp-command-args"> {c.args}</span>}
-                {c.source && <span className="cmp-command-source">{c.source}</span>}
-              </span>
-              {c.description && <small>{c.description}</small>}
-            </button>
-          ))}
-          </div>
-          <p className="cmp-commands-hint">↑↓ to choose · Tab to complete · Enter to run · Esc to close</p>
-        </div>
-      )}
       <div className="cmp-bar">
         <div className="cmp-anchor">
           <button

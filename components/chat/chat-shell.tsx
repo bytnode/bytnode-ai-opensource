@@ -203,6 +203,33 @@ export function ChatShell({ settings }: Props) {
      even when the reader had scrolled up. */
   const fresh = !conversation || conversation.messages.length === 0;
   const composerBox = useRef<HTMLDivElement>(null);
+  /* The command list opens INSIDE the composer, which grows upward. In a
+     new conversation the room around the centred pair is shared between
+     the greeting and the spacer under the composer: the spacer is held at
+     its height while the list is open, so the greeting moves up and the
+     field stays where the user is typing. */
+  const spacer = useRef<HTMLDivElement>(null);
+  /* Measured while the list is closed: once it is open, the layout has
+     already moved. */
+  const spacerRest = useRef(0);
+  const paletteOpen = useRef(false);
+  useLayoutEffect(() => {
+    const el = spacer.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      if (!paletteOpen.current) spacerRest.current = el.getBoundingClientRect().height;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fresh]);
+  /* Shrinkable: the greeting gives its room first (down to its own
+     height), and the field moves down only if the list still needs more. */
+  const onPalette = useCallback((open: boolean) => {
+    paletteOpen.current = open;
+    const el = spacer.current;
+    if (!el) return;
+    el.style.flex = open && spacerRest.current > 0 ? `0 1 ${spacerRest.current}px` : "";
+  }, []);
   const composerTop = useRef<number | null>(null);
   const wasFresh = useRef(fresh);
   const sending = useRef(0);
@@ -379,7 +406,6 @@ export function ChatShell({ settings }: Props) {
         onRemoveConversation={removeConv}
         onRenameConversation={renameConversation}
         onSettings={() => openSettings({ tab: "general" })}
-        onTheme={(theme) => updateSettings((s) => ({ ...s, theme }))}
         onCollapse={() => updateUiPrefs({ sidebarCollapsed: true })}
         onResize={(w) => updateUiPrefs({ sidebarWidth: clampWidth(w) })}
       />
@@ -522,6 +548,7 @@ export function ChatShell({ settings }: Props) {
             focusKey={`${agent?.id ?? ""}:${active ?? "new"}`}
             docked={!fresh}
             commands={commands}
+            onPalette={onPalette}
           />
           <p className="chat-foot">
             The agent can make mistakes. Check what matters.
@@ -529,7 +556,7 @@ export function ChatShell({ settings }: Props) {
         </div>
         {/* Under the centred composer, the room that sets it a little
             above the middle. */}
-        {fresh && <div className="chat-spacer" aria-hidden />}
+        {fresh && <div className="chat-spacer" aria-hidden ref={spacer} />}
       </main>
 
       <UsageMeter
