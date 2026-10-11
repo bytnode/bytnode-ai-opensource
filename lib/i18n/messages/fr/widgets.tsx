@@ -1,0 +1,83 @@
+import type { ReactNode } from "react";
+import type { Messages } from "../en";
+
+export const widgets: Messages["widgets"] = {
+  kinds: {
+    watchlist: { name: "Liste de suivi", description: "Vos actifs, leur prix et leur variation sur 24 h." },
+    portfolio: { name: "Portefeuille", description: "Votre total, sa variation et sa répartition." },
+    paper: { name: "Trading fictif", description: "La valeur, la performance et les positions ouvertes de votre portefeuille fictif." },
+    dca: { name: "DCA", description: "Vos prochains achats et ce que vos plans ont déjà investi." },
+    calendar: { name: "Calendrier", description: "Ce qui arrive cette semaine." },
+    scheduler: { name: "Tâches planifiées", description: "Les prochaines exécutions de vos agents et leurs derniers rapports." },
+    alerts: { name: "Alertes", description: "Vos alertes, ce qu'elles lisent maintenant, la dernière déclenchée." },
+    calculator: { name: "Taille de position", description: "Dimensionnez un trade selon votre risque, votre entrée et votre stop." },
+  },
+  sizes: { small: "Petit", medium: "Moyen", large: "Grand" },
+  sizeLetters: { small: "P", medium: "M", large: "G" },
+
+  title: "Widgets",
+  addWidget: "Ajouter un widget",
+  editWidgets: "Modifier les widgets",
+  doneEditing: "Terminer la modification",
+  hideWidgets: "Masquer les widgets",
+  showWidgets: "Afficher les widgets",
+  showHidden: (n: number) => `Afficher les widgets masqués (${n})`,
+
+  removeNamed: (name: string) => `Retirer le widget ${name}`,
+  size: "Taille",
+  menuOf: (name: string) => `Widget ${name}`,
+  hideWidget: "Masquer le widget",
+  removeWidget: "Retirer le widget",
+
+  nothingToAdd: "Aucun widget à ajouter : leurs plugins sont désactivés, ou les widgets le sont. Voir Réglages → Plugins et Réglages → Widgets.",
+  add: "Ajouter le widget",
+  sizeHint: "Petit dit l'essentiel ; moyen ajoute les éléments suivants ; grand, toute la liste.",
+  preview: "Aperçu",
+
+  watchlistEmpty: "Ajoutez des actifs dans la Liste de suivi.",
+  last24h: "24 h",
+  last7d: "7 jours",
+  last30d: "30 jours",
+  readingAccounts: "Lecture de vos comptes…",
+  portfolioEmpty: "Connectez un compte d'exchange dans Réglages → Authentification pour voir votre portefeuille ici.",
+  today: "aujourd'hui",
+  over30d: (move: ReactNode) => <>{move} sur 30{" "}jours</>,
+  sinceStart: "depuis le début",
+  noPaperPortfolio: "Pas encore de portefeuille fictif.",
+  noOpenPosition: "Aucune position ouverte.",
+  long: "Long",
+  short: "Short",
+  spot: "Spot",
+  noActivePlan: "Aucun plan actif.",
+  nextPurchase: "Prochain achat",
+  invested: "Investi",
+  return: "Performance",
+  nothingThisWeek: "Rien cette semaine.",
+  moreThisWeek: (n: number) => (n <= 1 ? `${n} autre cette semaine` : `${n} autres cette semaine`),
+  noScheduledTask: "Aucune tâche planifiée.",
+  runningNow: "En cours",
+  nextRun: "Prochaine exécution",
+  running: "En cours",
+  lastReports: "Derniers rapports",
+  runDone: "Terminé",
+  runFailed: "Échec",
+  alertsWatching: (n: number) => (n <= 1 ? "alerte active" : "alertes actives"),
+  fired: (symbol: string, when: string) => `${symbol} déclenchée ${when}`,
+  activeCount: (n: number) => (n <= 1 ? `${n} active` : `${n} actives`),
+  noActiveAlert: "Aucune alerte active.",
+  lastFired: (symbol: ReactNode, when: string, observed: string) => (
+    <>
+      Dernier déclenchement{" "}: {symbol} {when} · {observed}
+    </>
+  ),
+  calculator: {
+    capital: "Capital",
+    risk: "Risque %",
+    entry: "Entrée",
+    stop: "Stop",
+    size: "Taille",
+    notional: "Notionnel",
+    leverage: "Levier",
+    atRisk: "Risqué",
+  },
+};

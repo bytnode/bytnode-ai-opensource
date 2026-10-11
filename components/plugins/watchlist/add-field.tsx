@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { suggest, type Candidate } from "@/lib/plugins/watchlist/suggest";
 import { Search } from "@/components/ui/icons";
+import { useMessages } from "@/lib/i18n/react";
 
 /* The field that adds an asset, as a search among BytNode's assets only:
    from the first letter, a list opens under it — ticker, name, quote —
@@ -24,6 +25,8 @@ type Props = {
 };
 
 export function AddField({ catalog, unavailable, followed, onAdd, onPick }: Props) {
+  const m = useMessages();
+  const t = m.watchlist.add;
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -63,12 +66,12 @@ export function AddField({ catalog, unavailable, followed, onAdd, onPick }: Prop
         <input
           className="wlv-input"
           role="combobox"
-          aria-label="Add an asset"
+          aria-label={t.label}
           aria-expanded={shown}
           aria-controls={list}
           aria-autocomplete="list"
           aria-activedescendant={shown ? `${list}-${lit}` : undefined}
-          placeholder={unavailable ? "Add an asset" : "Add an asset — btc, Solana…"}
+          placeholder={unavailable ? t.label : t.placeholder}
           value={query}
           autoComplete="off"
           spellCheck={false}
@@ -98,11 +101,11 @@ export function AddField({ catalog, unavailable, followed, onAdd, onPick }: Prop
       {unavailable && <p className="wlv-add-note">{unavailable}</p>}
       {notFound && (
         <p className="wlv-suggest wlv-suggest-none" role="status">
-          Not found — BytNode does not cover “{query.trim()}”.
+          {t.notFound(query.trim())}
         </p>
       )}
       {shown && (
-        <ul className="wlv-suggest" id={list} role="listbox" aria-label="Assets to add">
+        <ul className="wlv-suggest" id={list} role="listbox" aria-label={t.options}>
           {options.map((o, i) => (
             <li
               key={o.symbol}
@@ -118,7 +121,7 @@ export function AddField({ catalog, unavailable, followed, onAdd, onPick }: Prop
             >
               <b>{o.base}</b>
               <span className="wlv-suggest-name">{o.name ?? o.symbol}</span>
-              {o.followed && <small className="wlv-suggest-src">In your list</small>}
+              {o.followed && <small className="wlv-suggest-src">{t.inList}</small>}
               <span className="wlv-suggest-pair">{o.symbol.split("/")[1]}</span>
             </li>
           ))}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useMessages } from "@/lib/i18n/react";
 import { ChevronDown } from "./icons";
 import { SearchPanel } from "./search-panel";
 
@@ -27,13 +28,14 @@ type Props = {
   placeholder?: string;
 };
 
-export function Select({ id, value, options, onChange, label, placeholder = "Choose" }: Props) {
+export function Select({ id, value, options, onChange, label, placeholder }: Props) {
+  const m = useMessages();
   const [open, setOpen] = useState(false);
   const current = options.find((o) => o.value === value);
   return (
     <div className="picker">
       <button id={id} type="button" className={`picker-trigger as-field${current ? "" : " is-empty"}`} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <span>{current?.label ?? placeholder}</span>
+        <span>{current?.label ?? placeholder ?? m.ui.choose}</span>
         <ChevronDown />
       </button>
       <SearchPanel open={open} onClose={() => setOpen(false)} label={label} width="100%" dense>

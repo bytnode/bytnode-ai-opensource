@@ -5,7 +5,7 @@
    talk to the user: it does not receive it. The plan grid lives in the
    `source-bytnode` skill, not here. Pure. */
 
-export const BYTNODE_PRICING_URL = "https://bytnode.com/tarifs";
+export const BYTNODE_PRICING_URL = "https://bytnode.com/pricing";
 
 export function bytnodeGuidance(subagent: boolean): string[] {
   if (subagent) return [];

@@ -1,7 +1,4 @@
 import { spawn } from "node:child_process";
-import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import type { AuthMethod } from "@agentclientprotocol/sdk";
 import {
   ACP_AGENTS,
@@ -9,9 +6,10 @@ import {
   type AcpAgentId,
   type AcpAuthStatus,
 } from "./agents";
+import { cancelClaudeSignIn, claudeSignIn, startClaudeSignIn } from "./claude-login";
 import { AcpConnection } from "./connection";
 import { installFailure, isInstalling } from "./install";
-import { acpLaunch, brokenInstall, cliLaunch, installedVersion, isInstalled, openTerminal, openTerminalWith, packageVersion, resolveAcp, runCli, subscriptionEnv } from "./launch";
+import { acpLaunch, brokenInstall, cliLaunch, installedVersion, isInstalled, openTerminal, packageVersion, resolveAcp, runCli, subscriptionEnv } from "./launch";
 import { AGENT_SOURCES, satisfiesCaret, trackedPackages } from "./packages";
 import { keepAgentsCurrent, updateAvailable } from "./updates";
 import { prepareWorkspace, scratchWorkspace } from "./prepare";
@@ -19,8 +17,8 @@ import { prepareWorkspace, scratchWorkspace } from "./prepare";
 /* ---------------------------------------------------------------------------
    The account behind each agent: signed in or not, sign in, sign out.
 
-   Three agents have a CLI that answers quickly (Claude: `auth status` in
-   JSON; Codex: `login status`; Gemini: a credentials file). The others go
+   Two agents have a CLI that answers quickly (Claude: `auth status` in
+   JSON; Codex: `login status`). The others go
    through the protocol itself: a probe session that succeeds = signed in,
    an « authentication required » error = not signed in; to sign in, the
    method the agent announces at `initialize` — either it opens the browser
@@ -62,6 +60,14 @@ export async function authStatus(agent: AcpAgentId): Promise<AcpAuthStatus> {
   const status: AcpAuthStatus = { ...known, ...base };
   if (status.loggedIn) connecting.delete(agent);
   else status.connecting = isConnecting(agent);
+  /* Claude's sign-in runs in the app: while it waits for the code, the
+     page keeps polling (`connecting`) and shows the block; a failure stops
+     the polling and shows the reason. */
+  const signIn = agent === "claude" && !status.loggedIn ? claudeSignIn() : null;
+  if (signIn) {
+    status.signIn = signIn;
+    status.connecting = !signIn.error;
+  }
   last.set(agent, status);
   return status;
 }
@@ -134,14 +140,6 @@ const STATUS: Partial<Record<AcpAgentId, () => Promise<Partial_>>> = {
         account: text.replace(/^logged in\s*/i, "") || "ChatGPT",
       };
     return { loggedIn: false, message: text || null };
-  },
-  async gemini() {
-    try {
-      await fs.access(path.join(os.homedir(), ".gemini", "oauth_creds.json"));
-      return { loggedIn: true, account: "Google account" };
-    } catch {
-      return { loggedIn: false };
-    }
   },
 };
 
@@ -226,15 +224,20 @@ export async function startLogin(agent: AcpAgentId): Promise<void> {
 
 const LOGIN: Partial<Record<AcpAgentId, () => Promise<void>>> = {
   async claude() {
-    openTerminalWith("claude", ["auth", "login"], "Claude sign-in");
+    /* In the app, not in a terminal (`claude-login.ts`). */
+    startClaudeSignIn(() => connecting.delete("claude"));
   },
   async openai() {
     /* `codex login` opens the browser, then waits for the callback on its
        local port: no terminal needed, we let it live in the background. */
     const { command, args } = cliLaunch("openai");
+    /* ⚠️ NOT detached on Windows: there `detached` means « no console »,
+       and `codex.js` then starts `codex.exe` in a console of its own, on
+       screen, beside the browser (user report, 2026-10-08). Attached, it
+       shares the server's. POSIX keeps its own group, as everywhere. */
     const child = spawn(command, [...args, "login"], {
       env: subscriptionEnv(),
-      detached: true,
+      detached: process.platform !== "win32",
       stdio: "ignore",
       windowsHide: true,
     });
@@ -348,6 +351,7 @@ function terminalAuthOf(method: AuthMethod): TerminalAuth | null {
 
 export async function logout(agent: AcpAgentId): Promise<void> {
   connecting.delete(agent);
+  if (agent === "claude") cancelClaudeSignIn();
   /* The cache is cleared ONLY once the sign-out succeeded. Clearing it
      first is what produced the loop the user sees: a failed sign-out still
      re-probed, showed « Reading… », found the account intact and put
@@ -373,11 +377,6 @@ const LOGOUT: Partial<Record<AcpAgentId, () => Promise<void>>> = {
   },
   async openai() {
     await cliLogout("openai", ["logout"]);
-  },
-  async gemini() {
-    await fs.rm(path.join(os.homedir(), ".gemini", "oauth_creds.json"), {
-      force: true,
-    });
   },
   async copilot() {
     await cliLogout("copilot", ["logout"]);

@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import { WATCHLIST } from "@/lib/plugins/alerts/alerts";
 import type { Listed } from "@/lib/plugins/shared/prices";
 import { Search } from "@/components/ui/icons";
+import { useMessages } from "@/lib/i18n/react";
 
 /* ---------------------------------------------------------------------------
    The asset of an alert: a search among BytNode's pairs, with "Every asset
@@ -39,6 +40,8 @@ function match(query: string, pairs: Listed[]): Option[] {
 type Props = { value: string; pairs: Listed[] | null; onChange: (target: string) => void };
 
 export function PairField({ value, pairs, onChange }: Props) {
+  const t = useMessages();
+  const w = t.alerts.pair;
   const [query, setQuery] = useState<string | null>(null);
   const [active, setActive] = useState(0);
   const list = useId();
@@ -48,9 +51,9 @@ export function PairField({ value, pairs, onChange }: Props) {
   const matched = match(query ?? "", pairs ?? []);
   const offerTyped = searching && /^[A-Z0-9]{2,15}$/.test(typed) && !matched.some((o) => o.base === typed);
   const watchlistFirst = !query?.trim() || "watchlist".startsWith(query.trim().toLowerCase());
-  const options: Option[] = [...(watchlistFirst ? [{ symbol: WATCHLIST, base: "Watchlist", name: "Every asset of my watchlist" }] : []), ...matched, ...(offerTyped ? [{ symbol: `${typed}/USDT`, base: typed, name: "Not listed by BytNode — priced from an exchange account" }] : [])];
+  const options: Option[] = [...(watchlistFirst ? [{ symbol: WATCHLIST, base: w.watchlist, name: w.everyAsset }] : []), ...matched, ...(offerTyped ? [{ symbol: `${typed}/USDT`, base: typed, name: w.notListed }] : [])];
   const lit = Math.min(active, options.length - 1);
-  const shownValue = value === WATCHLIST ? "Every asset of my watchlist" : value;
+  const shownValue = value === WATCHLIST ? w.everyAsset : value;
 
   const choose = (o: Option) => {
     onChange(o.symbol);
@@ -66,8 +69,8 @@ export function PairField({ value, pairs, onChange }: Props) {
         role="combobox"
         aria-expanded={searching}
         aria-controls={list}
-        aria-label="Asset"
-        placeholder={pairs ? "Search a pair — BTC, ether…" : "BTC/USDT"}
+        aria-label={w.asset}
+        placeholder={pairs ? w.search : "BTC/USDT"}
         value={searching ? query : shownValue}
         onFocus={() => setQuery("")}
         onBlur={() => setQuery(null)}
@@ -92,7 +95,7 @@ export function PairField({ value, pairs, onChange }: Props) {
         }}
       />
       {searching && options.length > 0 && (
-        <ul className="alv-suggest" id={list} role="listbox" aria-label="Pairs">
+        <ul className="alv-suggest" id={list} role="listbox" aria-label={w.pairs}>
           {options.map((o, i) => (
             <li key={o.symbol}>
               <button
@@ -109,7 +112,7 @@ export function PairField({ value, pairs, onChange }: Props) {
               >
                 <b>{o.base}</b>
                 <span>{o.name ?? o.symbol}</span>
-                {o.symbol === value && <small>Chosen</small>}
+                {o.symbol === value && <small>{w.chosen}</small>}
               </button>
             </li>
           ))}

@@ -6,6 +6,7 @@ import type { SlashCommand } from "@/lib/agent/commands";
 import { setDiscoveredCommands } from "@/lib/state/agent-commands";
 import { createStore } from "@/lib/state/store";
 import { isAcpProvider } from "@/lib/acp/agents";
+import { currentMessages } from "@/lib/i18n/store";
 import type { AgentModes } from "@/lib/acp/translate";
 import { onAcpAuthChange } from "@/lib/acp/use-auth";
 import { listProviders } from "./catalog";
@@ -55,12 +56,12 @@ export function loadCatalog(force = false): Promise<void> {
     try {
       const res = await fetch("/api/openrouter/models");
       const json = (await res.json()) as { models?: Model[]; error?: { message?: string } };
-      if (!res.ok || !json.models) throw new Error(json.error?.message ?? "Catalog unavailable.");
+      if (!res.ok || !json.models) throw new Error(json.error?.message ?? currentMessages().chat.errors.catalogUnavailable);
       const acp = store.get().models.filter((m) => isAcpProvider(m.providerId));
       const models = merge(json.models, acp);
       store.set({ ...store.get(), status: "ready", models, providers: listProviders(models) });
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Catalog unavailable.";
+      const message = e instanceof Error ? e.message : currentMessages().chat.errors.catalogUnavailable;
       const acp = store.get().models.filter((m) => isAcpProvider(m.providerId));
       store.set({ ...store.get(), status: "error", models: acp, providers: listProviders(acp), message });
     } finally {

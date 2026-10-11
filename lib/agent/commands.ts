@@ -9,8 +9,8 @@
 
    Two sources: BytNode-AI's own (`COMMANDS`: `/compact`), and those a
    subscription agent publishes for itself — Claude Code's `/goal`,
-   `/usage`, `/context`…, Codex's `/review`, `/status` and its `$skill`s,
-   Gemini CLI's `/memory show`… (`lib/acp/commands.ts`). The agent's are sent
+   `/usage`, `/context`…, Codex's `/review`, `/status` and its `$skill`s…
+   (`lib/acp/commands.ts`). The agent's are sent
    to it as typed, so they behave as in its own terminal.
 
    Pure: the lists and the matching. Execution stays in `use-chat.ts`
@@ -18,8 +18,8 @@
 --------------------------------------------------------------------------- */
 
 export type SlashCommand = {
-  /** The name, without its trigger: `compact`, `memory show` (Gemini's
-      sub-commands carry a space), `pdf:pdf` (a Codex skill). */
+  /** The name, without its trigger: `compact`, `memory show` (a
+      sub-command carries a space), `pdf:pdf` (a Codex skill). */
   name: string;
   /** What may follow, as shown: `[instructions]`. */
   args?: string;

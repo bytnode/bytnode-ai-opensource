@@ -6,7 +6,7 @@ BytNode-AI is a **local application that runs AI finance agents on the user's ow
 each agent has a trade (a *profession*), real tools (files, shells, web, charts, backtests,
 exchange orders) and live crypto market data from **BytNode**, and it runs either on any model
 from **OpenRouter** or on the **AI subscription the user already pays for** (Claude, ChatGPT,
-Gemini, GitHub Copilot, Grok).
+GitHub Copilot, Grok).
 
 ## What problem it solves
 
@@ -22,7 +22,7 @@ BytNode-AI closes that gap:
 | Advice in prose | Files, CSVs, PNG charts and reproducible Python backtests written in a folder the user owns |
 | One generic assistant | Agents specialised by profession: Standard, Analyst, Strategist, Quantitative |
 | Copy-paste to the exchange | Balance, positions, orders, and order placement on 10 exchanges — each order confirmed by the user |
-| A new paid API key | The user's existing Claude / ChatGPT / Gemini / Copilot / Grok subscription, or an OpenRouter key |
+| A new paid API key | The user's existing Claude / ChatGPT / Copilot / Grok subscription, or an OpenRouter key |
 
 ## Who it is for
 
@@ -48,28 +48,37 @@ It is published on npm as `bytnode-ai`.
 
 ## First launch
 
-A setup wizard opens over the BytNode background:
+In the desktop app, a sign-in page comes first: « Sign in with the browser » connects the BytNode
+account (bytnode.com/auth/desktop), which fills the profile and makes the app's BytNode key. Then a
+guided setup on the page itself: the app's companion on the left explains each step in a speech
+bubble, the step sits on the right.
 
-1. **Profile** — name, e-mail, and a few lines about oneself, passed to every agent.
-2. **Authentication** — two tabs:
-   - *Subscription*: Claude, OpenAI, Gemini, GitHub Copilot, Grok — "Install" then "Sign in"
-     with the vendor's own login (a personal account, never an API key).
-   - *Keys*: an OpenRouter key.
-   - In both cases: the **BytNode key** (market data) and, optionally, **exchange accounts**.
-3. **First agent** — name, provider/model, profession, context (text + files), workspace folder,
-   scope (workspace only / whole disk), permission mode (ask / run directly), allowed exchange
-   accounts.
+1. **You** - what the agents call you, a few words about you, the app's look (dark or light,
+   applied as you pick), then last name and e-mail, optional (filled from the account).
+2. **Your AI** - a subscription already paid for (Claude, OpenAI, GitHub Copilot, Grok) or an
+   OpenRouter key: one is enough.
+3. **Telegram** - a bot to get alerts and scheduled reports on the phone, optional.
+4. **Exchanges** - the exchange accounts, optional; the keys never leave the computer.
 
-Afterwards the left column lists the agents; opening one shows its conversations. Settings
-(General / Auth / Agents / Providers) reopen from the cog.
+The companion's words write themselves only once the app's window is in front (not while the
+user is still in the browser signing in). The npm app also asks the **BytNode key** with the AI.
+
+There is no agent to fill in: the app makes the first one (« BytNode-AI », on the subscription just
+connected, otherwise the OpenRouter key) and opens on its welcome conversation
+(`lib/onboarding/first-run.ts`).
+
+Afterwards the left column lists the agents and their latest conversations; an agent's name
+opens its page (its conversations, instructions, context files). On the plugins' tabs a small
+living companion brings the last conversation along, in a panel the user keeps open while
+working in the tab. Settings (General / Auth / Agents / Providers) reopen from the cog.
 
 ## The two engines
 
 | | **Key agents (OpenRouter)** | **Subscription agents (ACP)** |
 |---|---|---|
 | Billing | The user's OpenRouter credit | The user's existing subscription quota |
-| Models | Any of the OpenRouter catalogue | The vendor's own models (Opus, GPT, Gemini…) |
-| Who runs the loop | BytNode-AI itself | The vendor's agent (Claude Code, Codex, Gemini CLI, Copilot CLI, Grok Build), driven through the Agent Client Protocol |
+| Models | Any of the OpenRouter catalogue | The vendor's own models (Opus, GPT, Grok…) |
+| Who runs the loop | BytNode-AI itself | The vendor's agent (Claude Code, Codex, Copilot CLI, Grok Build), driven through the Agent Client Protocol |
 | Tools | BytNode-AI's tool set | The vendor agent's own tools **plus** BytNode-AI's finance, exchange and Workflow tools served over MCP |
 
 Both engines get the same profession prompts, skills, BytNode data and permission prompts.

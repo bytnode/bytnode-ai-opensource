@@ -3,10 +3,12 @@
 import type { PluginManifest } from "@/lib/domain/plugins";
 import type { Settings } from "@/lib/domain/types";
 import { viewEntry, type ViewEntry } from "@/lib/plugins/catalog";
+import { useMessages } from "@/lib/i18n/react";
+import { viewText } from "@/lib/i18n/plugin-text";
 import { goToConversation } from "@/lib/state/navigation";
 import { ensureConversation } from "@/lib/state/scheduled-runs";
 import { HOME, activateTab, closeViews, openView, type ViewTab } from "@/lib/state/tabs";
-import { useUiPrefs } from "@/lib/state/ui";
+import { SIDEBAR_WIDTH } from "@/lib/state/ui";
 import { Close } from "@/components/ui/icons";
 import { NotificationCenter } from "./notification-center";
 import { TabIcon } from "./tab-icons";
@@ -38,7 +40,7 @@ function wheelSideways(e: React.WheelEvent<HTMLDivElement>) {
 type Props = { settings: Settings; views: ViewEntry[]; extra: PluginManifest[]; tabs: ViewTab[]; active: string };
 
 export function TabBar({ settings, views, extra, tabs, active }: Props) {
-  const { sidebarWidth } = useUiPrefs();
+  const m = useMessages();
   /* The preview under a tab the hand rests on (`tab-preview.tsx`). */
   const preview = useTabPreview();
   const hover = (view: string) => ({
@@ -46,30 +48,32 @@ export function TabBar({ settings, views, extra, tabs, active }: Props) {
     onMouseLeave: preview.leave,
     onMouseDown: preview.hide,
   });
-  const peeked = preview.peek ? (preview.peek.view === HOME ? { title: "Conversations", description: "Your agents and their conversations" } : viewEntry(preview.peek.view, extra)) : null;
+  const peekedEntry = preview.peek && preview.peek.view !== HOME ? viewEntry(preview.peek.view, extra) : undefined;
+  const peeked = preview.peek ? (preview.peek.view === HOME ? { title: m.shell.conversations, description: m.shell.conversationsDescription } : peekedEntry ? viewText(peekedEntry.plugin.id, peekedEntry, m) : null) : null;
   return (
-    <div className="tb" style={{ "--tb-home": `${sidebarWidth}px` } as React.CSSProperties}>
-      <div className="tb-tabs" role="tablist" aria-label="Open pages" onScroll={preview.hide} onWheel={wheelSideways}>
+    <div className="tb" style={{ "--tb-home": `${SIDEBAR_WIDTH}px` } as React.CSSProperties}>
+      <div className="tb-tabs" role="tablist" aria-label={m.shell.openPages} onScroll={preview.hide} onWheel={wheelSideways}>
         {/* Built like the others (a tab around its label); its width is
             the column's, not a share of the bar. */}
         <div className={`tb-tab tb-tab-home${active === HOME ? " is-on" : ""}`} {...hover(HOME)}>
           <button type="button" role="tab" aria-selected={active === HOME} className="tb-home" onClick={() => activateTab(HOME)}>
             <TabIcon view="home" className="tb-favicon" />
-            <span className="tb-title">Conversations</span>
+            <span className="tb-title">{m.shell.conversations}</span>
           </button>
         </div>
         {tabs.map((t) => {
           const entry = viewEntry(t.view, extra);
           if (!entry) return null;
           const on = active === t.view;
+          const title = viewText(entry.plugin.id, entry, m).title;
           return (
             <div key={t.view} className={`tb-tab${on ? " is-on" : ""}`} {...hover(t.view)}>
               <span className="tb-sep" aria-hidden />
               <button type="button" role="tab" aria-selected={on} className="tb-label" onClick={() => activateTab(t.view)}>
                 <TabIcon view={t.view} className="tb-favicon" />
-                <span className="tb-title">{entry.title}</span>
+                <span className="tb-title">{title}</span>
               </button>
-              <button type="button" className="tb-close" onClick={() => closeViews([t.view])} aria-label={`Close ${entry.title}`}>
+              <button type="button" className="tb-close" onClick={() => closeViews([t.view])} aria-label={m.shell.closeTab(title)}>
                 <Close />
               </button>
             </div>

@@ -2,6 +2,7 @@
 
 import type { Attachment } from "./attachments";
 import { captureScreen, downscaleToJpeg, toBase64 } from "./capture";
+import { currentMessages } from "@/lib/i18n/store";
 
 /* What the browser does to attach something: shrink images, drop the files
    into the agent's workspace through the route, and make the attachments
@@ -19,7 +20,7 @@ async function upload(target: Target, files: Array<{ name: string; blob: Blob; t
     body: JSON.stringify({ agentId: target.agentId, workspace: target.workspace, files: encoded }),
   });
   const json = (await res.json()) as { attachments?: Attachment[]; error?: { message?: string } };
-  if (!res.ok || !json.attachments) throw new Error(json.error?.message ?? `Upload failed (${res.status}).`);
+  if (!res.ok || !json.attachments) throw new Error(json.error?.message ?? currentMessages().chat.errors.uploadFailed(res.status));
   return json.attachments;
 }
 

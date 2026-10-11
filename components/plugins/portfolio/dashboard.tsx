@@ -13,6 +13,9 @@ import { fmt } from "../bits";
 import { PriceChart } from "../watchlist/price-chart";
 import { Donut, SplitBar, type Part } from "./charts";
 import { accountKey } from "./side";
+import { useMessages } from "@/lib/i18n/react";
+import type { Messages } from "@/lib/i18n/messages/en";
+import { dateTag, numberTag } from "@/lib/i18n/store";
 
 /* ---------------------------------------------------------------------------
    The right sheet of the Portfolio tab, as a wealth report: for the whole
@@ -57,26 +60,40 @@ type Props = {
   access?: Record<string, Access> | null;
 };
 
-const KINDS: Array<{ key: string; label: string }> = [
-  { key: "ledger", label: "Ledger" },
-  { key: "trades", label: "Trades" },
-  { key: "deposits", label: "Deposits" },
-  { key: "withdrawals", label: "Withdrawals" },
-  { key: "earn", label: "Earn" },
-  { key: "converts", label: "Converts" },
-];
-const ACT = { buy: "Bought", sell: "Sold", deposit: "Deposit", withdrawal: "Withdrawal", outflow: "Left the account", inflow: "Came in" } as const;
+/** The kinds of history an exchange keeps, in the order shown. */
+const KINDS = ["ledger", "trades", "deposits", "withdrawals", "earn", "converts"] as const;
 const ACT_TONE = { buy: "var(--alloc-0)", sell: "var(--alloc-3)", deposit: "var(--up)", withdrawal: "var(--down)", outflow: "var(--cal-unlock)", inflow: "var(--up)" } as const;
 
 const TONES = ["var(--alloc-0)", "var(--alloc-1)", "var(--alloc-2)", "var(--alloc-3)", "var(--alloc-4)", "var(--alloc-5)", "var(--alloc-6)"];
 const signed = (v: number, digits = 2) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(digits)} %`;
 const toneOf = (v: number | undefined) => (v === undefined || v === 0 ? "is-flat" : v > 0 ? "is-up" : "is-down");
-const dayOf = (t: number) => new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+const dayOf = (at: number) => new Date(at).toLocaleDateString(dateTag(), { day: "numeric", month: "short" });
+
+type Missing = Access["missing"][number];
+
+/** What a key that lacks some permissions lets the history show, in the
+    interface's words: Bybit's from what it lacks (as `bybitShown` says it
+    to the server), another exchange's "what the key can read". */
+function shownOf(t: Messages, a: Access): string {
+  const w = t.portfolio.shown;
+  if (a.exchange !== "bybit") return a.missing.length ? w.whatKeyReads : a.shown;
+  const lacks = new Set(a.missing.map((m) => m.key));
+  if (lacks.has("earn")) return lacks.has("wallet") ? w.unifiedOnly : w.unifiedFunding;
+  return lacks.has("wallet") ? w.unifiedEarn : w.whole;
+}
+
+/** A missing permission's name: Bybit's own (its key page's words, which
+    stay as Bybit writes them), else the kind of history. */
+const missingLabel = (t: Messages, m: Missing): string => (m.key in t.portfolio.kinds ? t.portfolio.kinds[m.key as keyof Messages["portfolio"]["kinds"]] : m.label);
+const missingWhat = (t: Messages, m: Missing): string => (m.key in t.portfolio.missing ? t.portfolio.missing[m.key as keyof Messages["portfolio"]["missing"]] : m.what);
 
 /** Activities shown before "Show more". */
 const ACTS_SHOWN = 3;
 
 export function Dashboard({ summary, account, series, period, onPeriod, value, perUsd, currency, onScope, origin = null, activity = null, coverage = null, reading = false, access = null }: Props) {
+  const t = useMessages();
+  const w = t.portfolio;
+  const periods = PERIODS.map((p) => ({ value: p.value, label: w.periods[p.value] }));
   /* The activity list: the three latest, the rest behind "Show more". */
   const [allActs, setAllActs] = useState(false);
   const whole = account === null;
@@ -85,13 +102,14 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
   const wallets: WalletSplit = account ? account.wallets : summary.wallets;
   const positions = account ? summary.positions.filter((p) => p.label === account.label && p.testnet === account.testnet) : summary.positions.filter((p) => !p.testnet);
   const total = account ? account.usd : summary.totalUsd;
-  const inCur = (native: number) => `${native.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+  const inCur = (native: number) => `${native.toLocaleString(numberTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
   const money = (native: number) => `${native >= 0 ? "+" : "−"}${inCur(Math.abs(native))}`;
   /* A figure without its currency, where the cell's value already says it. */
-  const bare = (native: number) => native.toLocaleString("en-US", { maximumFractionDigits: native >= 1000 ? 0 : 2 });
+  const bare = (native: number) => native.toLocaleString(numberTag(), { maximumFractionDigits: native >= 1000 ? 0 : 2 });
 
   const slices = allocation(assets);
-  const parts: Part[] = slices.map((s, i) => ({ key: s.asset, label: s.asset, value: s.usd, tone: s.asset === "Other" ? "var(--alloc-other)" : TONES[i] }));
+  /* "Other" is the folded slice (`allocation`), said in the user's words. */
+  const parts: Part[] = slices.map((s, i) => ({ key: s.asset, label: s.asset === "Other" && s.count !== undefined ? w.other : s.asset, value: s.usd, tone: s.asset === "Other" ? "var(--alloc-other)" : TONES[i] }));
   const cash = assets.filter((a) => STABLES.has(a.asset)).reduce((s, a) => s + a.usd, 0);
   const long = positions.filter((p) => !/short|sell/i.test(p.side)).reduce((s, p) => s + Math.abs(p.size * (p.mark ?? p.entry ?? 0)), 0);
   const short = positions.filter((p) => /short|sell/i.test(p.side)).reduce((s, p) => s + Math.abs(p.size * (p.mark ?? p.entry ?? 0)), 0);
@@ -120,7 +138,7 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
           move as the watchlist writes it. */}
       <div className="pfv-hero">
         <p className="pfv-hero-value">
-          <span>{(total * perUsd).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span>{(total * perUsd).toLocaleString(numberTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           <small>{currency}</small>
         </p>
         {perf ? (
@@ -128,81 +146,76 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
             <b className="wlv-pill" style={{ "--tone": perf.pct > 0 ? "var(--up)" : perf.pct < 0 ? "var(--down)" : "var(--label-3)" } as CSSProperties}>
               {signed(perf.pct)}
             </b>
-            <span>
-              {money(perf.change)} gained over {PERIODS.find((p) => p.value === period)?.label}
-            </span>
+            <span>{w.gainedOver(money(perf.change), w.periodWords[period])}</span>
           </p>
         ) : (
-          <p className="pfv-hero-note">The move appears after two daily snapshots.</p>
+          <p className="pfv-hero-note">{w.moveAfterTwo}</p>
         )}
-        <Segmented label="Period" value={period} options={PERIODS} onChange={onPeriod} />
+        <Segmented label={w.period} value={period} options={periods} onChange={onPeriod} />
       </div>
 
-      <Part title="Performance" sub={origin === "ledger" ? "from the exchanges' records, at each day's close" : origin === "mixed" ? "from the exchanges' records, estimated where one has none" : origin === "estimate" ? "estimated from today's holdings at past prices" : "a daily snapshot, while the app is open"}>
+      <Part title={w.performance} sub={origin === "ledger" ? w.originLedger : origin === "mixed" ? w.originMixed : origin === "estimate" ? w.originEstimate : w.originSnapshot}>
           {lacking.map(([id, a]) => {
             const name = exchangeInfo(a.exchange)?.label ?? a.exchange;
             const label = labelOf.get(id)?.label;
             return (
               <div key={id} className="pfv-access" role="alert">
-                <p className="pfv-access-title">
-                  {name}
-                  {label ? ` · ${label}` : ""}: the API key cannot read the whole account
-                </p>
+                <p className="pfv-access-title">{w.accessTitle(`${name}${label ? ` · ${label}` : ""}`)}</p>
                 <p>
-                  Not ticked on the key:{" "}
+                  {w.notTicked}{" "}
                   {a.missing.map((m, i) => (
                     <span key={m.key}>
-                      <b>{m.label}</b>
+                      <b>{missingLabel(t, m)}</b>
                       {i < a.missing.length - 1 ? ", " : ""}
                     </span>
                   ))}
-                  . The history below leaves out {a.missing.map((m) => m.what).join("; ")} — it shows {a.shown}.
+                  . {w.leavesOut(a.missing.map((m) => missingWhat(t, m)).join("; "), shownOf(t, a))}
                 </p>
                 <p className="pfv-access-foot">
                   {a.url && (
                     <a href={a.url} target="_blank" rel="noreferrer">
-                      Open {name}&apos;s API keys
+                      {w.openApiKeys(name)}
                     </a>
                   )}
-                  <span>Read access is enough; never tick Withdrawal. Then reload the portfolio.</span>
+                  <span>{w.readEnough}</span>
                 </p>
               </div>
             );
           })}
           <div className="pfv-chart">
-            <PriceChart candles={series} interval="1d" mode="line" fit returns message={series.length < 2 ? (whole ? "The curve appears after two daily snapshots." : account?.testnet ? "A testnet account is never recorded: no curve." : "This account's curve starts with its first daily snapshots.") : null} />
+            <PriceChart candles={series} interval="1d" mode="line" fit returns message={series.length < 2 ? (whole ? w.curveAfterTwo : account?.testnet ? w.testnetNoCurve : w.accountCurveStarts) : null} />
           </div>
           <div className="wlv-insights pfv-metrics" style={{ "--cols": 5 } as CSSProperties}>
-            <Metric label="Return" value={perf ? signed(perf.pct) : "—"} tone={toneOf(perf?.pct)} sub={perf ? `${money(perf.change)} gained` : "—"} />
-            <Metric label="Value change" value={perf ? money(perf.valueChange) : "—"} tone={toneOf(perf?.valueChange)} sub={perf ? `from ${bare(perf.start)} to ${bare(perf.end)}` : "—"} />
-            <Metric label="Money moved" value={perf ? money(perf.moneyIn + perf.moneyOut) : "—"} sub={!perf ? "—" : perf.moneyIn || perf.moneyOut ? `${bare(perf.moneyIn)} in · ${bare(Math.abs(perf.moneyOut))} out` : "no deposit nor withdrawal"} />
-            <Metric label="High" value={perf ? inCur(perf.high) : "—"} sub={perf ? `on ${dayOf(perf.highAt)}` : "—"} />
-            <Metric label="Low" value={perf ? inCur(perf.low) : "—"} sub={perf ? `on ${dayOf(perf.lowAt)}` : "—"} />
-            <Metric label="Max drawdown" value={perf ? signed(perf.maxDrawdown) : "—"} tone={perf && perf.maxDrawdown < 0 ? "is-down" : undefined} sub="of the performance" />
-            <Metric label="Deepest value fall" value={perf ? signed(perf.valueDrawdown) : "—"} tone={perf && perf.valueDrawdown < 0 ? "is-down" : undefined} sub="money taken out included" />
-            <Metric label="Best day" value={perf?.best ? signed(perf.best.pct) : "—"} tone={perf?.best && perf.best.pct > 0 ? "is-up" : undefined} sub={perf?.best ? `on ${dayOf(perf.best.t)}` : "—"} />
-            <Metric label="Worst day" value={perf?.worst ? signed(perf.worst.pct) : "—"} tone={perf?.worst && perf.worst.pct < 0 ? "is-down" : undefined} sub={perf?.worst ? `on ${dayOf(perf.worst.t)}` : "—"} />
-            <Metric label="Volatility" value={perf?.volatility != null ? `${perf.volatility.toFixed(1)} %` : "—"} sub="annualized, daily moves" />
+            <Metric label={w.return} value={perf ? signed(perf.pct) : "—"} tone={toneOf(perf?.pct)} sub={perf ? w.gained(money(perf.change)) : "—"} />
+            <Metric label={w.valueChange} value={perf ? money(perf.valueChange) : "—"} tone={toneOf(perf?.valueChange)} sub={perf ? w.fromTo(bare(perf.start), bare(perf.end)) : "—"} />
+            <Metric label={w.moneyMoved} value={perf ? money(perf.moneyIn + perf.moneyOut) : "—"} sub={!perf ? "—" : perf.moneyIn || perf.moneyOut ? w.inOut(bare(perf.moneyIn), bare(Math.abs(perf.moneyOut))) : w.noFlows} />
+            <Metric label={w.high} value={perf ? inCur(perf.high) : "—"} sub={perf ? w.on(dayOf(perf.highAt)) : "—"} />
+            <Metric label={w.low} value={perf ? inCur(perf.low) : "—"} sub={perf ? w.on(dayOf(perf.lowAt)) : "—"} />
+            <Metric label={w.maxDrawdown} value={perf ? signed(perf.maxDrawdown) : "—"} tone={perf && perf.maxDrawdown < 0 ? "is-down" : undefined} sub={w.ofPerformance} />
+            <Metric label={w.deepestFall} value={perf ? signed(perf.valueDrawdown) : "—"} tone={perf && perf.valueDrawdown < 0 ? "is-down" : undefined} sub={w.withdrawalsIncluded} />
+            <Metric label={w.bestDay} value={perf?.best ? signed(perf.best.pct) : "—"} tone={perf?.best && perf.best.pct > 0 ? "is-up" : undefined} sub={perf?.best ? w.on(dayOf(perf.best.t)) : "—"} />
+            <Metric label={w.worstDay} value={perf?.worst ? signed(perf.worst.pct) : "—"} tone={perf?.worst && perf.worst.pct < 0 ? "is-down" : undefined} sub={perf?.worst ? w.on(dayOf(perf.worst.t)) : "—"} />
+            <Metric label={w.volatility} value={perf?.volatility != null ? `${perf.volatility.toFixed(1)} %` : "—"} sub={w.volatilitySub} />
           </div>
       </Part>
 
-      <Part title="Allocation" sub={whole ? "live accounts" : account?.label}>
+      <Part title={w.allocation} sub={whole ? w.liveAccountsSub : account?.label}>
         {assets.length === 0 ? (
-          <p className="pfv-quiet">No balance to split.</p>
+          <p className="pfv-quiet">{w.nothingToSplit}</p>
         ) : (
           <div className="pfv-allocation">
-            <Donut parts={parts} center={`${assets.length}`} sub={assets.length === 1 ? "asset" : "assets"} />
+            <Donut parts={parts} center={`${assets.length}`} sub={w.assets(assets.length)} />
             <ul className="pfv-legend">
               {slices.map((s, i) => (
                 <li key={s.asset} style={{ "--tone": parts[i].tone, "--w": `${Math.max(s.share * 100, 0.5)}%` } as CSSProperties}>
                   <i />
-                  <b>{s.asset}</b>
+                  <b>{parts[i].label}</b>
                   <span className="pfv-legend-bar" aria-hidden>
                     <u />
                   </span>
                   <span className="pfv-legend-value">
                     {value(s.usd)}
-                    {s.amount !== undefined ? <small>{fmt(s.amount)}</small> : s.count ? <small>{s.count} assets</small> : null}
+                    {s.amount !== undefined ? <small>{fmt(s.amount)}</small> : s.count ? <small>{w.assetsCount(s.count)}</small> : null}
                   </span>
                   <em>{(s.share * 100).toFixed(1)} %</em>
                 </li>
@@ -212,47 +225,47 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
         )}
       </Part>
 
-      <Part title="Composition">
+      <Part title={w.composition}>
         <div className="pfv-compo">
           <div className="pfv-compo-cell">
-            <span className="pfv-caption">Cash and crypto</span>
+            <span className="pfv-caption">{w.cashAndCrypto}</span>
             <b className="pfv-compo-figure">{total > 0 ? `${(((total - cash) / total) * 100).toFixed(1)} %` : "—"}</b>
-            <small className="pfv-compo-sub">in crypto · {value(cash)} in stablecoins</small>
+            <small className="pfv-compo-sub">{w.inCrypto(value(cash))}</small>
             <SplitBar
               parts={[
-                { key: "crypto", label: "Crypto", value: total - cash, tone: "var(--alloc-0)" },
-                { key: "cash", label: "Stablecoins", value: cash, tone: "var(--alloc-2)" },
+                { key: "crypto", label: w.crypto, value: total - cash, tone: "var(--alloc-0)" },
+                { key: "cash", label: w.stablecoins, value: cash, tone: "var(--alloc-2)" },
               ]}
               format={(p, share) => `${(share * 100).toFixed(1)} %`}
             />
           </div>
           <div className="pfv-compo-cell">
-            <span className="pfv-caption">Wallets</span>
+            <span className="pfv-caption">{w.wallets}</span>
             <b className="pfv-compo-figure">{value(wallets.spot)}</b>
-            <small className="pfv-compo-sub">in spot · {value(wallets.futures)} in futures</small>
+            <small className="pfv-compo-sub">{w.inSpot(value(wallets.futures))}</small>
             <SplitBar
               parts={[
-                { key: "spot", label: "Spot", value: wallets.spot, tone: "var(--alloc-1)" },
-                { key: "futures", label: "Futures", value: wallets.futures, tone: "var(--alloc-3)" },
-                { key: "funding", label: "Funding", value: wallets.funding, tone: "var(--alloc-4)" },
-                { key: "earn", label: "Earn", value: wallets.earn, tone: "var(--alloc-2)" },
+                { key: "spot", label: w.spot, value: wallets.spot, tone: "var(--alloc-1)" },
+                { key: "futures", label: w.futures, value: wallets.futures, tone: "var(--alloc-3)" },
+                { key: "funding", label: w.funding, value: wallets.funding, tone: "var(--alloc-4)" },
+                { key: "earn", label: w.earn, value: wallets.earn, tone: "var(--alloc-2)" },
               ]}
               format={(p, share) => `${(share * 100).toFixed(1)} %`}
             />
           </div>
           <div className="pfv-compo-cell">
-            <span className="pfv-caption">Exposure of the open positions</span>
+            <span className="pfv-caption">{w.exposure}</span>
             {positions.length ? (
               <>
                 <b className={`pfv-compo-figure ${toneOf(pnl)}`}>
                   {pnl >= 0 ? "+" : "−"}
                   {fmt(Math.abs(pnl), 2)} USDT
                 </b>
-                <small className="pfv-compo-sub">unrealized PnL · net {long - short >= 0 ? "long" : "short"} {fmt(Math.abs(long - short), 0)} USDT</small>
+                <small className="pfv-compo-sub">{w.unrealized(long - short >= 0, `${fmt(Math.abs(long - short), 0)} USDT`)}</small>
                 <SplitBar
                   parts={[
-                    { key: "long", label: "Long", value: long, tone: "var(--up)" },
-                    { key: "short", label: "Short", value: short, tone: "var(--down)" },
+                    { key: "long", label: w.long, value: long, tone: "var(--up)" },
+                    { key: "short", label: w.short, value: short, tone: "var(--down)" },
                   ]}
                   format={(p) => `${fmt(p.value, 0)} USDT`}
                 />
@@ -260,7 +273,7 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
             ) : (
               <>
                 <b className="pfv-compo-figure">—</b>
-                <small className="pfv-compo-sub">no open position</small>
+                <small className="pfv-compo-sub">{w.noPosition}</small>
               </>
             )}
           </div>
@@ -268,12 +281,12 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
       </Part>
 
       {whole && summary.accounts.length > 0 && (
-        <Part title="Accounts" sub="compared">
+        <Part title={w.accounts} sub={w.compared}>
           <div className="pfv-bars">
             {summary.accounts.map((a) => {
               const share = !a.testnet && summary.totalUsd > 0 ? a.usd / summary.totalUsd : 0;
               return (
-                <button key={accountKey(a)} type="button" className="pfv-bar-row" onClick={() => onScope(accountKey(a))} title={`See ${a.label} on its own`}>
+                <button key={accountKey(a)} type="button" className="pfv-bar-row" onClick={() => onScope(accountKey(a))} title={w.seeAlone(a.label)}>
                   <span className="pfv-bar-name">
                     <span className={`xch-badge${a.testnet ? "" : " is-live"}`}>{a.testnet ? "TESTNET" : "LIVE"}</span>
                     {a.label}
@@ -283,7 +296,7 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
                   </span>
                   <span className="pfv-bar-value">
                     {value(a.usd)}
-                    <small>{a.testnet ? "not counted" : `${(share * 100).toFixed(1)} %`}</small>
+                    <small>{a.testnet ? w.notCounted : `${(share * 100).toFixed(1)} %`}</small>
                   </span>
                 </button>
               );
@@ -292,16 +305,16 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
         </Part>
       )}
 
-      <Part title="Positions" sub={holdings.length + positions.length ? `${holdings.length} held · ${positions.length} open` : undefined}>
+      <Part title={w.positions} sub={holdings.length + positions.length ? w.heldOpen(holdings.length, positions.length) : undefined}>
         {holdings.length + positions.length === 0 ? (
-          <p className="pfv-quiet">No asset held and no open position.</p>
+          <p className="pfv-quiet">{w.nothingHeld}</p>
         ) : (
           <div className="wlv-events">
             {holdings.map((h) => (
               <div key={`held:${h.asset}`} className="wlv-event pfv-position pfv-holding" style={{ "--tone": h.tone } as CSSProperties}>
                 <span className="pfv-position-pair">
                   <b>{h.asset}</b>
-                  <small className="pfv-side is-long">Spot</small>
+                  <small className="pfv-side is-long">{w.spot}</small>
                 </span>
                 <span className="pfv-position-account">
                   {h.accounts.map((a) => (
@@ -312,7 +325,7 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
                   ))}
                 </span>
                 <span className="pfv-position-figures">
-                  <small>Amount</small> {fmt(h.amount)} <small>Price</small> {h.amount > 0 ? value(h.usd / h.amount) : "—"} <small>Share</small> {(h.share * 100).toFixed(1)} %
+                  <small>{w.amount}</small> {fmt(h.amount)} <small>{w.price}</small> {h.amount > 0 ? value(h.usd / h.amount) : "—"} <small>{w.share}</small> {(h.share * 100).toFixed(1)} %
                 </span>
                 <span className="pfv-position-pnl pfv-held-value">{value(h.usd)}</span>
               </div>
@@ -321,7 +334,7 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
               <div key={`${p.label}:${p.symbol}:${p.side}`} className={`wlv-event pfv-position ${typeof p.pnl === "number" && p.pnl < 0 ? "is-down" : "is-up"}`}>
                 <span className="pfv-position-pair">
                   <b>{p.symbol}</b>
-                  <small className={`pfv-side ${/short|sell/i.test(p.side) ? "is-short" : "is-long"}`}>{p.side}</small>
+                  <small className={`pfv-side ${/short|sell/i.test(p.side) ? "is-short" : "is-long"}`}>{w.sides[p.side.toLowerCase()] ?? p.side}</small>
                   {p.leverage ? <small>×{p.leverage}</small> : null}
                 </span>
                 <span className="pfv-position-account">
@@ -329,11 +342,11 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
                   {p.label}
                 </span>
                 <span className="pfv-position-figures">
-                  <small>Size</small> {fmt(p.size)} <small>Entry</small> {fmt(p.entry)} <small>Mark</small> {fmt(p.mark)}
+                  <small>{w.size}</small> {fmt(p.size)} <small>{w.entry}</small> {fmt(p.entry)} <small>{w.mark}</small> {fmt(p.mark)}
                   {p.liquidation ? (
                     <>
                       {" "}
-                      <small>Liq.</small> {fmt(p.liquidation)}
+                      <small>{w.liq}</small> {fmt(p.liquidation)}
                     </>
                   ) : null}
                 </span>
@@ -345,25 +358,25 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
       </Part>
 
       {activity !== null && (
-        <Part title="Activity" sub={reading ? "reading the exchanges' history…" : `${PERIODS.find((p) => p.value === period)?.label} · ${count("buy") + count("sell")} trades · ${count("deposit")} deposits · ${count("withdrawal")} withdrawals`}>
+        <Part title={w.activity} sub={reading ? w.readingHistory : w.activitySub(w.periods[period], count("buy") + count("sell"), count("deposit"), count("withdrawal"))}>
           {acts.length === 0 ? (
-            <p className="pfv-quiet">{reading ? "Reading the trades, deposits and withdrawals…" : "No trade, deposit or withdrawal in this period."}</p>
+            <p className="pfv-quiet">{reading ? w.readingActivity : w.noActivity}</p>
           ) : (
             <div className="wlv-events">
               {(allActs ? acts : acts.slice(0, ACTS_SHOWN)).map((a, i) => (
                 <div key={`${a.t}:${a.kind}:${a.asset}:${i}`} className="wlv-event pfv-act" style={{ "--tone": ACT_TONE[a.kind] } as CSSProperties}>
-                  <span className="pfv-act-when">{new Date(a.t).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                  <span className="pfv-act-when">{new Date(a.t).toLocaleString(dateTag(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
                   <span className="pfv-act-what">
-                    <b>{ACT[a.kind]}</b> {fmt(a.amount)} {a.asset}
-                    {a.price ? <small> at {fmt(a.price)}</small> : null}
-                    {a.kind === "outflow" ? <small> · a card payment, a P2P sale or Bybit Pay: the API does not show which</small> : null}
+                    <b>{w.acts[a.kind]}</b> {fmt(a.amount)} {a.asset}
+                    {a.price ? <small>{w.at(fmt(a.price))}</small> : null}
+                    {a.kind === "outflow" ? <small>{w.outflowNote}</small> : null}
                   </span>
                   <span className="pfv-position-account">{labelOf.get(a.account)?.label ?? ""}</span>
                 </div>
               ))}
               {acts.length > ACTS_SHOWN && (
                 <button type="button" className="pfv-act-more" onClick={() => setAllActs(!allActs)} aria-expanded={allActs}>
-                  {allActs ? "Show less" : `Show ${acts.length - ACTS_SHOWN} more`}
+                  {allActs ? w.showLess : w.showMore(acts.length - ACTS_SHOWN)}
                 </button>
               )}
             </div>
@@ -372,7 +385,7 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
       )}
 
       {coverage !== null && covered.length > 0 && (
-        <Part title="History" sub="what each exchange keeps, and since when">
+        <Part title={w.history} sub={w.historySub}>
           <div className="pfv-cover">
             {covered.map(([id, kinds]) => {
               const a = labelOf.get(id);
@@ -384,13 +397,13 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
                   </span>
                   <span className="pfv-cover-chips">
                     {KINDS.map((k) => {
-                      const c = kinds[k.key];
+                      const c = kinds[k];
                       if (!c) return null;
-                      const since = c.from ? new Date(c.from).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : null;
-                      const text = c.status === "ok" ? (since ? `since ${since}` : "read") : c.status === "limited" ? (since ? `only since ${since}` : "limited by the exchange") : c.status === "unsupported" ? "not offered" : "could not be read";
+                      const since = c.from ? new Date(c.from).toLocaleDateString(dateTag(), { day: "numeric", month: "short", year: "numeric" }) : null;
+                      const text = c.status === "ok" ? (since ? w.since(since) : w.read) : c.status === "limited" ? (since ? w.onlySince(since) : w.limited) : c.status === "unsupported" ? w.notOffered : w.couldNotBeRead;
                       return (
-                        <span key={k.key} className={`pfv-chip is-${c.status}`} title={c.note ?? ""}>
-                          <b>{k.label}</b> {text}
+                        <span key={k} className={`pfv-chip is-${c.status}`} title={c.note ?? ""}>
+                          <b>{w.kinds[k]}</b> {text}
                         </span>
                       );
                     })}
@@ -400,13 +413,13 @@ export function Dashboard({ summary, account, series, period, onPeriod, value, p
             })}
           </div>
           {covered.some(([, kinds]) => Object.values(kinds).some((c) => c.status === "limited")) && (
-            <p className="pfv-quiet pfv-cover-note">An exchange that keeps a shorter history than the period asked is marked in orange: its figures start where its history does.</p>
+            <p className="pfv-quiet pfv-cover-note">{w.limitedNote}</p>
           )}
         </Part>
       )}
 
       {unpriced.length > 0 && (
-        <Part title="Not counted" sub="no price available">
+        <Part title={w.notCountedTitle} sub={w.noPrice}>
           <p className="pfv-quiet">{unpriced.map((u) => `${u.asset} ${fmt(u.amount)}${whole ? ` (${u.label})` : ""}`).join(" · ")}</p>
         </Part>
       )}

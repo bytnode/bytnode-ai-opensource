@@ -1,4 +1,5 @@
 import type { Message } from "@/lib/domain/types";
+import { currentMessages } from "@/lib/i18n/store";
 
 /* ---------------------------------------------------------------------------
    Compacting a conversation.
@@ -23,21 +24,21 @@ export function isCompactCommand(text: string): { instructions: string } | null 
   return m ? { instructions: (m[1] ?? "").trim() } : null;
 }
 
-export const COMPACT_LABEL = "Conversation compacted";
-
 /** Who triggered the compaction: the user (`/compact`), the meter being
     full at the end of a turn (`auto`), or a « context exceeded » error from
     the provider (`overflow`). */
 export type CompactedBy = "user" | "auto" | "overflow";
 
+/** The boundary's line in the thread, in the interface's language. */
 export function compactLabel(m: Pick<Message, "compactedBy">): string {
+  const t = currentMessages().chat;
   switch (m.compactedBy) {
     case "auto":
-      return `${COMPACT_LABEL} automatically — window full`;
+      return t.compactedAuto;
     case "overflow":
-      return `${COMPACT_LABEL} automatically — context exceeded`;
+      return t.compactedOverflow;
     default:
-      return COMPACT_LABEL;
+      return t.compacted;
   }
 }
 

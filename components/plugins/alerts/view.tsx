@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { WATCHLIST, alertLabel, type Alert, type Trigger } from "@/lib/plugins/alerts/alerts";
+import { WATCHLIST, type Alert, type Trigger } from "@/lib/plugins/alerts/alerts";
+import { alertWords } from "@/lib/plugins/alerts/words";
+import { useMessages } from "@/lib/i18n/react";
 import type { Listed } from "@/lib/plugins/shared/prices";
 import { Segmented } from "@/components/ui/segmented";
 import { Plus } from "@/components/ui/icons";
@@ -29,6 +31,8 @@ const TICK = 30_000;
 const HISTORY = 12;
 
 export function AlertsView({ settings }: ViewProps) {
+  const t = useMessages();
+  const w = t.alerts;
   const { data, error, reload } = usePluginData<State>("alerts", "state", settings);
   const pairsData = usePluginData<Listed[]>("alerts", "pairs", settings, {}, { keep: "latest" });
   const pairs = Array.isArray(pairsData.data) && pairsData.data.length ? pairsData.data : null;
@@ -44,7 +48,7 @@ export function AlertsView({ settings }: ViewProps) {
   const alerts = data?.alerts ?? [];
   const count = (f: Filter) => alerts.filter((a) => f === "all" || (f === "active" ? a.status === "active" : a.status === f)).length;
   const shown = alerts.filter((a) => filter === "all" || (filter === "active" ? a.status === "active" : a.status === filter)).sort((a, b) => order(a) - order(b) || b.createdAt.localeCompare(a.createdAt));
-  const accountName = (id?: string) => (id ? (settings.keys.exchanges.find((x) => x.id === id)?.label ?? "account removed") : null);
+  const accountName = (id?: string) => (id ? (settings.keys.exchanges.find((x) => x.id === id)?.label ?? w.accountRemoved) : null);
 
   const run = async (action: string, params: Record<string, unknown>) => {
     setProblem(await act("alerts", action, params, settings));
@@ -57,57 +61,55 @@ export function AlertsView({ settings }: ViewProps) {
         <div className="alv-page">
           <header className="alv-head">
             <div>
-              <h1 className="alv-title pv-ink">Alerts</h1>
-              <p className="alv-sub">
-                {count("active")} watching{count("paused") ? ` · ${count("paused")} paused` : ""} · checked every minute while BytNode-AI is open
-              </p>
+              <h1 className="alv-title pv-ink">{w.title}</h1>
+              <p className="alv-sub">{w.sub(count("active"), count("paused"))}</p>
             </div>
             <span className="alv-spacer" />
             {alerts.length > 0 && (
               <Segmented
-                label="Show"
+                label={w.show}
                 value={filter}
                 options={[
-                  { value: "all", label: `All ${alerts.length}` },
-                  { value: "active", label: "Active" },
-                  { value: "paused", label: "Paused" },
-                  { value: "done", label: "Done" },
+                  { value: "all", label: w.all(alerts.length) },
+                  { value: "active", label: w.active },
+                  { value: "paused", label: w.paused },
+                  { value: "done", label: w.done },
                 ]}
                 onChange={setFilter}
               />
             )}
             <button type="button" className="alv-btn is-primary" onClick={() => setComposing(true)}>
               <Plus />
-              New alert
+              {w.newAlert}
             </button>
           </header>
 
 
           {(problem ?? error) && <p className="alv-problem">{problem ?? error}</p>}
 
-          {data && alerts.length === 0 && <p className="alv-empty">No alert yet. Create one, or ask an agent: “tell me when the RSI of ETH on the hour drops under 30”.</p>}
+          {data && alerts.length === 0 && <p className="alv-empty">{w.empty}</p>}
 
           {shown.length > 0 && (
-            <section className="alv-list" aria-label="Your alerts">
+            <section className="alv-list" aria-label={w.yours}>
               {shown.map((a) => (
-                <AlertRow key={a.id} alert={a} now={now} account={accountName(a.accountId)} onPause={(paused) => void run("pause", { id: a.id, paused })} onDelete={() => void run("delete", { id: a.id })} />
+                <AlertRow key={a.id} alert={a} now={now} account={accountName(a.accountId)} telegram={a.telegramBot ? (settings.keys.telegram.find((b) => b.id === a.telegramBot)?.name ?? w.removedBot) : undefined} onPause={(paused) => void run("pause", { id: a.id, paused })} onDelete={() => void run("delete", { id: a.id })} />
               ))}
             </section>
           )}
-          {alerts.length > 0 && shown.length === 0 && <p className="alv-empty">Nothing {filter === "done" ? "done" : filter} here.</p>}
+          {alerts.length > 0 && shown.length === 0 && <p className="alv-empty">{w.nothingHere[filter]}</p>}
 
           {data && data.triggers.length > 0 && (
-            <section className="alv-history" aria-label="Fired lately">
-              <h2 className="alv-h2">Fired lately</h2>
+            <section className="alv-history" aria-label={w.firedLately}>
+              <h2 className="alv-h2">{w.firedLately}</h2>
               <div className="alv-list">
-                {data.triggers.slice(0, HISTORY).map((t) => (
-                  <div key={t.id} className="alv-fire">
-                    <span className="alv-fire-when">{ago(t.at, now)}</span>
-                    <b>{t.symbol}</b>
-                    <span className="alv-fire-what">{alertLabel(t.condition)}</span>
+                {data.triggers.slice(0, HISTORY).map((f) => (
+                  <div key={f.id} className="alv-fire">
+                    <span className="alv-fire-when">{ago(f.at, now)}</span>
+                    <b>{f.symbol}</b>
+                    <span className="alv-fire-what">{alertWords(f.condition)}</span>
                     <span className="alv-fire-seen">
-                      {t.observed}
-                      {t.note ? ` — ${t.note}` : ""}
+                      {f.observed}
+                      {f.note ? ` — ${f.note}` : ""}
                     </span>
                   </div>
                 ))}

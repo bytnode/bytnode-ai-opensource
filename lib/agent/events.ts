@@ -30,8 +30,10 @@ export type AgentEvent =
   /** A line produced while a tool is running (Monitor). */
   | { type: "tool_line"; id: string; line: string }
   /** A sub-agent (Workflow): `id` = `<call>:<index>`. Its profession and,
-      once it is done, its report — the thread shows one then the other. */
-  | { type: "subagent"; id: string; index: number; title: string; profession?: string; status: "running" | "done" | "failed"; report?: string }
+      once it is done, its report — the thread shows one then the other. An
+      `activity` is one of its steps as it happens (a tool started or
+      ended), filed on the row by its own id. */
+  | { type: "subagent"; id: string; index: number; title: string; profession?: string; status: "running" | "done" | "failed"; report?: string; activity?: SubagentActivity }
   /** A transient error, retried: the thread can say so instead of letting
       the user believe nothing is happening. */
   | { type: "retry"; attempt: number; of: number; delayMs: number; reason: string }
@@ -63,4 +65,8 @@ export type Step =
       card?: ToolCard;
     };
 
-export type SubagentState = { index: number; title: string; profession?: string; status: "running" | "done" | "failed"; report?: string };
+/** One step of a sub-agent: a tool it called, what for, how it went
+    (`lib/tools/agents/activity.ts`). */
+export type SubagentActivity = { id: string; name: string; summary: string; status: "running" | "done" | "failed" };
+
+export type SubagentState = { index: number; title: string; profession?: string; status: "running" | "done" | "failed"; report?: string; activity?: SubagentActivity[] };

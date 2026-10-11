@@ -4,6 +4,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { AgentConfig, Conversation, Settings } from "@/lib/domain/types";
 import { ArrowDown } from "@/components/ui/icons";
 import { Message } from "./message";
+import { saveConversation } from "@/lib/state/conversations";
+import { markdownPrefix, useTypewriter } from "@/lib/ui/typewriter";
+import { useMessages } from "@/lib/i18n/react";
 
 type Props = {
   settings: Settings;
@@ -42,12 +45,50 @@ type Props = {
    it instead of cutting it with a jump.
 --------------------------------------------------------------------------- */
 export function Thread({ settings, agent, conversation, streaming, onRetry, onAnswer, follow }: Props) {
+  const m = useMessages();
   const scroller = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
   const programmatic = useRef(false);
   const smoothing = useRef(false);
   const [showJump, setShowJump] = useState(false);
+
+  /* The first launch's welcome (2026-10-09: « un premier welcome, un
+     scrolling automatique, puis du texte qui se génère »): a greeting in
+     large, then — after a breath — the agent's message written word by
+     word, the thread gliding down with it. Played once: the flag goes when
+     it is written out, and the greeting stays for this visit only. */
+  const intro = conversation && conversation.messages.length === 1 && conversation.messages[0].intro ? conversation.messages[0] : null;
+  const [greeted] = useState(() => intro !== null);
+  /* The greeting takes its time to arrive; then the text comes letter by
+     letter, fluid rather than word blocks (2026-10-09: « plus rapide … plus
+     fluide, pas petit bloc après petit bloc »), its Markdown kept whole. */
+  const typed = useTypewriter(intro?.content ?? "", { enabled: intro !== null, cps: 115, delay: 3400 });
+  const playing = intro !== null && !typed.done;
+  const playingRef = useRef(false);
+  useEffect(() => {
+    playingRef.current = playing;
+  });
+  useEffect(() => {
+    if (intro && typed.done && conversation) saveConversation({ ...conversation, messages: [{ ...intro, intro: undefined }] });
+  }, [intro, typed.done, conversation]);
+  /* Following it: not a smooth scroll restarted at every letter (it
+     stuttered), an easing glide toward the bottom, every frame, as long
+     as the reader stays pinned. */
+  useEffect(() => {
+    if (!playing) return;
+    let raf = 0;
+    const glide = () => {
+      const el = scroller.current;
+      if (el && pinned.current) {
+        const gap = el.scrollHeight - el.clientHeight - el.scrollTop;
+        if (gap > 0.5) el.scrollTop += Math.max(0.5, gap * 0.08);
+      }
+      raf = requestAnimationFrame(glide);
+    };
+    raf = requestAnimationFrame(glide);
+    return () => cancelAnimationFrame(raf);
+  }, [playing]);
 
   const toBottom = () => {
     const el = scroller.current;
@@ -68,8 +109,19 @@ export function Thread({ settings, agent, conversation, streaming, onRetry, onAn
   };
 
   const onScroll = () => {
-    if (programmatic.current || smoothing.current) return;
+    /* While the welcome writes itself, the thread glides down with smooth
+       scrolls: their own `scroll` events read « not at the bottom » mid-way
+       and unpinned it — the reader had to scroll down by hand. Only a
+       gesture up (`onWheel`) lets go then. */
+    if (programmatic.current || smoothing.current || playingRef.current) return;
     readPosition();
+  };
+
+  const onWheel = (e: { deltaY: number }) => {
+    if (playingRef.current && e.deltaY < 0) {
+      pinned.current = false;
+      setShowJump(true);
+    }
   };
 
   /* A message sent: back down to the conversation, smoothly, pinned. */
@@ -108,6 +160,8 @@ export function Thread({ settings, agent, conversation, streaming, onRetry, onAn
     const ro = new ResizeObserver(() => {
       if (!pinned.current) return;
       const el = scroller.current;
+      /* The welcome glides on its own (above). */
+      if (playingRef.current) return;
       if (smoothing.current && el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
       else toBottom();
     });
@@ -118,11 +172,11 @@ export function Thread({ settings, agent, conversation, streaming, onRetry, onAn
 
   if (!conversation || conversation.messages.length === 0) {
     const who = settings.profile.firstName.trim();
-    const name = agent.name.trim() || "Your agent";
+    const name = agent.name.trim() || m.chat.yourAgent;
     return (
       <div className="thread thread-empty">
-        <h1 className="hello">{who ? `Hello, ${who}.` : "Hello."}</h1>
-        <p className="hello-sub">{name} is listening.</p>
+        <h1 className="hello">{who ? m.chat.hello(who) : m.chat.helloAnon}</h1>
+        <p className="hello-sub">{m.chat.listening(name)}</p>
       </div>
     );
   }
@@ -135,16 +189,22 @@ export function Thread({ settings, agent, conversation, streaming, onRetry, onAn
 
   return (
     <div className="thread-wrap">
-      <div className="thread" ref={scroller} onScroll={onScroll}>
+      <div className="thread" ref={scroller} onScroll={onScroll} onWheel={onWheel}>
         <div className="thread-inner" ref={inner}>
-          {conversation.messages.map((m, i) => (
+          {greeted && (
+            <div className="intro-hello">
+              <h1 className="hello">{settings.profile.firstName.trim() ? m.chat.welcome(settings.profile.firstName.trim()) : m.chat.welcomeAnon}</h1>
+              <p className="hello-sub">{m.chat.welcomeSub}</p>
+            </div>
+          )}
+          {conversation.messages.map((msg, i) => (
             <Message
-              key={m.id}
-              message={m}
-              author={agent.name.trim() || "Agent"}
+              key={msg.id}
+              message={playing && msg.id === intro?.id ? { ...msg, content: markdownPrefix(msg.content, typed.shown.length) } : msg}
+              author={agent.name.trim() || m.chat.agent}
               fileUrl={fileUrl}
-              streaming={streaming && i === last}
-              onRetry={i === last && m.error ? onRetry : undefined}
+              streaming={(streaming && i === last) || (playing && msg.id === intro?.id)}
+              onRetry={i === last && msg.error ? onRetry : undefined}
               onAnswer={i === last ? onAnswer : undefined}
             />
           ))}
@@ -159,10 +219,10 @@ export function Thread({ settings, agent, conversation, streaming, onRetry, onAn
             setShowJump(false);
             toBottom();
           }}
-          aria-label="Jump to bottom"
+          aria-label={m.chat.jumpToBottom}
         >
           <ArrowDown />
-          {streaming ? "Follow the reply" : "Jump to bottom"}
+          {streaming ? m.chat.followReply : m.chat.jumpToBottom}
         </button>
       )}
     </div>

@@ -13,7 +13,7 @@ import { serveCall } from "./serve-call";
 /* ---------------------------------------------------------------------------
    BytNode-AI's own tools, served over MCP (stdio) to subscription agents.
 
-   Claude Code, Codex, Gemini CLI… do not use our tools: they have their
+   Claude Code, Codex, Grok Build… do not use our tools: they have their
    own. But they speak MCP. This server is launched by `sessions.ts` next to
    BytNode, with the workspace and the keys in its environment, and serves
    the tools of the MCP engine of the registry (`lib/tools/registry.ts`) —

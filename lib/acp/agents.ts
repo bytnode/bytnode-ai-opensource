@@ -1,19 +1,24 @@
 /* ---------------------------------------------------------------------------
    The ACP agents BytNode-AI can drive through a subscription.
 
-   A subscription (Claude Pro / Max, ChatGPT Plus / Pro, Google, GitHub
-   Copilot, SuperGrok, Mistral…) does not give an API key: it gives access
-   to the vendor's agent — Claude Code, Codex, Gemini CLI, Copilot CLI,
-   Grok Build, Mistral Vibe. These agents speak the Agent Client Protocol
+   A subscription (Claude Pro / Max, ChatGPT Plus / Pro, GitHub Copilot,
+   SuperGrok…) does not give an API key: it gives access to the vendor's
+   agent — Claude Code, Codex, Copilot CLI, Grok Build. These agents speak
+   the Agent Client Protocol
    (JSON-RPC over stdio); BytNode-AI spawns them as sub-processes and
    dresses them with its prompt, its skills and its data source.
+
+   Gemini CLI was removed on 2026-10-09 (user request): Google forbids
+   third-party apps from using its sign-in and suspends the accounts that
+   do. An agent saved on it moves to Gemini through OpenRouter
+   (`RETIRED_PROVIDERS`, `lib/storage/repositories.ts`).
 
    This file is shared browser / server: nothing from Node here.
    The displayed name is the VENDOR's (« Claude », « OpenAI »), not the
    product's — the user picks who they are subscribed to.
 --------------------------------------------------------------------------- */
 
-export type AcpAgentId = "claude" | "openai" | "gemini" | "copilot" | "grok";
+export type AcpAgentId = "claude" | "openai" | "copilot" | "grok";
 
 export type AcpAgentInfo = {
   id: AcpAgentId;
@@ -59,14 +64,6 @@ export const ACP_AGENTS: AcpAgentInfo[] = [
     askMode: "read-only",
   },
   {
-    id: "gemini",
-    label: "Gemini",
-    product: "Gemini CLI",
-    plan: "Google account",
-    providerId: `${ACP_PREFIX}gemini`,
-    staticEfforts: [],
-  },
-  {
     id: "copilot",
     label: "GitHub Copilot",
     product: "Copilot CLI",
@@ -96,6 +93,12 @@ export function acpAgentOf(providerId: string | null | undefined): AcpAgentInfo 
 }
 
 export const acpAgentInfo = (id: AcpAgentId): AcpAgentInfo => ACP_AGENTS.find((a) => a.id === id)!;
+
+/** A model id of a subscription agent that no longer exists (Gemini CLI,
+    removed 2026-10-09): an old conversation's, which then takes the
+    agent's current model. */
+export const isRetiredAcpModel = (modelId: string | null | undefined): boolean =>
+  isAcpProvider(modelId) && !ACP_AGENTS.some((a) => modelId!.startsWith(`${a.providerId}/`));
 
 /** The model id as the ACP agent knows it, from our prefixed id
     `acp:<agent>/<model>`. */
@@ -129,5 +132,9 @@ export type AcpAuthStatus = {
   account?: string | null;
   /** A sign-in is in progress (terminal window or browser open). */
   connecting?: boolean;
+  /** Claude's sign-in, run by the app (`claude-login.ts`): the address to
+      open if the browser did not, and what went wrong. The app shows a
+      block to paste the code the browser page gives. */
+  signIn?: { url: string | null; error: string | null; checking: boolean };
   message?: string | null;
 };

@@ -8,6 +8,8 @@ import { runningManifests, useUserPlugins } from "@/lib/state/user-plugins";
 import { useSettings } from "@/lib/state/settings";
 import { PluginConsent } from "./plugin-consent";
 import { ArrowRight, File } from "@/components/ui/icons";
+import { useMessages } from "@/lib/i18n/react";
+import { pluginText, viewText } from "@/lib/i18n/plugin-text";
 import "./plugins.css";
 
 /* ---------------------------------------------------------------------------
@@ -106,13 +108,14 @@ function ReviewCard({ pluginId, digest }: { pluginId: string; digest?: string })
 
 /** "Portfolio opened →": back to the tab the agent opened. */
 export function OpenViewCard({ view, params }: { view: string; params?: Record<string, unknown> }) {
+  const m = useMessages();
   const entry = viewEntry(view, runningManifests(useUserPlugins()));
   if (!entry) return null;
   return (
     <button type="button" className="pc pc-link" onClick={() => openView(view, params)}>
       <span>
-        {entry.title} opened
-        <small>{entry.plugin.name}</small>
+        {m.plugins.viewOpened(viewText(entry.plugin.id, entry, m).title)}
+        <small>{pluginText(entry.plugin, m).name}</small>
       </span>
       <ArrowRight />
     </button>

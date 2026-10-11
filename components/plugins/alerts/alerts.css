@@ -739,3 +739,15 @@ html[data-theme="light"] .alv-suggest {
     animation: none;
   }
 }
+
+/* Also to a Telegram bot (user request, 2026-10-08): in the Notify step. */
+.alv-telegram {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.alv-telegram .picker {
+  min-width: 200px;
+}

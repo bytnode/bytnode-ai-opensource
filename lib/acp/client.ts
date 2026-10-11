@@ -1,4 +1,5 @@
 import { transportHeaders, type Transport } from "@/lib/tools/transport";
+import { currentMessages } from "@/lib/i18n/store";
 import type { AcpAgentId } from "./agents";
 import type { WireEvent } from "./wire";
 
@@ -115,7 +116,7 @@ async function readEvents(res: Response, apply: (e: WireEvent | null) => void): 
 }
 
 async function errorOf(res: Response): Promise<string> {
-  let message = `The server answered ${res.status}.`;
+  let message = currentMessages().chat.errors.serverAnswered(res.status);
   try {
     const json = (await res.json()) as { error?: { message?: string } };
     if (json.error?.message) message = json.error.message;

@@ -20,10 +20,15 @@
   grid-template-columns: var(--sidebar) 1fr;
   /* The whole page under the tab bar (`components/shell`). */
   height: 100%;
+}
 
-  /* The bare views' tokens, restated here in SCREEN pixels: the plugins'
-     16 / 12 px radii are read at `zoom: 0.9`. Their own copy lives in
-     plugins.css under `.pv-bare`; keep the two in step. */
+/* The bare views' tokens, restated here in SCREEN pixels: the plugins'
+   16 / 12 px radii are read at `zoom: 0.9`. Their own copy lives in
+   plugins.css under `.pv-bare`; keep the two in step. The floating
+   agent's conversation (`.fc`, floating-chat.css) is drawn outside the
+   chat page, over the plugins' tabs, and reads the same ones. */
+.chat,
+.fc {
   --label: rgba(var(--ink), 0.95);
   --label-2: rgba(var(--ink), 0.74);
   --label-3: rgba(var(--ink), 0.52);
@@ -44,7 +49,8 @@
   --now: #0a84ff;
 }
 
-html[data-theme="light"] .chat {
+html[data-theme="light"] .chat,
+html[data-theme="light"] .fc {
   --label: rgba(var(--ink), 0.94);
   --label-2: rgba(var(--ink), 0.7);
   --label-3: rgba(var(--ink), 0.52);
@@ -95,7 +101,7 @@ html[data-theme="light"] .composer-commands {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 16px 12px 12px;
+  padding: 10px 8px 10px;
   /* A soft black with a hint of blue — a shade lighter than the
      backdrop's ground (1 1 4) — opaque enough that the page's light does
      not show through: a quiet band beside the reading. */
@@ -133,8 +139,8 @@ html[data-theme="light"] .chat {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 40px;
-  padding: 0 4px 0 12px;
+  height: 32px;
+  padding: 0 2px 0 10px;
 }
 
 .sb-brand {
@@ -146,7 +152,7 @@ html[data-theme="light"] .chat {
   color: var(--label);
   font-family: var(--font-display), sans-serif;
   font-weight: 500;
-  font-size: 19px;
+  font-size: 18px;
   line-height: 1.1;
   letter-spacing: -0.02em;
   transition: background-color 120ms ease;
@@ -156,42 +162,7 @@ html[data-theme="light"] .chat {
   background: var(--fill);
 }
 
-/* A section's name, small and set back (the portfolio's "Accounts"). */
-.sb-title {
-  margin: 0 0 6px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--label-3);
-}
-
-/* The handle: an invisible band on the right edge, which is revealed on
-   hover by a rule. */
-.sb-resize {
-  position: absolute;
-  top: 0;
-  right: -3px;
-  bottom: 0;
-  width: 7px;
-  cursor: col-resize;
-  z-index: 2;
-}
-
-.sb-resize::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 3px;
-  width: 1px;
-  background: transparent;
-  transition: background-color 120ms ease;
-}
-
-.sb-resize:hover::after,
-body.is-resizing .sb-resize::after {
-  background: var(--line-strong);
-}
-
+/* While a plugin's column is resized (`column-handle.tsx`). */
 body.is-resizing {
   cursor: col-resize;
   user-select: none;
@@ -201,6 +172,27 @@ body.is-resizing {
    button, in the header, reopens it. */
 .chat.is-collapsed {
   grid-template-columns: 1fr;
+}
+
+/* The first launch's welcome: the column folded to nothing while the
+   message writes itself, then opening out when it is done (the track
+   glides from 0 to its width). */
+.chat {
+  transition: grid-template-columns 900ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.chat.is-intro {
+  grid-template-columns: 0 1fr;
+}
+
+.chat .sb {
+  transition: opacity 700ms ease 200ms;
+}
+
+.chat.is-intro .sb {
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .chat.is-collapsed .sb {
@@ -214,10 +206,10 @@ body.is-resizing {
 .sb-new {
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 40px;
-  margin: 14px 0 20px;
-  padding: 0 14px;
+  gap: 8px;
+  height: 34px;
+  margin: 24px 0 14px;
+  padding: 0 10px;
   border: 0;
   border-radius: var(--r-sm);
   background: var(--fill);
@@ -228,30 +220,41 @@ body.is-resizing {
   transition: background-color 120ms ease;
 }
 
-.sb-new:hover {
+.sb-new:hover:not(:disabled),
+.sb-new.is-active {
   background: var(--fill-strong);
 }
 
+.sb-new:disabled {
+  opacity: 0.45;
+}
+
 .sb-new svg {
-  width: 15px;
-  height: 15px;
+  width: 13px;
+  height: 13px;
   stroke-width: 1.8;
   stroke-linecap: round;
 }
 
-.sb-list {
+/* The agents and the scheduled tasks under them: one scroll. */
+.sb-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 2px;
   margin: 0 -4px;
   padding: 4px;
 }
 
+.sb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .sb-empty {
-  margin: 14px 10px;
+  margin: 10px 8px;
   font-size: 13.5px;
   color: var(--label-3);
 }
@@ -261,8 +264,8 @@ body.is-resizing {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -282,69 +285,268 @@ body.is-resizing {
 }
 
 .sb-mini svg {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
-/* --- An agent ------------------------------------------------------------- */
+/* --- The Agents section ------------------------------------------------- */
 
-/* An entry of the column, like the portfolio's accounts: a round block
-   that lights up whole under the hand. The open agent holds its
-   conversations inside a 2 px outline — the portfolio's "All portfolios"
-   entry — and the open conversation is filled, not underlined. */
-.sb-agent {
-  border-radius: var(--r);
-}
-
-/* Open, an agent has no frame: its conversations simply unfold under it. */
-.sb-agent.is-open {
-  padding: 2px 4px 6px;
-  margin: 2px 0 8px;
-}
-
-.sb-agent-row {
+/* Its small title folds the whole list (the chevron turns); its « + »
+   creates an agent. */
+.sb-section {
   display: flex;
   align-items: center;
-  border-radius: calc(var(--r) - 2px);
-  transition: background-color 100ms ease;
+  justify-content: space-between;
+  margin: 0 0 4px;
+  padding: 0 2px 0 4px;
 }
 
-.sb-agent:not(.is-open) .sb-agent-row:hover {
+.sb-section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--label-3);
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.sb-section-toggle:hover {
+  color: var(--label-2);
   background: var(--fill);
 }
 
-.sb-agent-row:hover .sb-mini {
-  opacity: 1;
+.sb-section-chevron {
+  width: 11px;
+  height: 11px;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 160ms var(--ease);
 }
 
-.sb-agent-btn {
-  flex: 1;
-  min-width: 0;
-  display: flex;
+.sb-section-chevron.is-folded {
+  transform: rotate(-90deg);
+}
+
+.sb-section-add {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 11px 10px 11px 10px;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
   border: 0;
-  border-radius: calc(var(--r) - 2px);
+  border-radius: 50%;
   background: transparent;
-  text-align: left;
   color: var(--label-2);
+  transition: color 120ms ease, background-color 120ms ease;
 }
 
-/* The current agent reads in full ink, expanded or not. */
-.sb-agent.is-current .sb-agent-btn {
+.sb-section-add:hover {
   color: var(--label);
+  background: var(--fill-strong);
 }
 
-/* The chevron says the row expands; it rotates when it is open. */
-.sb-agent-chevron {
-  flex: none;
+.sb-section-add svg {
   width: 14px;
   height: 14px;
   stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.sb-list[hidden] {
+  display: none;
+}
+
+/* --- An agent ------------------------------------------------------------- */
+
+/* An entry of the column, like the portfolio's accounts: a round block
+   that lights up whole under the hand; the agent whose page is open is
+   filled. */
+.sb-agent + .sb-agent {
+  margin-top: 2px;
+}
+
+.sb-agent-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 4px;
+  border-radius: var(--r-sm);
+  transition: background-color 100ms ease;
+}
+
+.sb-agent-row:hover,
+.sb-agent-row.is-menu {
+  background: var(--fill);
+}
+
+.sb-agent.is-page .sb-agent-row {
+  background: var(--fill-strong);
+}
+
+.sb-agent-row:hover .sb-mini,
+.sb-agent-row.is-menu .sb-mini {
+  opacity: 1;
+}
+
+.sb-agent-row.is-menu .sb-agent-more {
+  color: var(--label);
+  background: var(--fill-strong);
+}
+
+/* The box icon, which turns into a chevron under the hand: the chevron
+   folds or unfolds the agent's conversations. */
+.sb-agent-fold {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--label-2);
+}
+
+.sb-agent-fold:hover {
+  background: var(--fill-strong);
+  color: var(--label);
+}
+
+.sb-agent-icon,
+.sb-agent-chevron {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: opacity 100ms ease, transform 160ms var(--ease);
+}
+
+.sb-agent-icon {
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.6;
+}
+
+.sb-agent-chevron {
+  position: absolute;
+  inset: 0;
+  width: 12px;
+  height: 12px;
+  margin: auto;
+  stroke-width: 2;
+  opacity: 0;
+  transform: rotate(-90deg);
+}
+
+.sb-agent.is-open .sb-agent-chevron {
+  transform: none;
+}
+
+.sb-agent-row:hover .sb-agent-icon,
+.sb-agent-fold:focus-visible .sb-agent-icon {
+  opacity: 0;
+}
+
+.sb-agent-row:hover .sb-agent-chevron,
+.sb-agent-fold:focus-visible .sb-agent-chevron {
+  opacity: 1;
+}
+
+/* The name opens the agent's page. */
+.sb-agent-btn {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 6px 0 8px;
+  border: 0;
+  background: transparent;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  color: var(--label-2);
+  font-family: var(--font-display), sans-serif;
+  font-weight: 500;
+  font-size: 14.5px;
+  letter-spacing: -0.01em;
+}
+
+/* The current agent reads in full ink. */
+.sb-agent.is-current .sb-agent-btn,
+.sb-agent-row:hover .sb-agent-btn {
+  color: var(--label);
+}
+
+.sb-agent-more {
+  flex: none;
+  width: 26px;
+  height: 26px;
+}
+
+.sb-agent-more svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* --- The Scheduled tasks section --------------------------------------- */
+
+/* Under the agents and all they unfold; its small title is the Agents
+   section's. One folder per task: a quiet
+   row — its chevron, the task's name in the conversations' size, how many
+   reports —, its reports hanging under it on the thin line. */
+.sb-scheduled {
+  margin-top: 14px;
+}
+
+.sb-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sb-task-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px 0 6px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--label-2);
+  font-size: 13px;
+  text-align: left;
+  transition: color 100ms ease, background-color 100ms ease;
+}
+
+.sb-task-row:hover {
+  color: var(--label);
+  background: var(--fill);
+}
+
+.sb-task.is-current .sb-task-row {
+  color: var(--label);
+}
+
+.sb-task-chevron {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
   color: var(--label-3);
@@ -352,47 +554,63 @@ body.is-resizing {
   transition: transform 160ms var(--ease);
 }
 
-.sb-agent.is-open .sb-agent-chevron {
+.sb-task.is-open .sb-task-chevron {
   transform: none;
 }
 
-.sb-agent-text {
+.sb-task-name {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.sb-agent-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--font-display), sans-serif;
-  font-weight: 500;
-  font-size: 15.5px;
-  letter-spacing: -0.015em;
 }
 
-.sb-agent-meta {
-  font-size: 12px;
+.sb-task-count {
+  flex: none;
   color: var(--label-3);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
 }
 
-.sb-agent-actions {
-  display: flex;
-  gap: 2px;
-  padding-right: 6px;
+/* Its reports, under the chevron. */
+.sb-task-convs {
+  margin-left: 11px;
+}
+
+.sb-task-convs .sb-conv-btn {
+  font-size: 13px;
+}
+
+.sb-scheduled-empty {
+  margin: 2px 10px 6px;
+  font-size: 12.5px;
+  color: var(--label-3);
 }
 
 /* --- Its conversations -------------------------------------------- */
 
+/* They hang under the agent on a thin line — a 2 px rule with round ends
+   (`.pv-rule`), set under the icon's middle. */
 .sb-convs {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin: 2px 0 0 22px;
+  gap: 1px;
+  margin: 2px 0 6px 17px;
+  padding-left: 9px;
   animation: sb-unfold 160ms var(--ease) both;
+}
+
+.sb-convs::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  width: var(--rule);
+  border-radius: var(--rule);
+  background: var(--sep);
 }
 
 @keyframes sb-unfold {
@@ -423,81 +641,115 @@ body.is-resizing {
   background: var(--fill-strong);
 }
 
-.sb-conv-btn,
-.sb-conv-new {
+.sb-conv-btn {
   flex: 1;
   min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 34px;
-  padding: 0 12px;
+  display: block;
+  height: 32px;
+  padding: 0 10px;
   border: 0;
   border-radius: var(--r-sm);
   background: transparent;
-  color: var(--label-2);
-  font-size: 13.5px;
-  line-height: 1.3;
-  text-align: left;
-}
-
-.sb-conv-btn {
-  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 34px;
+  color: var(--label-2);
+  font-size: 13.5px;
+  line-height: 32px;
+  text-align: left;
 }
 
-/* The report of a scheduled task: a small clock before its title. */
+/* Before each title, a small ring — a dot of the agent's thread. */
+.sb-conv-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 10px;
+  vertical-align: 1px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--label-3);
+}
+
+.sb-conv.is-active .sb-conv-dot {
+  background: var(--label-2);
+  box-shadow: none;
+}
+
+/* The report of a scheduled task: a small clock in the ring's place. */
 .sb-conv-mark {
-  width: 13px;
-  height: 13px;
-  margin-right: 6px;
+  width: 11px;
+  height: 11px;
+  margin: 0 7px 0 -2px;
   vertical-align: -2px;
   stroke-width: 1.8;
   color: var(--label-3);
 }
 
-/* "New conversation": a row like the others, in full ink so it's easy to
-   find. */
-.sb-conv-new {
-  position: relative;
-  /* ⚠️ `flex: none` is essential: this row is both the button and the
-     column's flex item, and the `flex: 1` inherited from `.sb-conv-btn`
-     would set its basis to 0 on the vertical axis — the height would be
-     ignored. */
-  flex: none;
-  height: 34px;
-  color: var(--label);
-  font-weight: 500;
-}
-
-.sb-conv-new:hover {
-  background: var(--fill);
-}
-
-.sb-conv-new.is-active {
-  background: var(--fill-strong);
-}
-
 .sb-conv.is-active .sb-conv-btn,
-.sb-conv:hover .sb-conv-btn,
-.sb-conv-new:hover,
-.sb-conv-new.is-active {
+.sb-conv:hover .sb-conv-btn {
   color: var(--label);
-}
-
-.sb-conv-new svg {
-  width: 13px;
-  height: 13px;
-  stroke-width: 1.8;
-  stroke-linecap: round;
 }
 
 .sb-conv:hover .sb-conv-btn,
 .sb-conv.is-menu .sb-conv-btn {
-  padding-right: 32px;
+  padding-right: 28px;
+}
+
+/* « Show all »: set back, opens the agent's page. */
+/* « New conversation », the first line under an agent. */
+.sb-conv-new {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--label-2);
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: color 100ms ease, background-color 100ms ease;
+}
+
+.sb-conv-new svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.sb-conv-new:hover {
+  color: var(--label);
+  background: var(--fill);
+}
+
+.sb-conv-new.is-active {
+  color: var(--label);
+  background: var(--fill-strong);
+}
+
+.sb-conv-all {
+  flex: none;
+  align-self: flex-start;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--label-3);
+  font-size: 13px;
+  text-align: left;
+  transition: color 100ms ease, background-color 100ms ease;
+}
+
+.sb-conv-all:hover {
+  color: var(--label);
+  background: var(--fill);
 }
 
 /* The three dots: visible on hover, or as long as the menu is open. */
@@ -535,7 +787,7 @@ body.is-resizing {
   align-items: center;
   gap: 8px;
   width: 100%;
-  height: 34px;
+  height: 30px;
   padding: 0 10px;
   border: 0;
   border-radius: var(--r-sm);
@@ -567,8 +819,8 @@ body.is-resizing {
 .sb-conv-input {
   flex: 1;
   min-width: 0;
-  height: 34px;
-  padding: 0 12px;
+  height: 32px;
+  padding: 0 9px;
   border: 0;
   border-radius: var(--r-sm);
   background: var(--fill-strong);
@@ -586,7 +838,7 @@ body.is-resizing {
   align-items: center;
   justify-content: space-between;
   margin-top: 8px;
-  padding: 10px 4px 0 12px;
+  padding: 8px 2px 0 10px;
 }
 
 .sb-foot::before {
@@ -613,8 +865,8 @@ body.is-resizing {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -629,8 +881,8 @@ body.is-resizing {
 }
 
 .sb-settings svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -690,7 +942,8 @@ body.is-resizing {
   white-space: nowrap;
   font-family: var(--font-display), sans-serif;
   font-weight: 500;
-  font-size: 24px;
+  /* A notch smaller (2026-10-09: « plus petit »). */
+  font-size: 19px;
   line-height: 1.2;
   letter-spacing: -0.02em;
 }
@@ -722,27 +975,27 @@ body.is-resizing {
   font-weight: 500;
 }
 
-/* Two lines: the menu, visible only when narrow. */
+/* The column's toggle — a window with its left panel, as the chat apps
+   draw it — visible only when the column is folded or the window narrow. */
 .chat-menu {
   display: none;
-  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: 5px;
   flex: none;
-  width: 36px;
-  height: 36px;
-  margin: 0 -2px 0 -12px;
-  padding: 0 9px;
+  width: 32px;
+  height: 32px;
+  margin: -2px -2px 0 -10px;
+  padding: 0;
   border: 0;
-  border-radius: 50%;
+  border-radius: 8px;
   background: transparent;
+  color: var(--label-2);
 }
 
-.chat-menu span {
-  display: block;
-  height: 1.5px;
-  border-radius: 1px;
-  background: var(--label);
+.chat-menu svg {
+  width: 19px;
+  height: 19px;
+  stroke-width: 1.6;
 }
 
 .chat-menu:hover {
@@ -845,6 +1098,76 @@ body.is-resizing {
   animation: hello-in 700ms var(--ease) both;
 }
 
+/* The first launch's welcome, at the head of its thread: the greeting
+   fills the first view, then rises away as the message writes itself
+   under it (`thread.tsx`). */
+.intro-hello {
+  position: relative;
+  isolation: isolate;
+  min-height: 52vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+/* Haloed in the page's own blue — the backdrop's beams, the companion's
+   aura (2026-10-09: « le même bleu autour ») — rising with the words. */
+.intro-hello::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 8% 4%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(66, 117, 216, 0.34), rgba(66, 117, 216, 0.12) 55%, transparent);
+  filter: blur(28px);
+  animation: intro-glow 3200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* It takes its time to arrive, softly: out of a blur, rising a little,
+   on a long ease-out (2026-10-09: « vraiment plus fluidement … un effet
+   d'apparition fluide et tranquille »). */
+.intro-hello .hello {
+  animation: intro-rise 2400ms cubic-bezier(0.22, 1, 0.36, 1) 200ms both;
+}
+
+.intro-hello .hello-sub {
+  animation: intro-rise 2000ms cubic-bezier(0.22, 1, 0.36, 1) 1200ms both;
+}
+
+@keyframes intro-rise {
+  from {
+    opacity: 0;
+    filter: blur(12px);
+    transform: translateY(18px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}
+
+@keyframes intro-glow {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-hello::before,
+  .intro-hello .hello,
+  .intro-hello .hello-sub {
+    animation: none;
+  }
+}
+
 .hello-sub {
   margin: 12px 0 0;
   font-size: 15px;
@@ -883,7 +1206,7 @@ body.is-resizing {
   border-radius: 18px 18px 6px 18px;
   background: var(--tile-strong);
   color: var(--label);
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.55;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -1021,7 +1344,7 @@ body.is-resizing {
 .md {
   max-width: 100%;
   overflow-wrap: anywhere;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.68;
   color: var(--label);
   font-variant-numeric: tabular-nums;
@@ -1055,24 +1378,24 @@ body.is-resizing {
 
 .md h1 {
   font-family: var(--font-display), sans-serif;
-  font-size: 24px;
+  font-size: 21px;
   font-weight: 500;
   letter-spacing: -0.02em;
 }
 
 .md h2 {
-  font-size: 17.5px;
+  font-size: 16.5px;
   font-weight: 650;
   letter-spacing: -0.01em;
 }
 
 .md h3 {
-  font-size: 15.5px;
+  font-size: 14.5px;
   font-weight: 650;
 }
 
 .md h4 {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--label-2);
 }
@@ -1147,7 +1470,7 @@ body.is-resizing {
 
 .md pre code {
   padding: 0;
-  font-size: 13px;
+  font-size: 12.5px;
   background: none;
 }
 
@@ -1165,7 +1488,7 @@ body.is-resizing {
   border-collapse: separate;
   border-spacing: 2px;
   margin: -2px;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.45;
 }
 
@@ -1178,9 +1501,12 @@ body.is-resizing {
   white-space: nowrap;
 }
 
+/* The tiles lie on the page's own colour, nearly opaque: the backdrop and
+   the composer's halo no longer show through a table (the user's request,
+   2026-10-05). The tint stays on top. */
 .md-table td {
   padding: 10px 14px;
-  background: var(--tile);
+  background: linear-gradient(var(--tile), var(--tile)) rgba(var(--voile), 0.97);
   vertical-align: top;
   /* ⚠️ `.md` breaks ANYWHERE, which lets a table squeeze a narrow column
      down to a few letters ("Bitco/in"). In a cell, words stay whole: a
@@ -1205,7 +1531,7 @@ body.is-resizing {
 }
 
 .md-table tbody tr:hover td {
-  background: var(--tile-strong);
+  background: linear-gradient(var(--tile-strong), var(--tile-strong)) rgba(var(--voile), 0.97);
 }
 
 /* The typing caret: a bar after the last character, for as long as the
@@ -1273,19 +1599,22 @@ body.is-resizing {
    navy of its reflections (`MARINE.scene.lumiere`, 30 56 118), raised a
    little so it reads on the black ground — a sky blue here read as a lamp
    of the former backdrop, not as one of the new one's reflections. It
-   lights up a little when typing. */
+   lights up a little when typing. Centred on the composer and wider than
+   it, so the block seems to light the page all around it, above as much
+   as below (user request, 2026-10-03). */
 .chat-composer::before {
   content: "";
   position: absolute;
   z-index: 0;
   left: 50%;
-  bottom: -40px;
-  width: min(820px, 115%);
-  height: 260px;
-  transform: translateX(-50%);
+  top: 50%;
+  width: min(1800px, 240%);
+  height: calc(100% + 620px);
+  transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(48, 84, 168, 0.45), rgba(36, 66, 138, 0.17) 50%, transparent);
-  filter: blur(30px);
+  /* A long tail: the light still reaches the page's edges, faintly. */
+  background: radial-gradient(closest-side, rgba(56, 96, 188, 0.55), rgba(44, 78, 160, 0.3) 30%, rgba(36, 66, 138, 0.14) 60%, rgba(30, 56, 118, 0.05) 82%, transparent);
+  filter: blur(48px);
   opacity: 0.85;
   pointer-events: none;
   transition: opacity 300ms ease;
@@ -1296,7 +1625,7 @@ body.is-resizing {
 }
 
 [data-theme="light"] .chat-composer::before {
-  background: radial-gradient(closest-side, rgba(80, 130, 230, 0.3), rgba(80, 130, 230, 0.1) 50%, transparent);
+  background: radial-gradient(closest-side, rgba(80, 130, 230, 0.38), rgba(80, 130, 230, 0.2) 30%, rgba(80, 130, 230, 0.08) 60%, rgba(80, 130, 230, 0.03) 82%, transparent);
 }
 
 .chat-composer > * {
@@ -1561,7 +1890,7 @@ body.is-resizing {
   background: transparent;
   color: var(--label);
   text-align: left;
-  font-size: 14px;
+  font-size: 13.5px;
 }
 
 .ts-row:hover {
@@ -1755,54 +2084,97 @@ body.is-resizing {
   font-size: 14px;
 }
 
+/* A sub-agent unfolded: its steps as they happen, then its report — on the
+   report's rule, a step in from the row. */
+.wf-steps {
+  list-style: none;
+  margin: 4px 0 8px 34px;
+  padding: 2px 0 2px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: inset var(--rule) 0 0 var(--sep);
+  font-size: 13px;
+}
+
+.wf-step {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.wf-step .ts-status {
+  flex: none;
+  align-self: center;
+}
+
+.wf-step-name {
+  flex: none;
+  font-weight: 500;
+}
+
+.wf-step-what {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.7;
+  font-size: 12px;
+}
+
+.wf-step.is-failed .wf-step-name {
+  color: var(--danger, #f85149);
+}
+
+.wf-quiet {
+  margin: 4px 0 8px 48px;
+  font-size: 13px;
+  opacity: 0.6;
+}
+
 .msg-wait-tools {
   margin-top: 8px;
 }
 
 /* --- The execution mode, in the header: a chip ---------------------------------- */
 
-.chat-mode {
+/* The widgets' button, where « Ask before acting » was (the mode lives in
+   the composer's settings): Apple's widgets icon on a round, filled in ink
+   while the column shows. */
+.chat-widgets {
+  display: inline-flex;
   flex: none;
-  position: relative;
-  height: 30px;
-  margin-top: 2px;
-  padding: 0 12px 0 25px;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin-top: 1px;
+  padding: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: 50%;
   background: var(--fill);
   color: var(--label-2);
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-  transition: background-color 120ms ease, color 120ms ease;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
 }
 
-.chat-mode::before {
-  content: "";
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  transform: translateY(-50%);
-  box-sizing: border-box;
-  border: 1.5px solid currentColor;
-}
-
-/* Direct execution: the dot fills, in the colour of what runs. */
-.chat-mode.is-skip {
-  color: var(--label);
-}
-
-.chat-mode.is-skip::before {
-  border-color: var(--now);
-  background: var(--now);
-}
-
-.chat-mode:hover {
+.chat-widgets:hover {
   background: var(--fill-strong);
   color: var(--label);
+}
+
+.chat-widgets.is-on {
+  background: rgba(var(--ink), 0.9);
+  color: rgb(var(--ink-inv));
+}
+
+.chat-widgets svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.8;
 }
 
 /* --- Images produced by a tool (charts, screenshots) ------------ */

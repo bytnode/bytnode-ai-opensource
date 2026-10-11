@@ -1,5 +1,6 @@
 import type { Model, Provider } from "@/lib/domain/types";
 import { acpAgentOf, isAcpProvider } from "@/lib/acp/agents";
+import { currentMessages } from "@/lib/i18n/store";
 
 /* ---------------------------------------------------------------------------
    The catalog: what OpenRouter publishes, reduced and reorganised.
@@ -141,19 +142,25 @@ export function searchProviders(providers: Provider[], query: string): Provider[
   return providers.filter((p) => p.id.toLowerCase().includes(q) || p.name.toLowerCase().includes(q));
 }
 
-/** The effort levels, as they are named on screen. An unknown level keeps
-    its technical name. */
-export const EFFORT_LABELS: Record<string, string> = {
-  max: "Max",
-  xhigh: "Very high",
-  high: "High",
-  medium: "Medium",
-  low: "Low",
-  minimal: "Minimal",
-  none: "None",
-};
+/** The vendors people pick most, in that order (user request,
+    2026-10-08: « OpenAI, Anthropic and DeepSeek first, by popularity, not
+    alphabetical »). OpenRouter publishes no popularity: this is our
+    order; any vendor not in it follows, the one with more models first. */
+export const POPULAR_PROVIDERS = ["openai", "anthropic", "deepseek", "google", "x-ai", "meta-llama", "mistralai", "qwen", "moonshotai", "z-ai", "minimax", "perplexity", "cohere", "microsoft", "nvidia", "amazon"];
 
-export const effortLabel = (effort: string) => EFFORT_LABELS[effort] ?? effort;
+/** The vendors by popularity. Pure. */
+export function byPopularity(providers: Provider[]): Provider[] {
+  const rank = (id: string) => {
+    const i = POPULAR_PROVIDERS.indexOf(id);
+    return i < 0 ? POPULAR_PROVIDERS.length : i;
+  };
+  return [...providers].sort((a, b) => rank(a.id) - rank(b.id) || b.modelCount - a.modelCount || a.name.localeCompare(b.name));
+}
+
+/** The effort levels, as they are named on screen, in the interface's
+    language (`chat.efforts`). An unknown level keeps its technical name. */
+export const effortLabel = (effort: string) =>
+  (currentMessages().chat.efforts as Partial<Record<string, string>>)[effort] ?? effort;
 
 /** The value that switches reasoning off. Sent to OpenRouter as
     `reasoning: { enabled: false }`, the only form valid for every

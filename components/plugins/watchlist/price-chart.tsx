@@ -5,6 +5,8 @@ import { INTERVAL_MS, type Candle, type Interval } from "@/lib/plugins/shared/ca
 import { decimalsFor, niceTicks, timeLabel, timeStep, timeTicks } from "@/lib/plugins/watchlist/chart-scale";
 import { useViewActive } from "../view-activity";
 import { css, parseColor, type Rgba } from "./colors";
+import { useMessages } from "@/lib/i18n/react";
+import { dateTag, numberTag } from "@/lib/i18n/store";
 
 /* ---------------------------------------------------------------------------
    The chosen asset's price, read like Stocks rather than a trading desk:
@@ -19,7 +21,8 @@ import { css, parseColor, type Rgba } from "./colors";
 
    One canvas, drawn in 2D — only when something changed and only while
    the tab is in front. The colours are the tokens', re-read when the
-   theme changes.
+   theme changes. Its words and figures are in the interface's language:
+   a change of language draws it again.
 --------------------------------------------------------------------------- */
 
 export type ChartMode = "line" | "candles";
@@ -56,7 +59,7 @@ function readPalette(el: HTMLElement): Palette {
   };
 }
 
-const fmtPrice = (p: number, d: number) => p.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtPrice = (p: number, d: number) => p.toLocaleString(numberTag(), { minimumFractionDigits: d, maximumFractionDigits: d });
 
 /** The visible window: first bar index (may be fractional) and bar width. */
 function frame(n: number, view: View, plotW: number) {
@@ -73,8 +76,8 @@ function clampView(view: View, n: number, fit = false): View {
 }
 
 /** Draws the chart; returns the price scale's width (the handlers need
-    the plot's). */
-function draw(canvas: HTMLCanvasElement, data: Candle[], interval: Interval, mode: ChartMode, view: View, hover: { x: number; y: number } | null, pal: Palette, returns = false): number {
+    the plot's). `returnsLabel`: the returns panel's title. */
+function draw(canvas: HTMLCanvasElement, data: Candle[], interval: Interval, mode: ChartMode, view: View, hover: { x: number; y: number } | null, pal: Palette, returns = false, returnsLabel = ""): number {
   /* Drawn in the canvas's CSS pixels; the bitmap follows its size ON
      SCREEN — a zoomed view (90 %) shows it smaller, and a bitmap of its
      CSS size would be scaled down, blurred. */
@@ -249,13 +252,13 @@ function draw(canvas: HTMLCanvasElement, data: Candle[], interval: Interval, mod
     g.fillStyle = css(pal.ink, 0.55);
     g.textAlign = "left";
     g.textBaseline = "alphabetic";
-    g.fillText("Daily returns", 0, panelTop - 12);
+    g.fillText(returnsLabel, 0, panelTop - 12);
     g.font = font(11);
     g.fillStyle = css(pal.ink, 0.45);
     g.textBaseline = "middle";
-    g.fillText(`+${maxMove.toFixed(1)} %`, plotW + 12, panelTop + 5);
+    g.fillText(`+${fmtPrice(maxMove, 1)} %`, plotW + 12, panelTop + 5);
     g.fillText("0", plotW + 12, zero);
-    g.fillText(`−${maxMove.toFixed(1)} %`, plotW + 12, panelTop + panelH - 5);
+    g.fillText(`−${fmtPrice(maxMove, 1)} %`, plotW + 12, panelTop + panelH - 5);
   }
 
   /* The levels on the right, the times along the bottom; the last price
@@ -281,7 +284,7 @@ function draw(canvas: HTMLCanvasElement, data: Candle[], interval: Interval, mod
   g.textBaseline = "alphabetic";
   for (const t of times) {
     const tx = x(iOf(t));
-    if (tx > 28 && tx < plotW - 28) g.fillText(timeLabel(t), tx, H - 7);
+    if (tx > 28 && tx < plotW - 28) g.fillText(timeLabel(t, dateTag()), tx, H - 7);
   }
 
   /* Under the hand: a thin rule, a dot on the price, one tag above. */
@@ -304,9 +307,9 @@ function draw(canvas: HTMLCanvasElement, data: Candle[], interval: Interval, mod
     g.beginPath();
     g.arc(hx, hy, 3.5, 0, Math.PI * 2);
     g.fill();
-    const when = new Date(c.t).toLocaleString("en-GB", interval === "1d" ? { day: "numeric", month: "short", year: "numeric" } : { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    const when = new Date(c.t).toLocaleString(dateTag(), interval === "1d" ? { day: "numeric", month: "short", year: "numeric" } : { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
     const m = returns ? moveAt(i) : undefined;
-    const text = `${fmtPrice(c.c, dec)}   ${when}${m !== undefined ? `   ${m >= 0 ? "+" : "−"}${Math.abs(m).toFixed(2)} %` : ""}`;
+    const text = `${fmtPrice(c.c, dec)}   ${when}${m !== undefined ? `   ${m >= 0 ? "+" : "−"}${fmtPrice(Math.abs(m), 2)} %` : ""}`;
     g.font = font(12, 600);
     const w = g.measureText(text).width + 20;
     const left = Math.max(0, Math.min(plotW - w, hx - w / 2));
@@ -323,9 +326,10 @@ function draw(canvas: HTMLCanvasElement, data: Candle[], interval: Interval, mod
 }
 
 export function PriceChart({ candles, interval, mode, message, fit = false, returns = false }: Props) {
+  const words = useMessages().watchlist.chart;
   const box = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const state = useRef({ data: [] as Candle[], interval, mode, view: { bars: DEFAULT_BARS, offset: 0 } as View, hover: null as { x: number; y: number } | null, palette: null as Palette | null, axisW: AXIS_MIN, fit: false, returns: false, frame: 0, drag: null as { x: number; offset: number } | null });
+  const state = useRef({ data: [] as Candle[], interval, mode, view: { bars: DEFAULT_BARS, offset: 0 } as View, hover: null as { x: number; y: number } | null, palette: null as Palette | null, axisW: AXIS_MIN, fit: false, returns: false, returnsLabel: "", frame: 0, drag: null as { x: number; offset: number } | null });
   const active = useViewActive();
 
   /* The data: redrawn when it changes. A series that arrives (a new asset,
@@ -339,11 +343,12 @@ export function PriceChart({ candles, interval, mode, message, fit = false, retu
     s.mode = mode;
     s.fit = fit;
     s.returns = returns;
+    s.returnsLabel = words.dailyReturns;
     s.data = data;
     if (data.length) s.view = clampView(s.view, data.length, fit);
     const el = canvas.current;
-    if (el && s.palette) s.axisW = draw(el, s.data, s.interval, s.mode, s.view, s.hover, s.palette, s.returns);
-  }, [candles, interval, mode, fit, returns]);
+    if (el && s.palette) s.axisW = draw(el, s.data, s.interval, s.mode, s.view, s.hover, s.palette, s.returns, s.returnsLabel);
+  }, [candles, interval, mode, fit, returns, words]);
 
   /* The canvas's life while the tab is in front: size, theme, the hand. */
   useEffect(() => {
@@ -355,7 +360,7 @@ export function PriceChart({ candles, interval, mode, message, fit = false, retu
       cancelAnimationFrame(s.frame);
       s.frame = requestAnimationFrame(() => {
         s.palette ??= readPalette(wrap);
-        s.axisW = draw(el, s.data, s.interval, s.mode, s.view, s.hover, s.palette, s.returns);
+        s.axisW = draw(el, s.data, s.interval, s.mode, s.view, s.hover, s.palette, s.returns, s.returnsLabel);
       });
     };
     const retheme = () => {
@@ -445,7 +450,7 @@ export function PriceChart({ candles, interval, mode, message, fit = false, retu
 
   return (
     <div className="wlv-chart" ref={box}>
-      <canvas className="wlv-chart-canvas" ref={canvas} role="img" aria-label="Price chart — scroll to zoom, drag to pan, double-click to come back to now" />
+      <canvas className="wlv-chart-canvas" ref={canvas} role="img" aria-label={words.label} />
       {message && <p className="wlv-chart-message">{message}</p>}
     </div>
   );

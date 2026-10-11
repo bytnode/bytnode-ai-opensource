@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Folder, Spinner } from "@/components/ui/icons";
+import { useMessages } from "@/lib/i18n/react";
 
 type Props = { id: string; value: string; onChange: (path: string) => void };
 
@@ -9,6 +10,7 @@ type Props = { id: string; value: string; onChange: (path: string) => void };
    through the button — the native dialog opens on the machine, and the chosen
    path comes back into the field. */
 export function FolderField({ id, value, onChange }: Props) {
+  const t = useMessages().onboarding.folder;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,9 +25,9 @@ export function FolderField({ id, value, onChange }: Props) {
       });
       const json = (await res.json()) as { path: string | null; error: string | null };
       if (json.path) onChange(json.path);
-      else if (json.error) setError(`Could not open the file explorer: ${json.error}`);
+      else if (json.error) setError(t.cannotOpenWhy(json.error));
     } catch {
-      setError("Could not open the file explorer.");
+      setError(t.cannotOpen);
     } finally {
       setBusy(false);
     }
@@ -37,14 +39,14 @@ export function FolderField({ id, value, onChange }: Props) {
         <input
           id={id}
           className="field-input mono"
-          placeholder="Full path of a folder"
+          placeholder={t.placeholder}
           spellCheck={false}
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
-        <button type="button" className="btn btn-sm folder-browse" onClick={browse} disabled={busy} title="Choose in the file explorer">
+        <button type="button" className="btn btn-sm folder-browse" onClick={browse} disabled={busy} title={t.browseTitle}>
           {busy ? <Spinner /> : <Folder />}
-          Browse…
+          {t.browse}
         </button>
       </div>
       {error && (

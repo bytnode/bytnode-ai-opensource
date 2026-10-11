@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentConfig } from "@/lib/domain/types";
-import { afterRun, backgroundFrame, changeTask, decide, findAgent, findTask, newTask, plannedRuns, shortDate, taskKey, taskLines, type AgentTask, type RunState } from "./tasks";
+import { afterRun, backgroundFrame, changeTask, decide, findAgent, findTask, newTask, plannedRuns, readTelegram, setTaskTelegram, shortDate, taskKey, taskLines, telegramText, type AgentTask, type RunState } from "./tasks";
 
 const at = (h: number, m = 0, d = 23) => new Date(2026, 8, d, h, m).getTime();
 const opts = { resumed: false, catchUp: "skip" as const, triggered: false };
@@ -133,5 +133,36 @@ describe("plannedRuns", () => {
     expect(hours).toEqual([at(10, 30), at(14, 30), at(18, 30), at(22, 30)].map((t) => new Date(t).toISOString()));
     const often = plannedRuns([task("q", "every 15 minutes")], {}, at(0), at(12, 0, 25), at(10), name);
     expect(often.map((r) => [r.at, r.allDay])).toEqual([["2026-09-23T00:00:00.000Z", true], ["2026-09-24T00:00:00.000Z", true], ["2026-09-25T00:00:00.000Z", true]]);
+  });
+});
+
+describe("a task's Telegram destination", () => {
+  const base = { title: "Brief", prompt: "Do it", agent: "a1", frequency: "daily at 08:00" };
+  it("is kept when asked, with its report length (full by default)", () => {
+    const t = newTask({ ...base, telegramBot: "t1" }, "x", new Date());
+    expect("error" in t ? null : t.telegram).toEqual({ bot: "t1", report: "full" });
+    const s = newTask({ ...base, telegramBot: "t1", report: "short" }, "x", new Date());
+    expect("error" in s ? null : s.telegram).toEqual({ bot: "t1", report: "short" });
+    const none = newTask({ ...base, telegramBot: " " }, "x", new Date());
+    expect("error" in none ? null : none.telegram).toBeUndefined();
+    expect(readTelegram({})).toBeUndefined();
+  });
+  it("can be changed or removed on a task", () => {
+    const t = newTask(base, "x", new Date()) as AgentTask;
+    const on = setTaskTelegram([t], "x", { bot: "t1", report: "short" });
+    expect("error" in on ? null : on.task.telegram).toEqual({ bot: "t1", report: "short" });
+    const off = setTaskTelegram("error" in on ? [] : on.tasks, "x", undefined);
+    expect("error" in off ? "x" : off.task.telegram).toBeUndefined();
+    expect(setTaskTelegram([t], "nope", undefined)).toHaveProperty("error");
+  });
+  it("sends the title and the report — whole or its start — or why it failed", () => {
+    const long = "First finding. " + "Detail. ".repeat(200);
+    expect(telegramText({ title: "Brief", telegram: { bot: "t1", report: "full" } }, { ok: true, text: long })).toBe(`🗓 Brief
+
+${long}`);
+    const short = telegramText({ title: "Brief", telegram: { bot: "t1", report: "short" } }, { ok: true, text: long });
+    expect(short.length).toBeLessThan(long.length);
+    expect(short).toMatch(/Full report in BytNode-AI\]$/);
+    expect(telegramText({ title: "Brief" }, { ok: false, error: "No agent" })).toBe("⚠️ Scheduled task failed: Brief\n\nNo agent");
   });
 });

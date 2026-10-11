@@ -16,7 +16,7 @@ import { modelsOfSession, modesOfSession, type AgentModes } from "./translate";
 export type AgentOffer = { models: Model[]; modes: AgentModes | null; commands: SlashCommand[] };
 
 /** How long the discovery waits for the command list after `session/new`
-    (Claude and Gemini send it at once, Codex after listing its skills). */
+    (Claude sends it at once, Codex after listing its skills). */
 const COMMANDS_WAIT = 4000;
 
 const TTL = 60 * 60_000;

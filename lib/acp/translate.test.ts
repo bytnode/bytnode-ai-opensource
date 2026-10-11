@@ -168,12 +168,12 @@ describe("modelsOfConfig", () => {
       currentValue: "a",
       options: [{ group: "g", name: "G", options: [{ value: "a", name: "A" }] }],
     };
-    expect(modelsOfConfig("gemini", [grouped], []).map((m) => m.id)).toEqual(["acp:gemini/a"]);
+    expect(modelsOfConfig("copilot", [grouped], []).map((m) => m.id)).toEqual(["acp:copilot/a"]);
   });
 
-  it("reads the old `models` field (Gemini CLI) when there is no model option", () => {
-    const models = modelsOfSession("gemini", { models: { availableModels: [{ modelId: "auto", name: "Auto" }, { modelId: "gemini-2.5-pro", name: "gemini-2.5-pro" }], currentModelId: "auto" } }, []);
-    expect(models.map((m) => m.id)).toEqual(["acp:gemini/auto", "acp:gemini/gemini-2.5-pro"]);
+  it("reads the old `models` field when there is no model option", () => {
+    const models = modelsOfSession("grok", { models: { availableModels: [{ modelId: "auto", name: "Auto" }, { modelId: "grok-5", name: "grok-5" }], currentModelId: "auto" } }, []);
+    expect(models.map((m) => m.id)).toEqual(["acp:grok/auto", "acp:grok/grok-5"]);
   });
 
   it("with no model published at all, offers « Default »", () => {

@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import type { Tool } from "@/lib/tools/types";
 import { fail, ok } from "@/lib/tools/types";
 import { pickAccount } from "@/lib/tools/exchange/accounts";
+import type { TelegramBot } from "@/lib/domain/types";
 import { factsCard } from "../shared/cards";
+import { findBot } from "../shared/telegram";
 import { WATCHLIST, newAlert, type Alert } from "./alerts";
 import { EXAMPLES, METRICS_HELP, describeCondition, onPosition, parseCondition } from "./conditions";
 
@@ -10,9 +12,9 @@ import { EXAMPLES, METRICS_HELP, describeCondition, onPosition, parseCondition }
    — it only notifies — but kept from sub-agents: what pings the user is
    theirs to decide. */
 
-type Args = { symbol: string; condition: string; once?: boolean; note?: string; account?: string };
+type Args = { symbol: string; condition: string; once?: boolean; note?: string; account?: string; telegram?: string };
 
-export function alertCreateTool(add: (alert: Alert) => Promise<void>, hasCalendar: () => boolean, hasWatchlist: () => boolean = () => true): Tool<Args> {
+export function alertCreateTool(add: (alert: Alert) => Promise<void>, hasCalendar: () => boolean, hasWatchlist: () => boolean = () => true, telegramBots: () => TelegramBot[] | undefined = () => undefined): Tool<Args> {
   return {
     name: "AlertCreate",
     policy: { gated: false, subagent: false },
@@ -27,6 +29,7 @@ export function alertCreateTool(add: (alert: Alert) => Promise<void>, hasCalenda
         once: { type: "boolean", description: "Fire once, then stop (default true)." },
         note: { type: "string", description: "Why the user wants it, shown with the notification." },
         account: { type: "string", description: "Position conditions: the exchange account, by its label." },
+        telegram: { type: "string", description: "Also send it to this Telegram bot of the user's, by its name (Settings → Authentication). Only when the user asks for it." },
       },
       required: ["symbol", "condition"],
       additionalProperties: false,
@@ -41,7 +44,10 @@ export function alertCreateTool(add: (alert: Alert) => Promise<void>, hasCalenda
         if ("error" in picked) return fail(picked.error);
         accountId = picked.account.id;
       }
-      const made = newAlert({ target: args.symbol, condition: args.condition, once: args.once, note: args.note, accountId }, randomUUID().slice(0, 8), new Date());
+      const bots = telegramBots();
+      const bot = args.telegram?.trim() ? (bots ? findBot(bots, args.telegram) : undefined) : undefined;
+      if (args.telegram?.trim() && bots && !bot) return fail(bots.length ? `No Telegram bot "${args.telegram}". The bots are: ${bots.map((b) => b.name).join(", ")}.` : "The user has no Telegram bot yet: they add one in Settings → Authentication.");
+      const made = newAlert({ target: args.symbol, condition: args.condition, once: args.once, note: args.note, accountId, telegramBot: bot?.id ?? args.telegram }, randomUUID().slice(0, 8), new Date());
       if ("error" in made) return fail(made.error);
       if (made.alert.target === WATCHLIST && !hasWatchlist()) return fail("Watchlist alerts need the watchlist: it is off (Settings → Plugins). Set the alert on a pair instead, or ask the user to switch the watchlist on.");
       await add(made.alert);
@@ -55,6 +61,7 @@ export function alertCreateTool(add: (alert: Alert) => Promise<void>, hasCalenda
           ["When", label],
           ["Fires", a.once ? "once" : "at every crossing"],
           ...(a.note ? ([["Note", a.note]] as Array<[string, string]>) : []),
+          ...(a.telegramBot ? ([["Telegram", bot?.name ?? a.telegramBot]] as Array<[string, string]>) : []),
         ]),
       };
     },

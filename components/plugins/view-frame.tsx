@@ -5,6 +5,8 @@ import type { Settings } from "@/lib/domain/types";
 import type { ViewEntry } from "@/lib/plugins/catalog";
 import type { ViewTab } from "@/lib/state/tabs";
 import { Refresh } from "@/components/ui/icons";
+import { useMessages } from "@/lib/i18n/react";
+import { viewText } from "@/lib/i18n/plugin-text";
 import { BARE_VIEWS, VIEWS } from "./views";
 import { UserPluginView } from "./user-view";
 import "./plugins.css";
@@ -16,13 +18,15 @@ import "./plugins.css";
    and keeps its data fresh itself: it gets the whole page.
 --------------------------------------------------------------------------- */
 export function ViewFrame({ entry, tab, settings }: { entry: ViewEntry; tab: ViewTab; settings: Settings }) {
+  const m = useMessages();
   const [round, setRound] = useState(0);
+  const text = viewText(entry.plugin.id, entry, m);
   /* A plugin written by an agent: its own page, in a sandboxed frame. */
   if (entry.plugin.tier === "user") return <UserPluginView entry={entry} settings={settings} />;
   const View = VIEWS[entry.id];
   if (View && BARE_VIEWS.has(entry.id)) {
     return (
-      <section className="pv pv-bare" aria-label={entry.title}>
+      <section className="pv pv-bare" aria-label={text.title}>
         <View settings={settings} params={tab.params} />
       </section>
     );
@@ -32,16 +36,16 @@ export function ViewFrame({ entry, tab, settings }: { entry: ViewEntry; tab: Vie
       <header className="pv-head">
         <div className="pv-titles">
           <h1 id={`pv-${entry.id}`} className="pv-title">
-            {entry.title}
+            {text.title}
           </h1>
-          <p className="pv-lede">{entry.description}</p>
+          <p className="pv-lede">{text.description}</p>
         </div>
-        <button type="button" className="btn btn-sm btn-ghost" onClick={() => setRound(round + 1)} title="Reload the data">
+        <button type="button" className="btn btn-sm btn-ghost" onClick={() => setRound(round + 1)} title={m.plugins.reloadData}>
           <Refresh />
-          Refresh
+          {m.plugins.refresh}
         </button>
       </header>
-      <div className="pv-body">{View ? <View key={round} settings={settings} params={tab.params} /> : <p className="pv-empty">This view is not available.</p>}</div>
+      <div className="pv-body">{View ? <View key={round} settings={settings} params={tab.params} /> : <p className="pv-empty">{m.plugins.viewUnavailable}</p>}</div>
     </section>
   );
 }

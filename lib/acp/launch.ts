@@ -65,11 +65,23 @@ export function launchFile(file: string, args: string[], head = headOf(file)): L
     Windows refuses with `spawn EFTYPE` — and no `package-lock.json`, which
     npm only writes at the end (`--package-lock=true` in `install.ts`, so
     the signal does not depend on the user's .npmrc). We never launch an
-    agent in that state: « Install » starts over. */
+    agent in that state: « Install » starts over.
+
+    ⚠️ THE LOCK FILE ALONE DOES NOT PROVE IT. An UPDATE that fails midway
+    (`updates.ts`) keeps the previous install's `package-lock.json`, while
+    npm may already have emptied the packages it was replacing: on
+    2026-10-04 the Claude SDK's folders were left empty, the app took the
+    install for whole, and « Sign in » opened a terminal on a `cli.js`
+    that no longer existed. So the files we launch must be there too. */
 export function brokenInstall(agent: AcpAgentId, exists: (p: string) => boolean = fs.existsSync): string | null {
   const dir = agentDir(agent);
-  if (AGENT_SOURCES[agent].kind !== "npm" || !exists(path.join(dir, "node_modules")) || exists(path.join(dir, "package-lock.json"))) return null;
-  return `Incomplete ${acpAgentInfo(agent).label} installation: run Install again.`;
+  const src = AGENT_SOURCES[agent];
+  if (src.kind !== "npm" || !exists(path.join(dir, "node_modules"))) return null;
+  const whole =
+    exists(path.join(dir, "package-lock.json")) &&
+    exists(installed(agent, src.pkg, src.acp.entry)) &&
+    (agent !== "claude" || claudeCliFile(exists) !== null);
+  return whole ? null : `Incomplete ${acpAgentInfo(agent).label} installation: run Install again.`;
 }
 
 /** A global CLI found on the PATH. On Windows, `npm i -g` puts a `.cmd`
@@ -142,16 +154,27 @@ function isMusl(): boolean {
 /** The Claude Code CLI of the Agent SDK, inside the adapter's installation.
     Since SDK 0.3 it is a native binary in a per-platform package
     (`@anthropic-ai/claude-agent-sdk-win32-x64/claude.exe`…); SDK 0.2
-    shipped a `cli.js` to launch with Node. We take whichever is present. */
-function claudeCli(): Launch {
+    shipped a `cli.js` to launch with Node. We take whichever is present,
+    null if neither is. */
+function claudeCliFile(exists: (p: string) => boolean = fs.existsSync): string | null {
   const exe = process.platform === "win32" ? "claude.exe" : "claude";
   const glibc = [`linux-${process.arch}`, `linux-${process.arch}-musl`];
   const variants = process.platform === "linux" ? (isMusl() ? glibc.reverse() : glibc) : [`${process.platform}-${process.arch}`];
   for (const v of variants) {
     const bin = installed("claude", `@anthropic-ai/claude-agent-sdk-${v}`, [exe]);
-    if (!brokenInstall("claude") && fs.existsSync(bin)) return { command: bin, args: [] };
+    if (exists(bin)) return bin;
   }
-  return { command: process.execPath, args: [installed("claude", "@anthropic-ai/claude-agent-sdk", ["cli.js"])] };
+  const script = installed("claude", "@anthropic-ai/claude-agent-sdk", ["cli.js"]);
+  return exists(script) ? script : null;
+}
+
+/** Never a launch of a file that is not there: Windows then opened a
+    terminal on Node's « Cannot find module » instead of the sign-in. */
+function claudeCli(): Launch {
+  const broken = brokenInstall("claude");
+  const file = broken ? null : claudeCliFile();
+  if (!file) throw new Error(broken ?? "Claude is not installed.");
+  return file.endsWith(".js") ? { command: process.execPath, args: [file] } : { command: file, args: [] };
 }
 
 /** The product's own CLI, for signing in to the account and reading its
@@ -193,6 +216,10 @@ export function npmCli({ platform = process.platform, execPath = process.execPat
   const p = win ? path.win32 : path.posix;
   const script = ["node_modules", "npm", "bin", "npm-cli.js"];
   const nodeDir = p.dirname(execPath);
+  /* The desktop app ships its own npm (`desktop/main.ts`): its binary has
+     no npm beside it, and the user may have no Node at all. */
+  const shipped = env.BYTNODE_AI_NPM_CLI?.trim();
+  if (shipped && exists(/*turbopackIgnore: true*/ shipped)) return { command: execPath, args: [shipped] };
   const candidates = win
     ? [p.join(nodeDir, ...script), ...(env.APPDATA ? [p.join(env.APPDATA, "npm", ...script)] : [])]
     : [p.join(nodeDir, "..", "lib", ...script), p.join(nodeDir, "..", "libexec", "lib", ...script)];
@@ -316,12 +343,16 @@ const shq = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
     and the agent's own variables would be lost. `env -u` exists in GNU and
     BSD `env` alike. The window stays open at the end, so the user reads
     how it went. */
-export function posixTerminalLine(command: string, args: string[], extraEnv: Record<string, string> = {}): string {
+export function posixTerminalLine(command: string, args: string[], extraEnv: Record<string, string> = {}, runAsNode = process.env.ELECTRON_RUN_AS_NODE === "1"): string {
   const env = [
     "env",
     ...STRIPPED_ENV.flatMap((k) => ["-u", k]),
     "NO_COLOR=1",
     "FORCE_COLOR=0",
+    /* In the desktop app, `process.execPath` is the app's Electron binary,
+       which is Node only with this variable (`desktop/server.ts`) — and the
+       terminal's shell never inherits it. */
+    ...(runAsNode ? ["ELECTRON_RUN_AS_NODE=1"] : []),
     ...Object.entries(extraEnv).map(([k, v]) => shq(`${k}=${v}`)),
   ].join(" ");
   const run = [command, ...args].map(shq).join(" ");

@@ -2,34 +2,49 @@
 
 import { useEffect } from "react";
 import { AppShell } from "@/components/shell/app-shell";
+import { SignInScreen } from "@/components/account/sign-in-screen";
 import { Wizard } from "@/components/onboarding/wizard";
 import { applyTheme } from "@/components/ui/theme-toggle";
-import type { AgentConfig } from "@/lib/domain/types";
 import { newId } from "@/lib/domain/conversation";
 import { updateSettings, useSettings } from "@/lib/state/settings";
 import { blankAgent } from "@/lib/storage/repositories";
+import { useAcpAuth } from "@/lib/acp/use-auth";
+import { saveConversation } from "@/lib/state/conversations";
+import { setActiveConversation } from "@/lib/state/navigation";
+import { firstAgent, firstAgentProvider, welcomeConversation } from "@/lib/onboarding/first-run";
+import { accountKeyNote, useAccount } from "@/lib/account/account";
+import { useLanguage } from "@/lib/i18n/react";
 
 /* The single page: until the settings are read, nothing — the background
-   is enough. Then the full wizard if the account is not configured,
-   otherwise the app: the tab bar, the conversations, the plugins' views. */
-/* A new agent's id and date are set at the moment it is created, not
-   during render: an id drawn on every render would restart the form. */
-const stamp = (a: AgentConfig): AgentConfig =>
-  a.id ? a : { ...a, id: newId(), createdAt: Date.now() };
+   is enough. In the desktop app, signed out of the BytNode account: the
+   sign-in page and nothing else (user request, 2026-10-09; the npm app has
+   no account and skips it). Then the full wizard if the app is not
+   configured, otherwise the app: the tab bar, the conversations, the
+   plugins' views. */
 
 export default function Page() {
   const { ready, settings } = useSettings();
+  const account = useAccount();
+  const acp = useAcpAuth();
+  /* The chosen language, loaded before anything is shown (the sign-in
+     page included): no flash of English. */
+  const words = useLanguage(settings.language);
 
   useEffect(() => {
     if (ready) applyTheme(settings.theme);
   }, [ready, settings.theme]);
 
-  if (!ready) return null;
+  if (!ready || !words || account === undefined) return null;
+
+  if (account && !account.signedIn) return <SignInScreen state={account} />;
 
   if (!settings.onboardingDone) {
     return (
       <Wizard
-        steps={["profil", "auth", "agent"]}
+        /* You (name, a few words, the look), your AI, Telegram, then your
+           exchanges — the last two can be skipped (2026-10-09). The desktop
+           app's account already filled the name and e-mail. */
+        steps={["you", "ai", "channels", "exchanges"]}
         initial={{
           profile: settings.profile,
           authMode: settings.authMode,
@@ -37,9 +52,14 @@ export default function Page() {
           theme: settings.theme,
           agent: blankAgent(),
         }}
-        finishLabel="Open the chat"
+        accountKey={accountKeyNote()}
         onDone={(d) => {
-          const agent = stamp(d.agent);
+          /* No agent to fill in (2026-10-09): the app makes the first one,
+             on what was just connected, and opens on its welcome. */
+          const now = Date.now();
+          const signedIn = acp.agents.filter((a) => a.loggedIn).map((a) => a.agent);
+          const agent = { ...firstAgent(firstAgentProvider(signedIn, d.keys.openrouter)), id: newId(), createdAt: now };
+          const welcome = welcomeConversation(agent, d.profile, newId(), now);
           updateSettings((s) => ({
             ...s,
             onboardingDone: true,
@@ -50,6 +70,8 @@ export default function Page() {
             agents: [...s.agents, agent],
             activeAgentId: agent.id,
           }));
+          saveConversation(welcome);
+          setActiveConversation(welcome.id);
         }}
       />
     );

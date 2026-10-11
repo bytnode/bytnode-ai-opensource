@@ -86,9 +86,34 @@ export const Filter = (p: P) => (
   </svg>
 );
 
+/* The side column, as the chat apps draw its toggle: a window with its
+   left panel (2026-10-09: « un vrai petit logo … comme OpenAI, Claude »). */
+export const PanelLeft = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="3.5" y="4.5" width="17" height="15" rx="3.5" />
+    <path d="M9.5 4.5v15" />
+  </svg>
+);
+
 export const Close = (p: P) => (
   <svg {...base(p)}>
     <path d="M6 6l12 12M18 6 6 18" />
+  </svg>
+);
+
+/* Widgets, as Apple draws them: two squares over a wide tile. */
+export const Widgets = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="3.5" y="3.5" width="7.5" height="7.5" rx="2.2" />
+    <rect x="13" y="3.5" width="7.5" height="7.5" rx="2.2" />
+    <rect x="3.5" y="13" width="17" height="7.5" rx="2.2" />
+  </svg>
+);
+
+/* Open in full: two corners pulled apart. */
+export const Expand = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7" />
   </svg>
 );
 
@@ -117,6 +142,24 @@ export const Dots = (p: P) => (
     <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
     <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
     <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+/* The three dots, standing: a row's or a page's menu. */
+export const DotsVertical = (p: P) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="5" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="19" r="1.4" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+/* An agent: a tray under two stacked lids — the box that holds its
+   conversations. */
+export const Agent = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M7 4.5h10M5.5 7.5h13" />
+    <path d="M4 11h16v6.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5V11Z" />
   </svg>
 );
 

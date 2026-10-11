@@ -5,6 +5,7 @@ import type { Settings } from "@/lib/domain/types";
 import { callPlugin } from "@/lib/plugins/client";
 import { usePlugins } from "@/lib/state/plugins";
 import { File } from "@/components/ui/icons";
+import { useMessages } from "@/lib/i18n/react";
 import { viewTransport } from "./use-plugin-data";
 import { Problem } from "./bits";
 
@@ -18,6 +19,7 @@ import { Problem } from "./bits";
 type Done = { href: string; path: string };
 
 export function useReportExport(plugin: string, settings: Settings, params: Record<string, unknown> = {}) {
+  const m = useMessages();
   const { status } = usePlugins();
   const available = status.some((s) => s.id === "report-export" && s.state === "active");
   const agent = settings.agents.find((a) => a.id === settings.activeAgentId) ?? settings.agents[0];
@@ -43,7 +45,7 @@ export function useReportExport(plugin: string, settings: Settings, params: Reco
     available && agent ? (
       <button type="button" className="btn btn-sm" onClick={() => void run()} disabled={busy || disabled}>
         <File />
-        {busy ? "Exporting…" : "Export as a report"}
+        {busy ? m.plugins.report.exporting : m.plugins.report.export}
       </button>
     ) : null;
 
@@ -51,7 +53,7 @@ export function useReportExport(plugin: string, settings: Settings, params: Reco
     <>
       {done && (
         <p className="pv-note">
-          Report written in {agent?.name}&apos;s workspace:{" "}
+          {m.plugins.report.written(agent?.name ?? "")}{" "}
           <a href={done.href} target="_blank" rel="noreferrer" className="mono">
             {done.path}
           </a>

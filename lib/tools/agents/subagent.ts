@@ -1,3 +1,4 @@
+import { stripTrace } from "./activity";
 import type { JsonSchema } from "../types";
 import { PROFESSIONS, isProfessionId, professionInfo, type ProfessionId } from "@/lib/professions/catalog";
 
@@ -154,7 +155,9 @@ export function parseWorkflowReport(output: string): ReportSection[] {
   const lines: string[] = [];
   const flush = () => {
     if (!current) return;
-    const body = lines.join("\n").trim();
+    /* The steps handed to the main agent are not part of the report the
+       thread shows (`activity.ts`). */
+    const body = stripTrace(lines.join("\n")).trim();
     sections.push({ ...current, body, failed: /^\[failed: /.test(body) });
     lines.length = 0;
   };

@@ -1,0 +1,109 @@
+/* ---------------------------------------------------------------------------
+   The desktop app's sign-in page.
+
+   One gesture, one card: the onboarding's glass (`--veil`), rounder and
+   narrower, with the companion standing on its top edge — half over the
+   backdrop, half over the card — in the halo of its own blue. Everything
+   else is the app's: its display face, its ink, its buttons. Centred,
+   because there is one thing to read and one thing to do.
+--------------------------------------------------------------------------- */
+
+.si {
+  /* The companion's blue, the backdrop's beams: the light it stands in. */
+  --si-glow: 66, 117, 216;
+}
+
+.si-card {
+  position: relative;
+  width: min(460px, 100%);
+  margin: auto;
+  padding: 92px 44px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  border-radius: 30px;
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(var(--si-glow), 0.16), transparent 62%),
+    var(--veil);
+  -webkit-backdrop-filter: blur(26px);
+  backdrop-filter: blur(26px);
+  box-shadow: 0 0 0 1px var(--line), 0 30px 80px -40px rgba(var(--si-glow), 0.55);
+  animation: ob-in 460ms var(--ease) both;
+}
+
+html[data-theme="light"] .si-card {
+  box-shadow: 0 0 0 1px var(--line), 0 30px 80px -44px rgba(var(--si-glow), 0.45);
+}
+
+/* Standing on the card's top edge; its canvas reaches past the body so the
+   aura and the orbiting points are never cut. */
+.si-companion {
+  position: absolute;
+  top: -98px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.si-title {
+  margin: 0;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 400;
+  font-size: clamp(1.7rem, 2.6vw, 2.05rem);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.si-lede {
+  margin: 12px 0 30px;
+  max-width: 22rem;
+  font-size: 0.93rem;
+  line-height: 1.6;
+  color: var(--fg-muted);
+}
+
+.si-go {
+  align-self: stretch;
+  justify-content: center;
+  min-height: 46px;
+  border-radius: 999px;
+  font-size: 0.95rem;
+}
+
+.si-note {
+  margin: 16px 0 0;
+  max-width: 21rem;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--fg-faint);
+}
+
+.si-error {
+  margin-bottom: 16px;
+}
+
+.si-wait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.si-status {
+  margin: 0;
+  font-size: 0.93rem;
+  line-height: 1.55;
+  color: var(--fg-muted);
+}
+
+.si-actions {
+  display: flex;
+  gap: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .si-card {
+    animation: none;
+  }
+}

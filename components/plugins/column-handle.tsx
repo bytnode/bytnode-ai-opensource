@@ -1,6 +1,7 @@
 "use client";
 
 import type { KeyboardEvent, MouseEvent as ReactMouseEvent, RefObject } from "react";
+import { useMessages } from "@/lib/i18n/react";
 
 /* ---------------------------------------------------------------------------
    The rule between a bare view's two columns, as a handle: drag it (or
@@ -28,6 +29,7 @@ type Props = {
 };
 
 export function ColumnHandle({ panel, cssVar, width, min, max, reset, clamp, onCommit, label, side = "left" }: Props) {
+  const m = useMessages();
   const start = (e: ReactMouseEvent) => {
     e.preventDefault();
     const box = panel.current;
@@ -67,7 +69,7 @@ export function ColumnHandle({ panel, cssVar, width, min, max, reset, clamp, onC
       aria-valuemin={min}
       aria-valuemax={max}
       tabIndex={0}
-      title="Drag to resize — double-click to reset"
+      title={m.plugins.resizeHint}
       onMouseDown={start}
       onKeyDown={nudge}
       onDoubleClick={() => onCommit(reset)}

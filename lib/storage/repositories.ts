@@ -1,6 +1,8 @@
-import type { AgentConfig, Conversation, ExchangeAccount, Profile, Settings } from "@/lib/domain/types";
+import type { AgentConfig, Conversation, ExchangeAccount, Profile, Settings, TelegramBot } from "@/lib/domain/types";
 import type { PluginConfig, PluginSettings, PluginsState } from "@/lib/domain/plugins";
 import { DEFAULT_PROFESSION, isProfessionId } from "@/lib/professions/catalog";
+import { DEFAULT_LOCALE, isLocale } from "@/lib/i18n/locales";
+import { hasSecrets, mergeSecrets, splitSecrets, type Vault } from "./secrets";
 import type { Storage } from "./storage";
 
 export const SETTINGS_KEY = "agentchat:settings";
@@ -18,9 +20,10 @@ export function defaultSettings(): Settings {
     version: 4,
     onboardingDone: false,
     theme: "dark",
+    language: DEFAULT_LOCALE,
     profile: { firstName: "", lastName: "", email: "", bio: "" },
     authMode: "subscription",
-    keys: { openrouter: "", bytnode: "", exchanges: [] },
+    keys: { openrouter: "", bytnode: "", exchanges: [], telegram: [] },
     agents: [],
     activeAgentId: null,
     plugins: {},
@@ -52,20 +55,28 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 
 const str = (v: unknown, fallback = "") => (typeof v === "string" ? v : fallback);
 
+/* A subscription that no longer exists, and the OpenRouter vendor its
+   agents move to: Gemini CLI was removed on 2026-10-09 (user request —
+   Google suspends the accounts whose sign-in a third-party app uses).
+   The agent keeps everything else; its model and effort were Gemini CLI's,
+   so they go back to the vendor's newest. */
+export const RETIRED_PROVIDERS: Record<string, string> = { "acp:gemini": "google" };
+
 /** Rebuilds full settings from what was read: each missing field falls back
     to its default value, so that a setting added in a future version does
     not break a past version's data. */
 function normalizeAgent(raw: unknown, fallbackId: string): AgentConfig | null {
   if (!isRecord(raw)) return null;
   const files = Array.isArray(raw.contextFiles) ? raw.contextFiles : [];
+  const retired = RETIRED_PROVIDERS[str(raw.providerId)];
   return {
     id: str(raw.id, fallbackId),
     createdAt: typeof raw.createdAt === "number" ? raw.createdAt : 0,
     name: str(raw.name),
     profession: isProfessionId(raw.profession) ? raw.profession : DEFAULT_PROFESSION,
-    providerId: str(raw.providerId),
-    defaultModelId: typeof raw.defaultModelId === "string" ? raw.defaultModelId : null,
-    defaultEffort: typeof raw.defaultEffort === "string" ? raw.defaultEffort : null,
+    providerId: retired ?? str(raw.providerId),
+    defaultModelId: !retired && typeof raw.defaultModelId === "string" ? raw.defaultModelId : null,
+    defaultEffort: !retired && typeof raw.defaultEffort === "string" ? raw.defaultEffort : null,
     workspace: str(raw.workspace),
     permissionMode: raw.permissionMode === "skip" ? "skip" : "ask",
     scope: raw.scope === "disk" ? "disk" : "workspace",
@@ -94,6 +105,14 @@ function normalizeExchangeAccount(raw: unknown): ExchangeAccount | null {
     password: str(raw.password),
     testnet: raw.testnet === true,
   };
+}
+
+/** A readable Telegram bot: id and token present. */
+function normalizeTelegramBot(raw: unknown): TelegramBot | null {
+  if (!isRecord(raw)) return null;
+  const id = str(raw.id);
+  if (!id) return null;
+  return { id, name: str(raw.name, "Telegram"), token: str(raw.token), chatId: str(raw.chatId), chatName: str(raw.chatName) };
 }
 
 /** A plugin's settings as read: a switch (on unless explicitly off), a flat
@@ -154,6 +173,8 @@ export function normalizeSettings(raw: unknown): Settings {
     version: 4,
     onboardingDone: raw.onboardingDone === true,
     theme: raw.theme === "light" ? "light" : "dark",
+    /* Absent before 2026-10-10: English, as the app always was. */
+    language: isLocale(raw.language) ? raw.language : DEFAULT_LOCALE,
     profile: p,
     /* An account from before this choice existed has a key: it stays on keys. */
     authMode: raw.authMode === "subscription" || raw.authMode === "keys" ? raw.authMode : str(keys.openrouter) ? "keys" : "subscription",
@@ -161,6 +182,7 @@ export function normalizeSettings(raw: unknown): Settings {
       openrouter: str(keys.openrouter),
       bytnode: str(keys.bytnode),
       exchanges: Array.isArray(keys.exchanges) ? keys.exchanges.map(normalizeExchangeAccount).filter((a): a is ExchangeAccount => a !== null) : [],
+      telegram: Array.isArray(keys.telegram) ? keys.telegram.map(normalizeTelegramBot).filter((b): b is TelegramBot => b !== null) : [],
     },
     agents,
     activeAgentId,
@@ -169,21 +191,43 @@ export function normalizeSettings(raw: unknown): Settings {
   };
 }
 
+/* With a `vault` (the desktop window), the keys are never written in the
+   plain storage: they go to the system's vault and come back on reading
+   (`secrets.ts`). */
 export class SettingsRepository {
-  constructor(private storage: Storage) {}
+  constructor(
+    private storage: Storage,
+    private vault: Vault | null = null,
+  ) {}
 
   load(): Settings {
     const raw = this.storage.get(SETTINGS_KEY);
-    if (raw === null) return defaultSettings();
+    if (raw === null) return this.withSecrets(defaultSettings());
+    let s: Settings;
     try {
-      return normalizeSettings(JSON.parse(raw));
+      s = normalizeSettings(JSON.parse(raw));
     } catch {
-      return defaultSettings();
+      return this.withSecrets(defaultSettings());
     }
+    return this.withSecrets(s);
+  }
+
+  private withSecrets(s: Settings): Settings {
+    const bag = this.vault?.get() ?? null;
+    if (!bag) return s;
+    const merged = mergeSecrets(s, bag);
+    /* Keys still in plain storage (written before the vault): moved in. */
+    if (hasSecrets(s)) this.save(merged);
+    return merged;
   }
 
   /** False when the settings could not be written (quota, access refused). */
   save(settings: Settings): boolean {
+    if (this.vault) {
+      const { stripped, bag } = splitSecrets(settings);
+      if (this.vault.set(bag)) return this.storage.set(SETTINGS_KEY, JSON.stringify(stripped));
+      /* The vault refused: kept as before rather than lost. */
+    }
     return this.storage.set(SETTINGS_KEY, JSON.stringify(settings));
   }
 }

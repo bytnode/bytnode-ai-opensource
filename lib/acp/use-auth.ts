@@ -2,6 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { createStore } from "@/lib/state/store";
+import { currentMessages } from "@/lib/i18n/store";
 import { ACP_AGENTS, type AcpAgentId, type AcpAuthStatus } from "./agents";
 
 /* The state of the subscription accounts, shared by every component that
@@ -25,7 +26,7 @@ export function loadAcpAuth(): Promise<void> {
     try {
       const res = await fetch("/api/acp/auth");
       const json = (await res.json()) as { agents?: AcpAuthStatus[]; error?: { message?: string } };
-      if (!res.ok || !json.agents) throw new Error(json.error?.message ?? "Subscription status unavailable.");
+      if (!res.ok || !json.agents) throw new Error(json.error?.message ?? currentMessages().chat.errors.subscriptionStatusUnavailable);
       store.set({ status: "ready", agents: json.agents });
       for (const l of listeners) l(json.agents);
       schedulePoll(json.agents);
@@ -65,7 +66,7 @@ export function onAcpAuthChange(listener: (agents: AcpAuthStatus[]) => void): ()
 export async function acpLogin(agent: AcpAgentId): Promise<string | null> {
   const res = await fetch("/api/acp/auth", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agent, action: "login" }) });
   const json = (await res.json()) as { status?: AcpAuthStatus; error?: { message?: string } };
-  if (!res.ok) return json.error?.message ?? "Could not sign in.";
+  if (!res.ok) return json.error?.message ?? currentMessages().chat.errors.couldNotSignIn;
   if (json.status) {
     const agents = store.get().agents.map((a) => (a.agent === agent ? { ...json.status!, connecting: !json.status!.loggedIn } : a));
     store.set({ status: "ready", agents });
@@ -74,10 +75,31 @@ export async function acpLogin(agent: AcpAgentId): Promise<string | null> {
   return null;
 }
 
+/** Claude's sign-in in the app: the code the browser page shows. Returns
+    why it was refused, or null (the state is then re-read: « checking »,
+    then signed in, or the CLI's reason). */
+export async function acpLoginCode(agent: AcpAgentId, code: string): Promise<string | null> {
+  let message: string | null = null;
+  try {
+    const res = await fetch("/api/acp/auth", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agent, action: "login-code", code }) });
+    const json = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+    if (!res.ok) message = json.error?.message ?? currentMessages().chat.errors.codeNotSent;
+  } catch {
+    message = currentMessages().chat.errors.codeNotSent;
+  }
+  await loadAcpAuth();
+  return message;
+}
+
+export async function acpLoginCancel(agent: AcpAgentId): Promise<void> {
+  await fetch("/api/acp/auth", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agent, action: "login-cancel" }) }).catch(() => null);
+  await loadAcpAuth();
+}
+
 export async function acpInstall(agent: AcpAgentId): Promise<string | null> {
   const res = await fetch("/api/acp/auth", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agent, action: "install" }) });
   const json = (await res.json()) as { status?: AcpAuthStatus; error?: { message?: string } };
-  if (!res.ok) return json.error?.message ?? "Could not install.";
+  if (!res.ok) return json.error?.message ?? currentMessages().chat.errors.couldNotInstall;
   if (json.status) {
     const agents = store.get().agents.map((a) => (a.agent === agent ? { ...json.status!, installing: true } : a));
     store.set({ status: "ready", agents });
@@ -95,9 +117,9 @@ export async function acpLogout(agent: AcpAgentId): Promise<string | null> {
   try {
     const res = await fetch("/api/acp/auth", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agent, action: "logout" }) });
     const json = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
-    if (!res.ok) message = json.error?.message ?? "Could not sign out.";
+    if (!res.ok) message = json.error?.message ?? currentMessages().chat.errors.couldNotSignOut;
   } catch {
-    message = "Could not sign out.";
+    message = currentMessages().chat.errors.couldNotSignOut;
   }
   await loadAcpAuth();
   return message;

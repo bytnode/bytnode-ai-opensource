@@ -7,7 +7,8 @@ import { ChevronRight } from "@/components/ui/icons";
 import { useAwakeInterval, useViewActive } from "../view-activity";
 import { HourScale } from "./hours";
 import { WeekGrid, WeekHead } from "./week-grid";
-import { LOCALE, dayLabel } from "./format";
+import { locale, dayLabel } from "./format";
+import { useMessages } from "@/lib/i18n/react";
 
 /* The right pane: the chosen period on a scale of time — a day on its
    hours, or this week as a grid of days by hours, the days' heads right
@@ -28,6 +29,8 @@ type Props = {
 const TICK = 60_000;
 
 export function Agenda({ period, span, today, days, loading, problem, onPick }: Props) {
+  const t = useMessages();
+  const w = t.calendar;
   const [now, setNow] = useState(() => new Date());
   const list = useRef<HTMLDivElement>(null);
   /* What the list was last placed on: it is placed once per period, not
@@ -58,8 +61,8 @@ export function Agenda({ period, span, today, days, loading, problem, onPick }: 
   const anchor = anchorHour(shown, span.some((d) => sameDay(d, now)) ? now : null);
   const head =
     period.kind === "day"
-      ? { title: dayLabel(period.day, today), sub: period.day.toLocaleDateString(LOCALE, { weekday: sameDay(period.day, today) ? "long" : undefined, day: "numeric", month: "long", year: "numeric" }) }
-      : { title: "This week", sub: `${span[0].toLocaleDateString(LOCALE, { day: "numeric", month: span[0].getMonth() === span[6].getMonth() ? undefined : "short" })} – ${span[6].toLocaleDateString(LOCALE, { day: "numeric", month: "long", year: "numeric" })}` };
+      ? { title: dayLabel(period.day, today), sub: period.day.toLocaleDateString(locale(), { weekday: sameDay(period.day, today) ? "long" : undefined, day: "numeric", month: "long", year: "numeric" }) }
+      : { title: w.thisWeek, sub: `${span[0].toLocaleDateString(locale(), { day: "numeric", month: span[0].getMonth() === span[6].getMonth() ? undefined : "short" })} – ${span[6].toLocaleDateString(locale(), { day: "numeric", month: "long", year: "numeric" })}` };
   return (
     <main className="calv-pane calv-agenda">
       <header className="calv-agenda-head">
@@ -68,14 +71,14 @@ export function Agenda({ period, span, today, days, loading, problem, onPick }: 
           <p className="calv-agenda-sub">{head.sub}</p>
           {empty && (
             <p className="calv-agenda-empty">
-              Nothing on this day
+              {w.nothingToday}
               {next && (
                 <button type="button" className="calv-next" onClick={() => onPick(next)}>
-                  Next event: {dayLabel(next, today)}, {next.toLocaleDateString(LOCALE, { day: "numeric", month: "long" })}
+                  {w.nextEvent(`${dayLabel(next, today)}, ${next.toLocaleDateString(locale(), { day: "numeric", month: "long" })}`)}
                   <ChevronRight />
                 </button>
               )}
-              <span className="calv-agenda-hint">Ask one of your agents to add an event, a task or a reminder.</span>
+              <span className="calv-agenda-hint">{w.askAgent}</span>
             </p>
           )}
         </div>

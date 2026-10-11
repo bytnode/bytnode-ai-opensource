@@ -1,5 +1,7 @@
 "use client";
 
+import { currentMessages } from "@/lib/i18n/store";
+
 /* ---------------------------------------------------------------------------
    Capture the screen, and downscale an image, in the browser.
 
@@ -27,7 +29,7 @@ const horodatage = () => new Date().toISOString().replace(/[:.]/g, "-").slice(0,
     right away: nothing keeps being captured afterwards. */
 export async function captureScreen(): Promise<{ name: string; blob: Blob }> {
   if (!navigator.mediaDevices?.getDisplayMedia) {
-    throw new CaptureError("This browser cannot capture the screen.");
+    throw new CaptureError(currentMessages().chat.errors.captureUnsupported);
   }
   let stream: MediaStream;
   try {
@@ -37,7 +39,7 @@ export async function captureScreen(): Promise<{ name: string; blob: Blob }> {
        Recording permission ("Permission denied by system"): the click did
        nothing at all. Said, with where to grant it. */
     if (e instanceof DOMException && e.name === "NotAllowedError" && /by system|platform/i.test(e.message) && /Mac/i.test(navigator.userAgent)) {
-      throw new CaptureError("macOS blocked the capture: allow your browser in System Settings → Privacy & Security → Screen & System Audio Recording, then restart the browser.");
+      throw new CaptureError(currentMessages().chat.errors.captureBlockedMac);
     }
     /* The user closed the dialog: that is not an error. */
     if (e instanceof DOMException && (e.name === "NotAllowedError" || e.name === "AbortError")) throw new CaptureError("");
@@ -52,7 +54,7 @@ export async function captureScreen(): Promise<{ name: string; blob: Blob }> {
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const w = video.videoWidth;
     const h = video.videoHeight;
-    if (!w || !h) throw new CaptureError("The shared screen rendered nothing.");
+    if (!w || !h) throw new CaptureError(currentMessages().chat.errors.captureEmpty);
     const blob = await drawToJpeg(video, w, h);
     video.pause();
     video.srcObject = null;
@@ -83,12 +85,12 @@ async function drawToJpeg(source: CanvasImageSource, w: number, h: number, maxEd
   canvas.width = Math.max(1, Math.round(w * ratio));
   canvas.height = Math.max(1, Math.round(h * ratio));
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new CaptureError("Could not prepare the image.");
+  if (!ctx) throw new CaptureError(currentMessages().chat.errors.imagePrepare);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
   const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", QUALITY));
-  if (!blob) throw new CaptureError("Could not encode the image.");
+  if (!blob) throw new CaptureError(currentMessages().chat.errors.imageEncode);
   return blob;
 }
 

@@ -49,8 +49,7 @@ describe("completeCommand / runCommand", () => {
   });
 });
 
-/* The subscription agents' own lists: Gemini's sub-commands carry a
-   space, Codex's skills start with `$`, Claude Code publishes fifty. */
+/* The subscription agents' own lists: sub-commands carry a space, Codex's skills start with `$`, Claude Code publishes fifty. */
 describe("an agent's own commands", () => {
   const agent: SlashCommand[] = [
     { name: "memory", description: "memory" },

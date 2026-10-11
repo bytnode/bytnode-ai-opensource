@@ -196,6 +196,17 @@ export async function appendJsonl(file: string, entry: unknown, max?: number): P
   });
 }
 
+/** Removes the entries `drop` picks, under the lock (an append waits).
+    Returns how many went. */
+export async function removeJsonl<T>(file: string, drop: (entry: T) => boolean): Promise<number> {
+  return withLock(file, async () => {
+    const all = await readJsonl<T>(file);
+    const kept = all.filter((e) => !drop(e));
+    if (kept.length !== all.length) await writeTextAtomic(file, kept.map((e) => JSON.stringify(e)).join("\n") + (kept.length ? "\n" : ""));
+    return all.length - kept.length;
+  });
+}
+
 /** A plugin's own corner of the data folder. File names are plain names:
     no path, no climbing out. */
 export type PluginStore = {
@@ -206,6 +217,8 @@ export type PluginStore = {
   update<T>(name: string, fallback: T, change: (current: T) => T | Promise<T>): Promise<T>;
   append(name: string, entry: unknown, max?: number): Promise<void>;
   lines<T>(name: string): Promise<T[]>;
+  /** Removes the lines `drop` picks; how many went. */
+  removeLines<T>(name: string, drop: (entry: T) => boolean): Promise<number>;
   /** Deletes everything the plugin stored. */
   clear(): Promise<void>;
 };
@@ -230,6 +243,7 @@ export function pluginStore(id: string, root: string = pluginsDir()): PluginStor
     update: (name, fallback, change) => updateJson(file(name), fallback, change),
     append: (name, entry, max) => appendJsonl(file(name), entry, max),
     lines: (name) => readJsonl(file(name)),
+    removeLines: (name, drop) => removeJsonl(file(name), drop),
     clear: () => fs.rm(dir, { recursive: true, force: true }),
   };
 }

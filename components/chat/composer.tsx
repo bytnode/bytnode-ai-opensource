@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from "react";
 import type { Attachment } from "@/lib/agent/attachments";
 import { COMMANDS, commandOf, completeCommand, groupBySource, matchCommands, runCommand, type SlashCommand } from "@/lib/agent/commands";
-import { ArrowUp, Camera, Check, Close, File as FileIcon, Plus, Search, Spinner, Stop } from "@/components/ui/icons";
+import { ArrowRight, ArrowUp, Camera, Check, Close, File as FileIcon, Plus, Search, Spinner, Stop } from "@/components/ui/icons";
 import { ComposerPopover } from "./composer-popover";
 import { ModelPicker } from "./model-picker";
 import { useRimLight, type RimState } from "./rim-light";
+import { useMessages } from "@/lib/i18n/react";
 import "./composer.css";
 
 type Props = {
@@ -23,6 +24,10 @@ type Props = {
   onProfession: (profession: string) => void;
   streaming: boolean;
   disabled?: boolean;
+  /** No access to the models: the field gives way to one quiet line saying
+      why, with the way out — instead of a banner over the page (the user's
+      request, 2026-10-05). */
+  locked?: { message: string; action: string; onAction: () => void } | null;
   onSend: (text: string, opts: { attachments: Attachment[]; research: boolean }) => void;
   onStop: () => void;
   /** Drop files into the agent's workspace. */
@@ -39,6 +44,9 @@ type Props = {
   /** The command list opened or closed: it takes room in the page (the
       composer grows upward), the shell keeps the field where it was. */
   onPalette?: (open: boolean) => void;
+  /** The field's invitation, when the place calls for its own (an
+      agent's page). */
+  placeholder?: string;
 };
 
 /** The glass's corner radius, CSS px: `composer.css` (`.cmp`) and the rim's
@@ -47,6 +55,9 @@ const RADIUS = 26;
 /** The docked field's height on one line (36 px, see `.cmp.is-docked >
     .cmp-input`), with a margin: above it, the message wraps. */
 const ONE_LINE = 44;
+/** The field's tallest, CSS px (`.cmp-input` max-height): past it, it
+    scrolls. */
+const MAX_FIELD = 220;
 
 /* ---------------------------------------------------------------------------
    The composer: a pane of frosted glass on the backdrop's light.
@@ -90,6 +101,7 @@ export function Composer({
   onProfession,
   streaming,
   disabled,
+  locked,
   onSend,
   onStop,
   onAttachFiles,
@@ -98,7 +110,13 @@ export function Composer({
   docked = false,
   commands: offered = COMMANDS,
   onPalette,
+  placeholder,
 }: Props) {
+  const m = useMessages();
+  /* BytNode-AI's own commands speak the interface's language; an agent's
+     own keep the words it published. */
+  const own = (c: SlashCommand) =>
+    c.source === undefined && COMMANDS.some((x) => x.name === c.name) ? (m.chat.composer.own as Partial<Record<string, { args: string; description: string }>>)[c.name] : undefined;
   const [text, setText] = useState("");
   const area = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -170,20 +188,28 @@ export function Composer({
     }
   };
 
+  /* The field's height follows its text, up to MAX_FIELD. ⚠️ It scrolls
+     only past that cap: an `overflow: auto` field a pixel short of its
+     text (a layout that changed after the measure) showed Windows'
+     scrollbar arrows in a one-line field (user report). */
+  const fit = (el: HTMLTextAreaElement) => {
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, MAX_FIELD)}px`;
+    el.style.overflowY = el.scrollHeight > MAX_FIELD ? "auto" : "hidden";
+  };
+
   const grow = () => {
     const el = area.current;
     if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
-    if (!el.value) setTall(false);
-    else if (!tall && el.scrollHeight > ONE_LINE) {
-      setTall(true);
-      /* Wider now: measured again once laid out. */
+    fit(el);
+    /* Tall once it wraps, until it is emptied (no flip-flop on the edge). */
+    const next = el.value ? tall || el.scrollHeight > ONE_LINE : false;
+    if (next !== tall) {
+      setTall(next);
+      /* Its width changes with the layout — wider when tall, narrower when
+         back on one line: measured again once laid out. */
       requestAnimationFrame(() => {
-        const again = area.current;
-        if (!again) return;
-        again.style.height = "auto";
-        again.style.height = `${Math.min(again.scrollHeight, 220)}px`;
+        if (area.current) fit(area.current);
       });
     }
   };
@@ -273,26 +299,26 @@ export function Composer({
     >
       <canvas ref={rimCanvas} className="cmp-rim" aria-hidden />
       {palette && (
-        <div className="cmp-commands" id="composer-commands" role="listbox" aria-label="Commands" ref={list}>
+        <div className="cmp-commands" id="composer-commands" role="listbox" aria-label={m.chat.composer.commands} ref={list}>
           <div className="cmp-commands-head">
-            <span>Commands</span>
+            <span>{m.chat.composer.commands}</span>
             <span className="cmp-commands-keys" aria-hidden>
               <span>
                 <kbd>↑</kbd>
                 <kbd>↓</kbd>
-                choose
+                {m.chat.composer.keyChoose}
               </span>
               <span>
                 <kbd>Tab</kbd>
-                complete
+                {m.chat.composer.keyComplete}
               </span>
               <span>
                 <kbd>↵</kbd>
-                run
+                {m.chat.composer.keyRun}
               </span>
               <span>
                 <kbd>esc</kbd>
-                close
+                {m.chat.composer.keyClose}
               </span>
             </span>
           </div>
@@ -302,6 +328,8 @@ export function Composer({
                 <p className="cmp-caption">{g.source}</p>
                 {g.items.map((c) => {
                   const i = commands.indexOf(c);
+                  const description = own(c)?.description ?? c.description;
+                  const args = c.args && (own(c)?.args ?? c.args);
                   return (
                     <button
                       key={`${c.trigger ?? "/"}${c.name}`}
@@ -313,7 +341,7 @@ export function Composer({
                       onMouseDown={(e) => e.preventDefault()}
                       onMouseEnter={() => setSelected(i)}
                       onClick={() => run(c)}
-                      title={c.description || undefined}
+                      title={description || undefined}
                     >
                       <span className="cmp-command-glyph" aria-hidden>
                         {c.trigger ?? "/"}
@@ -321,9 +349,9 @@ export function Composer({
                       <span className="cmp-item-text">
                         <b>
                           {c.name}
-                          {c.args && <span className="cmp-command-args">{c.args}</span>}
+                          {args && <span className="cmp-command-args">{args}</span>}
                         </b>
-                        {c.description && <small>{c.description}</small>}
+                        {description && <small>{description}</small>}
                       </span>
                       {i === index && (
                         <kbd className="cmp-command-enter" aria-hidden>
@@ -343,8 +371,8 @@ export function Composer({
           {research && (
             <span className="cmp-joint is-research">
               <Search />
-              Deep research
-              <button type="button" onClick={() => setResearch(false)} aria-label="Remove deep research">
+              {m.chat.deepResearch}
+              <button type="button" onClick={() => setResearch(false)} aria-label={m.chat.composer.removeResearch}>
                 <Close />
               </button>
             </span>
@@ -358,7 +386,7 @@ export function Composer({
                 <FileIcon />
               )}
               {a.name}
-              <button type="button" onClick={() => setAttachments((prev) => prev.filter((x) => x.path !== a.path))} aria-label={`Remove ${a.name}`}>
+              <button type="button" onClick={() => setAttachments((prev) => prev.filter((x) => x.path !== a.path))} aria-label={m.chat.composer.remove(a.name)}>
                 <Close />
               </button>
             </span>
@@ -366,49 +394,59 @@ export function Composer({
           {failure && <span className="cmp-joint is-error">{failure}</span>}
         </div>
       )}
-      <textarea
-        ref={area}
-        className="cmp-input"
-        rows={1}
-        placeholder={disabled ? "Connect an access to the models to write." : "Write your message…  (/ for commands)"}
-        value={text}
-        disabled={disabled}
-        onChange={(e) => {
-          setText(e.target.value);
-          setSelected(0);
-          /* Typing means the user has moved on: an open popover goes. */
-          setPop(null);
-          grow();
-        }}
-        onPointerDown={() => setPop(null)}
-        onKeyDown={onKey}
-        aria-label="Your message"
-        aria-autocomplete="list"
-        aria-controls={palette ? "composer-commands" : undefined}
-      />
+      {locked ? (
+        <div className="cmp-input cmp-locked">
+          <span>{locked.message}</span>
+          <button type="button" className="cmp-locked-action" onClick={locked.onAction}>
+            {locked.action}
+            <ArrowRight />
+          </button>
+        </div>
+      ) : (
+        <textarea
+          ref={area}
+          className="cmp-input"
+          rows={1}
+          placeholder={disabled ? m.chat.composer.placeholderLocked : (placeholder ?? m.chat.composer.placeholder)}
+          value={text}
+          disabled={disabled}
+          onChange={(e) => {
+            setText(e.target.value);
+            setSelected(0);
+            /* Typing means the user has moved on: an open popover goes. */
+            setPop(null);
+            grow();
+          }}
+          onPointerDown={() => setPop(null)}
+          onKeyDown={onKey}
+          aria-label={m.chat.composer.yourMessage}
+          aria-autocomplete="list"
+          aria-controls={palette ? "composer-commands" : undefined}
+        />
+      )}
       <div className="cmp-bar">
         <div className="cmp-anchor">
           <button
             ref={plus}
             type="button"
             className={`cmp-plus${pop === "plus" ? " is-open" : ""}`}
-            aria-label="Add"
+            aria-label={m.common.add}
             aria-haspopup="dialog"
             aria-expanded={pop === "plus"}
-            title="Add files, a screenshot, deep research"
+            title={m.chat.composer.addTitle}
             disabled={disabled || busy !== null}
             onClick={() => setPop(pop === "plus" ? null : "plus")}
           >
             {busy ? <Spinner /> : <Plus />}
           </button>
-          <ComposerPopover open={pop === "plus"} onClose={closePop} anchor={plus} align="start" width={328} label="Add to the message">
+          <ComposerPopover open={pop === "plus"} onClose={closePop} anchor={plus} align="start" width={328} label={m.chat.composer.addToMessage}>
             <button type="button" data-item className="cmp-action" onClick={() => fileInput.current?.click()}>
               <span className="cmp-action-icon">
                 <FileIcon />
               </span>
               <span className="cmp-action-text">
-                <b>Add files</b>
-                <small>Dropped into the agent&apos;s workspace</small>
+                <b>{m.chat.composer.addFiles}</b>
+                <small>{m.chat.composer.addFilesHint}</small>
               </span>
             </button>
             <button type="button" data-item className="cmp-action" onClick={() => void joindre("capture", onScreenshot)}>
@@ -416,8 +454,8 @@ export function Composer({
                 <Camera />
               </span>
               <span className="cmp-action-text">
-                <b>Take a screenshot</b>
-                <small>You choose the screen or the window</small>
+                <b>{m.chat.composer.screenshot}</b>
+                <small>{m.chat.composer.screenshotHint}</small>
               </span>
             </button>
             <span className="cmp-sep" aria-hidden />
@@ -435,8 +473,8 @@ export function Composer({
                 <Search />
               </span>
               <span className="cmp-action-text">
-                <b>Deep research</b>
-                <small>{research ? "On for the next message" : "Several sources, cross-checked and dated"}</small>
+                <b>{m.chat.deepResearch}</b>
+                <small>{research ? m.chat.composer.researchOn : m.chat.composer.researchHint}</small>
               </span>
               <span className="cmp-item-check">{research && <Check />}</span>
             </button>
@@ -471,11 +509,11 @@ export function Composer({
           onOpenChange={(open, refocus) => (open ? setPop("settings") : closePop(refocus))}
         />
         {streaming ? (
-          <button type="button" className="cmp-round cmp-send is-stop" onClick={onStop} aria-label="Stop the reply" title="Stop the reply">
+          <button type="button" className="cmp-round cmp-send is-stop" onClick={onStop} aria-label={m.chat.composer.stopReply} title={m.chat.composer.stopReply}>
             <Stop />
           </button>
         ) : (
-          <button type="button" className={`cmp-round cmp-send${canSend ? " is-ready" : ""}`} onClick={submit} disabled={!canSend} aria-label="Send" title="Send (Enter)">
+          <button type="button" className={`cmp-round cmp-send${canSend ? " is-ready" : ""}`} onClick={submit} disabled={!canSend} aria-label={m.chat.composer.send} title={m.chat.composer.sendTitle}>
             <ArrowUp />
           </button>
         )}

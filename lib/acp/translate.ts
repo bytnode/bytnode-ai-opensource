@@ -396,8 +396,7 @@ const selectOf = (options: SessionConfigOption[], category: string) =>
 export const DEFAULT_MODEL = "default";
 
 /** What a session says about its models, in its two forms: the config
-    options (category `model`, the current form) or the old `models` field
-    (Gemini CLI). */
+    options (category `model`, the current form) or the old `models` field. */
 export type SessionModels = {
   configOptions?: SessionConfigOption[] | null;
   models?: { availableModels: { modelId: string; name: string; description?: string | null }[]; currentModelId: string } | null;
@@ -406,7 +405,7 @@ export type SessionModels = {
 
 /** A session's modes: the way the external agent behaves (« Default »,
     « Plan », « Accept edits »…). Two forms: a config option of category
-    `mode` (Claude Code, Copilot) or the old `modes` field (Gemini CLI).
+    `mode` (Claude Code, Copilot) or the old `modes` field.
     `configId` says which way to change it. */
 export type AgentModes = { configId: string | null; current: string; options: Array<{ value: string; name: string; description?: string | null }> };
 

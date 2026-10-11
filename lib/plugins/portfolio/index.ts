@@ -18,11 +18,20 @@ import type { Access } from "./permissions";
 import { addBalances, savingsByDay, tradingPart } from "./savings";
 import { STABLES } from "./aggregate";
 import { addGroup, editGroup, removeGroup, type AccountGroup } from "./groups";
+import { accountsKey, holdingsKey, holdingsOf, Warm } from "./warm";
 
 /* The consolidated portfolio: two read-only tools, a daily snapshot of the
    total while the app is open (a job on the core's clock), and the view's
    actions — the summary, the history, and the export as a report (when
-   the report export runs). */
+   the report export runs). The accounts' read and the rebuilt history are
+   kept a while and read AHEAD, as soon as the accounts change (`warm.ts`):
+   the tab and the widget open on them with no wait. */
+
+const MINUTE = 60_000;
+/** The view's history: 365 days back (`view.tsx`, HISTORY_DAYS − 1). */
+const BACKFILL_DAYS = 365;
+/** A shared read is not stopped by the caller that started it leaving. */
+const NEVER = new AbortController().signal;
 
 const SNAPSHOTS = "snapshots.jsonl";
 /** The user's groups of accounts (ids only — `groups.ts`). */
@@ -52,13 +61,20 @@ export const portfolioPlugin = definePlugin({
       },
     });
 
-    const current = async (wanted: unknown, transport: Pick<Transport, "bytnodeKey" | "exchangeAccounts">, signal: AbortSignal) => {
-      const reads = await readAccounts(transport.exchangeAccounts);
-      const [book, money] = await Promise.all([priceBook(reads, { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal }), moneyIn(wanted, currency())]);
-      return { summary: summarize(reads, book), money, at: new Date().toISOString() };
+    /* The accounts read and priced, a minute: the tab, the widget, an
+       export and the preload asked at once share ONE read of the exchanges. */
+    const reads = new Warm<{ summary: ReturnType<typeof summarize>; at: string }>(MINUTE);
+    const read = (transport: Pick<Transport, "bytnodeKey" | "exchangeAccounts">) =>
+      reads.get(accountsKey(transport.exchangeAccounts ?? [], transport.bytnodeKey ?? ""), async () => {
+        const r = await readAccounts(transport.exchangeAccounts);
+        return { summary: summarize(r, await priceBook(r, { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal: NEVER })), at: new Date().toISOString() };
+      });
+    const current = async (wanted: unknown, transport: Pick<Transport, "bytnodeKey" | "exchangeAccounts">) => {
+      const [{ summary, at }, money] = await Promise.all([read(transport), moneyIn(wanted, currency())]);
+      return { summary, money, at };
     };
 
-    ctx.api("summary", async (params, { transport, signal }) => current(params.currency, transport, signal));
+    ctx.api("summary", async (params, { transport }) => current(params.currency, transport));
     /* The groups of accounts: the view's navigator lists them, the view
        cuts the summary and the history to each (`groups.ts`). */
     ctx.api("groups", async () => ctx.store.read<AccountGroup[]>(GROUPS, []));
@@ -100,11 +116,18 @@ export const portfolioPlugin = definePlugin({
        a record the API gives shows as an outflow. Each day valued at its
        close: BytNode's daily klines, else an account's exchange. What each
        key cannot read is said back (`access`). */
-    ctx.api("backfill", async (params, { transport, signal }) => {
+    ctx.api("backfill", async (params, { transport }) => {
       const days = Math.max(7, Math.min(365, typeof params.days === "number" ? Math.round(params.days) : 365));
       const holdings: Holdings = (Array.isArray(params.holdings) ? params.holdings : [])
         .filter((h): h is { id: string; assets: unknown[] } => typeof h?.id === "string" && Array.isArray(h.assets))
         .map((h) => ({ id: h.id, assets: h.assets.flatMap((a) => (typeof (a as { asset?: unknown }).asset === "string" && typeof (a as { amount?: unknown }).amount === "number" ? [a as { asset: string; amount: number }] : [])) }));
+      return backfillOf(holdings, days, transport);
+    });
+    /* The history rebuilt, an hour: hundreds of exchange calls on a Bybit
+       account, read once (by the preload, most often). Keyed by the assets
+       held, not their amounts (`holdingsKey`). */
+    const rebuild = async (holdings: Holdings, days: number, transport: Pick<Transport, "bytnodeKey" | "exchangeAccounts">) => {
+      const signal = NEVER;
       const dayList = lastDays(new Date(), days);
       const since = Date.parse(`${dayList[0]}T00:00:00Z`);
       const accounts = transport.exchangeAccounts ?? [];
@@ -175,13 +198,49 @@ export const portfolioPlugin = definePlugin({
         return { date, at: `${date}T00:00:00.000Z`, totalUsd: Math.round(total * 100) / 100, assets: {}, accounts: byAccount, ...(flow ? { flowUsd: flow, flows: dayFlows } : {}), estimated: true as const };
       });
       return { points: holdings.length ? points : [], missing: [...missing], sources, coverage, activity: activity.sort((a, b) => b.t - a.t), access };
+    };
+    const backfills = new Warm<Awaited<ReturnType<typeof rebuild>>>(60 * MINUTE);
+    const backfillOf = (holdings: Holdings, days: number, transport: Pick<Transport, "bytnodeKey" | "exchangeAccounts">) =>
+      holdings.length ? backfills.get(`${accountsKey(transport.exchangeAccounts ?? [], transport.bytnodeKey ?? "")}|${days}|${holdingsKey(holdings)}`, () => rebuild(holdings, days, transport)) : rebuild(holdings, days, transport);
+
+    /* The preload (user request): as soon as the set of accounts changes —
+       one added, removed, its keys replaced — and once when the app opens,
+       the accounts are read and the year of history rebuilt, in the
+       background. The tab and the widget then open on them at once. Nothing
+       otherwise: an unchanged set costs no exchange call and no BytNode
+       quota. Checked every minute, while a tab is open. */
+    let preloaded = "";
+    ctx.job({
+      id: "preload",
+      title: "Portfolio preload",
+      every: "every 1 minute",
+      catchUp: "run-once-on-start",
+      async run({ session }) {
+        const accounts = session.exchangeAccounts;
+        if (accounts.length === 0) {
+          preloaded = "";
+          return "No exchange account: nothing to preload.";
+        }
+        const key = accountsKey(accounts, session.bytnodeKey);
+        if (key === preloaded) return "Already preloaded.";
+        preloaded = key;
+        const transport = { bytnodeKey: session.bytnodeKey, exchangeAccounts: accounts };
+        try {
+          const { summary } = await read(transport);
+          await backfillOf(holdingsOf(summary), BACKFILL_DAYS, transport);
+          return `Preloaded ${accounts.length} account${accounts.length > 1 ? "s" : ""} and their history.`;
+        } catch (e) {
+          /* Not retried every minute: the tab reads again when opened. */
+          return `Preload incomplete: ${e instanceof Error ? e.message : String(e)}`;
+        }
+      },
     });
-    ctx.api("export", async (params, { transport, signal }) => {
+    ctx.api("export", async (params, { transport }) => {
       const report = ctx.optional<ReportService>("report-export");
       if (!report) throw new Error("Report export is off: switch it on in Settings → Plugins.");
       const agentId = typeof params.agentId === "string" ? params.agentId : "";
       const workspace = await resolveWorkspace(agentId, typeof params.workspace === "string" ? params.workspace : "");
-      const { summary, money, at } = await current(params.currency, transport, signal);
+      const { summary, money, at } = await current(params.currency, transport);
       const date = at.slice(0, 16).replace("T", " ") + " UTC";
       const labels = transport.exchangeAccounts.map((a) => a.label).join(", ");
       const written = await report.write({

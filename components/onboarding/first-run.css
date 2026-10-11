@@ -1,0 +1,595 @@
+/* ---------------------------------------------------------------------------
+   The first launch's guided setup (`wizard.tsx`).
+
+   A page you scroll through, one screen per step, snapping from one to the
+   next over the app's backdrop (its beams stay visible through a light
+   veil). Each screen is one block of the app's glass — the companion and
+   its bubble on the left, the step on the right — that rises in and
+   settles as it scrolls into view, and steps back as it leaves: the motion
+   follows the scroll itself (`animation-timeline: view()`), never a timer.
+   A rail on the side fills with the scroll.
+--------------------------------------------------------------------------- */
+
+.fr {
+  --fr-blue: 66, 117, 216;
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  /* Named: the rail is `fixed`, its nearest scroller would be the window. */
+  scroll-timeline: --fr-scroll block;
+  background: rgba(var(--voile), 0.42);
+  scrollbar-width: none;
+}
+
+.fr::-webkit-scrollbar {
+  display: none;
+}
+
+html[data-theme="light"] .fr {
+  background: rgba(var(--voile), 0.62);
+}
+
+/* --- The brand, pinned ----------------------------------------------------- */
+
+.fr-top {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  height: 0;
+  padding: 0 48px;
+}
+
+.fr-brand {
+  display: inline-block;
+  margin-top: 26px;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 500;
+  font-size: 0.98rem;
+  letter-spacing: -0.02em;
+}
+
+/* --- The rail: where we are, following the scroll ------------------------
+
+   On the right edge, vertically centred: a hairline track; a light that
+   fills it as the page scrolls, continuously (a scroll timeline, not a
+   jump per step), its head a small glowing bead; the steps' names on the
+   left of the track at their stations — the current one in full ink with
+   a short blue tick, the ones passed in muted ink, the ones not yet open
+   faint. A name is a link to its screen. */
+.fr-rail {
+  position: fixed;
+  z-index: 3;
+  /* The whole height of the window, the stations spread along it
+     (2026-10-09: « s'étale sur toute la longueur verticale »). */
+  top: 96px;
+  bottom: 96px;
+  right: 44px;
+  width: 132px;
+}
+
+.fr-rail-track {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--line-strong);
+  overflow: visible;
+}
+
+.fr-rail-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(var(--fr-blue), 0.2), rgb(var(--fr-blue)));
+  box-shadow: 0 0 12px rgba(var(--fr-blue), 0.5);
+  transform-origin: top;
+  animation: fr-rail-fill linear both;
+  animation-timeline: --fr-scroll;
+}
+
+.fr-rail-fill::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(var(--fr-blue), 0.35), 0 0 16px rgba(var(--fr-blue), 0.9);
+  transform: translateX(-50%);
+}
+
+@keyframes fr-rail-fill {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.fr-rail ol {
+  position: absolute;
+  inset: 0 18px 0 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fr-rail li {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+}
+
+.fr-rail button {
+  position: relative;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.84rem;
+  letter-spacing: -0.005em;
+  color: var(--fg-faint);
+  cursor: pointer;
+  transition: color 400ms ease, transform 500ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.fr-rail li.is-done button {
+  color: var(--fg-muted);
+}
+
+.fr-rail li.is-current button {
+  color: var(--fg);
+  font-weight: 500;
+  transform: translateX(-6px);
+}
+
+/* The current station's tick, toward the track. */
+.fr-rail li.is-current button::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: -16px;
+  width: 10px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgb(var(--fr-blue));
+  box-shadow: 0 0 8px rgba(var(--fr-blue), 0.8);
+  transform: translateY(-50%);
+}
+
+.fr-rail li.is-locked button {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.fr-rail button:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* --- One screen per step ---------------------------------------------------- */
+
+.fr-section {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 72px 220px 72px 64px;
+  scroll-snap-align: start;
+}
+
+/* The companion and the step together, a notch smaller than the page
+   around it — on the page itself, no frame (2026-10-09: « je veux plus que
+   les blocs soient encadrés »). The companion changes side from one step to
+   the next: left, right, left, right. The whole rises in out of a slight
+   blur as its screen comes into view, and steps back as it leaves. */
+.fr-card {
+  zoom: 0.92;
+  width: min(1080px, 100%);
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  column-gap: 72px;
+  align-items: start;
+  animation: fr-card-in linear both, fr-card-out linear both;
+  animation-timeline: view(), view();
+  animation-range: entry 0% entry 90%, exit 10% exit 100%;
+}
+
+@keyframes fr-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(80px) scale(0.96);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes fr-card-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0.2;
+    transform: translateY(-50px) scale(0.97);
+  }
+}
+
+.fr-guide {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding-top: 6px;
+}
+
+/* The guide and the step on the first row, each in its column; the way
+   on (the foot) on a row of its own under both. Placed by column, not by
+   `order`: with `order` the foot slid between them and pushed the
+   companion under it. */
+.fr-guide {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.fr-step {
+  grid-row: 1;
+  grid-column: 2;
+}
+
+/* Every other step, the companion on the right. */
+.fr-section:nth-of-type(even) .fr-card {
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+
+.fr-section:nth-of-type(even) .fr-guide {
+  grid-column: 2;
+}
+
+.fr-section:nth-of-type(even) .fr-step {
+  grid-column: 1;
+}
+
+/* The canvas reaches past the body (aura, orbits): pulled back so the
+   bubble's tail sits under its feet. */
+.fr-companion {
+  margin: -18px 0 -22px -26px;
+}
+
+/* The companion's words: a bubble, tail up toward it. */
+.fr-bubble {
+  position: relative;
+  margin: 0;
+  padding: 18px 20px;
+  border-radius: 20px;
+  background: var(--veil-strong);
+  box-shadow: 0 0 0 1px var(--line), 0 24px 60px -36px rgba(var(--fr-blue), 0.6);
+  font-size: 0.95rem;
+  line-height: 1.62;
+  color: var(--fg);
+}
+
+/* The words still to come: there, holding the bubble's size, unseen. */
+.fr-ghost {
+  visibility: hidden;
+}
+
+/* The whole line, for screen readers, at once. */
+.fr-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.fr-bubble::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: 54px;
+  width: 14px;
+  height: 14px;
+  transform: rotate(45deg);
+  background: var(--veil-strong);
+  box-shadow: -1px -1px 0 0 var(--line);
+  border-radius: 3px 0 0 0;
+}
+
+.fr-step {
+  min-width: 0;
+}
+
+.fr-form {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin-top: 26px;
+}
+
+.fr-bio {
+  min-height: 84px;
+}
+
+/* The look, chosen by seeing it: two swatches, applied as you click. */
+.fr-themes {
+  display: flex;
+  gap: 10px;
+}
+
+.fr-theme {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px 10px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--matter);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 160ms ease, box-shadow 160ms ease, color 160ms ease;
+}
+
+.fr-theme.is-on {
+  background: var(--matter-strong);
+  box-shadow: inset 0 0 0 1.5px var(--fg);
+  color: var(--fg);
+}
+
+.fr-theme-swatch {
+  width: 28px;
+  height: 20px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.4);
+}
+
+.fr-theme-dark .fr-theme-swatch {
+  background: linear-gradient(160deg, #1b2a48, #05080f);
+}
+
+.fr-theme-light .fr-theme-swatch {
+  background: linear-gradient(160deg, #ffffff, #dfe5f0);
+}
+
+/* The panel under the choice of source: its height glides to the new
+   content, the content fades in (« un peu plus fluide »). */
+.fr-smooth {
+  overflow: hidden;
+  transition: height 420ms var(--ease);
+}
+
+.fr-title {
+  margin: 0 0 8px;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 400;
+  font-size: clamp(1.8rem, 2.6vw, 2.25rem);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.fr-lede {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--fg-muted);
+}
+
+/* The two ways to reach the models: a choice of two, side by side. */
+.fr-choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 26px;
+}
+
+.fr-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 20px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--matter);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--fg-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms ease, box-shadow 140ms ease, color 140ms ease;
+}
+
+.fr-choice:hover {
+  background: var(--matter-hover);
+}
+
+.fr-choice.is-on {
+  background: var(--matter-strong);
+  box-shadow: inset 0 0 0 1.5px var(--fg);
+  color: var(--fg);
+}
+
+.fr-choice:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+.fr-choice-title {
+  font-size: 0.98rem;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.fr-choice-desc {
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.fr-panel {
+  padding-top: 24px;
+  animation: fr-panel-in 420ms var(--ease) both;
+}
+
+@keyframes fr-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+.fr-bytnode {
+  margin-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+/* Under both columns, its button on the right edge of the block: the same
+   place on every screen. */
+.fr-foot {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 40px;
+}
+
+.fr-next {
+  min-height: 42px;
+  padding: 0 22px;
+  border-radius: 999px;
+}
+
+/* The setup's way on beside « Add »: on the right of the same line. */
+.fr .xch-aside {
+  margin-left: auto;
+}
+
+/* What the step still needs before the next one opens. */
+.fr-wait {
+  margin: 0 0 0 auto;
+  font-size: 0.86rem;
+  color: var(--fg-muted);
+}
+
+/* The Telegram and exchange forms, open from the start in the setup
+   (2026-10-09): laid on the page like the other steps' fields — no frame,
+   no grey ground — with more room, the steps a size up. */
+.fr .xch {
+  gap: 18px;
+}
+
+.fr .xch-form {
+  gap: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+/* The exchange form, a notch tighter (2026-10-09: « ressers un peu »):
+   it has the most fields. */
+.fr .fr-xch .xch {
+  gap: 12px;
+}
+
+.fr .fr-xch .xch-form {
+  gap: 12px;
+}
+
+.fr .fr-xch .field-hint {
+  margin-top: -2px;
+}
+
+.fr .tg-steps {
+  gap: 8px;
+  padding-left: 20px;
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+
+.fr .xch-head .field-hint {
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+@media (max-width: 1100px) {
+  .fr-rail {
+    right: 20px;
+    width: 96px;
+  }
+
+  .fr-section {
+    padding-right: 140px;
+  }
+}
+
+@media (max-width: 880px) {
+  .fr-top {
+    padding: 0 24px;
+  }
+
+  .fr-rail {
+    display: none;
+  }
+
+  .fr-section {
+    padding: 64px 16px 40px;
+  }
+
+  .fr-card,
+  .fr-section:nth-of-type(even) .fr-card {
+    grid-template-columns: 1fr;
+    row-gap: 24px;
+  }
+
+  .fr-guide,
+  .fr-section:nth-of-type(even) .fr-guide {
+    grid-row: 1;
+    grid-column: 1;
+  }
+
+  .fr-step,
+  .fr-section:nth-of-type(even) .fr-step {
+    grid-row: 2;
+    grid-column: 1;
+  }
+
+  .fr-foot {
+    grid-row: 3;
+  }
+
+  .fr-choices {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fr {
+    scroll-behavior: auto;
+  }
+
+  .fr-card,
+  .fr-panel {
+    animation: none;
+  }
+}

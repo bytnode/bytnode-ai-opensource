@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import type { AgentConfig, AuthMode, ExchangeAccount } from "@/lib/domain/types";
-import { isAcpProvider } from "@/lib/acp/agents";
-import { PROFESSIONS } from "@/lib/professions/catalog";
+import { acpAgentOf, isAcpProvider } from "@/lib/acp/agents";
+import { useCatalog } from "@/lib/catalog/use-catalog";
+import { PROFESSIONS, professionText } from "@/lib/professions/catalog";
+import { useMessages } from "@/lib/i18n/react";
 import { Field } from "@/components/ui/field";
 import { ContextFiles } from "./context-files";
 import { FolderField } from "./folder-field";
@@ -22,6 +24,8 @@ type Props = {
 };
 
 export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange }: Props) {
+  const m = useMessages();
+  const t = m.onboarding.agent;
   const picked = value.exchangeAccountIds ?? [];
   const toggleAccount = (id: string) => set({ exchangeAccountIds: picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id] });
   const set = (patch: Partial<AgentConfig>) => onChange({ ...value, ...patch });
@@ -37,20 +41,26 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
   const chooseSource = (next: ProviderSource) => {
     if (next === source) return;
     setSource(next);
+    setPicking(true);
     set({ providerId: "", defaultModelId: null });
   };
+  /* Once chosen, the provider folds into one line (2026-10-09: « trop
+     d'info et trop long »); a click on it opens the list again. */
+  const [picking, setPicking] = useState(!value.providerId);
+  const catalog = useCatalog();
+  const acp = acpAgentOf(value.providerId);
+  const chosen = acp
+    ? { title: acp.label, desc: t.viaSubscription(acp.product) }
+    : { title: catalog.providers.find((p) => p.id === value.providerId)?.name ?? value.providerId, desc: t.viaKey };
   return (
     <>
       <h1 id="ob-title" className="ob-title">
-        {isNew ? "A new agent" : value.name}
+        {isNew ? t.newTitle : value.name}
       </h1>
-      <p className="ob-lede">
-        A name, a model provider, and what it should know before answering
-        you. You will choose the exact model in each conversation.
-      </p>
+      <p className="ob-lede">{t.lede}</p>
 
       <div className="ob-form">
-        <Field id="agentName" label="Name" error={errors.name}>
+        <Field id="agentName" label={t.name} error={errors.name}>
           <input
             id="agentName"
             className="field-input"
@@ -62,11 +72,11 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
         </Field>
 
         <div className="field">
-          <span className="field-label">Access to the models</span>
+          <span className="field-label">{t.access}</span>
           <div
             className="ob-choice"
             role="radiogroup"
-            aria-label="Source of the models"
+            aria-label={t.accessGroup}
           >
             <button
               type="button"
@@ -75,12 +85,8 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
               className={`ob-choice-btn${source === "subscription" ? " is-on" : ""}`}
               onClick={() => chooseSource("subscription")}
             >
-              <span className="ob-choice-title">By subscription</span>
-              <span className="ob-choice-desc">
-                Claude, OpenAI, Gemini, GitHub Copilot, Grok:
-                the vendor&apos;s agent, on your account, with no extra
-                token.
-              </span>
+              <span className="ob-choice-title">{t.bySubscription}</span>
+              <span className="ob-choice-desc">{t.bySubscriptionDesc}</span>
             </button>
             <button
               type="button"
@@ -89,34 +95,44 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
               className={`ob-choice-btn${source === "keys" ? " is-on" : ""}`}
               onClick={() => chooseSource("keys")}
             >
-              <span className="ob-choice-title">By OpenRouter key</span>
-              <span className="ob-choice-desc">
-                Every vendor in the OpenRouter catalog, with the BytNode-AI
-                tools, billed per use on your key.
-              </span>
+              <span className="ob-choice-title">{t.byKey}</span>
+              <span className="ob-choice-desc">{t.byKeyDesc}</span>
             </button>
           </div>
         </div>
 
         <Field
           id="provider"
-          label={source === "subscription" ? "Subscription" : "Vendor"}
+          label={source === "subscription" ? t.subscription : t.vendor}
           error={errors.providerId}
         >
-          <ProviderPicker
-            id="provider"
-            value={value.providerId}
-            source={source}
-            onChange={(providerId) => set({ providerId, defaultModelId: null })}
-          />
+          {value.providerId && !picking ? (
+            <button type="button" id="provider" className="ob-choice-btn pv-row is-on pv-chosen" aria-expanded={false} onClick={() => setPicking(true)}>
+              <span className="pv-row-text">
+                <span className="ob-choice-title">{chosen.title}</span>
+                <span className="ob-choice-desc">{chosen.desc}</span>
+              </span>
+              <span className="pv-change">{t.change}</span>
+            </button>
+          ) : (
+            <ProviderPicker
+              id="provider"
+              value={value.providerId}
+              source={source}
+              onChange={(providerId) => {
+                set({ providerId, defaultModelId: null });
+                setPicking(false);
+              }}
+            />
+          )}
         </Field>
 
         <div className="field">
-          <span className="field-label">Profession</span>
+          <span className="field-label">{t.profession}</span>
           <div
             className="ob-choice ob-choice-4"
             role="radiogroup"
-            aria-label="Agent's profession"
+            aria-label={t.professionGroup}
           >
             {PROFESSIONS.map((p) => (
               <button
@@ -127,48 +143,48 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
                 className={`ob-choice-btn${value.profession === p.id ? " is-on" : ""}`}
                 onClick={() => set({ profession: p.id })}
               >
-                <span className="ob-choice-title">{p.label}</span>
-                <span className="ob-choice-desc">{p.description}</span>
+                <span className="ob-choice-title">{professionText(p.id, m).label}</span>
+                <span className="ob-choice-desc">{professionText(p.id, m).description}</span>
               </button>
             ))}
           </div>
-          <p className="field-hint">
-            The profession gives the agent its system prompt and its
-            skills (<span className="mono">professions/</span> folder). The
-            context below is added to it.
-          </p>
+          <p className="field-hint">{t.professionHint(<span className="mono">professions/</span>)}</p>
         </div>
 
-        <Field
-          id="contextText"
-          label="Context"
-          optional
-          hint="What the agent should know: its role, your activity, instructions. Passed on at the start of every conversation."
-        >
-          <textarea
+        {/* Side by side: what the agent should know, written or as files. */}
+        <div className="ob-row ob-row-top">
+          <Field
             id="contextText"
-            className="field-input"
-            placeholder="You are the assistant of …"
-            value={value.contextText}
-            onChange={(e) => set({ contextText: e.target.value })}
-          />
-        </Field>
+            label={t.context}
+            optional
+            hint={t.contextHint}
+          >
+            <textarea
+              id="contextText"
+              className="field-input"
+              placeholder={t.contextPlaceholder}
+              value={value.contextText}
+              onChange={(e) => set({ contextText: e.target.value })}
+            />
+          </Field>
 
-        <div className="field">
-          <span className="field-label">
-            Reference files<small>optional</small>
-          </span>
-          <ContextFiles
-            value={value.contextFiles}
-            onChange={(contextFiles) => set({ contextFiles })}
-          />
+          <div className="field">
+            <span className="field-label">
+              {t.files}
+              <small>{m.common.optional}</small>
+            </span>
+            <ContextFiles
+              value={value.contextFiles}
+              onChange={(contextFiles) => set({ contextFiles })}
+            />
+          </div>
         </div>
 
         <Field
           id="workspace"
-          label="Workspace"
+          label={t.workspace}
           optional
-          hint="Where the agent starts its commands and resolves relative paths. Empty: a ~/.bytnode-ai/workspaces/<id> folder."
+          hint={t.workspaceHint}
         >
           <FolderField
             id="workspace"
@@ -178,11 +194,11 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
         </Field>
 
         <div className="field">
-          <span className="field-label">Scope</span>
+          <span className="field-label">{t.scope}</span>
           <div
             className="ob-choice"
             role="radiogroup"
-            aria-label="Scope of the file tools"
+            aria-label={t.scopeGroup}
           >
             <button
               type="button"
@@ -191,15 +207,8 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
               className={`ob-choice-btn${(value.scope ?? "workspace") === "workspace" ? " is-on" : ""}`}
               onClick={() => set({ scope: "workspace" })}
             >
-              <span className="ob-choice-title">
-                Workspace only
-              </span>
-              <span className="ob-choice-desc">
-                The file tools refuse any outside path, and a shell command
-                that names one is refused before it runs (a guard on the
-                command&apos;s text — combine with &quot;Ask before
-                acting&quot; for a real safety net).
-              </span>
+              <span className="ob-choice-title">{t.scopeWorkspace}</span>
+              <span className="ob-choice-desc">{t.scopeWorkspaceDesc}</span>
             </button>
             <button
               type="button"
@@ -208,72 +217,26 @@ export function StepAgent({ value, errors, isNew, authMode, exchanges, onChange 
               className={`ob-choice-btn${value.scope === "disk" ? " is-on" : ""}`}
               onClick={() => set({ scope: "disk" })}
             >
-              <span className="ob-choice-title">Whole disk</span>
-              <span className="ob-choice-desc">
-                Any absolute path is accepted. The workspace is only the
-                starting point.
-              </span>
+              <span className="ob-choice-title">{t.scopeDisk}</span>
+              <span className="ob-choice-desc">{t.scopeDiskDesc}</span>
             </button>
           </div>
         </div>
 
-        {source === "keys" && (
-          <>
-            <div className="field">
-              <span className="field-label">Tools</span>
-              <div
-                className="ob-choice"
-                role="radiogroup"
-                aria-label="Tool execution mode"
-              >
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={(value.permissionMode ?? "ask") === "ask"}
-                  className={`ob-choice-btn${(value.permissionMode ?? "ask") === "ask" ? " is-on" : ""}`}
-                  onClick={() => set({ permissionMode: "ask" })}
-                >
-                  <span className="ob-choice-title">
-                    Ask before acting
-                  </span>
-                  <span className="ob-choice-desc">
-                    Every shell command and every file change waits for
-                    your permission.
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={value.permissionMode === "skip"}
-                  className={`ob-choice-btn${value.permissionMode === "skip" ? " is-on" : ""}`}
-                  onClick={() => set({ permissionMode: "skip" })}
-                >
-                  <span className="ob-choice-title">Direct execution</span>
-                  <span className="ob-choice-desc">
-                    Every tool runs without asking. Faster, with no safety
-                    net. Orders, closes and transfers on an exchange still
-                    ask.
-                  </span>
-                </button>
-              </div>
-            </div>
-          </>
-        )}
-
         {/* For ALL agents, by key or by subscription: subscription agents
             receive the same tools through the MCP server. */}
         <div className="field">
-          <span className="field-label">Exchange accounts</span>
+          <span className="field-label">{t.exchanges}</span>
           {exchanges.length === 0 ? (
-            <p className="field-hint">Add an account in Settings → Auth so this agent can trade.</p>
+            <p className="field-hint">{t.noExchange}</p>
           ) : (
             <>
-              <p className="field-hint">The accounts this agent can read and drive. None: no exchange tool.</p>
+              <p className="field-hint">{t.exchangesHint}</p>
               <div className="xch-pick">
                 {exchanges.map((a) => (
                   <label key={a.id}>
                     <input type="checkbox" checked={picked.includes(a.id)} onChange={() => toggleAccount(a.id)} />
-                    <span className={`xch-badge${a.testnet ? "" : " is-live"}`}>{a.testnet ? "TESTNET" : "LIVE"}</span>
+                    <span className={`xch-badge${a.testnet ? "" : " is-live"}`}>{a.testnet ? t.testnet : t.live}</span>
                     <span>{a.label}</span>
                     <span className="xch-exchange">{a.exchange}</span>
                   </label>

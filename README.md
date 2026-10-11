@@ -5,7 +5,7 @@
 You create agents, give each one a profession and a folder to work in, and talk to them in your
 browser. They read live market data, write and run code, chart, backtest and follow your exchange
 accounts — on your own computer. Models come from your OpenRouter key or from the subscription you
-already have: Claude, ChatGPT, Gemini, GitHub Copilot or Grok.
+already have: Claude, ChatGPT, GitHub Copilot or Grok.
 
 Documentation: https://ai.bytnode.com/docs
 
@@ -17,6 +17,15 @@ Agents run commands and write files on your machine, and can trade on the exchan
 connect. **Read the [safety notice](SAFETY.md) before running it.**
 
 ## Run
+
+### Desktop app
+
+Download the installer for your system from [ai.bytnode.com/download](https://ai.bytnode.com/download)
+(Windows, macOS, Linux), open it, and start BytNode-AI like any other app. No Node.js needed. It
+updates itself.
+
+The installers are not signed yet. On Windows, click **More info → Run anyway** the first time; on
+macOS, open **System Settings → Privacy & Security** and click **Open Anyway**.
 
 ### From npm
 
@@ -32,7 +41,7 @@ just run `bytnode-ai`. Stop it with **Ctrl-C**.
 - `npx bytnode-ai@latest` updates it.
 - `--port 4000` uses another port, `--no-open` does not open the browser.
 
-A short setup asks for your profile, how you pay for models, and your first agent.
+A short setup asks for your profile and how you pay for models, then opens on your first agent's welcome.
 See the [install guide](https://ai.bytnode.com/docs/install).
 
 ### From source
@@ -45,6 +54,10 @@ npm run dev
 ```
 
 The app opens at http://localhost:3777 and reloads as you edit.
+
+The desktop app from source: `npm run build`, then `npm run desktop` (or, on a running
+`npm run dev`, `npm run desktop -- --dev-url http://127.0.0.1:3777`). `npm run desktop:dist`
+builds this system's installer into `dist-desktop/release/`.
 
 ## Community and support
 

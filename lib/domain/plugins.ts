@@ -9,23 +9,34 @@
    brings into the core's extension points (`lib/plugins/core/`).
 --------------------------------------------------------------------------- */
 
+import { currentMessages } from "@/lib/i18n/store";
+
 export type PluginCategory = "market" | "portfolio" | "automation" | "tools";
 
-export const PLUGIN_CATEGORIES: Array<{ id: PluginCategory; label: string }> = [
-  { id: "market", label: "Market" },
-  { id: "portfolio", label: "Portfolio and trading" },
-  { id: "automation", label: "Automation" },
-  { id: "tools", label: "Tools" },
-];
+/* The labels are read when used, in the interface's language
+   (`plugins.categories`, `plugins.needs` in `lib/i18n/messages/`): a
+   getter, never a string fixed at load. */
+const category = (id: PluginCategory): { id: PluginCategory; readonly label: string } => ({
+  id,
+  get label() {
+    return currentMessages().plugins.categories[id];
+  },
+});
+
+export const PLUGIN_CATEGORIES: Array<{ id: PluginCategory; readonly label: string }> = [category("market"), category("portfolio"), category("automation"), category("tools")];
 
 /** A prerequisite outside the plugin system: something the user configures
     in the settings. A plugin whose need is not met for an agent gives that
     agent no tool. */
 export type PluginNeed = "exchange-account" | "bytnode-key";
 
-export const NEED_LABELS: Record<PluginNeed, string> = {
-  "exchange-account": "Exchange account required",
-  "bytnode-key": "BytNode key required",
+export const NEED_LABELS: Readonly<Record<PluginNeed, string>> = {
+  get "exchange-account"() {
+    return currentMessages().plugins.needs["exchange-account"];
+  },
+  get "bytnode-key"() {
+    return currentMessages().plugins.needs["bytnode-key"];
+  },
 };
 
 /** One setting of a plugin: a subset of JSON Schema, rendered by the

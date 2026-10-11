@@ -1,4 +1,5 @@
 import { nextRun, parseFrequency } from "../core/frequency";
+import { frequencyLabel, frequencyPhrase } from "../shared/frequency-words";
 import { firstDue, type DcaPlan, type PlanSummary } from "./plans";
 
 /* ---------------------------------------------------------------------------
@@ -131,7 +132,9 @@ export function nthPurchase(frequency: string, start: number, n: number): number
 /** How many purchases between `start` and `end` (counted up to 10 000). */
 export const purchasesUntil = (frequency: string, start: number, end: number): number => schedule(frequency, start, end, 10_000).length;
 
-/** A frequency read back in a sentence's words ("every Monday at 09:00"). */
-export function frequencyWords(frequency: string): string {
-  return frequency.replace(/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/g, (d) => d[0].toUpperCase() + d.slice(1)).replace(/^daily/, "Every day");
-}
+/** A frequency read back on its own, in the interface's language ("Every
+    Monday at 09:00"); `frequencyPhrase` gives it for the middle of a
+    sentence ("every Monday at 09:00"). */
+export const frequencyWords = (frequency: string): string => frequencyLabel(frequency);
+
+export { frequencyPhrase };

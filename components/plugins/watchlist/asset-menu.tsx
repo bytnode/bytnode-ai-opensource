@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import { Eye, Trash } from "@/components/ui/icons";
 import { useDismiss } from "@/components/ui/use-dismiss";
+import { useMessages } from "@/lib/i18n/react";
 
 /* The menu a right click opens on an asset — a row of the list or a tile
    of the heat map: show it, or remove it from the watchlist. A bubble
@@ -40,6 +41,7 @@ export function useAssetMenu() {
 type Props = { at: MenuAt; onClose: () => void; onShow: (symbol: string) => void; onRemove: (symbol: string) => void };
 
 export function AssetMenu({ at, onClose, onShow, onRemove }: Props) {
+  const m = useMessages();
   const root = useRef<HTMLDivElement>(null);
   useDismiss(true, onClose, root);
 
@@ -66,7 +68,7 @@ export function AssetMenu({ at, onClose, onShow, onRemove }: Props) {
       ref={root}
       className="wlv-menu"
       role="menu"
-      aria-label={`${at.symbol} actions`}
+      aria-label={m.watchlist.menu.label(at.symbol)}
       style={style}
       onContextMenu={(e) => e.preventDefault()}
       onKeyDown={(e) => {
@@ -79,11 +81,11 @@ export function AssetMenu({ at, onClose, onShow, onRemove }: Props) {
     >
       <button type="button" role="menuitem" className="wlv-menu-item" onClick={run(onShow)}>
         <Eye />
-        Show {base}
+        {m.watchlist.menu.show(base)}
       </button>
       <button type="button" role="menuitem" className="wlv-menu-item is-danger" onClick={run(onRemove)}>
         <Trash />
-        Remove from watchlist
+        {m.watchlist.menu.remove}
       </button>
     </div>
   );

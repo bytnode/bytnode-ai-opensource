@@ -8,6 +8,7 @@ import { isStopped } from "@/lib/agent/stop";
 import { Markdown } from "./markdown";
 import { ChevronDown, Spinner } from "@/components/ui/icons";
 import { ToolStepView } from "./tool-step";
+import { useMessages } from "@/lib/i18n/react";
 
 type Props = {
   message: MessageT;
@@ -31,6 +32,7 @@ type Props = {
    surprises us.
 --------------------------------------------------------------------------- */
 export const Message = memo(function Message({ message, author, streaming, onRetry, onAnswer, fileUrl }: Props) {
+  const m = useMessages();
   if (message.role === "user") {
     const joints = message.attachments ?? [];
     return (
@@ -50,7 +52,7 @@ export const Message = memo(function Message({ message, author, streaming, onRet
           </div>
         )}
         <div className="msg-bubble">
-          {message.research && <span className="msg-research">Deep research</span>}
+          {message.research && <span className="msg-research">{m.chat.deepResearch}</span>}
           {message.content}
         </div>
       </article>
@@ -66,8 +68,8 @@ export const Message = memo(function Message({ message, author, streaming, onRet
       <div className="msg-compacting" role="status">
         <Spinner />
         <span>
-          Compacting the thread…
-          <small>the agent summarises what matters, then the summary replaces the conversation</small>
+          {m.chat.compacting}
+          <small>{m.chat.compactingHint}</small>
         </span>
       </div>
     );
@@ -85,14 +87,16 @@ export const Message = memo(function Message({ message, author, streaming, onRet
           {author && <span className="msg-author">{author}</span>}
           {message.modelId && (
             <span className="msg-model mono">
-              {message.modelId}
+              {/* The model as its vendor names it: `grok/grok-4.7`, not the
+                  internal `acp:` of a subscription agent (user request). */}
+              {message.modelId.replace(/^acp:/, "")}
               {message.effort ? ` · ${message.effort}` : ""}
             </span>
           )}
         </header>
       )}
       {empty && streaming ? (
-        <div className="msg-wait" aria-label="The agent is writing">
+        <div className="msg-wait" aria-label={m.chat.agentWriting}>
           <span />
           <span />
           <span />
@@ -101,7 +105,7 @@ export const Message = memo(function Message({ message, author, streaming, onRet
         /* One of the agent's own commands that answers nothing (`/rename`,
            `/goal clear`): it ran — not an empty reply. */
         <p className="msg-command-ran" role="status">
-          <code>{message.command}</code> ran — nothing to show.
+          {m.chat.commandRan(<code>{message.command}</code>)}
         </p>
       ) : steps.length > 0 ? (
         steps.map((s, i) =>
@@ -121,7 +125,7 @@ export const Message = memo(function Message({ message, author, streaming, onRet
         </div>
       )}
       {streaming && steps.length > 0 && !lastIsText && (
-        <div className="msg-wait msg-wait-tools" aria-label="The agent is working">
+        <div className="msg-wait msg-wait-tools" aria-label={m.chat.agentWorking}>
           <span />
           <span />
           <span />
@@ -131,10 +135,10 @@ export const Message = memo(function Message({ message, author, streaming, onRet
           resume as after a cut connection. */}
       {message.error && isStopped(message) ? (
         <div className="msg-stopped" role="status">
-          <span>Stopped</span>
+          <span>{m.chat.stopped}</span>
           {onRetry && (
             <button type="button" className="msg-stopped-go" onClick={onRetry}>
-              Continue
+              {m.chat.continue}
             </button>
           )}
         </div>
@@ -143,7 +147,7 @@ export const Message = memo(function Message({ message, author, streaming, onRet
           <p>{message.error}</p>
           {onRetry && (
             <button type="button" className="btn btn-sm" onClick={onRetry}>
-              Retry
+              {m.chat.retry}
             </button>
           )}
         </div>
@@ -160,13 +164,14 @@ export const Message = memo(function Message({ message, author, streaming, onRet
    read it on every pass.
 --------------------------------------------------------------------------- */
 const CompactionView = memo(function CompactionView({ message }: { message: MessageT }) {
+  const m = useMessages();
   const [open, setOpen] = useState(false);
   return (
     <article className={`msg msg-compact${open ? " is-open" : ""}`}>
       <button type="button" className="msg-compact-head" onClick={() => setOpen(!open)} aria-expanded={open}>
         <ChevronDown className="thought-chevron" />
         {compactLabel(message)}
-        <span className="msg-compact-hint">{open ? "hide the summary" : "view the summary"}</span>
+        <span className="msg-compact-hint">{open ? m.chat.hideSummary : m.chat.viewSummary}</span>
       </button>
       {open && (
         <div className="md">
@@ -186,12 +191,13 @@ const CompactionView = memo(function CompactionView({ message }: { message: Mess
 --------------------------------------------------------------------------- */
 
 const PlanView = memo(function PlanView({ entries }: { entries: PlanEntry[] }) {
+  const m = useMessages();
   const faits = entries.filter((e) => e.status === "completed").length;
   const share = entries.length > 0 ? (faits / entries.length) * 100 : 0;
   return (
     <div className="plan">
       <p className="plan-head">
-        Plan
+        {m.chat.plan}
         <span className="plan-bar" aria-hidden="true">
           <i style={{ width: `${share}%` }} />
         </span>

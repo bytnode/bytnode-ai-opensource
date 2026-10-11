@@ -13,6 +13,7 @@ import { Agenda } from "./agenda";
 import { useFilter } from "./filters";
 import { recall, remember } from "./memory";
 import { MonthPane, type PeriodKey } from "./month";
+import { useMessages } from "@/lib/i18n/react";
 import "./calendar.css";
 
 /* ---------------------------------------------------------------------------
@@ -34,6 +35,7 @@ type Week = { events: CalendarEvent[]; watchlist: boolean };
 const REFRESH = 30_000;
 
 export function CalendarView({ settings, params }: ViewProps) {
+  const t = useMessages();
   const [today] = useState(() => startOfDay(new Date()));
   /* A day asked from another tab (the watchlist's "coming up"): shown once
      per request — `params.at` tells two requests for the same day apart —
@@ -123,7 +125,7 @@ export function CalendarView({ settings, params }: ViewProps) {
           reset={CALENDAR_DEFAULT}
           clamp={clampCalendarWidth}
           onCommit={(w) => updateUiPrefs({ calendarWidth: w })}
-          label="Width of the month column"
+          label={t.calendar.columnWidth}
         />
         <CalendarActionsProvider value={actions}>
           <Agenda period={period} span={span} today={today} days={days} loading={loading && !data} problem={problem ?? error ?? null} onPick={pick} />

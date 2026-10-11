@@ -6,6 +6,7 @@ import { Close, Trash } from "@/components/ui/icons";
 import { PAPER_NAV_DEFAULT, PAPER_NAV_MAX, PAPER_NAV_MIN, PAPER_TRADE_DEFAULT, PAPER_TRADE_MAX, PAPER_TRADE_MIN, clampPaperNavWidth, clampPaperTradeWidth, updateUiPrefs, useUiPrefs } from "@/lib/state/ui";
 import type { ViewProps } from "../views";
 import { ColumnHandle } from "../column-handle";
+import { fmt } from "../bits";
 import { ItemMenu, useItemMenu } from "../item-menu";
 import { callPlugin } from "@/lib/plugins/client";
 import { act, usePluginData, viewTransport } from "../use-plugin-data";
@@ -17,6 +18,7 @@ import { Market } from "./market";
 import { focusSymbol, type BookRow, type Focus, type PaperState } from "./format";
 import { Sheet } from "./sheet";
 import { Card, Ticket } from "./ticket";
+import { useMessages } from "@/lib/i18n/react";
 import "../watchlist/watchlist.css";
 import "./paper-trading.css";
 
@@ -53,6 +55,8 @@ const BOOKS_MS = 30_000;
 const QUOTE_MS = 5_000;
 
 export function PaperTradingView({ settings, params }: ViewProps) {
+  const m = useMessages();
+  const t = m.paperTrading;
   const ui = useUiPrefs();
   const panel = useRef<HTMLDivElement>(null);
   const focus0 = typeof params?.portfolio === "string" ? params.portfolio : null;
@@ -81,7 +85,7 @@ export function PaperTradingView({ settings, params }: ViewProps) {
   const pairsData = usePluginData<Listed[]>("paper-trading", "pairs", settings, {}, { keep: "latest" });
   useOnWake(pairsData.reload);
   const pairs = Array.isArray(pairsData.data) && pairsData.data.length ? pairsData.data : null;
-  const pairsUnavailable = !settings.keys.bytnode.trim() ? "The list of pairs comes from BytNode: add your key in Settings → Auth." : pairsData.data && !pairs ? "BytNode's list of pairs could not be read — type a pair." : null;
+  const pairsUnavailable = !settings.keys.bytnode.trim() ? t.pairsNeedKey : pairsData.data && !pairs ? t.pairsUnreadable : null;
   const showPair = (s: string) => {
     setSymbol(s);
     if (ui.paperTradeClosed) updateUiPrefs({ paperTradeClosed: false });
@@ -193,7 +197,7 @@ export function PaperTradingView({ settings, params }: ViewProps) {
           reset={PAPER_NAV_DEFAULT}
           clamp={clampPaperNavWidth}
           onCommit={(w) => updateUiPrefs({ paperNavWidth: w })}
-          label="Width of the portfolios"
+          label={t.navWidth}
         />
         <Sheet
           data={data}
@@ -226,14 +230,14 @@ export function PaperTradingView({ settings, params }: ViewProps) {
               reset={PAPER_TRADE_DEFAULT}
               clamp={clampPaperTradeWidth}
               onCommit={(w) => updateUiPrefs({ paperTradeWidth: w })}
-              label="Width of the order column"
+              label={t.tradeWidth}
             />
-            <section className="wlv-pane ptv-trade" aria-label="New paper order">
+            <section className="wlv-pane ptv-trade" aria-label={t.newOrderLabel}>
               <header className="ptv-trade-bar">
                 <h2 className="wlv-title">
-                  <span className="pv-ink">Trade</span>
+                  <span className="pv-ink">{t.trade}</span>
                 </h2>
-                <button type="button" className="wlv-icon" onClick={() => updateUiPrefs({ paperTradeClosed: true })} aria-label="Close the order column" title="Close — “Trade” brings it back">
+                <button type="button" className="wlv-icon" onClick={() => updateUiPrefs({ paperTradeClosed: true })} aria-label={t.closeTrade} title={t.closeTradeHint}>
                   <Close />
                 </button>
               </header>
@@ -246,12 +250,12 @@ export function PaperTradingView({ settings, params }: ViewProps) {
       {menu.at && (
         <ItemMenu
           at={menu.at}
-          label="Portfolio actions"
+          label={t.menuLabel}
           items={
             (list?.length ?? 0) > 1
               ? [
                   {
-                    label: "Delete the portfolio",
+                    label: t.deletePortfolio,
                     icon: <Trash />,
                     danger: true,
                     onSelect: () => {
@@ -260,16 +264,16 @@ export function PaperTradingView({ settings, params }: ViewProps) {
                     },
                   },
                 ]
-              : [{ label: "The last portfolio cannot be deleted", icon: <Trash />, disabled: true, onSelect: () => {} }]
+              : [{ label: t.lastCannotGo, icon: <Trash />, disabled: true, onSelect: () => {} }]
           }
           onClose={menu.close}
         />
       )}
       {confirm?.kind === "reset" && (
         <ConfirmDialog
-          title={`Start "${data?.name ?? "this portfolio"}" again?`}
-          body={`Every paper holding, position, order and fill of this portfolio is erased, and its cash goes back to its starting ${data ? `${data.capital.toLocaleString("en-US")} USDT` : "capital"}. Nothing real is touched.`}
-          confirmLabel="Start again"
+          title={t.resetTitle(data?.name ?? t.thisPortfolio)}
+          body={t.resetBody(data ? `${fmt(data.capital)} USDT` : null)}
+          confirmLabel={t.resetConfirm}
           onConfirm={() => {
             setConfirm(null);
             void run("reset", data ? { capital: data.capital } : {});
@@ -279,9 +283,9 @@ export function PaperTradingView({ settings, params }: ViewProps) {
       )}
       {confirm?.kind === "delete" && (
         <ConfirmDialog
-          title={`Delete "${confirm.name}"?`}
-          body="The portfolio and its whole history are erased. The other paper portfolios are not touched, and nothing real is."
-          confirmLabel="Delete"
+          title={t.deleteTitle(confirm.name)}
+          body={t.deleteBody}
+          confirmLabel={m.common.delete}
           onConfirm={() => {
             const gone = confirm.id;
             setConfirm(null);

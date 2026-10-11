@@ -10,13 +10,15 @@ import { performance, slicePeriod, type Period } from "@/lib/plugins/portfolio/p
 import type { Money } from "@/lib/plugins/portfolio/present";
 import { dailySeries } from "@/lib/plugins/portfolio/view-model";
 import { samplePoints, sampleSummary } from "@/lib/plugins/portfolio/sample";
-import { mergeHistory, type Activity, type Coverage, type Estimated } from "@/lib/plugins/portfolio/backfill";
+import { holdingsOf, mergeHistory, type Activity, type Coverage, type Estimated } from "@/lib/plugins/portfolio/backfill";
 import type { Access } from "@/lib/plugins/portfolio/permissions";
 import { pluginManifest } from "@/lib/plugins/catalog";
 import { pluginSettings, resolveConfig } from "@/lib/plugins/core/state";
 import { goToSettings } from "@/lib/state/navigation";
 import { PORTFOLIO_DEFAULT, PORTFOLIO_MAX, PORTFOLIO_MIN, clampPortfolioWidth, updateUiPrefs, useUiPrefs } from "@/lib/state/ui";
 import { Refresh } from "@/components/ui/icons";
+import { useMessages } from "@/lib/i18n/react";
+import { dateTag, numberTag } from "@/lib/i18n/store";
 import type { ViewProps } from "../views";
 import { ColumnHandle } from "../column-handle";
 import { usePluginData, viewTransport } from "../use-plugin-data";
@@ -56,6 +58,8 @@ const REFRESH = 120_000;
 const HISTORY_DAYS = 366;
 
 export function PortfolioView({ settings }: ViewProps) {
+  const t = useMessages();
+  const w = t.portfolio;
   const configured = String(resolveConfig(pluginManifest("portfolio")!, pluginSettings(settings.plugins, "portfolio").config).currency);
   const [currency, setCurrency] = useState(configured);
   const [scope, setScope] = useState(ALL);
@@ -70,9 +74,7 @@ export function PortfolioView({ settings }: ViewProps) {
   /* Before the snapshots, the history is estimated: today's holdings at
      each past day's close (the server's `backfill`); a real snapshot wins
      its day. Asked again only when the holdings change. */
-  const holdings = (data?.summary.accounts ?? [])
-    .filter((a) => a.id && !a.testnet)
-    .map((a) => ({ id: a.id as string, assets: a.assets.map((x) => ({ asset: x.asset, amount: Number(x.amount.toPrecision(6)) })) }));
+  const holdings = holdingsOf({ accounts: data?.summary.accounts ?? [] });
   const backfill = usePluginData<{ points: Estimated[]; missing: string[]; sources: Record<string, "ledger" | "estimate">; coverage?: Record<string, Record<string, Coverage>>; activity?: Activity[]; access?: Record<string, Access> }>("portfolio", "backfill", settings, { holdings, days: HISTORY_DAYS - 1 }, { keep: "latest" });
   const report = useReportExport("portfolio", settings, { currency });
   const groupsData = usePluginData<AccountGroup[]>("portfolio", "groups", settings, {}, { keep: "latest" });
@@ -85,7 +87,7 @@ export function PortfolioView({ settings }: ViewProps) {
   const noAccount = settings.keys.exchanges.length === 0;
   const s = sample ? sample.summary : noAccount ? null : (data?.summary ?? null);
   const m: Money | null = sample ? (data?.money.currency === currency ? data.money : { currency: "USD", perUsd: 1, rateNote: "" }) : (data?.money ?? null);
-  const value = (usd: number | undefined) => (m && typeof usd === "number" ? `${(usd * m.perUsd).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${m.currency}` : "—");
+  const value = (usd: number | undefined) => (m && typeof usd === "number" ? `${(usd * m.perUsd).toLocaleString(numberTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${m.currency}` : "—");
   /* An account or a group that is no longer there sends back to the whole. */
   const account = s && scope !== ALL ? (s.accounts.find((a) => accountKey(a) === scope) ?? null) : null;
   /* The groups are the user's accounts': never over the sample. */
@@ -129,7 +131,7 @@ export function PortfolioView({ settings }: ViewProps) {
     }
   };
 
-  const status = sample ? "" : noAccount ? "" : loading ? "Updating…" : data ? `Updated ${new Date(data.at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : "Reading your accounts…";
+  const status = sample ? "" : noAccount ? "" : loading ? w.updating : data ? w.updated(new Date(data.at).toLocaleTimeString(dateTag(), { hour: "2-digit", minute: "2-digit" })) : w.readingAccounts;
 
   return (
     <div className="wlv pfv">
@@ -160,35 +162,35 @@ export function PortfolioView({ settings }: ViewProps) {
           reset={PORTFOLIO_DEFAULT}
           clamp={clampPortfolioWidth}
           onCommit={(w) => updateUiPrefs({ portfolioWidth: w })}
-          label="Width of the navigator"
+          label={w.navigatorWidth}
         />
         <main className="wlv-pane wlv-sheet">
           <header className="wlv-head">
             <div className="wlv-title-block">
               <h2 className="wlv-sheet-title">
                 {account && <span className={`xch-badge pfv-title-badge${account.testnet ? "" : " is-live"}`}>{account.testnet ? "TESTNET" : "LIVE"}</span>}
-                <span className="pv-ink">{noAccount && !sample ? "No account yet" : account ? account.label : group ? group.name : "All portfolios"}</span>
+                <span className="pv-ink">{noAccount && !sample ? w.noAccountYet : account ? account.label : group ? group.name : w.allPortfolios}</span>
               </h2>
               <p className="wlv-sheet-sub">
                 {noAccount && !sample
-                  ? "The portfolio reads the exchange accounts you add in Settings → Auth."
+                  ? w.noAccountSub
                   : account
                     ? account.error
-                      ? `${account.exchange} · could not be read: ${account.error}`
-                      : `${account.exchange}${account.testnet ? " · testnet, not counted in the whole" : ""}`
+                      ? w.unreadable(account.exchange, account.error)
+                      : `${account.exchange}${account.testnet ? ` · ${w.testnetApart}` : ""}`
                     : group && shown
-                      ? `${shown.accounts.length ? shown.accounts.map((a) => a.label).join(", ") : "None of its accounts is here any more"}${m?.rateNote ? ` · ${m.rateNote}` : ""}`
+                      ? `${shown.accounts.length ? shown.accounts.map((a) => a.label).join(", ") : w.groupEmpty}${m?.rateNote ? ` · ${m.rateNote}` : ""}`
                       : s
-                      ? `${s.accounts.filter((a) => !a.testnet).length} live accounts${s.testnetUsd > 0 ? " · testnet shown apart, never counted" : ""}${m?.rateNote ? ` · ${m.rateNote}` : ""}`
-                      : "Reading the balances of every wallet…"}
+                      ? `${w.liveAccounts(s.accounts.filter((a) => !a.testnet).length)}${s.testnetUsd > 0 ? ` · ${w.testnetShownApart}` : ""}${m?.rateNote ? ` · ${m.rateNote}` : ""}`
+                      : w.readingWallets}
               </p>
             </div>
             {status && <span className="wlv-status">{status}</span>}
-            <button type="button" className={`pfv-sample-chip${sample ? " is-on" : ""}`} aria-pressed={sample !== null} onClick={() => setSample(sample ? null : drawSample())} title={sample ? "Back to your accounts" : "Fill the report with made-up accounts, to see it"}>
-              Sample data
+            <button type="button" className={`pfv-sample-chip${sample ? " is-on" : ""}`} aria-pressed={sample !== null} onClick={() => setSample(sample ? null : drawSample())} title={sample ? w.backToAccounts : w.sampleHint}>
+              {w.sampleData}
             </button>
             {!noAccount && !sample && (
-              <button type="button" className="wlv-icon" onClick={reload} disabled={loading} aria-label="Read the accounts again" title="Read the accounts again">
+              <button type="button" className="wlv-icon" onClick={reload} disabled={loading} aria-label={w.readAgain} title={w.readAgain}>
                 <Refresh />
               </button>
             )}
@@ -196,9 +198,9 @@ export function PortfolioView({ settings }: ViewProps) {
           </header>
           {sample && (
             <p className="pfv-sample">
-              <b>Sample data</b> — made-up accounts and figures, not yours. Nothing is saved or exported.
+              <b>{w.sampleData}</b> {w.sampleNote}
               <button type="button" onClick={() => setSample(null)}>
-                Back to my accounts
+                {w.backToMine}
               </button>
             </p>
           )}
@@ -208,10 +210,10 @@ export function PortfolioView({ settings }: ViewProps) {
             {noAccount && !sample ? (
               <div className="pfv-empty">
                 <button type="button" className="pfv-cta" onClick={() => goToSettings({ tab: "auth" })}>
-                  Add an exchange account
+                  {w.addAccount}
                 </button>
                 <button type="button" className="pfv-cta is-quiet" onClick={() => setSample(drawSample())}>
-                  Preview with sample data
+                  {w.preview}
                 </button>
               </div>
             ) : (
@@ -219,18 +221,16 @@ export function PortfolioView({ settings }: ViewProps) {
                 <div className="pfv-reading">
                   {error ? (
                     <>
-                      <b>The accounts could not be read.</b>
+                      <b>{w.couldNotRead}</b>
                       <span>{error}</span>
                       <button type="button" className="pfv-cta is-quiet" onClick={reload}>
-                        Try again
+                        {t.common.retry}
                       </button>
                     </>
                   ) : (
                     <>
-                      <b>
-                        Reading {settings.keys.exchanges.length} account{settings.keys.exchanges.length === 1 ? "" : "s"}…
-                      </b>
-                      <span>Every wallet of each exchange (spot, futures, funding) and the open positions — a few seconds.</span>
+                      <b>{w.readingN(settings.keys.exchanges.length)}</b>
+                      <span>{w.readingWhat}</span>
                     </>
                   )}
                 </div>
@@ -244,19 +244,19 @@ export function PortfolioView({ settings }: ViewProps) {
       {menu.at && (
         <ItemMenu
           at={menu.at}
-          label="Group actions"
+          label={w.groupActions}
           items={[
-            { label: "Edit the group", icon: <Pencil />, onSelect: () => menu.at && setEditing({ kind: "edit", id: menu.at.id }) },
-            { label: "Delete the group", icon: <Trash />, danger: true, onSelect: () => setDeleting(groups.find((g) => g.id === menu.at?.id) ?? null) },
+            { label: w.editGroup, icon: <Pencil />, onSelect: () => menu.at && setEditing({ kind: "edit", id: menu.at.id }) },
+            { label: w.deleteGroup, icon: <Trash />, danger: true, onSelect: () => setDeleting(groups.find((g) => g.id === menu.at?.id) ?? null) },
           ]}
           onClose={menu.close}
         />
       )}
       {deleting && (
         <ConfirmDialog
-          title={`Delete the group "${deleting.name}"?`}
-          body="Only the group goes: its accounts, their balances and their history are not touched."
-          confirmLabel="Delete"
+          title={w.deleteGroupTitle(deleting.name)}
+          body={w.deleteGroupBody}
+          confirmLabel={t.common.delete}
           onConfirm={() => void deleteGroup(deleting)}
           onCancel={() => setDeleting(null)}
         />

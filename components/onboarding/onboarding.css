@@ -33,12 +33,21 @@ html[data-theme="light"] .ob {
    visible. The sheet therefore takes its full height, and when it exceeds
    the window, it is `.ob` that scrolls. */
 .ob-sheet {
-  width: min(720px, 100%);
+  /* A notch smaller than the page around it (user request, 2026-10-08:
+     « rapetisse les pages de config, surtout au démarrage »), then a little
+     bigger again (2026-10-09: « un peu plus grand, sans abuser »). Nothing
+     in the sheet measures itself, so a zoom is safe here. */
+  zoom: 0.94;
+  width: min(760px, 100%);
   margin: auto;
   display: flex;
   flex-direction: column;
-  border-radius: 18px;
-  background: var(--veil);
+  border-radius: 24px;
+  /* The companion's blue, faint, from the head where it stands: the sheet
+     is lit by it rather than flat (2026-10-09: « plus chaleureux »). */
+  background:
+    radial-gradient(90% 46% at 12% 0%, rgba(66, 117, 216, 0.13), transparent 70%),
+    var(--veil);
   -webkit-backdrop-filter: blur(26px);
   backdrop-filter: blur(26px);
   box-shadow: 0 0 0 1px var(--line);
@@ -66,10 +75,18 @@ html[data-theme="light"] .ob {
 }
 
 .ob-brand {
+  display: inline-flex;
+  align-items: center;
   font-family: var(--font-display), sans-serif;
   font-weight: 500;
   font-size: 0.95rem;
   letter-spacing: -0.02em;
+}
+
+/* The companion at the head: its canvas reaches past its body (aura,
+   orbits), so it is pulled into the brand's line by negative margins. */
+.ob-companion {
+  margin: -16px 0 -16px -14px;
 }
 
 .ob-head-actions {
@@ -237,6 +254,29 @@ html[data-theme="light"] .ob {
   gap: 20px;
 }
 
+/* Two fields of different heights side by side: both start at the top. */
+.ob-row-top {
+  align-items: start;
+}
+
+/* The provider, once chosen: one line, the list folded under « Change ». */
+.pv-chosen {
+  text-align: left;
+  cursor: pointer;
+}
+
+.pv-change {
+  flex: none;
+  font-size: 0.84rem;
+  color: var(--fg-muted);
+}
+
+.pv-chosen:hover .pv-change {
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 @media (max-width: 520px) {
   .ob-row {
     grid-template-columns: 1fr;
@@ -274,6 +314,11 @@ html[data-theme="light"] .ob {
   border-radius: 6px;
   background: transparent;
   color: var(--fg-faint);
+}
+
+/* A field with no Verify beside it: the eye at its right end. */
+.ob-key.is-solo .ob-key-eye {
+  right: 4px;
 }
 
 .ob-key-eye:hover {
@@ -507,6 +552,120 @@ html[data-theme="light"] .ob {
   line-height: 1.45;
 }
 
+/* --- The provider, in the form ------------------------------------------ */
+
+/* The same cards as the choices above, one per line: the name and how it
+   comes, the check of the one chosen on the right — or, for a
+   subscription not ready yet, its Sign in / Install. The OpenRouter
+   vendors scroll IN the form under their search: nothing floats, nothing
+   is cut by the panel's edge (`provider-picker.tsx`). */
+
+/* Three cards in view, the others below by scrolling (user request: the
+   subscriptions and the vendors alike). A card is 64 px high. */
+.pv-subs,
+.pv-list {
+  display: grid;
+  gap: 8px;
+  max-height: calc(3 * 64px + 2 * 8px);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.pv-row {
+  flex-direction: row;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 64px;
+  gap: 12px;
+  width: 100%;
+}
+
+.pv-row.is-off,
+.pv-row.is-off:hover {
+  background: var(--matter);
+  cursor: default;
+}
+
+.pv-row-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.pv-row-text .ob-choice-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pv-row .btn {
+  flex: none;
+}
+
+.pv-check {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+  color: var(--fg);
+}
+
+.pv-count {
+  flex: none;
+  font-size: 0.72rem;
+  color: var(--fg-faint);
+}
+
+.pv-vendors {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pv-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: var(--radius);
+  background: var(--matter);
+  color: var(--fg-faint);
+}
+
+.pv-search svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.8;
+}
+
+.pv-search-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.pv-search-input::placeholder {
+  color: var(--fg-faint);
+}
+
+.pv-empty {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--matter);
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+}
+
 /* --- A form sub-section -------------------------------------- */
 
 .ob-sub {
@@ -615,6 +774,39 @@ html[data-theme="light"] .ob {
   flex-shrink: 0;
 }
 
+.sub-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Claude's sign-in code, under its row: the same ground, a step in. */
+.sub-signin {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--matter);
+}
+
+.sub-signin-text {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--fg-muted);
+}
+
+.sub-signin-text a {
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.sub-signin .field-error {
+  margin: 0;
+}
+
 @media (max-width: 520px) {
   .sub {
     flex-wrap: wrap;
@@ -716,6 +908,56 @@ html[data-theme="light"] .ob {
 .xch-actions {
   display: flex;
   gap: 8px;
+}
+
+/* The Telegram bot form (`telegram-bots.tsx`): the three steps, the token
+   with its Check beside it, the chat found. */
+.tg-steps {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--fg-muted);
+}
+
+.tg-steps a,
+.tg-chat a {
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tg-token {
+  display: flex;
+  gap: 8px;
+}
+
+.tg-token .ob-key {
+  flex: 1;
+}
+
+.tg-waiting {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-faint);
+}
+
+.tg-waiting svg {
+  width: 13px;
+  height: 13px;
+}
+
+.tg-chat {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.84rem;
+  color: var(--fg-muted);
 }
 
 /* The choice of an agent's accounts. */

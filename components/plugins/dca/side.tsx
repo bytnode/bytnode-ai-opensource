@@ -3,7 +3,8 @@
 import { useState, type MouseEvent as ReactMouseEvent } from "react";
 import type { ExchangeAccount } from "@/lib/domain/types";
 import type { DcaGroup } from "@/lib/plugins/dca/groups";
-import { frequencyWords, nextDue, type Figures, type PlanRow } from "@/lib/plugins/dca/view-model";
+import { frequencyPhrase, nextDue, type Figures, type PlanRow } from "@/lib/plugins/dca/view-model";
+import { useMessages } from "@/lib/i18n/react";
 import { ChevronDown, Folder, Plus } from "@/components/ui/icons";
 import { badgeClass, badgeOf, money, pct, toneOf, when } from "./format";
 import { planTitle } from "./sheet";
@@ -36,6 +37,8 @@ type Props = {
 };
 
 export function Side({ groups, plans, figures, unit, accounts, open, openPlan, onOpen, onPlan, onMenu, onPlanMenu, onCreateGroup }: Props) {
+  const t = useMessages();
+  const w = t.dca.side;
   const [naming, setNaming] = useState(false);
   /* Unfolded by hand, or folded: else the open group is unfolded. */
   const [unfolded, setUnfolded] = useState<Record<string, boolean>>({});
@@ -45,6 +48,7 @@ export function Side({ groups, plans, figures, unit, accounts, open, openPlan, o
   const [busy, setBusy] = useState(false);
 
   const create = async () => {
+    if (!name.trim()) return setProblem(w.nameIt);
     setBusy(true);
     const p = await onCreateGroup(name);
     setBusy(false);
@@ -56,7 +60,7 @@ export function Side({ groups, plans, figures, unit, accounts, open, openPlan, o
   };
 
   return (
-    <section className="wlv-pane wlv-side dcv-side" aria-label="DCA groups">
+    <section className="wlv-pane wlv-side dcv-side" aria-label={w.label}>
       <header className="wlv-side-bar">
         <h2 className="wlv-title">
           <span className="pv-ink">DCA</span>
@@ -73,7 +77,7 @@ export function Side({ groups, plans, figures, unit, accounts, open, openPlan, o
               if (!busy) void create();
             }}
           >
-            <input className="wlv-input" aria-label="Name of the new group" placeholder="Group name — “Long term”" value={name} autoFocus maxLength={40} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Escape" && setNaming(false)} />
+            <input className="wlv-input" aria-label={w.newGroupName} placeholder={w.groupPlaceholder} value={name} autoFocus maxLength={40} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Escape" && setNaming(false)} />
             {problem && <p className="dcv-problem">{problem}</p>}
             <div className="dcv-new-actions">
               <button
@@ -84,27 +88,27 @@ export function Side({ groups, plans, figures, unit, accounts, open, openPlan, o
                   setProblem(null);
                 }}
               >
-                Cancel
+                {t.common.cancel}
               </button>
-              <button type="submit" className="dcv-button is-primary" disabled={busy || !name.trim()}>
-                {busy ? "Creating…" : "Create group"}
+              <button type="submit" className="dcv-button is-primary" disabled={busy}>
+                {busy ? w.creating : w.createGroup}
               </button>
             </div>
           </form>
         ) : (
           <button type="button" className="dcv-new-open" onClick={() => setNaming(true)}>
             <Plus />
-            New group
+            {w.newGroup}
           </button>
         )}
       </div>
 
       {groups === null ? (
-        <p className="dcv-side-note">Reading your groups…</p>
+        <p className="dcv-side-note">{w.readingGroups}</p>
       ) : groups.length === 0 ? (
-        <p className="dcv-side-note">No group yet: make one to hold your DCAs.</p>
+        <p className="dcv-side-note">{w.noGroup}</p>
       ) : (
-        <nav className="dcv-nav" aria-label="Groups">
+        <nav className="dcv-nav" aria-label={w.groups}>
           {groups.map((g) => {
             const inside = plans.filter((p) => p.groupId === g.id);
             const f = figures(inside);
@@ -131,20 +135,20 @@ export function Side({ groups, plans, figures, unit, accounts, open, openPlan, o
                   <span className="dcv-item-main">
                     <b>{g.name}</b>
                     <small>
-                      {inside.length ? `${inside.length} DCA${inside.length === 1 ? "" : "s"}` : "No DCA yet"}
+                      {inside.length ? w.plans(inside.length) : w.noPlanYet}
                       {f.invested > 0 ? ` · ${money(f.invested, unit(inside))}` : ""}
-                      {next ? ` · next ${when(next)}` : ""}
+                      {next ? ` · ${w.next(when(next))}` : ""}
                     </small>
                   </span>
                   {f.pct !== undefined && <span className={`wlv-pill dcv-pill ${toneOf(f.pct)}`}>{pct(f.pct)}</span>}
                 </button>
                 {inside.length > 0 && (
-                  <button type="button" className="dcv-toggle" onClick={() => setUnfolded((u) => ({ ...u, [g.id]: !unfold }))} aria-expanded={unfold} aria-label={`${unfold ? "Fold" : "Unfold"} ${g.name}`} title={unfold ? "Hide its DCAs" : "Show its DCAs"}>
+                  <button type="button" className="dcv-toggle" onClick={() => setUnfolded((u) => ({ ...u, [g.id]: !unfold }))} aria-expanded={unfold} aria-label={unfold ? w.fold(g.name) : w.unfold(g.name)} title={unfold ? w.hidePlans : w.showPlans}>
                     <ChevronDown />
                   </button>
                 )}
                 {unfold && (
-                  <ul className="dcv-subs" aria-label={`The DCAs of ${g.name}`}>
+                  <ul className="dcv-subs" aria-label={w.plansOf(g.name)}>
                     {inside.map((p) => {
                       const pf = figures([p]);
                       const b = badgeOf(p, accounts);
@@ -157,7 +161,7 @@ export function Side({ groups, plans, figures, unit, accounts, open, openPlan, o
                                 <b>{planTitle(p)}</b>
                                 <span className={badgeClass(b)}>{b}</span>
                               </span>
-                              <small>{p.status === "active" ? `next ${when(p.nextDue)}` : p.status === "paused" ? "paused" : `ended · ${frequencyWords(p.frequency)}`}</small>
+                              <small>{p.status === "active" ? w.next(when(p.nextDue)) : p.status === "paused" ? t.dca.status.paused : w.ended(frequencyPhrase(p.frequency))}</small>
                             </span>
                             {pf.pct !== undefined && <span className={`dcv-sub-pct ${toneOf(pf.pct)}`}>{pct(pf.pct)}</span>}
                           </button>

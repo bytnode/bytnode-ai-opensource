@@ -6,6 +6,8 @@ import { buildAcpPrompt } from "@/lib/acp/prompt";
 import { bytnodeStatus, runBackground } from "@/lib/acp/sessions";
 import { loadProfession } from "@/lib/professions/load";
 import { streamOpenRouter } from "@/lib/server/openrouter-stream";
+import { OPENROUTER } from "@/lib/server/openrouter";
+import { latestModels, parseOpenRouterModels } from "@/lib/catalog/catalog";
 import { PROJECT_ROOT, resolveWorkspace } from "@/lib/server/workspace";
 import { allowedAccounts } from "@/lib/tools/exchange/accounts";
 import { allTools, toToolSpecs } from "@/lib/tools/registry";
@@ -84,8 +86,10 @@ async function run(input: AgentRunInput, session: Session): Promise<AgentRunResu
     }
 
     if (!session.openrouterKey.trim()) return { ok: false, error: "No OpenRouter key: this agent cannot run." };
-    const model = agent.defaultModelId;
-    if (!model) return { ok: false, error: `${agent.name} has no model chosen yet: open a conversation with it once.` };
+    /* No model chosen yet (an agent never opened in a conversation, user
+       report 2026-10-08): its vendor's latest, as the chat itself picks. */
+    const model = agent.defaultModelId ?? (await latestModelOf(agent.providerId));
+    if (!model) return { ok: false, error: `${agent.name} has no model chosen, and OpenRouter's catalog could not be read: open a conversation with it once.` };
     const { tools, bytnode } = await allTools({ engine: "native", platform: process.platform, bytnodeKey: session.bytnodeKey, exchangeAccounts: accounts, depth: 1, plugins });
     const system = [
       buildSystemPrompt(session.profile, agent),
@@ -134,5 +138,16 @@ async function run(input: AgentRunInput, session: Session): Promise<AgentRunResu
     return text ? { ok: true, text } : { ok: false, error: "The agent produced no answer." };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** A vendor's latest model on OpenRouter (public catalog, no key), or null. */
+async function latestModelOf(providerId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${OPENROUTER}/models`, { signal: AbortSignal.timeout(15_000) });
+    if (!res.ok) return null;
+    return latestModels(parseOpenRouterModels(await res.json()), providerId, 1)[0]?.id ?? null;
+  } catch {
+    return null;
   }
 }

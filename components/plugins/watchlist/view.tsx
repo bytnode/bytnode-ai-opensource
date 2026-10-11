@@ -19,6 +19,7 @@ import type { Row } from "./format";
 import { ListPane } from "./list-pane";
 import { Sheet } from "./sheet";
 import { AssetMenu, useAssetMenu } from "./asset-menu";
+import { useMessages } from "@/lib/i18n/react";
 import "./watchlist.css";
 
 /* ---------------------------------------------------------------------------
@@ -57,6 +58,7 @@ type TechnicalsReading = { symbol: string; interval: Interval; technicals: Techn
 const EVENTS_MS = 5 * 60_000;
 
 export function WatchlistView({ settings, params }: ViewProps) {
+  const m = useMessages();
   const list = usePluginData<Row[]>("watchlist", "list", settings, {}, { keep: "latest" });
   useAwakeInterval(list.reload, LIST_MS);
   const ui = useUiPrefs();
@@ -105,7 +107,7 @@ export function WatchlistView({ settings, params }: ViewProps) {
   const shown = sortByMove(rows ?? [], win, byMove);
   const current = series.data && series.data.symbol === symbol && series.data.interval === interval ? series.data : null;
   const candles: Candle[] | null = current && "candles" in current ? (liveQuote ? withTick(current.candles, liveQuote.price, Date.parse(liveQuote.at), interval) : current.candles) : null;
-  const chartMessage = !symbol ? null : current && "error" in current ? current.error : candles ? (candles.length ? null : "No candles for this pair.") : series.error ?? "Loading the chart…";
+  const chartMessage = !symbol ? null : current && "error" in current ? current.error : candles ? (candles.length ? null : m.watchlist.noCandles) : (series.error ?? m.watchlist.loadingChart);
 
   /* What the add field proposes: BytNode's assets only. Read once, and
      again when the tab wakes (a key added meanwhile). */
@@ -113,7 +115,7 @@ export function WatchlistView({ settings, params }: ViewProps) {
   useOnWake(pairs.reload);
   const listedPairs = Array.isArray(pairs.data) ? pairs.data : null;
   const catalog = named(listedPairs ?? []);
-  const addUnavailable = !settings.keys.bytnode.trim() ? "Assets come from BytNode: add your key in Settings → Auth." : listedPairs && !listedPairs.length ? "BytNode's list of assets could not be read — try again in a moment." : null;
+  const addUnavailable = !settings.keys.bytnode.trim() ? m.watchlist.needKey : listedPairs && !listedPairs.length ? m.watchlist.listUnreadable : null;
 
   const choose = (s: string) => setPick({ focus, symbol: s });
   const menu = useAssetMenu();
@@ -138,7 +140,7 @@ export function WatchlistView({ settings, params }: ViewProps) {
           reset={WATCHLIST_DEFAULT}
           clamp={clampWatchlistWidth}
           onCommit={(w) => updateUiPrefs({ watchlistWidth: w })}
-          label="Width of the list"
+          label={m.watchlist.listWidth}
         />
         <Sheet
           rows={rows}

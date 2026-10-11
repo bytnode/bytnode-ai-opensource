@@ -1,27 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { AgentConfig, ApiKeys, AuthMode, Profile, Theme } from "@/lib/domain/types";
 import { useAcpAuth } from "@/lib/acp/use-auth";
-import { ArrowLeft, ArrowRight, Close } from "@/components/ui/icons";
-import { StepProfil } from "./step-profil";
-import { StepAuth } from "./step-auth";
-import { StepAgent } from "./step-agent";
+import { accountBridge, type AccountKeyNote } from "@/lib/account/account";
+import { useTypewriter } from "@/lib/ui/typewriter";
+import { Field } from "@/components/ui/field";
+import { applyTheme } from "@/components/ui/theme-toggle";
+import { LanguageSelect } from "@/components/ui/language-select";
+import { useSettings } from "@/lib/state/settings";
+import { useMessages } from "@/lib/i18n/react";
+import type { Messages } from "@/lib/i18n/messages/en";
+import { CompanionFigure } from "@/components/account/companion-figure";
+import { BytnodeKey, OpenRouterKey, Subscriptions } from "./step-auth";
+import { ExchangeAccounts } from "./exchange-accounts";
+import { TelegramBots } from "./telegram-bots";
 import "./onboarding.css";
+import "./first-run.css";
 
 /* ---------------------------------------------------------------------------
-   The setup wizard: a sheet laid at the centre of the backdrop.
+   The first launch's setup: a GUIDED page you scroll through (user
+   requests, 2026-10-09: « le petit avatar à côté parlerait dans une bulle »,
+   « l'avatar et la conversation font partie de ce bloc », « pas cliquer sur
+   continuer mais plutôt scroller vers le bas avec des transitions fluides,
+   la barre d'évolution sur le côté »).
 
-   It now only serves the first launch: profile, access to the models, then a
-   first agent. After that, everything goes through the settings panel
-   (`components/settings/settings-panel.tsx`), which reuses its bricks.
-   The sheet works on a DRAFT and only hands over at the end — leaving
-   midway leaves nothing half filled in.
+   One screen per step, one under the other; the page snaps from one to the
+   next. On each screen the companion — on the left, then the right, in
+   turn — says in a speech bubble what the step is for and the one thing
+   worth knowing, written as it speaks, the first time the screen is
+   reached, once the app's window is in front; beside it, the step, on the
+   page itself (no frame).
+   The blocks rise in and settle as they scroll into view (scroll-driven,
+   no timer). A rail on the side follows the scroll continuously.
+
+   A step that is not complete is the last one shown: the next screens
+   appear when it is (a first name; a subscription or an OpenRouter key).
+   Four steps — you (name, a few words, the look, applied as you pick),
+   your AI, Telegram (optional, « Skip » beside « Add »), your exchanges
+   (optional, « Skip and start » beside « Add », « Start » once an account
+   is added). No arrows: the page scrolls, and the rail takes you to a step. The npm app also asks the BytNode
+   key with the AI. The draft is only handed over at the end.
 --------------------------------------------------------------------------- */
 
-export type StepId = "profil" | "auth" | "agent";
-
-const LABELS: Record<StepId, string> = { profil: "Profile", auth: "Authentication", agent: "Agent" };
+export type StepId = "you" | "ai" | "exchanges" | "channels";
 
 export type WizardDraft = {
   profile: Profile;
@@ -34,136 +56,295 @@ export type WizardDraft = {
 type Props = {
   steps: StepId[];
   initial: WizardDraft;
-  /** The label of the last button: "Open the chat", "Create the agent"… */
-  finishLabel: string;
   onDone: (draft: WizardDraft) => void;
-  /** Present when the wizard can close without changing anything. */
-  onCancel?: () => void;
+  /** The desktop app's first setup: the BytNode key made at sign-in, or
+      why none could be (`lib/account/account.ts`). */
+  accountKey?: AccountKeyNote;
 };
 
-export function Wizard({ steps, initial, finishLabel, onDone, onCancel }: Props) {
+type Source = "subscription" | "key";
+
+export function Wizard({ steps, initial, onDone, accountKey = null }: Props) {
+  const m = useMessages();
+  const t = m.onboarding.wizard;
   const [draft, setDraft] = useState<WizardDraft>(initial);
-  const [index, setIndex] = useState(0);
-  const [attempted, setAttempted] = useState(false);
+  const [source, setSource] = useState<Source>(initial.keys.openrouter.trim() ? "key" : "subscription");
   const auth = useAcpAuth();
+  /* The language is saved as soon as it is picked, not with the draft: the
+     whole setup changes language under the user's eyes. */
+  const language = useSettings().settings.language;
+  const subscribed = auth.agents.some((a) => a.loggedIn);
+  const scroller = useRef<HTMLDivElement>(null);
+  const sections = useRef<Array<HTMLElement | null>>([]);
+  /* The screen in view, and the screens reached at least once (their
+     companion has spoken). */
+  const [active, setActive] = useState(0);
+  const [reached, setReached] = useState<number[]>([0]);
 
-  const step = steps[index];
-  const last = index === steps.length - 1;
-
-  const errors = validate(step, draft, auth.agents.some((a) => a.loggedIn));
-  const valid = Object.keys(errors).length === 0;
-
-  const next = () => {
-    if (!valid) {
-      setAttempted(true);
-      return;
-    }
-    setAttempted(false);
-    if (last) onDone(draft);
-    else setIndex(index + 1);
+  /* The BytNode key is not asked in the desktop app (made at sign-in);
+     only when that failed, and always in the npm app. */
+  const desktop = accountBridge() !== null;
+  const askBytnode = !desktop || accountKey?.kind === "failed" || !draft.keys.bytnode.trim();
+  const keys = draft.keys;
+  const setKeys = (k: ApiKeys) => setDraft({ ...draft, keys: k });
+  const setProfile = (patch: Partial<Profile>) => setDraft({ ...draft, profile: { ...draft.profile, ...patch } });
+  const setTheme = (theme: Theme) => {
+    applyTheme(theme);
+    setDraft({ ...draft, theme });
   };
 
-  const back = () => {
-    setAttempted(false);
-    setIndex(index - 1);
-  };
+  /* Shown: every step up to the first incomplete one, included. */
+  const firstOpen = steps.findIndex((s) => Object.keys(validate(s, draft, subscribed, m)).length > 0);
+  const shownSteps = firstOpen < 0 ? steps : steps.slice(0, firstOpen + 1);
+  const complete = firstOpen < 0;
 
-  const shown = attempted ? errors : {};
+  const onScroll = () => {
+    const el = scroller.current;
+    if (!el) return;
+    const mid = el.scrollTop + el.clientHeight / 2;
+    let i = 0;
+    sections.current.forEach((s, k) => {
+      if (s && s.offsetTop <= mid) i = k;
+    });
+    if (i !== active) setActive(i);
+    if (!reached.includes(i)) setReached([...reached, i]);
+  };
+  const goTo = (i: number) => sections.current[i]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  /* Into the app: once every required step is complete. */
+  const finish = () => {
+    if (complete) onDone({ ...draft, authMode: source === "key" ? "keys" : "subscription" });
+  };
 
   return (
-    <div className="ob" role="dialog" aria-modal="true" aria-labelledby="ob-title">
-      <div className="ob-sheet">
-        <header className="ob-head">
-          <span className="ob-brand">BytNode-AI</span>
-          <div className="ob-head-actions">
-            {onCancel && (
-              <button type="button" className="ob-close" onClick={onCancel} aria-label="Close without saving">
-                <Close />
-              </button>
-            )}
-          </div>
-        </header>
+    <div className="fr" role="dialog" aria-modal="true" aria-label={t.dialog} ref={scroller} onScroll={onScroll}>
+      <header className="fr-top">
+        <span className="fr-brand">BytNode-AI</span>
+      </header>
 
-        {/* A single step is not a sequence: no bar. */}
-        {steps.length > 1 && (
-          <ol className="ob-steps" aria-label="Steps">
-            {steps.map((s, i) => (
-              <li
-                key={s}
-                className={i === index ? "is-current" : i < index ? "is-done" : ""}
-                aria-current={i === index ? "step" : undefined}
-              >
-                {LABELS[s]}
+      <nav className="fr-rail" aria-label={t.stepsNav}>
+        <span className="fr-rail-track" aria-hidden="true">
+          <span className="fr-rail-fill" />
+        </span>
+        <ol>
+          {steps.map((s, i) => {
+            const open = i < shownSteps.length;
+            return (
+              <li key={s} className={`${i === active ? "is-current" : i < active ? "is-done" : ""}${open ? "" : " is-locked"}`} style={{ top: `${(i / Math.max(1, steps.length - 1)) * 100}%` }}>
+                <button type="button" disabled={!open} onClick={() => goTo(i)} aria-current={i === active ? "step" : undefined}>
+                  {t.steps[s]}
+                </button>
               </li>
-            ))}
-          </ol>
-        )}
+            );
+          })}
+        </ol>
+      </nav>
 
-        <div className="ob-body" key={step}>
-          {step === "profil" && (
-            <StepProfil
-              value={draft.profile}
-              errors={shown}
-              onChange={(profile) => setDraft({ ...draft, profile })}
-            />
-          )}
-          {step === "auth" && (
-            <StepAuth
-              mode={draft.authMode}
-              keys={draft.keys}
-              errors={shown}
-              onMode={(authMode) => setDraft({ ...draft, authMode })}
-              onKeys={(keys) => setDraft({ ...draft, keys })}
-            />
-          )}
-          {step === "agent" && (
-            <StepAgent
-              value={draft.agent}
-              errors={shown}
-              isNew={initial.agent.id === ""}
-              authMode={draft.authMode}
-              exchanges={draft.keys.exchanges}
-              onChange={(agent) => setDraft({ ...draft, agent })}
-            />
-          )}
-        </div>
+      {shownSteps.map((step, i) => {
+        const errors = validate(step, draft, subscribed, m);
+        const isLast = i === steps.length - 1;
+        return (
+          <section
+            key={step}
+            className="fr-section"
+            ref={(el) => {
+              sections.current[i] = el;
+            }}
+            aria-labelledby={`fr-title-${step}`}
+          >
+            <div className="fr-card">
+              <aside className="fr-guide">
+                <Speech line={say(step, draft.profile.firstName.trim(), desktop, m)} play={reached.includes(i)} ready={Object.keys(errors).length === 0} />
+              </aside>
 
-        <footer className="ob-foot">
-          {index > 0 ? (
-            <button type="button" className="btn btn-ghost" onClick={back}>
-              <ArrowLeft />
-              Back
-            </button>
-          ) : (
-            <span />
-          )}
-          <button type="button" className="btn btn-primary" onClick={next}>
-            {last ? finishLabel : "Next"}
-            {!last && <ArrowRight />}
-          </button>
-        </footer>
-      </div>
+              <div className="fr-step">
+                {step === "you" && (
+                  <>
+                    <h1 id="fr-title-you" className="fr-title">
+                      {t.youTitle}
+                    </h1>
+                    <div className="fr-form">
+                      <div className="field">
+                        <span className="field-label">{m.language.label}</span>
+                        <LanguageSelect id="language" value={language} />
+                      </div>
+                      <Field id="firstName" label={t.firstName} error={errors.firstName}>
+                        <input id="firstName" className="field-input" autoComplete="given-name" value={draft.profile.firstName} onChange={(e) => setProfile({ firstName: e.target.value })} />
+                      </Field>
+                      <Field id="bio" label={t.bio} optional hint={t.bioHint}>
+                        <textarea id="bio" className="field-input fr-bio" placeholder={t.bioPlaceholder} value={draft.profile.bio} onChange={(e) => setProfile({ bio: e.target.value })} />
+                      </Field>
+                      <div className="field">
+                        <span className="field-label">{t.appearance}</span>
+                        <div className="fr-themes" role="radiogroup" aria-label={t.appearance}>
+                          {(["dark", "light"] as Theme[]).map((th) => (
+                            <button key={th} type="button" role="radio" aria-checked={draft.theme === th} className={`fr-theme fr-theme-${th}${draft.theme === th ? " is-on" : ""}`} onClick={() => setTheme(th)}>
+                              <span className="fr-theme-swatch" aria-hidden="true" />
+                              {th === "dark" ? t.dark : t.light}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="ob-row">
+                        <Field id="lastName" label={t.lastName} optional>
+                          <input id="lastName" className="field-input" autoComplete="family-name" value={draft.profile.lastName} onChange={(e) => setProfile({ lastName: e.target.value })} />
+                        </Field>
+                        <Field id="email" label={t.email} optional>
+                          <input id="email" className="field-input" type="email" autoComplete="email" value={draft.profile.email} onChange={(e) => setProfile({ email: e.target.value })} />
+                        </Field>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {step === "ai" && (
+                  <>
+                    <h1 id="fr-title-ai" className="fr-title">
+                      {t.aiTitle}
+                    </h1>
+                    <div className="fr-choices" role="radiogroup" aria-label={t.aiChoices}>
+                      <button type="button" role="radio" aria-checked={source === "subscription"} className={`fr-choice${source === "subscription" ? " is-on" : ""}`} onClick={() => setSource("subscription")}>
+                        <span className="fr-choice-title">{t.subscriptionTitle}</span>
+                        <span className="fr-choice-desc">{t.subscriptionDesc}</span>
+                      </button>
+                      <button type="button" role="radio" aria-checked={source === "key"} className={`fr-choice${source === "key" ? " is-on" : ""}`} onClick={() => setSource("key")}>
+                        <span className="fr-choice-title">{t.keyTitle}</span>
+                        <span className="fr-choice-desc">{t.keyDesc}</span>
+                      </button>
+                    </div>
+
+                    <SmoothHeight>
+                      <div className="fr-panel" key={source}>
+                        {source === "subscription" ? <Subscriptions /> : <OpenRouterKey value={keys.openrouter} onChange={(openrouter) => setKeys({ ...keys, openrouter })} />}
+                      </div>
+                    </SmoothHeight>
+
+                    {askBytnode && (
+                      <div className="fr-panel fr-bytnode">
+                        {accountKey?.kind === "failed" && <p className="field-hint">{accountKey.message}</p>}
+                        <BytnodeKey value={keys.bytnode} onChange={(bytnode) => setKeys({ ...keys, bytnode })} />
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {step === "channels" && (
+                  <>
+                    <h1 id="fr-title-channels" className="fr-title">
+                      {t.channelsTitle}
+                    </h1>
+                    <p className="fr-lede">{t.channelsLede}</p>
+                    <div className="fr-panel">
+                      <TelegramBots startOpen aside={{ label: m.common.skip, onClick: () => goTo(i + 1) }} value={keys.telegram} onChange={(telegram) => setKeys({ ...keys, telegram })} />
+                    </div>
+                  </>
+                )}
+
+                {step === "exchanges" && (
+                  <>
+                    <h1 id="fr-title-exchanges" className="fr-title">
+                      {t.exchangesTitle}
+                    </h1>
+                    <p className="fr-lede">{t.exchangesLede}</p>
+                    <div className="fr-panel fr-xch">
+                      <ExchangeAccounts startOpen aside={{ label: t.skipAndStart, onClick: finish }} value={keys.exchanges} onChange={(exchanges) => setKeys({ ...keys, exchanges })} />
+                    </div>
+                  </>
+                )}
+
+              </div>
+
+              {/* No arrow to go down (2026-10-09): the page scrolls. Under the
+                  step, what it still needs; at the end, once an account is
+                  added, the way into the app. */}
+              {(Object.keys(errors).length > 0 || (isLast && keys.exchanges.length > 0)) && (
+                <footer className="fr-foot">
+                  {Object.keys(errors).length > 0 ? (
+                    <p className="fr-wait">{Object.values(errors)[0]}</p>
+                  ) : (
+                    <button type="button" className="btn btn-primary fr-next" onClick={finish}>
+                      {m.common.start}
+                    </button>
+                  )}
+                </footer>
+              )}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }
 
+/** A box whose height follows its content smoothly: switching between the
+    subscriptions and the OpenRouter key glides instead of jumping
+    (2026-10-09: « un peu trop d'un coup »). */
+function SmoothHeight({ children }: { children: ReactNode }) {
+  const outer = useRef<HTMLDivElement>(null);
+  const inner = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const o = outer.current;
+    const i = inner.current;
+    if (!o || !i) return;
+    const fit = () => {
+      o.style.height = `${i.offsetHeight}px`;
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(i);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div ref={outer} className="fr-smooth">
+      <div ref={inner}>{children}</div>
+    </div>
+  );
+}
+
+/** The companion and its bubble. The words write themselves, as if it
+    were speaking — the first time its screen is reached (`play`), and once
+    the app's window is in front: not while the user is still in the
+    browser signing in. Before that the bubble waits, laid out at its final
+    size (the words to come are there, invisible), so nothing moves around
+    them. Reached again, the words are simply there. It smiles while it
+    talks, and once the step is ready. */
+function Speech({ line, play, ready }: { line: string; play: boolean; ready: boolean }) {
+  const typed = useTypewriter(line, { enabled: play, cps: 52, delay: 520, waitForFocus: true });
+  const shown = play ? typed.shown : "";
+  return (
+    <>
+      <CompanionFigure size={176} className="fr-companion" mood={{ hover: (play && !typed.done) || ready }} />
+      <p className="fr-bubble">
+        <span className="fr-sr">{line}</span>
+        <span aria-hidden="true">
+          {shown}
+          <span className="fr-ghost">{line.slice(shown.length)}</span>
+        </span>
+      </p>
+    </>
+  );
+}
+
+/** What the companion says at each step: the purpose, and the one thing
+    worth knowing. Short on purpose. */
+function say(step: StepId, firstName: string, desktop: boolean, m: Messages): string {
+  const t = m.onboarding.wizard.say;
+  if (step === "you") return t.you(firstName);
+  if (step === "ai") return t.ai;
+  if (step === "channels") return t.channels;
+  return t.exchanges(desktop);
+}
+
 export type StepErrors = Partial<Record<"firstName" | "openrouter" | "subscription" | "bytnode" | "name" | "providerId", string>>;
 
-function validate(step: StepId, d: WizardDraft, subscribed: boolean): StepErrors {
+function validate(step: StepId, d: WizardDraft, subscribed: boolean, m: Messages): StepErrors {
   const e: StepErrors = {};
-  if (step === "profil" && !d.profile.firstName.trim()) e.firstName = "A first name, so the agent knows who it is talking to.";
-  /* At least one access to the models is needed: the open tab says which
-     one we expect, but the other one is enough too. */
-  if (step === "auth" && !d.keys.openrouter.trim() && !subscribed) {
-    if (d.authMode === "keys") e.openrouter = "The key is required to chat — or connect a subscription.";
-    else e.subscription = "Connect a subscription to continue — or enter an OpenRouter key in the Keys tab.";
-  }
+  const t = m.onboarding.wizard.errors;
+  if (step === "you" && !d.profile.firstName.trim()) e.firstName = t.firstName;
+  /* At least one access to the models: a subscription or an OpenRouter
+     key, either one. */
+  if (step === "ai" && !d.keys.openrouter.trim() && !subscribed) e.subscription = t.subscription;
   /* The BytNode key is not optional: without market data, the agent has
      nothing to analyse. */
-  if (step === "auth" && !d.keys.bytnode.trim()) e.bytnode = "The BytNode key is required: without it, the agents have no market data.";
-  if (step === "agent") {
-    if (!d.agent.name.trim()) e.name = "Give your agent a name.";
-    if (!d.agent.providerId) e.providerId = "Choose a subscription or a vendor.";
-  }
+  if (step === "ai" && !d.keys.bytnode.trim()) e.bytnode = t.bytnode;
   return e;
 }

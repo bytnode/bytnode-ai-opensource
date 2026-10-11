@@ -7,7 +7,9 @@
    it for the choice when an agent is created.
 --------------------------------------------------------------------------- */
 
-export type ProfessionId = "standard" | "analyste" | "strategique" | "quantitatif";
+import type { Messages } from "@/lib/i18n/messages/en";
+
+export type ProfessionId ="standard" | "analyste" | "strategique" | "quantitatif";
 
 export type ProfessionInfo = { id: ProfessionId; label: string; short: string; description: string };
 
@@ -43,3 +45,11 @@ export const DEFAULT_PROFESSION: ProfessionId = "standard";
 export const isProfessionId = (v: unknown): v is ProfessionId => PROFESSIONS.some((p) => p.id === v);
 
 export const professionInfo = (id: ProfessionId): ProfessionInfo => PROFESSIONS.find((p) => p.id === id) ?? PROFESSIONS[0];
+
+/** A profession's words ON SCREEN, in the interface's language: the
+    label, the short line and the description above stay in English (the
+    agents read them). `m` is `useMessages()` in a component, or
+    `currentMessages()` outside React — passed in so this file, shared with
+    the server, loads no translation. */
+export const professionText = (id: ProfessionId, m: Messages): { label: string; short: string; description: string } =>
+  m.onboarding.professions[professionInfo(id).id];

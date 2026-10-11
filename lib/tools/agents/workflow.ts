@@ -1,3 +1,4 @@
+import { ActivityLog, withTrace } from "./activity";
 import type { Tool, ToolContext } from "../types";
 import { errorText, fail, ok } from "../types";
 import { runAgentLoop, type ToolSpec } from "@/lib/agent/loop";
@@ -51,6 +52,9 @@ async function runOne(task: SubagentTask, index: number, context: string | undef
   const id = `${ctx.callId}:${index}`;
   const { title, profession } = task;
   ctx.emit({ type: "subagent", id, index, title, profession, status: "running" });
+  /* Its steps, to the thread as they happen and to the main agent with
+     the report (`activity.ts`). */
+  const log = new ActivityLog();
   try {
     const needs = { "exchange-account": (ctx.exchangeAccounts?.length ?? 0) > 0, "bytnode-key": Boolean(ctx.bytnodeKey?.trim()) };
     const runtime = activeRuntime();
@@ -82,8 +86,11 @@ async function runOne(task: SubagentTask, index: number, context: string | undef
           if (!tool) return { ok: false, output: `Unknown tool: ${call.name}` };
           return tool.execute(call.args, { ...sub, signal, emit, callId: call.id });
         },
-        emit: () => {
-          /* a sub-agent's detail does not reach the screen, only its state */
+        emit: (e) => {
+          /* Each tool call, started then ended, becomes a step of the row;
+             the text it streams stays inside (only the report goes out). */
+          const activity = e.type === "tool_call" ? log.start(e.id, e.name, e.args) : e.type === "tool_result" ? log.finish(e.id, e.ok) : null;
+          if (activity) ctx.emit({ type: "subagent", id, index, title, profession, status: "running", activity });
         },
         tools: specs,
         maxTurns: SUBAGENT_TURNS,
@@ -97,10 +104,10 @@ async function runOne(task: SubagentTask, index: number, context: string | undef
     );
     const report = out.text.trim();
     ctx.emit({ type: "subagent", id, index, title, profession, status: "done", report });
-    return reportSection(task, report);
+    return reportSection(task, withTrace(report, log.steps));
   } catch (e) {
     const why = errorText(e);
     ctx.emit({ type: "subagent", id, index, title, profession, status: "failed", report: failureBody(why) });
-    return reportSection(task, failureBody(why));
+    return reportSection(task, withTrace(failureBody(why), log.steps));
   }
 }

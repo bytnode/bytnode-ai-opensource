@@ -6,7 +6,8 @@ import type { AgentRunInput, AgentRunResult, SchedulerService } from "./service"
 import { taskCancelTool } from "./task-cancel";
 import { taskListTool } from "./task-list";
 import { taskScheduleTool } from "./task-schedule";
-import { changeTask, findAgent, newTask, plannedRuns, runConversationId, taskJobId, taskKey, type AgentTask, type RunRecord, type RunState, type TaskAction } from "./tasks";
+import { changeTask, findAgent, newTask, plannedRuns, runConversationId, taskJobId, taskKey, type AgentTask, type RunRecord, type RunState, type TaskAction, readTelegram, setTaskTelegram, telegramText } from "./tasks";
+import { sendToBot } from "../shared/telegram";
 
 /* The "Scheduled tasks" plugin: the user's AGENT TASKS ("a market brief
    every morning at 8"), their three tools, the view's actions, and what
@@ -91,6 +92,12 @@ export const schedulerPlugin = definePlugin({
           ...(result.ok ? { text: result.text } : { error: result.error }),
         };
         await ctx.store.append(RUNS, record, MAX_RUNS);
+        /* Also to the task's Telegram bot, when it has one; a send that
+           fails is said, the run itself stays done. */
+        if (task.telegram) {
+          const sent = await sendToBot(session, task.telegram.bot, telegramText(task, result));
+          if (sent.error) await ctx.notify({ title: `Not sent to Telegram: ${task.title}`, body: sent.error, level: "warning", action: { kind: "open-view", view: "scheduler" } });
+        }
         await ctx.notify({
           title: result.ok ? `Scheduled task: ${task.title}` : `Scheduled task failed: ${task.title}`,
           body: result.ok ? firstLine(result.text) : result.error,
@@ -138,6 +145,26 @@ export const schedulerPlugin = definePlugin({
       if ("error" in task) throw new Error(task.error);
       await add(task);
       return task;
+    });
+    /* A recent run deleted from the list (user request, 2026-10-08). The
+       conversation it became in the browser stays. */
+    ctx.api("delete-run", async (params) => {
+      if (typeof params.id !== "string") throw new Error("Expected `id`.");
+      const removed = await ctx.store.removeLines<RunRecord>(RUNS, (r) => r.id === params.id);
+      return { removed };
+    });
+    /* The task's Telegram destination: a bot (by id) and a report length,
+       or `bot: ""` for none. */
+    ctx.api("telegram", async (params) => {
+      if (typeof params.id !== "string") throw new Error("Expected `id`.");
+      const telegram = readTelegram({ telegramBot: params.bot, report: params.report });
+      let result = { error: "" } as ReturnType<typeof setTaskTelegram>;
+      await ctx.store.update<AgentTask[]>(TASKS, [], (list) => {
+        result = setTaskTelegram(list, params.id as string, telegram);
+        return "error" in result ? list : result.tasks;
+      });
+      if ("error" in result) throw new Error(result.error);
+      return result.task;
     });
     ctx.api("update", async (params) => {
       const action = TASK_ACTIONS.find((a) => a === params.action);

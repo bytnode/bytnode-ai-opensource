@@ -4,6 +4,8 @@ import { useRef, useState, type DragEvent } from "react";
 import type { ContextFile } from "@/lib/domain/types";
 import { newId } from "@/lib/domain/conversation";
 import { Close, File } from "@/components/ui/icons";
+import { currentMessages } from "@/lib/i18n/store";
+import { useMessages } from "@/lib/i18n/react";
 
 /* ---------------------------------------------------------------------------
    The context files.
@@ -29,7 +31,32 @@ const isText = (f: globalThis.File) => {
   return TEXT_EXT.has(ext);
 };
 
-const fmtSize = (n: number) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
+export const fmtSize = (n: number) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
+
+/** Reads the files that can be kept as context, and says why the others
+    were refused, in the interface's language at the time of the drop.
+    Shared with the agent's page. */
+export async function readContextFiles(list: FileList | File[], have: number): Promise<{ accepted: ContextFile[]; refused: string | null }> {
+  const accepted: ContextFile[] = [];
+  const reasons: string[] = [];
+  const t = currentMessages().onboarding.files;
+  for (const f of Array.from(list)) {
+    if (have + accepted.length >= MAX_FILES) {
+      reasons.push(t.maxFiles(MAX_FILES));
+      break;
+    }
+    if (!isText(f)) {
+      reasons.push(t.notText(f.name));
+      continue;
+    }
+    if (f.size > MAX_BYTES) {
+      reasons.push(t.tooBig(f.name, fmtSize(MAX_BYTES)));
+      continue;
+    }
+    accepted.push({ id: newId(), name: f.name, size: f.size, content: await f.text() });
+  }
+  return { accepted, refused: reasons.length ? reasons.join(" ") : null };
+}
 
 type Props = {
   value: ContextFile[];
@@ -37,31 +64,15 @@ type Props = {
 };
 
 export function ContextFiles({ value, onChange }: Props) {
+  const t = useMessages().onboarding.files;
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
   const [refused, setRefused] = useState<string | null>(null);
 
   const add = async (list: FileList | File[]) => {
-    const files = Array.from(list);
-    const accepted: ContextFile[] = [];
-    const reasons: string[] = [];
-    for (const f of files) {
-      if (value.length + accepted.length >= MAX_FILES) {
-        reasons.push(`${MAX_FILES} files at most.`);
-        break;
-      }
-      if (!isText(f)) {
-        reasons.push(`${f.name}: only text files are read.`);
-        continue;
-      }
-      if (f.size > MAX_BYTES) {
-        reasons.push(`${f.name} exceeds ${fmtSize(MAX_BYTES)}.`);
-        continue;
-      }
-      accepted.push({ id: newId(), name: f.name, size: f.size, content: await f.text() });
-    }
+    const { accepted, refused: why } = await readContextFiles(list, value.length);
     if (accepted.length) onChange([...value, ...accepted]);
-    setRefused(reasons.length ? reasons.join(" ") : null);
+    setRefused(why);
   };
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
@@ -81,10 +92,11 @@ export function ContextFiles({ value, onChange }: Props) {
         onDragLeave={() => setOver(false)}
         onDrop={onDrop}
       >
-        <span>Drop text files here, or</span>
-        <button type="button" className="cf-browse" onClick={() => input.current?.click()}>
-          browse
-        </button>
+        {t.drop(
+          <button type="button" className="cf-browse" onClick={() => input.current?.click()}>
+            {t.browse}
+          </button>,
+        )}
         <input
           ref={input}
           type="file"
@@ -112,7 +124,7 @@ export function ContextFiles({ value, onChange }: Props) {
                 type="button"
                 className="cf-remove"
                 onClick={() => onChange(value.filter((x) => x.id !== f.id))}
-                aria-label={`Remove ${f.name}`}
+                aria-label={t.remove(f.name)}
               >
                 <Close />
               </button>

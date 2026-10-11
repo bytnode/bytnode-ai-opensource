@@ -7,6 +7,7 @@ import { describePermissions } from "@/lib/plugins/user/permissions";
 import { refreshUserPlugins, useUserPlugins } from "@/lib/state/user-plugins";
 import { openView } from "@/lib/state/tabs";
 import { Check, Spinner } from "@/components/ui/icons";
+import { useMessages } from "@/lib/i18n/react";
 
 /* ---------------------------------------------------------------------------
    The user's consent to a plugin written by an agent — shown IN THE
@@ -29,6 +30,8 @@ type Mode = "testnet" | "live";
     agent's PluginActivate); absent in the library, which shows the current
     request. */
 export function PluginConsent({ pluginId, digest, settings, onDecided }: { pluginId: string; digest?: string; settings: Settings; onDecided?: () => void }) {
+  const m = useMessages();
+  const t = m.plugins.consent;
   const plugins = useUserPlugins();
   const [mode, setMode] = useState<Mode | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
@@ -41,7 +44,7 @@ export function PluginConsent({ pluginId, digest, settings, onDecided }: { plugi
   /* A newer request (the agent changed it again) is answered below, not here. */
   const superseded = Boolean(request && digest && request.digest !== digest);
   const r = superseded ? null : request;
-  const agent = (id: string) => settings.agents.find((a) => a.id === id)?.name || "An agent";
+  const agent = (id: string) => settings.agents.find((a) => a.id === id)?.name || t.anAgent;
   const all = settings.keys.exchanges;
   const test = all.filter((a) => a.testnet);
   const live = all.filter((a) => !a.testnet);
@@ -69,15 +72,15 @@ export function PluginConsent({ pluginId, digest, settings, onDecided }: { plugi
     }
   };
 
-  if (!p) return <div className="pcs">{plugins.length ? "This plugin no longer exists." : <Spinner />}</div>;
+  if (!p) return <div className="pcs">{plugins.length ? t.gone : <Spinner />}</div>;
 
   /* Decided: the record stays in the thread. */
   if (superseded && !done)
     return (
       <div className="pcs pcs-done">
         <span className="pcs-done-text">
-          {p.name}: its agent changed it since.
-          <small>The newer version waits for you further down the conversation.</small>
+          {t.changed(p.name)}
+          <small>{t.newerBelow}</small>
         </span>
       </div>
     );
@@ -89,7 +92,7 @@ export function PluginConsent({ pluginId, digest, settings, onDecided }: { plugi
       <div className={`pcs pcs-done${on ? " is-on" : ""}`}>
         <span className="pcs-done-text">
           {on ? <Check /> : null}
-          {on ? `${p.name} is active` : `${p.name} was not activated`}
+          {on ? t.active(p.name) : t.notActivated(p.name)}
           {on && accounts.length > 0 && (
             <span className="pcs-done-accounts">
               {accounts.map((a) => (
@@ -100,11 +103,11 @@ export function PluginConsent({ pluginId, digest, settings, onDecided }: { plugi
               {accounts.map((a) => a.label).join(", ")}
             </span>
           )}
-          {!on && <small>Refused, or changed by its agent since. The agent can ask again.</small>}
+          {!on && <small>{t.refused}</small>}
         </span>
         {on && p.manifest?.views.length ? (
           <button type="button" className="btn btn-sm" onClick={() => openView(p.id)}>
-            Open its tab
+            {t.openTab}
           </button>
         ) : null}
       </div>
@@ -112,8 +115,8 @@ export function PluginConsent({ pluginId, digest, settings, onDecided }: { plugi
   }
 
   const updating = Boolean(p.granted);
-  const lines = describePermissions(r.permissions);
-  const fresh = new Set(describePermissions(r.added).map((l) => l.key));
+  const lines = describePermissions(r.permissions, m);
+  const fresh = new Set(describePermissions(r.added, m).map((l) => l.key));
   const exchange = r.permissions.exchange;
   const needsAccounts = exchange !== "none";
   const ready = !needsAccounts || (mode !== null && picked.length > 0);
@@ -123,23 +126,21 @@ export function PluginConsent({ pluginId, digest, settings, onDecided }: { plugi
   const safe = exchange === "read" ? " is-safe" : "";
 
   return (
-    <div className={`pcs${real ? ` is-live${safe}` : ""}`} role="group" aria-label={`Activate ${r.manifest.name}`}>
+    <div className={`pcs${real ? ` is-live${safe}` : ""}`} role="group" aria-label={t.groupLabel(r.manifest.name)}>
       <p className="pcs-title">
-        {updating ? `Update the plugin ${r.manifest.name}?` : `Activate the plugin ${r.manifest.name}?`}
-        <small>
-          Written by {agent(r.agentId || p.createdBy)} · {r.manifest.summary}
-        </small>
+        {updating ? t.askUpdate(r.manifest.name) : t.askActivate(r.manifest.name)}
+        <small>{t.writtenBy(agent(r.agentId || p.createdBy), r.manifest.summary)}</small>
       </p>
 
-      <p className="pcs-label">It may</p>
+      <p className="pcs-label">{t.itMay}</p>
       {lines.length === 0 ? (
-        <p className="pcs-none">Reach nothing outside itself: no internet, no account, no notification.</p>
+        <p className="pcs-none">{t.reachesNothing}</p>
       ) : (
         <ul className="pcs-list">
           {lines.map((l) => (
             <li key={l.key} className={l.danger ? "is-danger" : undefined}>
               {l.text}
-              {updating && fresh.has(l.key) && <span className="prv-new">New</span>}
+              {updating && fresh.has(l.key) && <span className="prv-new">{t.isNew}</span>}
             </li>
           ))}
         </ul>
@@ -147,39 +148,36 @@ export function PluginConsent({ pluginId, digest, settings, onDecided }: { plugi
 
       {(r.tools.length > 0 || r.manifest.views.length > 0) && (
         <p className="pcs-adds">
-          It adds {[...r.tools.map((t) => `${t.name}${t.readOnly ? "" : " (asks you first)"}`), ...r.manifest.views.map((v) => `the tab ${v.title}`)].join(", ")}.
+          {t.adds([...r.tools.map((tool) => (tool.readOnly ? tool.name : t.toolAsks(tool.name))), ...r.manifest.views.map((v) => t.tab(v.title))])}
         </p>
       )}
 
       {needsAccounts && (
         <div className="pcs-accounts">
-          <p className="pcs-label">On which money?</p>
+          <p className="pcs-label">{t.whichMoney}</p>
           {all.length === 0 ? (
-            <p className="pcs-none">No exchange account is configured: add one in Settings → Auth first, or refuse.</p>
+            <p className="pcs-none">{t.noAccount}</p>
           ) : (
             <>
-              <div className="pcs-modes" role="radiogroup" aria-label="Testnet or live">
+              <div className="pcs-modes" role="radiogroup" aria-label={t.testOrLive}>
                 <button type="button" role="radio" aria-checked={mode === "testnet"} className={`pcs-mode${mode === "testnet" ? " is-on" : ""}`} onClick={() => choose("testnet")} disabled={test.length === 0}>
                   <span className="xch-badge">TESTNET</span>
                   <span>
-                    Test
-                    <small>{test.length ? "Fake money, nothing real is read or risked." : "No testnet account configured."}</small>
+                    {t.test}
+                    <small>{test.length ? t.testHint : t.noTestnet}</small>
                   </span>
                 </button>
                 <button type="button" role="radio" aria-checked={mode === "live"} className={`pcs-mode is-real${safe}${mode === "live" ? " is-on" : ""}`} onClick={() => choose("live")} disabled={live.length === 0}>
                   <span className="xch-badge is-live">LIVE</span>
                   <span>
-                    Real
-                    <small>{live.length ? "Your real account." : "No live account configured."}</small>
+                    {t.real}
+                    <small>{live.length ? t.realHint : t.noLive}</small>
                   </span>
                 </button>
               </div>
               {real && (
                 <p className={`pcs-warn${safe}`}>
-                  {exchange === "orders"
-                    ? "It will read your real account and may propose real-money orders. Each order still waits for your click, with its LIVE badge: it can never place one by itself."
-                    : "It will read your real account: balances, positions, orders, trade history. It can place no order."}{" "}
-                  It never sees your keys.
+                  {exchange === "orders" ? t.warnOrders : t.warnRead}
                 </p>
               )}
               {mode && (
@@ -203,10 +201,10 @@ export function PluginConsent({ pluginId, digest, settings, onDecided }: { plugi
       <div className="pcs-actions">
         <button type="button" className={`btn btn-sm btn-primary${real ? ` pcs-real${safe}` : ""}`} onClick={() => void decide(true)} disabled={busy || !ready}>
           {busy ? <Spinner /> : null}
-          {!needsAccounts ? (updating ? "Update" : "Activate") : mode === "live" ? "Allow on my real account" : mode === "testnet" ? "Allow on testnet" : "Choose Test or Real"}
+          {!needsAccounts ? (updating ? t.update : t.activate) : mode === "live" ? t.allowLive : mode === "testnet" ? t.allowTestnet : t.chooseMode}
         </button>
         <button type="button" className="btn btn-sm btn-ghost" onClick={() => void decide(false)} disabled={busy}>
-          Refuse
+          {t.refuse}
         </button>
       </div>
     </div>

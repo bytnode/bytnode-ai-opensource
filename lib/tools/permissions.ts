@@ -15,6 +15,7 @@
    Pure: shared browser / server, tested.
 --------------------------------------------------------------------------- */
 
+import { currentMessages } from "@/lib/i18n/store";
 import { alwaysAsks } from "./names";
 import { targetsLocalApi } from "./exec/local-api";
 
@@ -120,8 +121,10 @@ export const addRule = (rules: string[] | undefined, rule: string): string[] =>
 
 export const removeRule = (rules: string[] | undefined, rule: string): string[] => (rules ?? []).filter((r) => r !== rule);
 
-/** The button label, which must say exactly what is being authorised. */
+/** The button label, which must say exactly what is being authorised —
+    in the interface's language. */
 export function ruleLabel(rule: string): string {
+  const t = currentMessages().chat.tool;
   const m = rule.match(/^\w+\((.*?)\s*\*\)$/);
-  return m ? `Always allow "${m[1]} …"` : `Always allow ${rule}`;
+  return m ? t.alwaysAllowCommand(m[1]) : t.alwaysAllow(rule);
 }

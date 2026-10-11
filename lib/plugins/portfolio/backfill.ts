@@ -1,5 +1,5 @@
 import type { Candle } from "../shared/candle";
-import { STABLES, type Snapshot } from "./aggregate";
+import { STABLES, type Snapshot, type Summary } from "./aggregate";
 
 /* ---------------------------------------------------------------------------
    The history before the snapshots, day by day and per account: the real
@@ -156,4 +156,13 @@ export function flowsByDay(activity: Activity[], closes: Record<string, Candle[]
     out[a.account][day] = Math.round(((out[a.account][day] ?? 0) + usd) * 100) / 100;
   }
   return out;
+}
+
+/** The holdings the history is rebuilt from: the live accounts' assets,
+    amounts at 6 significant digits. The view and the preload (`warm.ts`)
+    both use it: the preload's history is the one the view asks for. */
+export function holdingsOf(summary: Pick<Summary, "accounts">): Holdings {
+  return summary.accounts
+    .filter((a) => a.id && !a.testnet)
+    .map((a) => ({ id: a.id as string, assets: a.assets.map((x) => ({ asset: x.asset, amount: Number(x.amount.toPrecision(6)) })) }));
 }

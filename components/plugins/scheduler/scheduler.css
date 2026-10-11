@@ -655,3 +655,76 @@ html[data-theme="light"] .sdv {
     animation: none;
   }
 }
+
+/* --- Telegram (user request, 2026-10-08) -----------------------------------
+   Where the report is also sent: a bot, and when one is chosen, the whole
+   report or its start (`telegram-pick.tsx`) — in the new-task form, and in
+   a task's unfolded row. */
+
+.sdv-telegram {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.sdv-telegram .picker {
+  min-width: 200px;
+}
+
+.sdv-telegram.is-busy {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.sdv-task-telegram {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  margin-top: 12px;
+}
+
+.sdv-hint {
+  font-size: 13px;
+  color: var(--label-3);
+}
+
+/* The trash beside a task's switch and on each recent run: grey, red
+   under the hand; a click deletes at once (the user's choice). */
+.sdv-trash {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--label-3);
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.sdv-trash svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.7;
+}
+
+.sdv-trash:hover {
+  color: var(--down);
+}
+
+.sdv-run-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 12px;
+}
+
+.sdv-run-line > .sdv-run {
+  flex: 1;
+  min-width: 0;
+}

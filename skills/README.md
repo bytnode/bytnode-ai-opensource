@@ -33,7 +33,7 @@ say **when** to open the skill, not just what it is about.
   description) is in their prompt every turn; the body is loaded when
   they need it.
 - Agents **by OpenRouter key** read them right here, through the `Skill` tool.
-- Agents **by subscription** (Claude, OpenAI, Gemini, Copilot, Grok)
+- Agents **by subscription** (Claude, OpenAI, Copilot, Grok)
   receive a copy in `.agents/skills/` and `.claude/skills/`
   of their workspace, where their own skill mechanisms find them. The
   copy is redone when you edit the `SKILL.md`, and a skill removed

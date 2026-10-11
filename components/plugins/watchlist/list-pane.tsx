@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import type { MouseEvent } from "react";
 import type { Candidate } from "@/lib/plugins/watchlist/suggest";
 import { AddField } from "./add-field";
+import { useMessages } from "@/lib/i18n/react";
 import { moveOf, pairOf, pct, priceText, type Row } from "./format";
 
 /* The left column: the list's name and size, the field that adds an
@@ -31,20 +32,22 @@ type Props = {
 };
 
 export function ListPane({ rows, shown, selected, win, byMove, catalog, addUnavailable, onWindow, onByMove, onPick, onMenu, onAdd }: Props) {
+  const m = useMessages();
+  const windows = WINDOWS.map((w) => ({ value: w.value, label: m.watchlist.windows[w.value] }));
   return (
-    <section className="wlv-pane wlv-side" aria-label="Your assets">
+    <section className="wlv-pane wlv-side" aria-label={m.watchlist.yourAssets}>
       <header className="wlv-side-bar">
         <h2 className="wlv-title">
-          <span className="pv-ink">Watchlist</span>
+          <span className="pv-ink">{m.watchlist.title}</span>
         </h2>
         {rows && rows.length > 0 && <span className="wlv-count">{rows.length}</span>}
       </header>
       <AddField catalog={catalog} unavailable={addUnavailable} followed={new Set((rows ?? []).map((r) => r.symbol))} onAdd={onAdd} onPick={onPick} />
       <div className="wlv-windows">
-        <Segmented label="Change over" value={win} options={WINDOWS} onChange={onWindow} wide />
+        <Segmented label={m.watchlist.changeOver} value={win} options={windows} onChange={onWindow} wide />
       </div>
       {shown.length > 0 && (
-        <ul className="wlv-rows" aria-label="Assets">
+        <ul className="wlv-rows" aria-label={m.watchlist.assets}>
           {shown.map((r) => {
             const [base, quote] = pairOf(r.symbol);
             const change = changeOf(r.quote, win);
@@ -67,8 +70,8 @@ export function ListPane({ rows, shown, selected, win, byMove, catalog, addUnava
       {shown.length > 1 && (
         <div className="wlv-switches pv-rule">
           <label className="wlv-switch">
-            <span>Biggest moves first</span>
-            <Switch on={byMove} onChange={onByMove} label="Biggest moves first" />
+            <span>{m.watchlist.biggestFirst}</span>
+            <Switch on={byMove} onChange={onByMove} label={m.watchlist.biggestFirst} />
           </label>
         </div>
       )}

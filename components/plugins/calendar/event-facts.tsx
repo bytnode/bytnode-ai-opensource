@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { CATEGORY_LABELS, USER, type CalendarEvent } from "@/lib/plugins/calendar/events";
+import { USER, type CalendarEvent } from "@/lib/plugins/calendar/events";
+import { useMessages } from "@/lib/i18n/react";
+import type { Messages } from "@/lib/i18n/messages/en";
 import { openView } from "@/lib/state/tabs";
 import { useCalendarActions } from "./actions";
 
@@ -11,11 +13,11 @@ import { useCalendarActions } from "./actions";
    confirms); a scheduled run is managed in the Scheduled tasks tab; a
    computed expiry is neither. */
 
-function sourceOf(e: CalendarEvent, agent: string | null): ReactNode {
+function sourceOf(m: Messages, e: CalendarEvent, agent: string | null): ReactNode {
   if (e.category === "scheduled") return e.source;
-  if (e.computed) return "Computed from the venue's schedule";
-  if (e.by === USER && !e.url) return "Added by you";
-  if (e.category === "task" && !e.url) return `Added by ${agent ?? e.source}`;
+  if (e.computed) return m.calendar.facts.computed;
+  if (e.by === USER && !e.url) return m.calendar.facts.addedByYou;
+  if (e.category === "task" && !e.url) return m.calendar.facts.addedBy(agent ?? e.source);
   if (!e.url) return e.source;
   return (
     <a href={e.url} target="_blank" rel="noreferrer">
@@ -25,6 +27,8 @@ function sourceOf(e: CalendarEvent, agent: string | null): ReactNode {
 }
 
 export function EventFacts({ event }: { event: CalendarEvent }) {
+  const t = useMessages();
+  const w = t.calendar.facts;
   const { remove, agentName } = useCalendarActions();
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -34,38 +38,38 @@ export function EventFacts({ event }: { event: CalendarEvent }) {
     <>
       <dl className="calv-facts">
         <div>
-          <dt>Calendar</dt>
+          <dt>{w.calendar}</dt>
           <dd>
             <span className="calv-swatch" aria-hidden />
-            {CATEGORY_LABELS[event.category]}
-            {event.done && " · done"}
+            {t.calendar.categories[event.category]}
+            {event.done && w.done}
           </dd>
         </div>
         {event.assets.length > 0 && (
           <div>
-            <dt>Assets</dt>
+            <dt>{w.assets}</dt>
             <dd>{event.assets.join(", ")}</dd>
           </div>
         )}
         {event.importance === 3 && event.category !== "task" && (
           <div>
-            <dt>Impact</dt>
-            <dd>Market-moving</dd>
+            <dt>{w.impact}</dt>
+            <dd>{w.marketMoving}</dd>
           </div>
         )}
         {event.notes && (
           <div>
-            <dt>Notes</dt>
+            <dt>{w.notes}</dt>
             <dd className="calv-notes">{event.notes}</dd>
           </div>
         )}
         <div>
-          <dt>Source</dt>
-          <dd>{sourceOf(event, agent)}</dd>
+          <dt>{w.source}</dt>
+          <dd>{sourceOf(t, event, agent)}</dd>
         </div>
         {agent && event.category !== "task" && (
           <div>
-            <dt>Added by</dt>
+            <dt>{w.addedByLabel}</dt>
             <dd>{agent}</dd>
           </div>
         )}
@@ -73,7 +77,7 @@ export function EventFacts({ event }: { event: CalendarEvent }) {
       {event.category === "scheduled" ? (
         <div className="calv-facts-actions">
           <button type="button" className="calv-fact-btn" onClick={() => openView("scheduler")}>
-            Open Scheduled tasks
+            {w.openScheduler}
           </button>
         </div>
       ) : (
@@ -92,7 +96,7 @@ export function EventFacts({ event }: { event: CalendarEvent }) {
                 setConfirm(false);
               }}
             >
-              {confirm ? "Delete — click again" : "Delete"}
+              {confirm ? w.deleteConfirm : t.common.delete}
             </button>
           </div>
         )

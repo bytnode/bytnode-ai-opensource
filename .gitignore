@@ -13,3 +13,7 @@ next-env.d.ts
 # local guidance and working specs, kept out of the repo
 CLAUDE.md
 docs/superpowers/
+
+# desktop app builds
+/dist-desktop/
+/desktop/resources/icon.png

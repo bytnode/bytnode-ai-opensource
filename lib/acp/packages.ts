@@ -6,7 +6,7 @@ import type { AcpAgentId } from "./agents";
    Nothing is bundled in BytNode-AI: « Install » puts an npm package (or a
    binary from the ACP registry) in `~/.bytnode-ai/agents/<id>/`, and three
    agents that speak ACP natively are also recognised if they are already
-   on the PATH (`gemini`, `copilot`, `grok`). Claude and Codex always go
+   on the PATH (`copilot`, `grok`). Claude and Codex always go
    through their adapter: it is the adapter that embeds the product.
 
    This file is shared browser / server: nothing from Node here.
@@ -55,14 +55,6 @@ export const AGENT_SOURCES: Record<AcpAgentId, AgentSource> = {
     version: "^1.11.0",
     acp: { entry: ["dist", "index.js"], args: [] },
     cli: { pkg: "@openai/codex", entry: ["bin", "codex.js"] },
-  },
-  gemini: {
-    kind: "npm",
-    pkg: "@google/gemini-cli",
-    version: "^0.59.0",
-    acp: { entry: ["bundle", "gemini.js"], args: ["--acp"] },
-    cli: { entry: ["bundle", "gemini.js"] },
-    global: { command: "gemini", args: ["--acp"] },
   },
   copilot: {
     kind: "npm",

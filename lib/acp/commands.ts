@@ -9,8 +9,8 @@ import { commandOf, type SlashCommand } from "@/lib/agent/commands";
    a plugin installed): Claude Code its built-in commands and its skills
    (`/goal`, `/usage`, `/context`, `/model`, `/code-review`…, and the
    workspace's skills — the profession's, synced into `.claude/skills`),
-   Codex its commands and its skills as `$name`, Gemini CLI its commands
-   and their sub-commands (`memory show`). Pure: shared browser / server.
+   Codex its commands and its skills as `$name`; a command may have
+   sub-commands (`memory show`). Pure: shared browser / server.
 --------------------------------------------------------------------------- */
 
 /** The agent's list in the composer's shape. Names starting with `__` are
@@ -41,8 +41,7 @@ export function agentCommands(list: readonly AvailableCommand[], source?: string
 
 /** Does this message run one of the agent's `/` commands? Such a message
     goes to the agent EXACTLY as typed: Codex only reads a command in the
-    prompt's first block, Gemini CLI reads the whole text, Claude Code the
-    start of it — BytNode-AI's context wrapped around it (`wrapContext`)
+    prompt's first block, Claude Code the start of it — BytNode-AI's context wrapped around it (`wrapContext`)
     turned `/goal …` into an ordinary message. With no list known yet (a
     session whose list has not arrived), a `/word` counts as a command.
     A `$skill` is not one: the agent reads it inside an ordinary message. */

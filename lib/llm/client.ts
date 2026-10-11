@@ -1,6 +1,7 @@
 import type { ProviderMessage } from "@/lib/agent/history";
 import type { ToolSpec } from "@/lib/agent/loop";
 import { createSseParser, extractDelta, type Delta } from "./sse";
+import { currentMessages } from "@/lib/i18n/store";
 
 /* ---------------------------------------------------------------------------
    The model client: one turn, streamed, with or without tools.
@@ -47,7 +48,7 @@ export class OpenRouterClient implements LlmClient {
     if (!res.ok || !res.body) {
       const message = await readError(res);
       throw new LlmError(
-        res.status === 401 || res.status === 403 ? `OpenRouter key refused (${message}) — check it in the settings.` : message,
+        res.status === 401 || res.status === 403 ? currentMessages().chat.errors.keyRefused(message) : message,
         res.status,
       );
     }
@@ -72,5 +73,5 @@ async function readError(res: Response): Promise<string> {
   } catch {
     /* non-JSON body */
   }
-  return `The provider answered ${res.status}.`;
+  return currentMessages().chat.errors.providerAnswered(res.status);
 }

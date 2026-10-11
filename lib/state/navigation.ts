@@ -18,13 +18,25 @@ import { HOME, activateTab } from "./tabs";
     or nothing (the list). The agent itself is looked up by the panel. */
 export type SettingsRequest = { tab: "general" | "auth" | "agents" | "providers" | "plugins"; agentId?: string | "new"; plugin?: string };
 
-type Navigation = { conversation: string | null; settings: SettingsRequest | null };
+/** `agentPage`: the agent whose page is open (its conversations,
+    instructions, context and scheduled tasks) instead of a thread. */
+type Navigation = { conversation: string | null; agentPage: string | null; settings: SettingsRequest | null };
 
-const store = createStore<Navigation>({ conversation: null, settings: null });
+const store = createStore<Navigation>({ conversation: null, agentPage: null, settings: null });
 
 export const useNavigation = (): Navigation => useSyncExternalStore(store.subscribe, store.get, store.getServer);
 
-export const setActiveConversation = (conversation: string | null) => store.set((n) => ({ ...n, conversation }));
+/** A thread — an existing one, or a new one (`null`) — replaces the agent's
+    page. */
+export const setActiveConversation = (conversation: string | null) => store.set((n) => ({ ...n, conversation, agentPage: null }));
+
+/** Opens an agent's page AND makes it the active agent: the page's
+    composer starts a conversation with it. */
+export function openAgentPage(agentId: string) {
+  const s = currentSettings();
+  if (s.activeAgentId !== agentId && s.agents.some((a) => a.id === agentId)) updateSettings((p) => ({ ...p, activeAgentId: agentId }));
+  store.set((n) => ({ ...n, conversation: null, agentPage: agentId }));
+}
 
 /** Opens a conversation AND makes its agent the active one.
     ⚠️ The thread runs with the ACTIVE agent's prompt, tools, workspace and

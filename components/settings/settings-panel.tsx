@@ -4,20 +4,28 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { AgentConfig, Profile, Settings, Theme } from "@/lib/domain/types";
 import { ACP_AGENTS, acpAgentOf } from "@/lib/acp/agents";
 import { useAcpAuth } from "@/lib/acp/use-auth";
+import { accountBridge, refreshAccount, useAccount } from "@/lib/account/account";
 import { blankAgent } from "@/lib/storage/repositories";
-import { professionInfo } from "@/lib/professions/catalog";
+import { updateUiPrefs, useUiPrefs } from "@/lib/state/ui";
+import { professionText } from "@/lib/professions/catalog";
+import { useMessages } from "@/lib/i18n/react";
 import { allowedAccounts, anyLive } from "@/lib/tools/exchange/accounts";
 import { ArrowLeft, Close, Pencil, Plus, Trash } from "@/components/ui/icons";
 import { StepAgent } from "@/components/onboarding/step-agent";
 import { BytnodeKey, OpenRouterKey, Subscriptions } from "@/components/onboarding/step-auth";
 import { ExchangeAccounts } from "@/components/onboarding/exchange-accounts";
+import { TelegramBots } from "@/components/onboarding/telegram-bots";
 import type { StepErrors } from "@/components/onboarding/wizard";
 import "@/components/onboarding/onboarding.css";
 import { PluginsLibrary } from "./plugins-library";
+import { WidgetsSettings } from "./widgets-settings";
+import { LanguageSelect } from "@/components/ui/language-select";
 import "./settings.css";
 
 /* ---------------------------------------------------------------------------
-   The settings: one panel, a navigation on the left, five sections.
+   The settings: one PAGE, a navigation on the left, six sections — the
+   whole window under the tab bar, not a panel over the app (user request,
+   2026-10-09: « une page complète de config dans l'app »).
 
    Everything saves as you type — there is neither a draft nor a "Save"
    button, closing loses nothing. The only exception: an agent's form, which
@@ -25,19 +33,14 @@ import "./settings.css";
    first-launch wizard (`Wizard`) is now only used on the first opening.
 --------------------------------------------------------------------------- */
 
-export type SettingsTab = "general" | "auth" | "agents" | "providers" | "plugins";
+export type SettingsTab = "general" | "auth" | "agents" | "providers" | "plugins" | "widgets";
 
 /** What the panel shows on opening: a tab, and for Agents, an agent to
     edit or `"new"` to create one; for Plugins, a plugin's page. */
 export type SettingsTarget = { tab: SettingsTab; agent?: AgentConfig | "new"; plugin?: string };
 
-const TABS: Array<{ id: SettingsTab; label: string }> = [
-  { id: "general", label: "General" },
-  { id: "auth", label: "Auth" },
-  { id: "agents", label: "Agents" },
-  { id: "providers", label: "Providers" },
-  { id: "plugins", label: "Plugins" },
-];
+/* In the navigation's order; their names are `m.settings.tabs`. */
+const TABS: SettingsTab[] = ["general", "auth", "agents", "providers", "plugins", "widgets"];
 
 type Props = {
   settings: Settings;
@@ -52,6 +55,7 @@ type Props = {
 type AgentView = { kind: "list" } | { kind: "form"; agent: AgentConfig; isNew: boolean };
 
 export function SettingsPanel({ settings, target, onUpdate, onSaveAgent, onRemoveAgent, onClose }: Props) {
+  const m = useMessages();
   const [tab, setTab] = useState<SettingsTab>(target.tab);
   const [view, setView] = useState<AgentView>(() =>
     target.agent === "new" ? { kind: "form", agent: blankAgent(), isNew: true } : target.agent ? { kind: "form", agent: target.agent, isNew: false } : { kind: "list" },
@@ -74,20 +78,20 @@ export function SettingsPanel({ settings, target, onUpdate, onSaveAgent, onRemov
   }, [onClose]);
 
   return (
-    <div className="ob st-veil" role="dialog" aria-modal="true" aria-labelledby="st-title" onClick={(e) => e.target === e.currentTarget && onClose?.()}>
+    <div className="st-page" role="dialog" aria-modal="true" aria-labelledby="st-title">
       <div className="st">
         {/* The cross sits on the panel, not in the scrolling area: it stays
             in place and on top whatever is scrolled. */}
         {onClose && (
-          <button type="button" className="st-close" onClick={onClose} aria-label="Close the settings">
+          <button type="button" className="st-close" onClick={onClose} aria-label={m.settings.close}>
             <Close />
           </button>
         )}
-        <nav className="st-nav" aria-label="Settings sections">
-          <span className="st-nav-title">Settings</span>
-          {TABS.map((t) => (
-            <button key={t.id} type="button" className={`st-nav-item${tab === t.id ? " is-on" : ""}`} aria-current={tab === t.id ? "page" : undefined} onClick={() => go(t.id)}>
-              {t.label}
+        <nav className="st-nav" aria-label={m.settings.sectionsNav}>
+          <span className="st-nav-title">{m.settings.title}</span>
+          {TABS.map((id) => (
+            <button key={id} type="button" className={`st-nav-item${tab === id ? " is-on" : ""}`} aria-current={tab === id ? "page" : undefined} onClick={() => go(id)}>
+              {m.settings.tabs[id]}
             </button>
           ))}
         </nav>
@@ -120,6 +124,7 @@ export function SettingsPanel({ settings, target, onUpdate, onSaveAgent, onRemov
               />
             )}
             {tab === "providers" && <Providers settings={settings} onGoAuth={() => go("auth")} />}
+            {tab === "widgets" && <WidgetsSettings settings={settings} onGo={go} />}
             {tab === "plugins" && <PluginsLibrary settings={settings} initial={target.tab === "plugins" ? target.plugin : undefined} onUpdate={onUpdate} onGo={go} />}
           </div>
         </div>
@@ -166,33 +171,50 @@ function General({ settings, onUpdate }: { settings: Settings; onUpdate: (p: Par
   const profile = settings.profile;
   const set = (patch: Partial<Profile>) => onUpdate({ profile: { ...profile, ...patch } });
   const theme = (t: Theme) => onUpdate({ theme: t });
+  const floating = useUiPrefs().floatingAgent;
+  const m = useMessages();
+  const t = m.settings.general;
   return (
     <>
       <h1 id="st-title" className="st-title">
-        General
+        {m.settings.tabs.general}
       </h1>
-      <Section title="Profile">
-        <Row id="st-firstName" label="First name" hint="The agent addresses you by this first name.">
+      <AccountSection />
+      <Section title={t.profile}>
+        <Row id="st-firstName" label={t.firstName} hint={t.firstNameHint}>
           <input id="st-firstName" className="field-input" autoComplete="given-name" value={profile.firstName} onChange={(e) => set({ firstName: e.target.value })} />
         </Row>
-        <Row id="st-lastName" label="Last name">
+        <Row id="st-lastName" label={t.lastName}>
           <input id="st-lastName" className="field-input" autoComplete="family-name" value={profile.lastName} onChange={(e) => set({ lastName: e.target.value })} />
         </Row>
-        <Row id="st-email" label="Email">
+        <Row id="st-email" label={t.email}>
           <input id="st-email" className="field-input" type="email" autoComplete="email" value={profile.email} onChange={(e) => set({ email: e.target.value })} />
         </Row>
-        <Row id="st-bio" label="About you" hint="Your activity, your habits, what every agent should know about you. Passed on to all your agents." stack>
-          <textarea id="st-bio" className="field-input" placeholder="Independent crypto trader, I mostly work on BTC and ETH…" value={profile.bio} onChange={(e) => set({ bio: e.target.value })} />
+        <Row id="st-bio" label={t.bio} hint={t.bioHint} stack>
+          <textarea id="st-bio" className="field-input" placeholder={t.bioPlaceholder} value={profile.bio} onChange={(e) => set({ bio: e.target.value })} />
         </Row>
       </Section>
-      <Section title="Preferences">
-        <Row label="Appearance">
-          <div className="st-seg" role="radiogroup" aria-label="Appearance">
+      <Section title={t.preferences}>
+        <Row id="st-language" label={m.language.label} hint={m.language.hint}>
+          <LanguageSelect id="st-language" value={settings.language} />
+        </Row>
+        <Row label={t.appearance}>
+          <div className="st-seg" role="radiogroup" aria-label={t.appearance}>
             <button type="button" role="radio" aria-checked={settings.theme === "light"} className={`st-seg-btn${settings.theme === "light" ? " is-on" : ""}`} onClick={() => theme("light")}>
-              Light
+              {t.light}
             </button>
             <button type="button" role="radio" aria-checked={settings.theme === "dark"} className={`st-seg-btn${settings.theme === "dark" ? " is-on" : ""}`} onClick={() => theme("dark")}>
-              Dark
+              {t.dark}
+            </button>
+          </div>
+        </Row>
+        <Row label={t.floatingAgent} hint={t.floatingAgentHint}>
+          <div className="st-seg" role="radiogroup" aria-label={t.floatingAgent}>
+            <button type="button" role="radio" aria-checked={floating} className={`st-seg-btn${floating ? " is-on" : ""}`} onClick={() => updateUiPrefs({ floatingAgent: true })}>
+              {m.common.shown}
+            </button>
+            <button type="button" role="radio" aria-checked={!floating} className={`st-seg-btn${!floating ? " is-on" : ""}`} onClick={() => updateUiPrefs({ floatingAgent: false })}>
+              {m.common.hidden}
             </button>
           </div>
         </Row>
@@ -201,25 +223,65 @@ function General({ settings, onUpdate }: { settings: Settings; onUpdate: (p: Par
   );
 }
 
+/* The desktop app's BytNode account: who is signed in, and signing out —
+   which brings the sign-in page back and keeps everything on this
+   computer (agents, conversations, keys). Absent in a browser. */
+function AccountSection() {
+  const account = useAccount();
+  const t = useMessages().settings.account;
+  const [busy, setBusy] = useState(false);
+  if (!account?.signedIn) return null;
+  const signOut = async () => {
+    setBusy(true);
+    await accountBridge()?.signOut();
+    refreshAccount();
+  };
+  return (
+    <Section title={t.title}>
+      <Row label={account.account.name ?? account.account.email} hint={account.account.name ? account.account.email : t.signedIn}>
+        <button type="button" className="btn btn-sm" onClick={signOut} disabled={busy}>
+          {t.signOut}
+        </button>
+      </Row>
+    </Section>
+  );
+}
+
 /* --- Auth ------------------------------------------------------------------- */
 
 function Auth({ settings, onUpdate }: { settings: Settings; onUpdate: (p: Partial<Settings>) => void }) {
   const keys = settings.keys;
+  const m = useMessages();
   return (
     <>
       <h1 id="st-title" className="st-title">
-        Auth
+        {m.settings.tabs.auth}
       </h1>
-      <p className="st-lede">Your keys stay in this browser and travel with every request. Nothing is written to disk.</p>
-      <Section title="Keys">
+      <p className="st-lede">{m.settings.auth.lede}</p>
+      {/* One block per service (user request): BytNode and OpenRouter
+          apart, then the exchanges, then the channels things are sent to. */}
+      {/* The desktop app makes its own BytNode key at sign-in: no field
+          (2026-10-09), unless it has none. The npm app keeps it. */}
+      {(!accountBridge() || !keys.bytnode.trim()) && (
+        <Section title="BytNode">
+          <div className="st-form ob-form">
+            <BytnodeKey value={keys.bytnode} error={keys.bytnode.trim() ? undefined : m.settings.auth.bytnodeRequired} onChange={(bytnode) => onUpdate({ keys: { ...keys, bytnode } })} />
+          </div>
+        </Section>
+      )}
+      <Section title="OpenRouter">
         <div className="st-form ob-form">
           <OpenRouterKey value={keys.openrouter} onChange={(openrouter) => onUpdate({ keys: { ...keys, openrouter } })} />
-          <BytnodeKey value={keys.bytnode} error={keys.bytnode.trim() ? undefined : "Required: without a BytNode key, the agents have no market data."} onChange={(bytnode) => onUpdate({ keys: { ...keys, bytnode } })} />
         </div>
       </Section>
-      <Section title="Exchanges">
+      <Section title={m.settings.auth.exchanges}>
         <div className="st-form ob-form">
           <ExchangeAccounts value={keys.exchanges} onChange={(exchanges) => onUpdate({ keys: { ...keys, exchanges } })} />
+        </div>
+      </Section>
+      <Section title="Telegram">
+        <div className="st-form ob-form">
+          <TelegramBots value={keys.telegram} onChange={(telegram) => onUpdate({ keys: { ...keys, telegram } })} />
         </div>
       </Section>
     </>
@@ -228,27 +290,29 @@ function Auth({ settings, onUpdate }: { settings: Settings; onUpdate: (p: Partia
 
 /* --- Agents ----------------------------------------------------------------- */
 
-function providerLabel(providerId: string): string {
+function providerLabel(providerId: string, none: string): string {
   const acp = acpAgentOf(providerId);
   if (acp) return acp.label;
-  if (!providerId) return "No provider";
+  if (!providerId) return none;
   return providerId.charAt(0).toUpperCase() + providerId.slice(1);
 }
 
 function AgentsList({ settings, onNew, onEdit, onRemove }: { settings: Settings; onNew: () => void; onEdit: (a: AgentConfig) => void; onRemove: (a: AgentConfig) => void }) {
+  const m = useMessages();
+  const t = m.settings.agents;
   return (
     <>
       <div className="st-head">
         <h1 id="st-title" className="st-title">
-          Agents
+          {m.settings.tabs.agents}
         </h1>
         <button type="button" className="btn btn-sm btn-primary" onClick={onNew}>
           <Plus />
-          New agent
+          {t.newAgent}
         </button>
       </div>
       {settings.agents.length === 0 ? (
-        <p className="st-empty">No agent. Create the first one: a name, a model provider, and it is ready.</p>
+        <p className="st-empty">{t.empty}</p>
       ) : (
         <ul className="st-agents">
           {settings.agents.map((a) => {
@@ -258,21 +322,21 @@ function AgentsList({ settings, onNew, onEdit, onRemove }: { settings: Settings;
               <li key={a.id} className="st-agent">
                 <div className="st-agent-text">
                   <span className="st-agent-name">
-                    {a.name || "Unnamed"}
-                    {accounts.length > 0 && <span className={`xch-badge${anyLive(accounts) ? " is-live" : ""}`}>{anyLive(accounts) ? "LIVE" : "TESTNET"}</span>}
+                    {a.name || t.unnamed}
+                    {accounts.length > 0 && <span className={`xch-badge${anyLive(accounts) ? " is-live" : ""}`}>{anyLive(accounts) ? m.onboarding.agent.live : m.onboarding.agent.testnet}</span>}
                   </span>
                   <span className="st-agent-meta">
-                    {professionInfo(a.profession).label} · {providerLabel(a.providerId)}
+                    {professionText(a.profession, m).label} · {providerLabel(a.providerId, t.noProvider)}
                     {model ? ` · ${model}` : ""}
                     {a.workspace ? ` · ${a.workspace}` : ""}
                   </span>
                 </div>
                 <span className="st-agent-actions">
-                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => onEdit(a)} aria-label={`Edit ${a.name}`}>
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => onEdit(a)} aria-label={t.editAgent(a.name)}>
                     <Pencil />
-                    Edit
+                    {m.common.edit}
                   </button>
-                  <button type="button" className="st-icon" onClick={() => onRemove(a)} aria-label={`Delete ${a.name}`} title="Delete">
+                  <button type="button" className="st-icon" onClick={() => onRemove(a)} aria-label={t.deleteAgent(a.name)} title={m.common.delete}>
                     <Trash />
                   </button>
                 </span>
@@ -286,11 +350,13 @@ function AgentsList({ settings, onNew, onEdit, onRemove }: { settings: Settings;
 }
 
 function AgentForm({ settings, initial, isNew, onBack, onSave }: { settings: Settings; initial: AgentConfig; isNew: boolean; onBack?: () => void; onSave: (a: AgentConfig) => void }) {
+  const m = useMessages();
+  const t = m.settings.agents;
   const [agent, setAgent] = useState<AgentConfig>(initial);
   const [attempted, setAttempted] = useState(false);
   const errors: StepErrors = {};
-  if (!agent.name.trim()) errors.name = "Give your agent a name.";
-  if (!agent.providerId) errors.providerId = "Choose a subscription or a vendor.";
+  if (!agent.name.trim()) errors.name = t.nameRequired;
+  if (!agent.providerId) errors.providerId = t.providerRequired;
   const valid = Object.keys(errors).length === 0;
   const submit = () => {
     if (!valid) {
@@ -304,7 +370,7 @@ function AgentForm({ settings, initial, isNew, onBack, onSave }: { settings: Set
       {onBack && (
         <button type="button" className="st-back" onClick={onBack}>
           <ArrowLeft />
-          Agents
+          {m.settings.tabs.agents}
         </button>
       )}
       <div className="st-agent-form">
@@ -313,13 +379,13 @@ function AgentForm({ settings, initial, isNew, onBack, onSave }: { settings: Set
       <div className="st-foot">
         {onBack ? (
           <button type="button" className="btn btn-ghost" onClick={onBack}>
-            Cancel
+            {m.common.cancel}
           </button>
         ) : (
           <span />
         )}
         <button type="button" className="btn btn-primary" onClick={submit}>
-          {isNew ? "Create the agent" : "Save"}
+          {isNew ? t.create : m.common.save}
         </button>
       </div>
     </>
@@ -332,26 +398,29 @@ function Providers({ settings, onGoAuth }: { settings: Settings; onGoAuth: () =>
   const auth = useAcpAuth();
   const hasKey = settings.keys.openrouter.trim().length > 0;
   const connected = ACP_AGENTS.filter((a) => auth.agents.find((s) => s.agent === a.id)?.loggedIn).length;
+  const ready = connected + (hasKey ? 1 : 0);
+  const m = useMessages();
+  const t = m.settings.providers;
   return (
     <>
       <h1 id="st-title" className="st-title">
-        Providers
+        {m.settings.tabs.providers}
       </h1>
       <p className="st-lede">
-        {connected + (hasKey ? 1 : 0) === 0 ? "No provider connected: your agents cannot answer." : `${connected + (hasKey ? 1 : 0)} provider${connected + (hasKey ? 1 : 0) > 1 ? "s" : ""} ready.`}
+        {ready === 0 ? t.none : t.ready(ready)}
       </p>
-      <Section title="By key">
+      <Section title={t.byKey}>
         <div className={`sub${hasKey ? " is-on" : ""}`}>
           <div className="sub-main">
             <span className="sub-name">OpenRouter</span>
-            <span className="sub-desc">{hasKey ? "Key saved · every vendor, billed per use" : "No key"}</span>
+            <span className="sub-desc">{hasKey ? t.keySaved : t.noKey}</span>
           </div>
           <button type="button" className={`btn btn-sm${hasKey ? " btn-ghost" : " btn-primary"}`} onClick={onGoAuth}>
-            {hasKey ? "Edit the key" : "Add a key"}
+            {hasKey ? t.editKey : t.addKey}
           </button>
         </div>
       </Section>
-      <Section title="By subscription">
+      <Section title={t.bySubscription}>
         <Subscriptions />
       </Section>
     </>

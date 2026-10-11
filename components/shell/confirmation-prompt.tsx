@@ -5,6 +5,8 @@ import type { Confirmation } from "@/lib/domain/plugins";
 import type { Settings } from "@/lib/domain/types";
 import { decideConfirmation, fetchConfirmations } from "@/lib/plugins/client";
 import { pluginManifest } from "@/lib/plugins/catalog";
+import { useMessages } from "@/lib/i18n/react";
+import { pluginText } from "@/lib/i18n/plugin-text";
 import { refreshNotifications } from "@/lib/state/plugins";
 import { summarizeCall } from "@/lib/tools/names";
 import { ExchangeBadge } from "@/components/chat/tool-step";
@@ -23,7 +25,15 @@ import "@/components/ui/ui.css";
 
 type Props = { confirmationId: string; settings: Settings; onClose: () => void };
 
+/** The plugin that prepared the order, by its name in the interface's language. */
+const preparer = (pluginId: string): string => {
+  const manifest = pluginManifest(pluginId);
+  return manifest ? pluginText(manifest).name : pluginId;
+};
+
 export function ConfirmationPrompt({ confirmationId, settings, onClose }: Props) {
+  const m = useMessages();
+  const t = m.shell.confirmation;
   const [c, setC] = useState<Confirmation | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,17 +75,17 @@ export function ConfirmationPrompt({ confirmationId, settings, onClose }: Props)
       <div className="cd-sheet cf" role="alertdialog" aria-modal="true" aria-labelledby="cf-title">
         {c === undefined ? (
           <p className="cd-body">
-            <Spinner /> Loading…
+            <Spinner /> {m.common.loading}
           </p>
         ) : c === null ? (
           <>
             <h2 id="cf-title" className="cd-title">
-              Request not found
+              {t.notFound}
             </h2>
-            <p className="cd-body">It was already decided, or it expired.</p>
+            <p className="cd-body">{t.notFoundBody}</p>
             <div className="cd-actions">
               <button type="button" className="btn btn-primary" onClick={onClose}>
-                Close
+                {m.common.close}
               </button>
             </div>
           </>
@@ -86,38 +96,38 @@ export function ConfirmationPrompt({ confirmationId, settings, onClose }: Props)
             </h2>
             <p className="cd-body">
               {c.reason}
-              <small className="cf-from">Prepared by {pluginManifest(c.plugin)?.name ?? c.plugin}</small>
+              <small className="cf-from">{t.preparedBy(preparer(c.plugin))}</small>
             </p>
             <div className={`cf-call${c.status === "pending" ? " is-danger" : ""}`}>
               <ExchangeBadge account={account?.label} />
               <span className="ts-name">{c.tool}</span>
-              <span className="mono">{summarizeCall(c.tool, { ...c.args, account: account?.label ?? "unknown account" })}</span>
+              <span className="mono">{summarizeCall(c.tool, { ...c.args, account: account?.label ?? t.unknownAccount })}</span>
             </div>
             {c.status === "pending" ? (
               <>
-                <p className="cf-warn">{account ? "This action commits funds. Allow it once, knowingly." : "The account of this order is no longer configured in this browser: it cannot run."}</p>
+                <p className="cf-warn">{account ? t.commitsFunds : t.accountGone}</p>
                 {error && <p className="field-error">{error}</p>}
                 <div className="cd-actions">
                   <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>
-                    Later
+                    {t.later}
                   </button>
                   <button type="button" className="btn" onClick={() => void decide(false)} disabled={busy}>
-                    Deny
+                    {t.deny}
                   </button>
                   <button type="button" className="btn btn-primary" onClick={() => void decide(true)} disabled={busy || !account}>
                     {busy ? <Spinner /> : null}
-                    Allow
+                    {t.allow}
                   </button>
                 </div>
               </>
             ) : (
               <>
                 <p className="cf-outcome">
-                  <strong>{c.status === "allowed" ? "Done." : c.status === "denied" ? "Refused." : c.status === "expired" ? "Expired." : "Failed."}</strong> {c.outcome}
+                  <strong>{c.status === "allowed" ? t.allowed : c.status === "denied" ? t.denied : c.status === "expired" ? t.expired : t.failed}</strong> {c.outcome}
                 </p>
                 <div className="cd-actions">
                   <button type="button" className="btn btn-primary" onClick={onClose}>
-                    Close
+                    {m.common.close}
                   </button>
                 </div>
               </>

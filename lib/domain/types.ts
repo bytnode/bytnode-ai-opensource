@@ -7,6 +7,7 @@ import type { Step, UsageInfo } from "@/lib/agent/events";
 import type { Attachment } from "@/lib/agent/attachments";
 import type { ProfessionId } from "@/lib/professions/catalog";
 import type { PluginsState } from "./plugins";
+import type { Locale } from "@/lib/i18n/locales";
 
 export type Profile = {
   firstName: string;
@@ -33,12 +34,27 @@ export type ExchangeAccount = {
   testnet: boolean;
 };
 
+/** A Telegram bot the scheduled tasks' reports and the alerts can be sent
+    to (`lib/server/telegram.ts`). Made by @BotFather; `chatId` is the
+    user's chat with it, found when they send it /start. The token is a
+    secret (the system's vault in the desktop app). */
+export type TelegramBot = {
+  id: string;
+  name: string;
+  token: string;
+  chatId: string;
+  /** Who the chat is, as Telegram names it — shown, never needed. */
+  chatName: string;
+};
+
 /** One key per service: OpenRouter to chat (and search the web), BytNode
-    for market data, and the exchange accounts the agents may act on. */
+    for market data, the exchange accounts the agents may act on, and the
+    Telegram bots things can be sent to. */
 export type ApiKeys = {
   openrouter: string;
   bytnode: string;
   exchanges: ExchangeAccount[];
+  telegram: TelegramBot[];
 };
 
 /** A file dropped into the agent's context: read once client-side, kept
@@ -57,7 +73,7 @@ export type AgentConfig = {
   /** The agent's profession: its system prompt and its skills. */
   profession: ProfessionId;
   /** The chosen vendor (`anthropic`, `openai`…): the prefix of OpenRouter
-      model ids. Or a subscription, `acp:claude` / `acp:openai` / `acp:gemini`
+      model ids. Or a subscription, `acp:claude` / `acp:openai` / `acp:grok`…
       (see `lib/acp/agents.ts`). */
   providerId: string;
   /** The model proposed when a conversation opens. `null` until the
@@ -91,6 +107,8 @@ export type AgentConfig = {
 
 export type Theme = "dark" | "light";
 
+export type { Locale };
+
 /** How the user connects to the models: through their API keys, or through
     a subscription (Claude, ChatGPT, Google) that gives access to the
     vendor's agent, driven by ACP. Both can coexist; this choice is the tab
@@ -101,6 +119,8 @@ export type Settings = {
   version: 4;
   onboardingDone: boolean;
   theme: Theme;
+  /** The interface's language (`lib/i18n`); English by default. */
+  language: Locale;
   profile: Profile;
   authMode: AuthMode;
   keys: ApiKeys;
@@ -153,6 +173,10 @@ export type Message = {
       `/goal`, `$pdf`…): a command that answers nothing is shown as run,
       not as an empty reply. */
   command?: string;
+  /** Written by the app itself, not a model — the first launch's welcome
+      (`lib/onboarding/first-run.ts`): the thread plays it once, as if it
+      were being written, then the flag goes. */
+  intro?: boolean;
 };
 
 export type Conversation = {

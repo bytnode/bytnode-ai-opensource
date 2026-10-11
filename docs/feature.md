@@ -11,8 +11,36 @@ technical design is in [architecture.md](architecture.md).
   effort, default mode (subscription agents), free-text context and attached context files,
   workspace folder, scope, permission mode, remembered permission rules, allowed exchange
   accounts (`AgentConfig`, `lib/domain/types.ts`).
-- **Conversations per agent**: the left column lists agents; the open agent shows its
-  conversations. Deleting an agent deletes its conversations.
+- **Conversations per agent**: « New agent » on top, then the left column's Agents section (foldable, `+` creates an agent)
+  lists the agents, each with « New conversation » and its latest conversations on a thin line, then « Show all »; the icon
+  folds them. An agent's name opens its **page** (`agent-page.tsx`): a composer that starts a
+  conversation with it, every conversation with its last line and age, and beside them an overview (fact tiles: conversations, last active, 14 days of
+  messages) and its instructions and reference files (edited in place) — in the
+  plugins' bare-view style. Deleting an agent
+  deletes its conversations.
+- **Widgets**: the conversation page's header button (Apple's widgets icon, where « Ask before acting »
+  was — the mode stays in the composer's settings) opens a menu to add, edit, show or hide widgets:
+  excerpts of the plugins — Watchlist, Portfolio, Paper trading, DCA, Calendar, Scheduled tasks,
+  Alerts, a position-size calculator — in Apple's three sizes, live, that float along the page's
+  borders (never more than 2 cm from one) from the top right, are dragged along them, and scale with
+  the window, over a WebGL 2 light tinted by what each says. The conversation keeps two centimetres
+  from them on every side: a widget above lowers only what stands under it, one below raises the
+  composer, one on a side narrows what is level with it. A widget is carried freely anywhere; let
+  go more than 2 cm from a border, it glides back to one by itself, and a small one let go on a small
+  one settles right beside it. Two small widgets can stand side by side on a side, never three in a
+  row. A right click on a widget offers its sizes, Edit widgets, Hide
+  widget and Remove widget; hidden widgets come back from the header menu.
+  Settings → Widgets switches each widget on or off, and shows or hides them all. A click opens the plugin's tab. The same widgets, at the same places, in every
+  conversation.
+- **Floating agent**: on every plugin's tab, a small living companion — a rounded pentagon in
+  the app's navy glass, edged in the titles' silver ink, with two eyes, a blue aura and tiny white
+  points orbiting it, drawn by a WebGL 2 shader, no disc around it: it breathes, floats, blinks,
+  turns toward the pointer, smiles under the hand — opens the last conversation used in a small panel beside it
+  (the same thread and engine as the conversations' page), to keep talking to the agent without
+  leaving the tab. Dragged anywhere, it sticks to the nearer side; its menu lists any agent's
+  conversations to pick one, starts a new one, opens it in full, and resizes by its corners. The avatar is the anchor: docked to any edge, the box stands against it, toward the middle of the screen. Writing,
+  its eyes turn blue and a light sweeps across it; a permission waits, they turn amber and it hops; a reply to read, a blue
+  dot. Switch in Settings → General.
 - **Per-conversation model and effort**, chosen in the model picker; effort levels come from the
   model's published capabilities.
 - **Workspace**: a folder per agent, `~/.bytnode-ai/workspaces/<id>` by default or any folder
@@ -32,10 +60,11 @@ technical design is in [architecture.md](architecture.md).
   latency and to skip `parasail` (configurable by environment variables).
 
 ### Subscriptions (ACP)
-- **Five vendors**: Claude (Claude Code), OpenAI (Codex), Gemini (Gemini CLI), GitHub Copilot
-  (Copilot CLI), Grok (Grok Build).
+- **Four vendors**: Claude (Claude Code), OpenAI (Codex), GitHub Copilot (Copilot CLI), Grok
+  (Grok Build). Gemini CLI was removed on 2026-10-09: Google forbids third-party apps from using
+  its sign-in; an agent saved on it moves to Gemini through OpenRouter.
 - **Install / Update** button: the agent is installed into `~/.bytnode-ai/agents/<id>/` on first
-  click; Gemini, Copilot and Grok already on the PATH are recognised. When a new release of
+  click; Copilot and Grok already on the PATH are recognised. When a new release of
   BytNode-AI raises the supported version, the button becomes "Update".
 - **Sign in / Sign out** with the vendor's own login flow (browser or terminal window).
 - Vendor models, efforts and modes ("Plan", "Accept edits"…) come from the agent itself.
@@ -181,4 +210,4 @@ execution; an ill-formed call goes back to the model with the reason, without bo
 
 - BytNode visual identity: animated background, `--ink` / `--paper` / `--voile` tokens,
   Geist / Inter / IBM Plex Mono fonts, light and dark themes.
-- Resizable, collapsible sidebar; settings panel with General / Auth / Agents / Providers.
+- Fixed-width, collapsible sidebar; settings panel with General / Auth / Agents / Providers.

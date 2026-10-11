@@ -43,6 +43,7 @@ import {
   saveConversation,
 } from "@/lib/state/conversations";
 import { currentSettings } from "@/lib/state/settings";
+import { currentMessages } from "@/lib/i18n/store";
 import { STOPPED, restoreAfterFailedRecovery } from "@/lib/agent/stop";
 import { acpAgentOf, acpModelId } from "@/lib/acp/agents";
 import {
@@ -85,8 +86,8 @@ import type { WireEvent } from "@/lib/acp/wire";
 
    TWO ENGINES, ONE THREAD. An agent on OpenRouter runs our loop right here
    (model + our tools). A subscription agent (`acp:…`) delegates the turn to
-   the server, which drives the external agent (Claude Code, Codex, Gemini
-   CLI) and sends back the same events — plus that agent's permission
+   the server, which drives the external agent (Claude Code, Codex…) and
+   sends back the same events — plus that agent's permission
    requests, which take the same buttons.
 
    ⚠️ CONTEXT MANAGES ITSELF (OpenRouter engine). A turn is a `turn`; `send`
@@ -159,13 +160,17 @@ const CONTINUE_PROMPT = "Continue: pick the task up where it stopped, relying on
    reply: it sees its own reply so far, and goes on from there. */
 const RESUME_PROMPT =
   "Your previous reply was interrupted (connection lost, or stopped by the user). Continue it from exactly where it stopped: do not repeat what you already wrote, and do not redo a tool call that already has a result — rerun only the ones marked interrupted, if still needed.";
-const COMPACT_HINT = "Type /compact to summarise the thread, or open a new conversation.";
+/* The errors the thread shows are read at the moment they happen, in the
+   interface's language (`chat.errors`). */
+const errors = () => currentMessages().chat.errors;
 
 const STORED_OUTPUT = 12_000;
 const STORED_LINES = 200;
 /** A sub-agent's report kept in the thread (the call's full output is
     already bounded by STORED_OUTPUT). */
 const STORED_REPORT = 6_000;
+/** The steps kept per sub-agent in the stored thread. */
+const STORED_ACTIVITY = 40;
 
 export function useChat({
   settings,
@@ -388,7 +393,7 @@ export function useChat({
             case "retry":
               reserve += `
 
-_${e.reason} — retrying ${e.attempt}/${e.of}…_
+_${errors().retrying(e.reason, e.attempt, e.of)}_
 
 `;
               if (!frame) frame = requestAnimationFrame(flush);
@@ -444,7 +449,15 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
                   e.report && e.report.length > STORED_REPORT
                     ? `${e.report.slice(0, STORED_REPORT)}\n[…]`
                     : e.report;
-                const state = { index: e.index, title: e.title, profession: e.profession, status: e.status, report };
+                /* Its steps as they come (`activity`), kept on the row:
+                   one per tool call, updated in place, the latest few. */
+                const before = (t.subagents ?? []).find((s) => s.index === e.index);
+                let activity = before?.activity ?? [];
+                if (e.activity) {
+                  const a = e.activity;
+                  activity = activity.some((x) => x.id === a.id) ? activity.map((x) => (x.id === a.id ? a : x)) : [...activity, a].slice(-STORED_ACTIVITY);
+                }
+                const state = { index: e.index, title: e.title, profession: e.profession, status: e.status, report: report ?? before?.report, ...(activity.length ? { activity } : {}) };
                 t.subagents = [
                   ...(t.subagents ?? []).filter((s) => s.index !== e.index),
                   state,
@@ -729,7 +742,7 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
             error =
               e instanceof Error && e.message
                 ? e.message
-                : "The reply was interrupted. Check your connection.";
+                : errors().interrupted;
         } finally {
           if (frame) cancelAnimationFrame(frame);
           frame = 0;
@@ -789,9 +802,7 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
             /* This compaction was the recovery of an overflow that had taken
                the user's message out of the thread: it comes back, with
                why, instead of vanishing. Retry sends it again. */
-            const why = aborted
-              ? `The context window is full and compacting the thread was stopped. ${COMPACT_HINT}`
-              : `The context window is full and compacting the thread failed: ${error ?? "the agent produced no summary."} ${COMPACT_HINT}`;
+            const why = aborted ? errors().contextFullStopped : errors().contextFullFailed(error ?? null);
             saveConversation({ ...finished, updatedAt: Date.now(), messages: restoreAfterFailedRecovery(finished.messages, taken, why) });
             return;
           }
@@ -803,10 +814,10 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
             await turn(conversation.id, text, { ...opts, hardPrune: true });
             return;
           }
-          const why = error ?? "The agent produced no summary.";
+          const why = error ?? errors().noSummary;
           setCompactError({
             conversationId: conversation.id,
-            message: opts.compactedBy && opts.compactedBy !== "user" ? `${why} ${COMPACT_HINT}` : why,
+            message: opts.compactedBy && opts.compactedBy !== "user" ? errors().withCompactHint(why) : why,
           });
           return;
         }
@@ -822,7 +833,7 @@ _${e.reason} — retrying ${e.attempt}/${e.of}…_
           const replay: TurnOptions = worked
             ? { recovered: true }
             : { attachments: joints, research: opts.research, recovered: true };
-          if (worked) error = "Context window exceeded mid-task: the thread is compacted, then the task resumes.";
+          if (worked) error = errors().exceededMidTask;
           saveConversation({
             ...finished,
             updatedAt: Date.now(),
@@ -936,7 +947,7 @@ const blank = (
 ): Conversation => ({
   id: newId(),
   agentId,
-  title: "New conversation",
+  title: currentMessages().chat.newConversation,
   modelId,
   createdAt: now,
   updatedAt: now,

@@ -5,7 +5,9 @@ import type { WatchlistService } from "../watchlist/service";
 import { alertCreateTool } from "./alert-create";
 import { alertDeleteTool } from "./alert-delete";
 import { alertListTool } from "./alert-list";
-import { WATCHLIST, alertLabel, newAlert, step, type Alert, type Trigger } from "./alerts";
+import { WATCHLIST, alertLabel, newAlert, step, type Alert, type Trigger, alertTelegramText } from "./alerts";
+import { sendToBot } from "../shared/telegram";
+import type { Session } from "../core/contract";
 import { currentValue, evaluate, onPosition, parseCondition, type AlertCondition } from "./conditions";
 import { bytnodePairs } from "../shared/prices";
 import { normalizeSymbol } from "../shared/quote";
@@ -45,7 +47,7 @@ export const alertsPlugin = definePlugin({
     };
 
     /** One check of every active alert. */
-    const check = async (sources: Sources) => {
+    const check = async (sources: Sources, session: Session | null = null) => {
       const active = (await read()).filter((a) => a.status === "active");
       if (active.length === 0) return "No active alert.";
       const list = watchlist();
@@ -76,6 +78,12 @@ export const alertsPlugin = definePlugin({
       for (const t of fired) {
         await ctx.store.append(TRIGGERS, t, MAX_TRIGGERS);
         await ctx.notify({ title: `${t.symbol}: ${alertLabel(t.condition)}`, body: `${t.observed}${t.note ? ` — ${t.note}` : ""}`, level: "warning", action: { kind: "open-view", view: "alerts" } });
+        /* Also to the alert's Telegram bot, when it has one. */
+        const bot = active.find((a) => a.id === t.alertId)?.telegramBot;
+        if (bot) {
+          const sent = await sendToBot(session, bot, alertTelegramText(t));
+          if (sent.error) await ctx.notify({ title: `Not sent to Telegram: ${t.symbol}`, body: sent.error, level: "warning", action: { kind: "open-view", view: "alerts" } });
+        }
         ctx.emit("fired", t);
       }
       for (const f of failing) {
@@ -84,11 +92,11 @@ export const alertsPlugin = definePlugin({
       return `${active.length} alert(s) checked, ${fired.length} fired${failing.length ? `, ${failing.length} cannot be checked` : ""}.`;
     };
 
-    ctx.job({ id: "check", title: "Alerts", every: String(ctx.config().every), run: ({ session, signal }) => check({ bytnodeKey: session.bytnodeKey, accounts: session.exchangeAccounts, signal }) });
+    ctx.job({ id: "check", title: "Alerts", every: String(ctx.config().every), run: ({ session, signal }) => check({ bytnodeKey: session.bytnodeKey, accounts: session.exchangeAccounts, signal }, session) });
 
     const hasCalendar = () => calendar() !== undefined;
     const listing = async () => ({ alerts: await read(), triggers: await ctx.store.lines<Trigger>(TRIGGERS) });
-    ctx.tool(alertCreateTool(add, hasCalendar, () => watchlist() !== undefined));
+    ctx.tool(alertCreateTool(add, hasCalendar, () => watchlist() !== undefined, () => ctx.session()?.telegramBots));
     ctx.tool(alertListTool(listing));
     ctx.tool(alertDeleteTool(remove));
 
@@ -103,13 +111,29 @@ export const alertsPlugin = definePlugin({
       if ("error" in condition) throw new Error(condition.error);
       if (condition.kind === "event" && !hasCalendar()) throw new Error("Event alerts need the market calendar: it is off (Settings → Plugins).");
       const accountId = typeof params.accountId === "string" && transport.exchangeAccounts.some((a) => a.id === params.accountId) ? params.accountId : undefined;
-      const made = newAlert({ target: params.target, condition: params.condition, once: params.once, note: params.note, accountId }, randomUUID().slice(0, 8), new Date());
+      const made = newAlert({ target: params.target, condition: params.condition, once: params.once, note: params.note, accountId, telegramBot: params.telegramBot }, randomUUID().slice(0, 8), new Date());
       if ("error" in made) throw new Error(made.error);
       if (made.alert.target === WATCHLIST && !watchlist()) throw new Error(WATCHLIST_OFF);
       await add(made.alert);
       return made.alert;
     });
     ctx.api("delete", async (params) => ({ removed: (await remove(String(params.id ?? ""))).length }));
+    /* The alert's Telegram bot, by id; `bot: ""` for none. */
+    ctx.api("telegram", async (params) => {
+      const bot = typeof params.bot === "string" ? params.bot.trim() : "";
+      let found = false;
+      await ctx.store.update<Alert[]>(ALERTS, [], (list) =>
+        list.map((a) => {
+          if (a.id !== params.id) return a;
+          found = true;
+          const { telegramBot: _old, ...rest } = a;
+          void _old;
+          return bot ? { ...rest, telegramBot: bot } : rest;
+        }),
+      );
+      if (!found) throw new Error("No such alert.");
+      return { bot };
+    });
     /* Pause stops the checks; resume starts again from what holds now. */
     ctx.api("pause", async (params) => {
       const paused = params.paused === true;

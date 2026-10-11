@@ -6,7 +6,7 @@ import { exchangePromptSection } from "@/lib/tools/exchange/prompt";
 
 /* The « Environment » section of a subscription agent's prompt.
 
-   The external agent (Claude Code, Codex, Gemini CLI…) knows its own tools
+   The external agent (Claude Code, Codex…) knows its own tools
    better than we do: we do not describe them. What it cannot guess is WHERE
    it is — inside BytNode-AI, a finance app, whose chat the user reads — and
    what BytNode-AI adds on top of its own equipment: tools through the
@@ -80,6 +80,6 @@ export function buildAcpPrompt(
 }
 
 /** The context block slipped at the top of the first message for agents
-    that accept no system prompt (Codex, Gemini). */
+    that accept no system prompt (Codex…). */
 export const wrapContext = (system: string, text: string) =>
   `<bytnode_ai_context>\n${system}\n</bytnode_ai_context>\n\nThis block is your standing instruction for this conversation. User's message:\n\n${text}`;

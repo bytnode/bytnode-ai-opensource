@@ -14,9 +14,9 @@
   display: flex;
   flex-direction: column;
   border-radius: var(--radius-lg);
-  background: var(--veil-strong);
-  -webkit-backdrop-filter: blur(22px);
-  backdrop-filter: blur(22px);
+  /* Opaque, every list (user request, 2026-10-08): the settings panel's
+     ground — seen through, what lies under it mixed with the options. */
+  background: rgb(var(--voile));
   box-shadow:
     0 0 0 1px var(--line),
     0 18px 50px -12px rgba(2, 6, 14, 0.7);

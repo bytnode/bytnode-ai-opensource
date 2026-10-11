@@ -1,36 +1,37 @@
 /* ---------------------------------------------------------------------------
-   The settings panel.
+   The settings page.
 
-   A block laid on the veil (`.ob`, shared with the assistant): a navigation
-   column on the left, the content on the right, which scrolls on its own.
+   The whole home pane under the tab bar (2026-10-09: a page of the app,
+   no longer a block laid on a veil): a navigation column on the left, the
+   content on the right, which scrolls on its own.
    Each setting is a ROW — the label and its hint on the left, the control on
    the right — and a section's rows form one group of tiles (see "The
    plugins' language" below).
 --------------------------------------------------------------------------- */
 
-.st-veil {
-  padding: 16px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(var(--ink), 0.22) transparent;
+/* Over the conversations, inside the home pane (`.shell-pane`, positioned):
+   the tab bar stays, the rest is the page. */
+.st-page {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  background: rgb(var(--voile));
 }
 
 .st {
   position: relative;
-  width: min(1040px, 100%);
-  height: min(720px, 100vh - 32px);
-  margin: auto;
+  width: 100%;
+  height: 100%;
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 248px 1fr;
   /* ⚠️ `minmax(0, 1fr)`, not `auto`: an `auto` track grows to the content's
      height and overflows the panel — the column did not scroll, the bottom
      was cut off. Bounded, it is `.st-main` that scrolls. */
   grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
-  border-radius: 18px;
   /* Opaque: you're adjusting settings, not looking at the chat through it. */
   background: rgb(var(--voile));
-  border: 1px solid var(--line-strong);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
   animation: ob-step 220ms var(--ease) both;
 }
 
@@ -40,7 +41,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 22px 12px;
+  padding: 30px 14px;
   border-right: 1px solid var(--line);
   background: rgba(var(--ink), 0.025);
 }
@@ -133,7 +134,8 @@
 }
 
 .st-content {
-  padding: 30px 44px 40px;
+  max-width: 920px;
+  padding: 40px 56px 56px;
   animation: ob-step 160ms var(--ease) both;
 }
 
@@ -1042,4 +1044,41 @@ html[data-theme="light"] .st .st-seg-btn.is-on {
 
 .pl-delete {
   color: #f85149;
+}
+
+/* --- Widgets (widgets-settings.tsx) ------------------------------------------ */
+
+/* The plugin library's blocks, not a link: each widget's icon before its
+   name; « … plugin off » leads to Plugins. */
+.wgs-card .pl-open {
+  cursor: default;
+}
+
+.wgs-name {
+  gap: 8px;
+}
+
+.pl-name.wgs-name svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.8;
+  color: var(--fg-soft, var(--fg));
+  opacity: 0.85;
+  transform: none;
+}
+
+.wgs-card:hover .pl-name svg {
+  transform: none;
+}
+
+.wgs-plugin {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.wgs-plugin:hover {
+  text-decoration: underline;
 }

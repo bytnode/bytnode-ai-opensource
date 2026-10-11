@@ -7,6 +7,8 @@ import { PriceChart } from "../watchlist/price-chart";
 import type { Valuation } from "@/lib/plugins/paper-trading/engine";
 import type { Stats as StatsData } from "@/lib/plugins/paper-trading/stats";
 import { CASH, baseOf, dayOf, fillTitle, focusSymbol, orderTitle, pct, price, signed, toneOf, usdt, whenOf, type Focus, type PaperState } from "./format";
+import { useMessages } from "@/lib/i18n/react";
+import { dateTag } from "@/lib/i18n/store";
 
 /* ---------------------------------------------------------------------------
    The middle sheet, the chosen portfolio top to bottom: its name (a click
@@ -56,10 +58,13 @@ type Props = {
 const SHOWN_FILLS = 12;
 
 export function Sheet({ data, loading, problem, many, tradeClosed, exportButton, exportResult, onReload, onReset, onDelete, onOpenTrade, onRename, onAct, market, onSymbol, focus, onUnfocus }: Props) {
+  const m = useMessages();
+  const t = m.paperTrading.sheet;
   const [busy, setBusy] = useState<string | null>(null);
   const [allFills, setAllFills] = useState(false);
   const v = data?.valuation;
-  const status = !data ? "Loading…" : `${loading ? "Updating" : "Updated"} ${new Date(data.at).toLocaleTimeString("en-GB")}`;
+  const time = data ? new Date(data.at).toLocaleTimeString(dateTag()) : "";
+  const status = !data ? m.common.loading : loading ? t.updating(time) : t.updated(time);
 
   const run = async (key: string, action: string, params: Record<string, unknown>) => {
     setBusy(key);
@@ -70,7 +75,7 @@ export function Sheet({ data, loading, problem, many, tradeClosed, exportButton,
   const empty = data && v && v.holdings.length === 0 && v.positions.length === 0 && data.orders.length === 0 && data.fills.length === 0;
   const invested = v ? v.holdings.reduce((t, h) => t + (h.value ?? 0), 0) + v.positions.reduce((t, p) => t + p.margin + (p.unrealized ?? 0), 0) : undefined;
   const curve = data?.curve;
-  const chartMessage = !curve ? "Loading…" : curve.candles.length < 2 ? "The curve draws itself as the portfolio lives: come back after a few trades." : null;
+  const chartMessage = !curve ? m.common.loading : curve.candles.length < 2 ? t.curveSoon : null;
 
   if (data && focus) {
     return <Detail data={data} focus={focus} status={status} live={!loading && !problem} problem={problem} busy={busy} tradeClosed={tradeClosed} market={market} onBack={onUnfocus} onReload={onReload} onOpenTrade={onOpenTrade} onRun={run} />;
@@ -84,27 +89,27 @@ export function Sheet({ data, loading, problem, many, tradeClosed, exportButton,
             <NameTitle key={`${data.id}:${data.name}`} name={data.name} onRename={onRename} />
           ) : (
             <h2 className="wlv-sheet-title">
-              <span className="pv-ink">Paper portfolio</span>
+              <span className="pv-ink">{t.portfolio}</span>
             </h2>
           )}
-          <p className="wlv-sheet-sub">{data ? `Since ${dayOf(data.createdAt)}, with ${usdt(data.capital)} ${CASH} of paper money. Nothing here is real.` : "Reading the portfolio…"}</p>
+          <p className="wlv-sheet-sub">{data ? t.since(dayOf(data.createdAt), `${usdt(data.capital)} ${CASH}`) : t.reading}</p>
         </div>
         <span className={`wlv-status${data && !loading && !problem ? " is-live" : ""}`}>{status}</span>
-        <button type="button" className="wlv-icon" onClick={onReload} aria-label="Read the prices again" title="Read the prices again">
+        <button type="button" className="wlv-icon" onClick={onReload} aria-label={m.paperTrading.readAgain} title={m.paperTrading.readAgain}>
           <Refresh />
         </button>
         <span className="ptv-export">{exportButton}</span>
         <button type="button" className="ptv-pill" onClick={onReset} disabled={!data}>
-          Reset
+          {t.reset}
         </button>
         {many && (
           <button type="button" className="ptv-pill is-danger" onClick={onDelete} disabled={!data}>
-            Delete
+            {m.common.delete}
           </button>
         )}
         {tradeClosed && (
           <button type="button" className="ptv-pill is-primary" onClick={onOpenTrade}>
-            Trade
+            {m.paperTrading.trade}
           </button>
         )}
       </header>
@@ -119,17 +124,17 @@ export function Sheet({ data, loading, problem, many, tradeClosed, exportButton,
       <div className="wlv-body">
         {v && data && (
           <div className="wlv-insights ptv-figures">
-            <Figure label="Cash" value={usdt(v.cash)} sub={`${usdt(data.available[CASH])} free to trade`} />
-            <Figure label="Invested" value={usdt(invested)} sub={`${v.holdings.length} holding${v.holdings.length === 1 ? "" : "s"}, ${v.positions.length} position${v.positions.length === 1 ? "" : "s"}`} />
-            <Figure label="Realized" value={signed(v.realized)} tone={toneOf(v.realized)} sub={`after ${usdt(v.fees)} of fees`} />
-            <Figure label="Unrealized" value={signed(v.unrealized)} tone={toneOf(v.unrealized)} sub="on what is still open" />
+            <Figure label={t.cash} value={usdt(v.cash)} sub={t.freeToTrade(usdt(data.available[CASH]))} />
+            <Figure label={t.invested} value={usdt(invested)} sub={t.investedSub(v.holdings.length, v.positions.length)} />
+            <Figure label={t.realized} value={signed(v.realized)} tone={toneOf(v.realized)} sub={t.afterFees(usdt(v.fees))} />
+            <Figure label={t.unrealized} value={signed(v.unrealized)} tone={toneOf(v.unrealized)} sub={t.stillOpen} />
           </div>
         )}
 
         {market}
 
         {data && data.fills.length > 0 && (
-          <Section title="Performance" sub="closed trades, net of fees — today at market prices">
+          <Section title={t.performance} sub={t.performanceSub}>
             <div className="ptv-perf-chart">
               <PriceChart candles={curve?.candles ?? null} interval={curve?.interval ?? "1d"} mode="line" fit message={chartMessage} />
             </div>
@@ -138,7 +143,7 @@ export function Sheet({ data, loading, problem, many, tradeClosed, exportButton,
         )}
 
         {v && (
-          <Section title="Allocation" sub="where the capital is">
+          <Section title={t.allocation} sub={t.allocationSub}>
             <Allocation v={v} />
           </Section>
         )}
@@ -146,14 +151,14 @@ export function Sheet({ data, loading, problem, many, tradeClosed, exportButton,
         {empty && (
           <section className="ptv-empty">
             <p className="ptv-empty-title">
-              <span className="pv-ink">Ready when you are</span>
+              <span className="pv-ink">{t.emptyTitle}</span>
             </p>
-            <p>Choose a pair and place a first order in the ticket, or ask an agent: “paper-buy 200 USDT of ETH”, “open a paper long on SOL at ×3”. Every order fills at the live price, with fees and slippage, as it would on an exchange.</p>
+            <p>{t.emptyBody}</p>
           </section>
         )}
 
         {v && v.holdings.length > 0 && data && (
-          <Section title="Holdings" sub="spot">
+          <Section title={t.holdings} sub={t.spotSub}>
             <ul className="ptv-rows">
               {v.holdings.map((h) => {
                 const cost = h.amount * h.avgPrice;
@@ -161,11 +166,9 @@ export function Sheet({ data, loading, problem, many, tradeClosed, exportButton,
                 const free = data.available[h.asset] ?? 0;
                 return (
                   <li key={h.asset} className="ptv-row">
-                    <button type="button" className="ptv-row-name ptv-row-pick" onClick={() => onSymbol(`${h.asset}/${CASH}`)} title={`Show the ${h.asset} market`}>
+                    <button type="button" className="ptv-row-name ptv-row-pick" onClick={() => onSymbol(`${h.asset}/${CASH}`)} title={t.showMarket(h.asset)}>
                       <b>{h.asset}</b>
-                      <small>
-                        {fmt(h.amount)} · bought at {price(h.avgPrice)}
-                      </small>
+                      <small>{t.boughtAt(fmt(h.amount), price(h.avgPrice))}</small>
                     </button>
                     <span className="ptv-row-figure">
                       <b>{usdt(h.value)}</b>
@@ -173,7 +176,7 @@ export function Sheet({ data, loading, problem, many, tradeClosed, exportButton,
                     </span>
                     <span className={`wlv-pill ptv-row-pill ${toneOf(move)}`}>{pct(move)}</span>
                     <button type="button" className="ptv-row-act" disabled={busy !== null || free <= 0} onClick={() => void run(`sell:${h.asset}`, "order", { symbol: `${h.asset}/${CASH}`, side: "sell", type: "market", market: "spot", amount: free })}>
-                      {busy === `sell:${h.asset}` ? "Selling…" : "Sell all"}
+                      {busy === `sell:${h.asset}` ? t.selling : t.sellAll}
                     </button>
                   </li>
                 );
@@ -183,7 +186,7 @@ export function Sheet({ data, loading, problem, many, tradeClosed, exportButton,
         )}
 
         {v && v.positions.length > 0 && (
-          <Section title="Positions" sub="futures, isolated margin">
+          <Section title={t.positions} sub={t.positionsSub}>
             <ul className="ptv-rows">
               {v.positions.map((p) => {
                 const roe = p.unrealized !== undefined && p.margin > 0 ? (p.unrealized / p.margin) * 100 : undefined;
@@ -193,30 +196,25 @@ export function Sheet({ data, loading, problem, many, tradeClosed, exportButton,
                 const away = p.mark !== undefined ? (Math.abs(p.mark - p.liquidation) / p.mark) * 100 : undefined;
                 return (
                   <li key={p.symbol} className="ptv-row ptv-row-position">
-                    <button type="button" className="ptv-row-name ptv-row-pick" onClick={() => onSymbol(p.symbol)} title={`Show the ${baseOf(p.symbol)} market`}>
+                    <button type="button" className="ptv-row-name ptv-row-pick" onClick={() => onSymbol(p.symbol)} title={t.showMarket(baseOf(p.symbol))}>
                       <b>
-                        {baseOf(p.symbol)} <em className={p.side === "long" ? "is-up" : "is-down"}>{p.side === "long" ? "Long" : "Short"}</em> ×{p.leverage}
+                        {baseOf(p.symbol)} <em className={p.side === "long" ? "is-up" : "is-down"}>{p.side === "long" ? m.paperTrading.long : m.paperTrading.short}</em> ×{p.leverage}
                       </b>
-                      <small>
-                        {fmt(p.amount)} at {price(p.entryPrice)} · now {price(p.mark)}
-                      </small>
+                      <small>{t.entryNow(fmt(p.amount), price(p.entryPrice), price(p.mark))}</small>
                     </button>
                     <span className="ptv-row-figure">
                       <b className={toneOf(p.unrealized)}>{signed(p.unrealized)}</b>
-                      <small>margin {usdt(p.margin)}</small>
+                      <small>{t.marginOf(usdt(p.margin))}</small>
                     </span>
                     <span className={`wlv-pill ptv-row-pill ${toneOf(roe)}`}>{pct(roe)}</span>
                     <button type="button" className="ptv-row-act" disabled={busy !== null} onClick={() => void run(`close:${p.symbol}`, "order", { symbol: p.symbol, side: p.side === "long" ? "sell" : "buy", type: "market", market: "futures", amount: p.amount, reduceOnly: true })}>
-                      {busy === `close:${p.symbol}` ? "Closing…" : "Close"}
+                      {busy === `close:${p.symbol}` ? t.closing : t.close}
                     </button>
                     <span className="ptv-liq">
                       <span className="ptv-liq-track" aria-hidden>
                         <i style={{ width: `${toward * 100}%` }} />
                       </span>
-                      <small>
-                        Liquidation at {price(p.liquidation)}
-                        {away !== undefined ? ` — ${away.toFixed(1)} % away` : ""}
-                      </small>
+                      <small>{t.liquidationAt(price(p.liquidation), away !== undefined ? `${fmt(away, 1)} %` : null)}</small>
                     </span>
                   </li>
                 );
@@ -226,24 +224,24 @@ export function Sheet({ data, loading, problem, many, tradeClosed, exportButton,
         )}
 
         {data && data.orders.length > 0 && (
-          <Section title="Open orders" sub="waiting for their price">
+          <Section title={t.openOrders} sub={t.waitingForPrice}>
             <ul className="ptv-rows">
               {data.orders.map((o) => {
-                const m = data.prices[o.symbol];
-                const gap = m !== undefined && o.price !== undefined ? ((o.price - m) / m) * 100 : undefined;
+                const mark = data.prices[o.symbol];
+                const gap = mark !== undefined && o.price !== undefined ? ((o.price - mark) / mark) * 100 : undefined;
                 return (
                   <li key={o.id} className="ptv-row ptv-row-order">
-                    <button type="button" className="ptv-row-name ptv-row-pick" onClick={() => onSymbol(o.symbol)} title={`Show the ${baseOf(o.symbol)} market`}>
+                    <button type="button" className="ptv-row-name ptv-row-pick" onClick={() => onSymbol(o.symbol)} title={t.showMarket(baseOf(o.symbol))}>
                       <b>{orderTitle(o)}</b>
                       <small>
-                        {o.market === "futures" ? "Futures" : "Spot"} · placed {whenOf(o.createdAt)}
+                        {o.market === "futures" ? m.paperTrading.futures : m.paperTrading.spot} · {t.placed(whenOf(o.createdAt))}
                       </small>
                     </button>
                     <span className="ptv-row-figure">
                       <b>{price(o.price)}</b>
-                      <small>{gap !== undefined ? `${Math.abs(gap).toFixed(2)} % ${gap < 0 ? "below" : "above"} the market` : "limit"}</small>
+                      <small>{gap !== undefined ? t.gap(`${fmt(Math.abs(gap), 2)} %`, gap < 0) : t.limit}</small>
                     </span>
-                    <button type="button" className="wlv-icon ptv-cancel" disabled={busy !== null} onClick={() => void run(`cancel:${o.id}`, "cancel", { orderId: o.id })} aria-label={`Cancel: ${orderTitle(o)}`} title="Cancel the order">
+                    <button type="button" className="wlv-icon ptv-cancel" disabled={busy !== null} onClick={() => void run(`cancel:${o.id}`, "cancel", { orderId: o.id })} aria-label={t.cancelLabel(orderTitle(o))} title={t.cancelTitle}>
                       <Close />
                     </button>
                   </li>
@@ -254,16 +252,14 @@ export function Sheet({ data, loading, problem, many, tradeClosed, exportButton,
         )}
 
         {data && data.fills.length > 0 && (
-          <Section title="Activity" sub={`${data.fills.length === 100 ? "the last 100" : data.fills.length} fill${data.fills.length === 1 ? "" : "s"}`}>
+          <Section title={t.activity} sub={t.fills(data.fills.length)}>
             <ul className="ptv-rows ptv-activity">
               {(allFills ? data.fills : data.fills.slice(0, SHOWN_FILLS)).map((f) => (
                 <li key={f.id} className={`ptv-row ptv-fill${f.liquidation ? " is-liquidation" : ""}`}>
                   <span className={`ptv-dot ${f.liquidation ? "is-down" : f.side === "buy" ? "is-up" : "is-down"}`} aria-hidden />
                   <span className="ptv-row-name">
                     <b>{fillTitle(f)}</b>
-                    <small>
-                      {whenOf(f.at)} · at {price(f.price)} · fee {usdt(f.fee)}
-                    </small>
+                    <small>{t.fillLine(whenOf(f.at), price(f.price), usdt(f.fee))}</small>
                   </span>
                   <span className={`ptv-fill-result ${toneOf(f.realizedPnl)}`}>{f.realizedPnl ? signed(f.realizedPnl) : ""}</span>
                 </li>
@@ -271,13 +267,13 @@ export function Sheet({ data, loading, problem, many, tradeClosed, exportButton,
             </ul>
             {data.fills.length > SHOWN_FILLS && (
               <button type="button" className="ptv-more" onClick={() => setAllFills(!allFills)}>
-                {allFills ? "Show fewer" : `Show all ${data.fills.length}`}
+                {allFills ? t.showFewer : t.showAll(data.fills.length)}
               </button>
             )}
           </Section>
         )}
 
-        {data && <p className="ptv-foot">Prices from BytNode, or from your exchange for a pair BytNode does not cover. A paper result is a simulation, never a real performance.</p>}
+        {data && <p className="ptv-foot">{t.foot}</p>}
       </div>
     </main>
   );
@@ -305,6 +301,8 @@ type DetailProps = {
     for a position its road to the liquidation, then its market, its open
     orders and its fills — with its one action in the head. */
 function Detail({ data, focus, status, live, problem, busy, tradeClosed, market, onBack, onReload, onOpenTrade, onRun }: DetailProps) {
+  const m = useMessages();
+  const t = m.paperTrading.sheet;
   const v = data.valuation;
   const symbol = focusSymbol(focus);
   const futures = focus.kind === "position";
@@ -326,34 +324,32 @@ function Detail({ data, focus, status, live, problem, busy, tradeClosed, market,
     const away = p.mark !== undefined ? (Math.abs(p.mark - p.liquidation) / p.mark) * 100 : undefined;
     title = (
       <>
-        <span className="pv-ink">{baseOf(p.symbol)}</span> <em className={`ptv-detail-side ${p.side === "long" ? "is-up" : "is-down"}`}>{p.side === "long" ? "Long" : "Short"}</em> <span className="ptv-detail-lev">×{p.leverage}</span>
+        <span className="pv-ink">{baseOf(p.symbol)}</span> <em className={`ptv-detail-side ${p.side === "long" ? "is-up" : "is-down"}`}>{p.side === "long" ? m.paperTrading.long : m.paperTrading.short}</em> <span className="ptv-detail-lev">×{p.leverage}</span>
       </>
     );
-    sub = `${p.symbol} futures, isolated margin — opened ${whenOf(p.openedAt)}. Paper money.`;
+    sub = t.positionSub(p.symbol, whenOf(p.openedAt));
     action = (
       <button type="button" className="ptv-pill is-danger" disabled={busy !== null} onClick={() => void onRun(`close:${p.symbol}`, "order", { symbol: p.symbol, side: p.side === "long" ? "sell" : "buy", type: "market", market: "futures", amount: p.amount, reduceOnly: true })}>
-        {busy === `close:${p.symbol}` ? "Closing…" : "Close the position"}
+        {busy === `close:${p.symbol}` ? t.closing : t.closePosition}
       </button>
     );
     figures = (
       <>
-        <Figure label="Unrealized" value={signed(p.unrealized)} tone={toneOf(p.unrealized)} sub={`${pct(roe)} on the margin`} />
-        <Figure label="Size" value={`${fmt(p.amount)} ${baseOf(p.symbol)}`} sub={`${usdt(p.mark !== undefined ? p.amount * p.mark : undefined)} ${CASH} at the mark`} />
-        <Figure label="Margin" value={usdt(p.margin)} sub={`×${p.leverage}, isolated`} />
-        <Figure label="Entry price" value={price(p.entryPrice)} sub={`opened ${whenOf(p.openedAt)}`} />
-        <Figure label="Mark price" value={price(p.mark)} tone={toneOf(move === undefined ? undefined : p.side === "long" ? move : -move)} sub={move === undefined ? "no price yet" : `${pct(move)} since the entry`} />
-        <Figure label="Liquidation" value={price(p.liquidation)} tone="is-down" sub={away === undefined ? "—" : `${away.toFixed(1)} % away`} />
+        <Figure label={t.unrealized} value={signed(p.unrealized)} tone={toneOf(p.unrealized)} sub={t.onMargin(pct(roe))} />
+        <Figure label={t.size} value={`${fmt(p.amount)} ${baseOf(p.symbol)}`} sub={t.atMark(`${usdt(p.mark !== undefined ? p.amount * p.mark : undefined)} ${CASH}`)} />
+        <Figure label={t.margin} value={usdt(p.margin)} sub={t.isolated(p.leverage)} />
+        <Figure label={t.entryPrice} value={price(p.entryPrice)} sub={t.opened(whenOf(p.openedAt))} />
+        <Figure label={t.markPrice} value={price(p.mark)} tone={toneOf(move === undefined ? undefined : p.side === "long" ? move : -move)} sub={move === undefined ? t.noPriceYet : t.sinceEntry(pct(move))} />
+        <Figure label={t.liquidation} value={price(p.liquidation)} tone="is-down" sub={away === undefined ? "—" : t.away(`${fmt(away, 1)} %`)} />
       </>
     );
     extra = (
-      <Section title="Liquidation" sub="how far the price has gone toward it">
+      <Section title={t.liquidation} sub={t.liquidationSub}>
         <div className="ptv-detail-liq">
           <span className="ptv-liq-track" aria-hidden>
             <i style={{ width: `${toward * 100}%` }} />
           </span>
-          <small>
-            Entry {price(p.entryPrice)} · now {price(p.mark)} · liquidation {price(p.liquidation)}
-          </small>
+          <small>{t.road(price(p.entryPrice), price(p.mark), price(p.liquidation))}</small>
         </div>
       </Section>
     );
@@ -363,23 +359,23 @@ function Detail({ data, focus, status, live, problem, busy, tradeClosed, market,
     const free = data.available[h.asset] ?? 0;
     title = (
       <>
-        <span className="pv-ink">{h.asset}</span> <em className="ptv-detail-side">Spot</em>
+        <span className="pv-ink">{h.asset}</span> <em className="ptv-detail-side">{m.paperTrading.spot}</em>
       </>
     );
-    sub = `${h.asset}/${CASH} spot holding. Paper money.`;
+    sub = t.holdingSub(`${h.asset}/${CASH}`);
     action = (
       <button type="button" className="ptv-pill is-danger" disabled={busy !== null || free <= 0} onClick={() => void onRun(`sell:${h.asset}`, "order", { symbol: `${h.asset}/${CASH}`, side: "sell", type: "market", market: "spot", amount: free })}>
-        {busy === `sell:${h.asset}` ? "Selling…" : "Sell all"}
+        {busy === `sell:${h.asset}` ? t.selling : t.sellAll}
       </button>
     );
     figures = (
       <>
-        <Figure label="Value" value={usdt(h.value)} sub={`${CASH} at the market`} />
-        <Figure label="Unrealized" value={signed(h.unrealized)} tone={toneOf(h.unrealized)} sub={`${pct(move)} on the cost`} />
-        <Figure label="Amount" value={`${fmt(h.amount)} ${h.asset}`} sub={`${fmt(free)} free to sell`} />
-        <Figure label="Average price" value={price(h.avgPrice)} sub="what it cost, on average" />
-        <Figure label="Price now" value={price(h.price)} tone={toneOf(move)} sub={pct(move)} />
-        <Figure label="Cost basis" value={usdt(cost)} sub={`${CASH} put in`} />
+        <Figure label={t.value} value={usdt(h.value)} sub={t.atMarket(CASH)} />
+        <Figure label={t.unrealized} value={signed(h.unrealized)} tone={toneOf(h.unrealized)} sub={t.onCost(pct(move))} />
+        <Figure label={t.amount} value={`${fmt(h.amount)} ${h.asset}`} sub={t.freeToSell(fmt(free))} />
+        <Figure label={t.avgPrice} value={price(h.avgPrice)} sub={t.avgPriceSub} />
+        <Figure label={t.priceNow} value={price(h.price)} tone={toneOf(move)} sub={pct(move)} />
+        <Figure label={t.costBasis} value={usdt(cost)} sub={t.putIn(CASH)} />
       </>
     );
   }
@@ -396,13 +392,13 @@ function Detail({ data, focus, status, live, problem, busy, tradeClosed, market,
           <p className="wlv-sheet-sub">{sub}</p>
         </div>
         <span className={`wlv-status${live ? " is-live" : ""}`}>{status}</span>
-        <button type="button" className="wlv-icon" onClick={onReload} aria-label="Read the prices again" title="Read the prices again">
+        <button type="button" className="wlv-icon" onClick={onReload} aria-label={m.paperTrading.readAgain} title={m.paperTrading.readAgain}>
           <Refresh />
         </button>
         {action}
         {tradeClosed && (
           <button type="button" className="ptv-pill is-primary" onClick={onOpenTrade}>
-            Trade
+            {m.paperTrading.trade}
           </button>
         )}
       </header>
@@ -416,22 +412,22 @@ function Detail({ data, focus, status, live, problem, busy, tradeClosed, market,
         {market}
 
         {orders.length > 0 && (
-          <Section title="Open orders" sub="on this pair">
+          <Section title={t.openOrders} sub={t.onThisPair}>
             <ul className="ptv-rows">
               {orders.map((o) => {
-                const m = data.prices[o.symbol];
-                const gap = m !== undefined && o.price !== undefined ? ((o.price - m) / m) * 100 : undefined;
+                const mark = data.prices[o.symbol];
+                const gap = mark !== undefined && o.price !== undefined ? ((o.price - mark) / mark) * 100 : undefined;
                 return (
                   <li key={o.id} className="ptv-row ptv-row-order">
                     <span className="ptv-row-name">
                       <b>{orderTitle(o)}</b>
-                      <small>placed {whenOf(o.createdAt)}</small>
+                      <small>{t.placed(whenOf(o.createdAt))}</small>
                     </span>
                     <span className="ptv-row-figure">
                       <b>{price(o.price)}</b>
-                      <small>{gap !== undefined ? `${Math.abs(gap).toFixed(2)} % ${gap < 0 ? "below" : "above"} the market` : "limit"}</small>
+                      <small>{gap !== undefined ? t.gap(`${fmt(Math.abs(gap), 2)} %`, gap < 0) : t.limit}</small>
                     </span>
-                    <button type="button" className="wlv-icon ptv-cancel" disabled={busy !== null} onClick={() => void onRun(`cancel:${o.id}`, "cancel", { orderId: o.id })} aria-label={`Cancel: ${orderTitle(o)}`} title="Cancel the order">
+                    <button type="button" className="wlv-icon ptv-cancel" disabled={busy !== null} onClick={() => void onRun(`cancel:${o.id}`, "cancel", { orderId: o.id })} aria-label={t.cancelLabel(orderTitle(o))} title={t.cancelTitle}>
                       <Close />
                     </button>
                   </li>
@@ -441,7 +437,7 @@ function Detail({ data, focus, status, live, problem, busy, tradeClosed, market,
           </Section>
         )}
 
-        <Section title="Activity" sub={fills.length ? `${fills.length} fill${fills.length === 1 ? "" : "s"} on this pair` : "no fill kept on this pair"}>
+        <Section title={t.activity} sub={t.fillsOnPair(fills.length)}>
           {fills.length > 0 && (
             <ul className="ptv-rows ptv-activity">
               {fills.map((f) => (
@@ -449,9 +445,7 @@ function Detail({ data, focus, status, live, problem, busy, tradeClosed, market,
                   <span className={`ptv-dot ${f.liquidation ? "is-down" : f.side === "buy" ? "is-up" : "is-down"}`} aria-hidden />
                   <span className="ptv-row-name">
                     <b>{fillTitle(f)}</b>
-                    <small>
-                      {whenOf(f.at)} · at {price(f.price)} · fee {usdt(f.fee)}
-                    </small>
+                    <small>{t.fillLine(whenOf(f.at), price(f.price), usdt(f.fee))}</small>
                   </span>
                   <span className={`ptv-fill-result ${toneOf(f.realizedPnl)}`}>{f.realizedPnl ? signed(f.realizedPnl) : ""}</span>
                 </li>
@@ -467,6 +461,7 @@ function Detail({ data, focus, status, live, problem, busy, tradeClosed, market,
 /** The portfolio's name — a click edits it, Enter or leaving the field
     keeps it, Escape leaves it as it was; a refused name says why. */
 function NameTitle({ name, onRename }: { name: string; onRename: (name: string) => Promise<string | null> }) {
+  const m = useMessages();
   const [draft, setDraft] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const keep = async () => {
@@ -483,7 +478,7 @@ function NameTitle({ name, onRename }: { name: string; onRename: (name: string) 
   if (draft === null) {
     return (
       <h2 className="wlv-sheet-title">
-        <button type="button" className="ptv-name" onClick={() => setDraft(name)} title="Rename the portfolio">
+        <button type="button" className="ptv-name" onClick={() => setDraft(name)} title={m.paperTrading.sheet.rename}>
           <span className="pv-ink">{name}</span>
           <Pencil />
         </button>
@@ -494,7 +489,7 @@ function NameTitle({ name, onRename }: { name: string; onRename: (name: string) 
     <div className="ptv-name-edit">
       <input
         className="wlv-input"
-        aria-label="Name of the portfolio"
+        aria-label={m.paperTrading.sheet.nameLabel}
         value={draft}
         maxLength={40}
         autoFocus
@@ -515,14 +510,16 @@ function NameTitle({ name, onRename }: { name: string; onRename: (name: string) 
 
 /** The record: six figures as one block of tiles. */
 function Stats({ stats }: { stats: StatsData }) {
+  const m = useMessages();
+  const t = m.paperTrading.sheet;
   return (
     <div className="wlv-insights ptv-stats">
-      <Figure label="Trades closed" value={String(stats.trades)} sub={`${stats.fills} fill${stats.fills === 1 ? "" : "s"} in all`} />
-      <Figure label="Win rate" value={stats.winRate === undefined ? "—" : `${stats.winRate.toFixed(0)} %`} sub={stats.trades ? `${stats.wins} won, ${stats.trades - stats.wins} lost` : "no trade closed yet"} />
-      <Figure label="Best trade" value={stats.best === undefined ? "—" : signed(stats.best)} tone={toneOf(stats.best)} sub={stats.avgWin === undefined ? "—" : `${signed(stats.avgWin)} on average`} />
-      <Figure label="Worst trade" value={stats.worst === undefined ? "—" : signed(stats.worst)} tone={toneOf(stats.worst)} sub={stats.avgLoss === undefined ? "—" : `${signed(stats.avgLoss)} on average`} />
-      <Figure label="Deepest drawdown" value={stats.maxDrawdown === undefined ? "—" : `${stats.maxDrawdown.toFixed(2)} %`} tone={stats.maxDrawdown ? "is-down" : undefined} sub="from a peak of the curve" />
-      <Figure label="Volume traded" value={usdt(stats.volume)} sub={`${usdt(stats.fees)} of fees paid`} />
+      <Figure label={t.tradesClosed} value={String(stats.trades)} sub={t.fillsInAll(stats.fills)} />
+      <Figure label={t.winRate} value={stats.winRate === undefined ? "—" : `${fmt(stats.winRate, 0)} %`} sub={stats.trades ? t.wonLost(stats.wins, stats.trades - stats.wins) : t.noTradeClosed} />
+      <Figure label={t.bestTrade} value={stats.best === undefined ? "—" : signed(stats.best)} tone={toneOf(stats.best)} sub={stats.avgWin === undefined ? "—" : t.onAverage(signed(stats.avgWin))} />
+      <Figure label={t.worstTrade} value={stats.worst === undefined ? "—" : signed(stats.worst)} tone={toneOf(stats.worst)} sub={stats.avgLoss === undefined ? "—" : t.onAverage(signed(stats.avgLoss))} />
+      <Figure label={t.drawdown} value={stats.maxDrawdown === undefined ? "—" : `${fmt(stats.maxDrawdown, 2)} %`} tone={stats.maxDrawdown ? "is-down" : undefined} sub={t.fromPeak} />
+      <Figure label={t.volume} value={usdt(stats.volume)} sub={t.feesPaid(usdt(stats.fees))} />
     </div>
   );
 }
@@ -533,10 +530,12 @@ const SHARE_COLORS = ["#0a84ff", "#bf5af2", "#ff9f0a", "#40c8e0", "#5e5ce6", "#f
 /** Where the capital is: cash, each holding, each position (its margin and
     its result), as one bar of shares and a legend. */
 function Allocation({ v }: { v: Valuation }) {
+  const m = useMessages();
+  const t = m.paperTrading.sheet;
   const parts = [
-    { key: "cash", label: "Cash", sub: CASH, value: Math.max(0, v.cash) },
-    ...v.holdings.map((h) => ({ key: `spot:${h.asset}`, label: h.asset, sub: "spot", value: Math.max(0, h.value ?? 0) })),
-    ...v.positions.map((p) => ({ key: `fut:${p.symbol}`, label: baseOf(p.symbol), sub: `${p.side} ×${p.leverage}`, value: Math.max(0, p.margin + (p.unrealized ?? 0)) })),
+    { key: "cash", label: t.cash, sub: CASH, value: Math.max(0, v.cash) },
+    ...v.holdings.map((h) => ({ key: `spot:${h.asset}`, label: h.asset, sub: t.spotSub, value: Math.max(0, h.value ?? 0) })),
+    ...v.positions.map((p) => ({ key: `fut:${p.symbol}`, label: baseOf(p.symbol), sub: t.allocSide(p.side, p.leverage), value: Math.max(0, p.margin + (p.unrealized ?? 0)) })),
   ];
   const total = parts.reduce((t, x) => t + x.value, 0);
   const colorOf = (i: number) => (i === 0 ? "var(--label-3)" : SHARE_COLORS[(i - 1) % SHARE_COLORS.length]);
@@ -552,7 +551,7 @@ function Allocation({ v }: { v: Valuation }) {
             <b>{x.label}</b>
             <small>{x.sub}</small>
             <span className="ptv-alloc-value">{usdt(x.value)}</span>
-            <span className="ptv-alloc-share">{total > 0 ? `${((x.value / total) * 100).toFixed(1)} %` : "—"}</span>
+            <span className="ptv-alloc-share">{total > 0 ? `${fmt((x.value / total) * 100, 1)} %` : "—"}</span>
           </li>
         ))}
       </ul>

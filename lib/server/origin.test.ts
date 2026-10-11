@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { crossSiteReason } from "./origin";
+import { crossSiteReason, selfOrigin } from "./origin";
 
 const h = (o: Record<string, string>) => ({ get: (n: string) => o[n.toLowerCase()] ?? null });
 
@@ -45,5 +45,19 @@ describe("crossSiteReason: the Host must be the loopback the app is served on", 
   });
   test("the Origin's scheme counts", () => {
     expect(crossSiteReason(h({ origin: "https://127.0.0.1:3795", host: "127.0.0.1:3795" }))).toBe("origin https://127.0.0.1:3795");
+  });
+});
+
+describe("the desktop app's window port", () => {
+  test("is accepted beside the served one, nothing else", () => {
+    const opts = { port: "51234", windowPort: "23777" };
+    expect(crossSiteReason(h({ host: "127.0.0.1:23777", origin: "http://127.0.0.1:23777" }), opts)).toBeNull();
+    expect(crossSiteReason(h({ host: "127.0.0.1:51234" }), opts)).toBeNull();
+    expect(crossSiteReason(h({ host: "127.0.0.1:9999" }), opts)).toBe("host 127.0.0.1:9999");
+    expect(crossSiteReason(h({ host: "127.0.0.1:23777" }), { port: "51234" })).toBe("host 127.0.0.1:23777");
+  });
+  test("the server's own origin for its children is the real one", () => {
+    expect(selfOrigin("http://127.0.0.1:23777/api/acp/prompt", { BYTNODE_AI_SELF_ORIGIN: "http://127.0.0.1:51234" })).toBe("http://127.0.0.1:51234");
+    expect(selfOrigin("http://localhost:3777/api/acp/prompt", {})).toBe("http://localhost:3777");
   });
 });

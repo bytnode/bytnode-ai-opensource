@@ -1,4 +1,4 @@
-import type { AgentConfig, ExchangeAccount, Profile } from "@/lib/domain/types";
+import type { AgentConfig, ExchangeAccount, Profile, TelegramBot } from "@/lib/domain/types";
 import type { AppNotification, Confirmation, NotificationAction, NotificationLevel, PluginConfig, PluginManifest, PluginsState } from "@/lib/domain/plugins";
 import type { Tool } from "@/lib/tools/types";
 import type { Transport } from "@/lib/tools/transport";
@@ -37,6 +37,9 @@ export type Session = {
   agents: AgentConfig[];
   profile: Profile;
   plugins: PluginsState;
+  /** The Telegram bots, to send a task's report or an alert to
+      (`plugins/shared/telegram.ts`). */
+  telegramBots?: TelegramBot[];
 };
 
 /** Who a prompt section is written for. */

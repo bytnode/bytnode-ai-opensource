@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useMessages } from "@/lib/i18n/react";
 import { TabIcon } from "./tab-icons";
 
 /* ---------------------------------------------------------------------------
@@ -71,6 +72,7 @@ export function useTabPreview() {
 type Props = { peek: Peek; title: string; description: string; asleep: boolean };
 
 export function TabPreview({ peek, title, description, asleep }: Props) {
+  const m = useMessages();
   return (
     <div className="tb-peek" style={{ left: peek.left, top: peek.top, width: WIDTH } as CSSProperties} aria-hidden>
       <Shot view={peek.view} />
@@ -84,7 +86,7 @@ export function TabPreview({ peek, title, description, asleep }: Props) {
       {asleep && (
         <p className="tb-peek-sleep">
           <span className="tb-peek-dot" aria-hidden />
-          Asleep in the background — it catches up when you come back.
+          {m.shell.asleep}
         </p>
       )}
     </div>

@@ -7,6 +7,8 @@ import type { Model } from "@/lib/domain/types";
 import { acpAgentOf } from "@/lib/acp/agents";
 import { Check, ChevronLeft, ChevronRight, Search } from "@/components/ui/icons";
 import { ComposerPopover } from "./composer-popover";
+import { useMessages } from "@/lib/i18n/react";
+import { currentMessages } from "@/lib/i18n/store";
 
 type Option = { value: string; name: string; description?: string | null };
 
@@ -35,20 +37,22 @@ type Props = {
    ("Anthropic: Claude Sonnet 4"), and a subscription agent adds a note in
    brackets ("Opus (1M context)", "Default (recommended)") — noise in a chip
    or a value. The note is kept for the list's second line, where it tells
-   two "Opus" apart. */
-export const shortName = (m: Model) =>
-  m.name
-    .replace(/^[^:]+:\s*/, "")
-    .replace(/\s*\([^)]*\)\s*$/, "")
-    .trim() || m.name;
+   two "Opus" apart. A subscription agent's "Default" is the app's word,
+   in the interface's language. */
+export const shortName = (m: Model) => {
+  const short =
+    m.name
+      .replace(/^[^:]+:\s*/, "")
+      .replace(/\s*\([^)]*\)\s*$/, "")
+      .trim() || m.name;
+  return short === "Default" ? currentMessages().chat.picker.default : short;
+};
 
 const noteOf = (m: Model) => m.name.match(/\(([^)]*)\)\s*$/)?.[1] ?? null;
 
 const fmtContext = (n: number | null) => (n === null ? "" : n >= 1_000_000 ? `${(n / 1_000_000).toFixed(n % 1_000_000 ? 1 : 0)}M` : `${Math.round(n / 1000)}k`);
 
 type View = "menu" | "model" | "effort" | "mode" | "profession";
-
-const TITLES: Record<Exclude<View, "menu">, string> = { model: "Model", effort: "Effort", mode: "Mode", profession: "Profession" };
 
 /* The up-and-down chevron of a pop-up button, as on macOS. */
 const UpDown = () => (
@@ -84,12 +88,14 @@ export function ModelPicker({
   open,
   onOpenChange,
 }: Props) {
+  const m = useMessages();
+  const titles: Record<Exclude<View, "menu">, string> = { model: m.chat.picker.model, effort: m.chat.picker.effort, mode: m.chat.picker.mode, profession: m.chat.picker.profession };
   const [view, setView] = useState<View>("menu");
   const [query, setQuery] = useState("");
   const trigger = useRef<HTMLButtonElement>(null);
   const catalog = useCatalog();
 
-  const current = catalog.models.find((m) => m.id === modelId);
+  const current = catalog.models.find((x) => x.id === modelId);
   const efforts = current ? effortOptions(current) : [];
   const canEffort = efforts.length > 0;
 
@@ -103,9 +109,9 @@ export function ModelPicker({
     setQuery("");
   };
 
-  const currentMode = modeOptions.find((m) => m.value === mode) ?? null;
+  const currentMode = modeOptions.find((o) => o.value === mode) ?? null;
   const currentProfession = professionOptions.find((p) => p.value === profession) ?? null;
-  const modelLabel = current ? shortName(current) : modelId ? modelId.split("/").pop() : "Model";
+  const modelLabel = current ? shortName(current) : modelId ? modelId.split("/").pop() : m.chat.picker.model;
   const effortValue = effort && efforts.includes(effort) ? effort : null;
 
   const searching = query.trim().length > 0;
@@ -116,12 +122,12 @@ export function ModelPicker({
   const results = searching ? searchModels(catalog.models, providerId, query, { allVendors: !acp }) : acp ? searchModels(catalog.models, providerId, "") : latestModels(catalog.models, providerId);
 
   const effortText = !current
-    ? "Choose a model"
+    ? m.chat.picker.chooseModel
     : !canEffort
-      ? "Does not reason"
+      ? m.chat.picker.doesNotReason
       : effortValue
         ? effortLabel(effortValue)
-        : "Default";
+        : m.chat.picker.default;
 
   const choice = (key: string, title: string, sub: string | null | undefined, on: boolean, pick: () => void) => (
     <button key={key} type="button" data-item className={`cmp-item${on ? " is-on" : ""}`} aria-pressed={on} onClick={pick}>
@@ -141,7 +147,7 @@ export function ModelPicker({
         className={`cmp-chip${open ? " is-open" : ""}`}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={`Conversation settings: ${modelLabel}${effortValue ? `, effort ${effortLabel(effortValue)}` : ""}`}
+        aria-label={m.chat.picker.chipLabel(modelLabel ?? "", effortValue ? effortLabel(effortValue) : null)}
         disabled={disabled}
         onClick={() => (open ? close() : (go("menu"), onOpenChange(true)))}
       >
@@ -150,15 +156,15 @@ export function ModelPicker({
         <UpDown />
       </button>
 
-      <ComposerPopover open={open} onClose={close} anchor={trigger} align="end" width={view === "menu" ? 292 : 316} label="Conversation settings" page={view} className={`is-${view}`}>
+      <ComposerPopover open={open} onClose={close} anchor={trigger} align="end" width={view === "menu" ? 292 : 316} label={m.chat.picker.conversationSettings} page={view} className={`is-${view}`}>
         {view === "menu" ? (
           <div className="cmp-group">
             {(
               [
-                ["model", "Model", current ? shortName(current) : "None", false],
-                ["effort", "Effort", effortText, !canEffort],
-                ["mode", "Mode", modeOptions.length === 0 ? "None" : (currentMode?.name ?? "Default"), modeOptions.length === 0],
-                ["profession", "Profession", currentProfession?.name ?? profession, false],
+                ["model", titles.model, current ? shortName(current) : m.common.none, false],
+                ["effort", titles.effort, effortText, !canEffort],
+                ["mode", titles.mode, modeOptions.length === 0 ? m.common.none : (currentMode?.name ?? m.chat.picker.default), modeOptions.length === 0],
+                ["profession", titles.profession, currentProfession?.name ?? profession, false],
               ] as const
             ).map(([v, name, value, off]) => (
               <button key={v} type="button" data-item className="cmp-row" disabled={off} onClick={() => go(v)}>
@@ -171,58 +177,58 @@ export function ModelPicker({
         ) : (
           <>
             <header className="cmp-pop-head">
-              <button type="button" className="cmp-back" onClick={() => go("menu")} aria-label="Back to the settings">
+              <button type="button" className="cmp-back" onClick={() => go("menu")} aria-label={m.chat.picker.backToSettings}>
                 <ChevronLeft />
-                Settings
+                {m.chat.picker.settings}
               </button>
-              <b>{TITLES[view]}</b>
+              <b>{titles[view]}</b>
             </header>
 
             {view === "model" && (
               <>
                 <label className="cmp-search">
                   <Search />
-                  <input data-autofocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder={acp ? `Search ${acp.label} models` : "Search all models"} aria-label="Search a model" />
+                  <input data-autofocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder={acp ? m.chat.picker.searchModelsOf(acp.label) : m.chat.picker.searchAllModels} aria-label={m.chat.picker.searchModel} />
                 </label>
                 <div className="cmp-list">
                   {catalog.status === "loading" || catalog.status === "idle" ? (
-                    <p className="cmp-empty">Reading the catalog…</p>
+                    <p className="cmp-empty">{m.chat.picker.readingCatalog}</p>
                   ) : acp && catalog.acpLoading && results.length === 0 ? (
                     /* The agent publishes its models when a session opens:
                        a few seconds on the first call, during which "no
                        model" would be a lie. */
-                    <p className="cmp-empty">Reading the models of your {acp.label} subscription…</p>
+                    <p className="cmp-empty">{m.chat.picker.readingSubscription(acp.label)}</p>
                   ) : catalog.status === "error" ? (
                     <p className="cmp-empty">
                       {catalog.message}
                       <button type="button" className="cmp-retry" onClick={() => loadCatalog(true)}>
-                        Reload
+                        {m.chat.picker.reload}
                       </button>
                     </p>
                   ) : results.length === 0 ? (
-                    <p className="cmp-empty">{searching ? `No model matches "${query}".` : "This provider has no model."}</p>
+                    <p className="cmp-empty">{searching ? m.chat.picker.noMatch(query) : m.chat.picker.providerEmpty}</p>
                   ) : (
                     <>
-                      {!searching && <p className="cmp-caption">{acp ? `Your ${acp.label} subscription` : "Latest releases"}</p>}
-                      {results.map((m) => (
+                      {!searching && <p className="cmp-caption">{acp ? m.chat.picker.yourSubscription(acp.label) : m.chat.picker.latestReleases}</p>}
+                      {results.map((model) => (
                         <button
-                          key={m.id}
+                          key={model.id}
                           type="button"
                           data-item
-                          className={`cmp-item${m.id === modelId ? " is-on" : ""}`}
-                          aria-pressed={m.id === modelId}
+                          className={`cmp-item${model.id === modelId ? " is-on" : ""}`}
+                          aria-pressed={model.id === modelId}
                           onClick={() => {
-                            onModel(m.id);
+                            onModel(model.id);
                             close(true);
                           }}
                         >
                           <span className="cmp-item-text">
-                            <b>{shortName(m)}</b>
+                            <b>{shortName(model)}</b>
                             {/* A subscription's model: its note; OpenRouter's: its id. */}
-                            {(acp ? noteOf(m) : m.id) && <small>{acp ? noteOf(m) : m.id}</small>}
+                            {(acp ? noteOf(model) : model.id) && <small>{acp ? noteOf(model) : model.id}</small>}
                           </span>
-                          {m.contextLength !== null && <span className="cmp-item-meta">{fmtContext(m.contextLength)}</span>}
-                          <span className="cmp-item-check">{m.id === modelId && <Check />}</span>
+                          {model.contextLength !== null && <span className="cmp-item-meta">{fmtContext(model.contextLength)}</span>}
+                          <span className="cmp-item-check">{model.id === modelId && <Check />}</span>
                         </button>
                       ))}
                     </>
@@ -233,12 +239,12 @@ export function ModelPicker({
 
             {view === "effort" && current && (
               <div className="cmp-list">
-                {choice("default", "Default", null, effortValue === null, () => {
+                {choice("default", m.chat.picker.default, null, effortValue === null, () => {
                   onEffort(null);
                   close(true);
                 })}
                 {efforts.map((e) =>
-                  choice(e, e === EFFORT_OFF ? "None" : effortLabel(e), e === EFFORT_OFF ? "No reasoning" : null, e === effortValue, () => {
+                  choice(e, e === EFFORT_OFF ? m.common.none : effortLabel(e), e === EFFORT_OFF ? m.chat.picker.noReasoning : null, e === effortValue, () => {
                     onEffort(e);
                     close(true);
                   }),
@@ -248,9 +254,9 @@ export function ModelPicker({
 
             {view === "mode" && (
               <div className="cmp-list">
-                {modeOptions.map((m) =>
-                  choice(m.value, m.name, m.description, m.value === mode, () => {
-                    onMode(m.value);
+                {modeOptions.map((o) =>
+                  choice(o.value, o.name, o.description, o.value === mode, () => {
+                    onMode(o.value);
                     close(true);
                   }),
                 )}

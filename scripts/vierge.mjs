@@ -3,8 +3,8 @@
    Three things hold state, all neutralised without erasing anything:
    - the data folder (~/.bytnode-ai: installed agents, workspaces) → a fresh
      folder in the temp directory, removed on exit;
-   - the agents found on the PATH (gemini, copilot, grok) →
-     BYTNODE_AI_IGNORE_PATH, all six show "Install";
+   - the agents found on the PATH (copilot, grok) →
+     BYTNODE_AI_IGNORE_PATH, all of them show "Install";
    - the browser's localStorage (keys, settings, conversations), bound to
      the origin and therefore to the port → a random port between 3800 and
      3899.

@@ -4,8 +4,9 @@ import { useCallback, useState } from "react";
 import type { CalendarEvent } from "@/lib/plugins/calendar/events";
 import { byHour, sameDay } from "@/lib/plugins/calendar/days";
 import { EventFacts } from "./event-facts";
-import { LOCALE, timeOf, toneOf } from "./format";
+import { locale, timeOf, toneOf } from "./format";
 import { NewEntry } from "./new-entry";
+import { useMessages } from "@/lib/i18n/react";
 
 /* A day on a scale of hours, like Calendar's day view: the 24 hours as
    rounded tiles, each event in its hour as a tinted block that opens in
@@ -24,6 +25,7 @@ type Props = {
 };
 
 export function HourScale({ day, events, now, anchor }: Props) {
+  const t = useMessages();
   const [opened, setOpened] = useState<string | null>(null);
   const [drafting, setDrafting] = useState<number | null>(null);
   const closeDraft = useCallback(() => setDrafting(null), []);
@@ -35,7 +37,7 @@ export function HourScale({ day, events, now, anchor }: Props) {
     <div className="calv-hours">
       {hours.map((list, h) => (
         <div key={h} className="calv-hour" data-anchor={h === anchor || undefined}>
-          <button type="button" className="calv-hour-label" onClick={() => setDrafting(h)} aria-label={`New event at ${hourLabel(h)}`}>
+          <button type="button" className="calv-hour-label" onClick={() => setDrafting(h)} aria-label={t.calendar.newEventAt(hourLabel(h))}>
             {hourLabel(h)}
           </button>
           <div className={`calv-hour-slot${drafting === h ? " is-drafting" : ""}`} onClick={(e) => e.target === e.currentTarget && setDrafting(h)}>
@@ -43,7 +45,7 @@ export function HourScale({ day, events, now, anchor }: Props) {
               <EventBlock key={e.id} event={e} open={opened === e.id} onToggle={() => toggle(e.id)} />
             ))}
             {drafting === h && <NewEntry day={day} hour={h} up={h >= 17} onClose={closeDraft} />}
-            {today && now.getHours() === h && <i className="calv-now" role="img" style={{ top: `${(now.getMinutes() / 60) * 100}%` }} aria-label={`Now, ${now.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" })}`} />}
+            {today && now.getHours() === h && <i className="calv-now" role="img" style={{ top: `${(now.getMinutes() / 60) * 100}%` }} aria-label={t.calendar.nowAt(now.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }))} />}
           </div>
         </div>
       ))}
@@ -52,6 +54,8 @@ export function HourScale({ day, events, now, anchor }: Props) {
 }
 
 function EventBlock({ event, open, onToggle }: { event: CalendarEvent; open: boolean; onToggle: () => void }) {
+  /* Its time is written in the interface's language: a change renders it again. */
+  useMessages();
   return (
     <div className={`calv-block${open ? " is-open" : ""}${event.importance === 3 ? " is-strong" : ""}${event.done ? " is-done" : ""}`} style={toneOf(event.category)}>
       <button type="button" className="calv-block-main" onClick={onToggle} aria-expanded={open}>

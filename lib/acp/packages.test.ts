@@ -12,9 +12,9 @@ describe("installPackageJson", () => {
     });
   });
   it("does not write empty overrides", () => {
-    const src = AGENT_SOURCES.gemini;
-    if (src.kind !== "npm") throw new Error("gemini is an npm package");
-    expect(installPackageJson(src)).toEqual({ private: true, dependencies: { "@google/gemini-cli": src.version } });
+    const src = AGENT_SOURCES.copilot;
+    if (src.kind !== "npm") throw new Error("copilot is an npm package");
+    expect(installPackageJson(src)).toEqual({ private: true, dependencies: { "@github/copilot": src.version } });
   });
   it("an update pins the exact versions it found, the rest keeps its range", () => {
     const src = AGENT_SOURCES.claude;

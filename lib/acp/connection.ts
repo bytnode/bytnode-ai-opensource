@@ -294,8 +294,8 @@ export class AcpConnection {
     return this.conn.setSessionMode({ sessionId, modeId });
   }
 
-  /** The old form of the model choice (`session/set_model`), still the
-      one Gemini CLI uses. */
+  /** The old form of the model choice (`session/set_model`), for an
+      agent that publishes no model option. */
   setModel(sessionId: string, modelId: string) {
     return this.conn.request<unknown, { sessionId: string; modelId: string }>(
       "session/set_model",

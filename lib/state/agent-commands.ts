@@ -9,7 +9,7 @@ import { createStore } from "./store";
 
    Two sources: what each external agent publishes when a session opens in
    a neutral folder (the discovery, `/api/acp/models`, per Claude Code /
-   Codex / Gemini CLI), and what a conversation's live session publishes
+   Codex…), and what a conversation's live session publishes
    (per BytNode-AI agent: its workspace's skills are commands too — the
    profession's, synced into `.claude/skills`). The live list wins; it is
    kept in the browser, so the composer has it at the first paint after a

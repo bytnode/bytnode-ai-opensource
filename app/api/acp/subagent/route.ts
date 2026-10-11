@@ -20,6 +20,8 @@ type Body = {
   profession?: string;
   text?: string;
   model?: string | null;
+  index?: number;
+  title?: string;
 };
 
 const TICK = 15_000;
@@ -41,6 +43,7 @@ export async function POST(req: Request) {
     profession: body.profession,
     text: body.text,
     modelId: typeof body.model === "string" && body.model.trim() ? body.model.trim() : null,
+    ...(typeof body.index === "number" && Number.isInteger(body.index) && body.index >= 0 ? { index: body.index, title: typeof body.title === "string" ? body.title.slice(0, 200) : `Task ${body.index + 1}` } : {}),
     bytnodeKey,
     exchangeAccounts,
   };

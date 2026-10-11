@@ -47,8 +47,8 @@ describe("agentModels", () => {
   });
 
   it("rend vide sans liste utile, ou quand le serveur ne repond pas", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ models: [{ id: "acp:gemini/default" }] })));
-    expect(await agentModels({ ...link, agent: "gemini" })).toEqual([]);
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ models: [{ id: "acp:copilot/default" }] })));
+    expect(await agentModels({ ...link, agent: "copilot" })).toEqual([]);
     vi.stubGlobal("fetch", vi.fn(async () => new Response("nope", { status: 500 })));
     expect(await agentModels(link)).toEqual([]);
     vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new Error("ECONNREFUSED"))));

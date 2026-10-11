@@ -15,11 +15,13 @@
 --------------------------------------------------------------------------- */
 
 .cmp {
-  --cmp-glass: rgba(var(--voile), 0.6);
+  /* Darker since 2026-10-03 (was 0.6 / shade 0.32): the user wanted the
+     pane to stand darker against the lit greeting and the halo. */
+  --cmp-glass: rgba(var(--voile), 0.86);
   --cmp-pane: rgba(var(--voile), 0.94);
   --cmp-hair: rgba(var(--ink), 0.1);
   --cmp-catch: rgba(var(--ink), 0.06);
-  --cmp-shade: rgba(0, 0, 0, 0.32);
+  --cmp-shade: rgba(0, 0, 0, 0.42);
   /* The backdrop's reflection, and where it falls on the glass. */
   --cmp-reflet: 44, 72, 140;
   --cmp-reflet-a: 0.11;
@@ -124,7 +126,8 @@ html[data-theme="light"] .cmp {
   line-height: 1.5;
   letter-spacing: -0.005em;
   resize: none;
-  overflow-y: auto;
+  /* Scrolls only past its max height — `composer.tsx` (`fit`) turns it on. */
+  overflow-y: hidden;
 }
 
 .cmp-input:focus {
@@ -139,6 +142,46 @@ html[data-theme="light"] .cmp {
   color: var(--cmp-label-3);
 }
 
+/* No access to the models: the field's place holds why, in the
+   placeholder's voice, and the way out in the accent — no banner. */
+.cmp-locked {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: var(--cmp-label-3);
+  cursor: default;
+}
+
+.cmp-locked-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--cmp-accent);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.cmp-locked-action svg {
+  width: 13px;
+  height: 13px;
+  transition: transform 160ms ease;
+}
+
+.cmp-locked-action:hover svg {
+  transform: translateX(2px);
+}
+
+.cmp-locked-action:focus-visible {
+  outline: 2px solid var(--cmp-accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
 /* --- Docked: one line --------------------------------------------------------
    Once the conversation has begun the composer sits under it as a single
    capsule: the "+", the field, the settings chip, the send button, in that
@@ -147,7 +190,7 @@ html[data-theme="light"] .cmp {
    grows the field upward. The capsule's radius (26 px) is half its height:
    one line reads as a pill, several as a rounded pane — the rim follows. */
 .cmp.is-docked {
-  --cmp-glass: rgba(var(--voile), 0.84);
+  --cmp-glass: rgba(var(--voile), 0.93);
   --cmp-reflet-a: 0.09;
   --cmp-light-at: 16%;
   --cmp-catch: rgba(var(--ink), 0.04);
@@ -162,23 +205,25 @@ html[data-theme="light"] .cmp.is-docked {
   --cmp-glass: rgba(255, 255, 255, 0.8);
 }
 
-/* The halo under the composer (`.chat-composer::before`, chat.css): a
-   little quieter centred, where it lit the pane's middle too brightly, and
-   quieter still once docked — the light belongs to the reading then. */
+/* The halo around the composer (`.chat-composer::before`, chat.css): the
+   block lights its surroundings (raised on 2026-10-03 at the user's
+   request — it was 0.62 / 0.45), much quieter once docked: the thread's
+   text then scrolls over it, and must not read on a glow (lowered on
+   2026-10-05 — it was 0.72 / 0.88). */
 .chat-main.is-fresh .chat-composer::before {
-  opacity: 0.62;
+  opacity: 0.9;
 }
 
 .chat-main.is-fresh .chat-composer:focus-within::before {
-  opacity: 0.75;
+  opacity: 1;
 }
 
 .chat-main:not(.is-fresh) .chat-composer::before {
-  opacity: 0.45;
+  opacity: 0.38;
 }
 
 .chat-main:not(.is-fresh) .chat-composer:focus-within::before {
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
 .cmp.is-docked > .cmp-joints {
@@ -411,6 +456,7 @@ html[data-theme="light"] .cmp.is-docked {
 }
 
 .cmp-chip-model {
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -460,9 +506,9 @@ html[data-theme="light"] .cmp.is-docked {
   flex-direction: column;
   padding: 6px;
   border-radius: 18px;
-  background: var(--cmp-pane);
-  -webkit-backdrop-filter: blur(30px) saturate(1.8);
-  backdrop-filter: blur(30px) saturate(1.8);
+  /* Opaque (user request, 2026-10-08): seen through, the thread mixed
+     with the menu. The settings panel's ground. */
+  background: rgb(var(--voile));
   box-shadow:
     inset 0 0 0 1px var(--cmp-hair),
     inset 0 1px 0 var(--cmp-catch),

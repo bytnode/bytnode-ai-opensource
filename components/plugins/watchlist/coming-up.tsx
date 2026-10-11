@@ -1,10 +1,12 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { CATEGORY_LABELS, type CalendarEvent } from "@/lib/plugins/calendar/events";
+import type { CalendarEvent } from "@/lib/plugins/calendar/events";
 import { openView } from "@/lib/state/tabs";
 import { ChevronRight } from "@/components/ui/icons";
 import { TONE } from "../calendar/format";
+import { useMessages } from "@/lib/i18n/react";
+import { dateTag } from "@/lib/i18n/store";
 
 /* What is coming for the asset, from the Calendar plugin's own events
    (no BytNode call): its next ones — unlocks, listings, upgrades, expiries
@@ -31,25 +33,27 @@ function open(day?: string) {
 }
 
 export function ComingUp({ events, base }: { events: CalendarEvent[]; base: string }) {
+  const m = useMessages();
+  const t = m.watchlist.coming;
   const shown = events.slice(0, SHOWN);
-  if (!shown.length) return <p className="wlv-insight-message">Nothing on the calendar for {base} in the next {COMING_DAYS} days.</p>;
+  if (!shown.length) return <p className="wlv-insight-message">{t.nothing(base, COMING_DAYS)}</p>;
   return (
     <div className="wlv-events">
       {shown.map((e) => {
         const d = new Date(e.startsAt);
-        const when = `${d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}${e.allDay ? "" : ` · ${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`}`;
+        const when = `${d.toLocaleDateString(dateTag(), { weekday: "short", day: "numeric", month: "short" })}${e.allDay ? "" : ` · ${d.toLocaleTimeString(dateTag(), { hour: "2-digit", minute: "2-digit" })}`}`;
         return (
-          <button key={e.id} type="button" className={`wlv-event${e.importance === 3 ? " is-strong" : ""}`} style={{ "--tone": TONE[e.category] } as CSSProperties} onClick={() => open(e.startsAt)} title="Open this day in the calendar">
+          <button key={e.id} type="button" className={`wlv-event${e.importance === 3 ? " is-strong" : ""}`} style={{ "--tone": TONE[e.category] } as CSSProperties} onClick={() => open(e.startsAt)} title={t.openDay}>
             <span className="wlv-event-when">{when}</span>
             <span className="wlv-event-title">{e.title}</span>
-            <span className="wlv-event-kind">{e.assets.length ? CATEGORY_LABELS[e.category] : "Market"}</span>
+            <span className="wlv-event-kind">{e.assets.length ? m.calendar.categories[e.category] : t.market}</span>
             <ChevronRight />
           </button>
         );
       })}
       {events.length > SHOWN && (
         <button type="button" className="wlv-event-more" onClick={() => open()}>
-          {events.length - SHOWN} more in the calendar
+          {t.more(events.length - SHOWN)}
           <ChevronRight />
         </button>
       )}

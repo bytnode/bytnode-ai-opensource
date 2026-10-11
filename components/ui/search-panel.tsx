@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useMessages } from "@/lib/i18n/react";
 import { ArrowLeft, Search } from "./icons";
 import "./ui.css";
 
@@ -50,6 +51,7 @@ export function SearchPanel({
   label,
   children,
 }: Props) {
+  const m = useMessages();
   const root = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
 
@@ -101,7 +103,7 @@ export function SearchPanel({
     >
       {onBack && (
         <div className="sp-head">
-          <button type="button" className="sp-back" onClick={onBack} aria-label="Back">
+          <button type="button" className="sp-back" onClick={onBack} aria-label={m.common.back}>
             <ArrowLeft />
           </button>
           <span className="sp-head-title">{title}</span>

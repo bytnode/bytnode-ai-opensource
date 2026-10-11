@@ -48,20 +48,20 @@
    the hand. They keep a browser tab's width and narrow as more open. */
 
 .tb {
-  --tb-on: rgba(var(--ink), 0.13);
+  --tb-on: rgba(var(--ink), 0.17);
   --tb-r: 10px;
   position: relative;
   z-index: 9;
   display: flex;
   align-items: flex-end;
   gap: 4px;
-  height: 46px;
-  padding: 0 10px 0 8px;
+  height: 36px;
+  padding: 0 8px;
   flex: none;
-  background: var(--veil);
+  background: var(--veil-strong);
   -webkit-backdrop-filter: blur(24px);
   backdrop-filter: blur(24px);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--line-strong);
 }
 
 html[data-theme="light"] .tb {
@@ -92,9 +92,9 @@ html[data-theme="light"] .tb {
   flex: 0 1 auto;
   /* A browser tab's width (what the strip measures), narrowed when they
      no longer fit. */
-  width: 230px;
+  width: 210px;
   min-width: 76px;
-  height: 38px;
+  height: 30px;
   /* The bar's line under the tabs: the front one covers it. */
   margin-bottom: -1px;
   border-radius: var(--tb-r) var(--tb-r) 0 0;
@@ -105,8 +105,8 @@ html[data-theme="light"] .tb {
    shows (icon, title, cross) faded, washed out rather than darkened;
    under the hand, a faint ground and most of its colour back. */
 .tb-tab:not(.is-on) > :not(.tb-sep) {
-  opacity: 0.28;
-  filter: brightness(0.73);
+  opacity: 0.55;
+  filter: brightness(0.85);
   transition: opacity 140ms ease, filter 140ms ease;
 }
 
@@ -149,11 +149,11 @@ html[data-theme="light"] .tb {
 /* The thin rule between two flat tabs. */
 .tb-sep {
   position: absolute;
-  top: 11px;
-  bottom: 11px;
+  top: 8px;
+  bottom: 8px;
   left: -1px;
   width: 1px;
-  background: rgba(var(--ink), 0.1);
+  background: rgba(var(--ink), 0.16);
   pointer-events: none;
   transition: opacity 120ms ease;
 }
@@ -170,7 +170,7 @@ html[data-theme="light"] .tb {
    column's — never closed. */
 .tb-tab.tb-tab-home {
   flex: none;
-  width: calc(var(--tb-home, 320px) - 26px);
+  width: calc(var(--tb-home, 300px) - 26px);
 }
 
 /* Narrow: the column is a drawer, not under the bar — the tab takes a tab's
@@ -187,24 +187,24 @@ html[data-theme="light"] .tb {
   display: flex;
   flex: 1;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   min-width: 0;
   height: 100%;
-  padding: 0 6px 0 12px;
+  padding: 0 6px 0 10px;
   border: 0;
   border-radius: inherit;
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 13.5px;
-  font-weight: 350;
+  font-size: 12.5px;
+  font-weight: 400;
   text-align: left;
   cursor: default;
 }
 
 .tb-tab.is-on .tb-home,
 .tb-tab.is-on .tb-label {
-  font-weight: 420;
+  font-weight: 500;
 }
 
 .tb-home:focus-visible,
@@ -214,14 +214,14 @@ html[data-theme="light"] .tb {
 }
 
 .tb-home {
-  padding-right: 12px;
+  padding-right: 10px;
 }
 
 /* The icon: a quiet mark before the title, never louder than it. */
 .tb-favicon {
   flex: none;
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -242,9 +242,9 @@ html[data-theme="light"] .tb {
   display: grid;
   flex: none;
   place-items: center;
-  width: 22px;
-  height: 22px;
-  margin-right: 8px;
+  width: 19px;
+  height: 19px;
+  margin-right: 6px;
   padding: 0;
   border: 0;
   border-radius: 6px;
@@ -259,8 +259,8 @@ html[data-theme="light"] .tb {
 }
 
 .tb-close svg {
-  width: 13px;
-  height: 13px;
+  width: 11px;
+  height: 11px;
   stroke-width: 2.1;
 }
 
@@ -268,8 +268,8 @@ html[data-theme="light"] .tb {
   position: relative;
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   flex: none;
   padding: 0;
   border: 0;
@@ -286,8 +286,8 @@ html[data-theme="light"] .tb {
 }
 
 .tb-icon svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   stroke-width: 1.7;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -298,10 +298,10 @@ html[data-theme="light"] .tb {
   flex: none;
   align-self: flex-end;
   width: 1px;
-  height: 16px;
+  height: 14px;
   /* Back over the strip's end padding (the front tab's foot) and the
      bar's gap: on the last tab's edge, as the rules between tabs. */
-  margin: 0 0 11px -15px;
+  margin: 0 0 8px -15px;
   background: rgba(var(--ink), 0.1);
 }
 

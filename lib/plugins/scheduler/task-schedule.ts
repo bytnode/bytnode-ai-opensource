@@ -4,6 +4,7 @@ import { fail, ok } from "@/lib/tools/types";
 import { describeFrequency, parseFrequency } from "../core/frequency";
 import type { Session } from "../core/contract";
 import { factsCard } from "../shared/cards";
+import { findBot } from "../shared/telegram";
 import { findAgent, newTask, type AgentTask } from "./tasks";
 
 /* TaskSchedule: the user asks for an agent to do something on its own at
@@ -11,7 +12,7 @@ import { findAgent, newTask, type AgentTask } from "./tasks";
    commits a model's time at every run — and kept from sub-agents. The run
    gets a sub-agent's tools: no order, no transfer, no Workflow. */
 
-type Args = { title: string; prompt: string; frequency: string; agent?: string; runMissed?: boolean };
+type Args = { title: string; prompt: string; frequency: string; agent?: string; runMissed?: boolean; telegram?: string; report?: "full" | "short" };
 
 export function taskScheduleTool(add: (task: AgentTask) => Promise<void>, session: () => Session | null): Tool<Args> {
   return {
@@ -31,6 +32,8 @@ export function taskScheduleTool(add: (task: AgentTask) => Promise<void>, sessio
         frequency: { type: "string", description: "`every N minutes|hours`, `daily at HH:MM` or `every <weekday> at HH:MM`." },
         agent: { type: "string", description: "The agent that runs it, by name or id. Default: you." },
         runMissed: { type: "boolean", description: "Run once when the app opens if a run was missed while it was closed. Default false." },
+        telegram: { type: "string", description: "Also send each report to this Telegram bot of the user's, by its name (Settings → Authentication). Only when the user asks for it." },
+        report: { type: "string", enum: ["full", "short"], description: "What Telegram receives: the whole report (default) or its start." },
       },
       required: ["title", "prompt", "frequency"],
       additionalProperties: false,
@@ -42,7 +45,11 @@ export function taskScheduleTool(add: (task: AgentTask) => Promise<void>, sessio
       const agents = session()?.agents;
       const agent = agents ? findAgent(agents, agentRef) : undefined;
       if (agents && !agent) return fail(`No agent "${agentRef}". The agents are: ${agents.map((a) => a.name).join(", ")}.`);
-      const task = newTask({ ...args, agent: agent?.id ?? agentRef, catchUp: args.runMissed ? "run-once-on-start" : "skip" }, randomUUID().slice(0, 8), new Date());
+      /* A bot by name, checked where the bots are known (the Next server). */
+      const bots = session()?.telegramBots;
+      const bot = args.telegram?.trim() ? (bots ? findBot(bots, args.telegram) : undefined) : undefined;
+      if (args.telegram?.trim() && bots && !bot) return fail(bots.length ? `No Telegram bot "${args.telegram}". The bots are: ${bots.map((b) => b.name).join(", ")}.` : "The user has no Telegram bot yet: they add one in Settings → Authentication.");
+      const task = newTask({ ...args, agent: agent?.id ?? agentRef, catchUp: args.runMissed ? "run-once-on-start" : "skip", telegramBot: bot?.id ?? args.telegram, report: args.report }, randomUUID().slice(0, 8), new Date());
       if ("error" in task) return fail(task.error);
       await add(task);
       const f = parseFrequency(task.frequency);
@@ -55,6 +62,7 @@ export function taskScheduleTool(add: (task: AgentTask) => Promise<void>, sessio
           ["Agent", who],
           ["When", when],
           ["Missed runs", task.catchUp === "run-once-on-start" ? "run once when the app opens" : "skipped"],
+          ...(task.telegram ? ([["Telegram", `${bot?.name ?? task.telegram.bot} · ${task.telegram.report === "short" ? "short report" : "full report"}`]] as Array<[string, string]>) : []),
         ]),
       };
     },

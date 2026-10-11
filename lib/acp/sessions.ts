@@ -1,4 +1,4 @@
-import type { McpServer, PermissionOption, RequestPermissionRequest, RequestPermissionResponse, SessionConfigOption } from "@agentclientprotocol/sdk";
+import type { McpServer, PermissionOption, RequestPermissionRequest, RequestPermissionResponse, SessionConfigOption, SessionUpdate } from "@agentclientprotocol/sdk";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -9,7 +9,9 @@ import { dataDir } from "@/lib/server/data-dir";
 import { PROJECT_ROOT } from "@/lib/server/workspace";
 import { loadProfession } from "@/lib/professions/load";
 import { PROFESSIONS, type ProfessionId } from "@/lib/professions/catalog";
-import { subagentFrame } from "@/lib/tools/agents/subagent";
+import { failureBody, subagentFrame } from "@/lib/tools/agents/subagent";
+import { ActivityLog, withTrace } from "@/lib/tools/agents/activity";
+import type { SubagentActivity } from "@/lib/agent/events";
 import { resolvePolicy } from "@/lib/tools/policy";
 import { allTools } from "@/lib/tools/registry";
 import { userSkills, type SkillInfo } from "@/lib/tools/skills/skill";
@@ -131,7 +133,7 @@ type Live = {
   sessionId: string;
   cwd: string;
   configOptions: SessionConfigOption[];
-  /** The old `models` field (Gemini CLI): the current model, if any. */
+  /** The old `models` field: the current model, if any. */
   legacyModel: string | null;
   /** The modes the session publishes, and the active one. */
   modes: AgentModes | null;
@@ -169,8 +171,8 @@ type Live = {
       that starts its MCP servers in the background (`LATE_MCP`); the first
       prompt waits for it. */
   toolsReady: Promise<void> | null;
-  /** What the session has not been told yet — BytNode-AI's context (Codex,
-      Gemini) or the previous thread (Claude) — because the message that
+  /** What the session has not been told yet — BytNode-AI's context
+      (Codex…) or the previous thread (Claude) — because the message that
       should have carried it was one of the agent's own commands, sent as
       typed (`isAgentCommandText`). The next ordinary message carries it. */
   pendingIntro: ((text: string) => string) | null;
@@ -217,6 +219,9 @@ export type TurnClaim = {
   /** Asks the user, in this turn's thread, to confirm a money action our
       MCP server is about to run (`confirmCall`); null outside the prompt. */
   confirm: ((tool: string, args: Record<string, unknown>, signal: AbortSignal) => Promise<ConfirmVerdict>) | null;
+  /** Shows a sub-agent's state and steps on this turn's Workflow step
+      (`runSubagent`); null outside the prompt. */
+  subagent: ((ev: SubagentRelay) => void) | null;
   /** Resolved when the claim is released. */
   readonly released: Promise<void>;
   readonly markReleased: () => void;
@@ -232,7 +237,7 @@ export function claimTurn(conversationId: string): TurnClaim | null {
   const stopped = new Promise<void>((resolve) => (stop = resolve));
   let markReleased = () => {};
   const released = new Promise<void>((resolve) => (markReleased = resolve));
-  const claim: TurnClaim = { conversationId, cancelled: false, closed: false, live: null, prompting: false, cancelSent: false, stopped, stop, confirm: null, released, markReleased };
+  const claim: TurnClaim = { conversationId, cancelled: false, closed: false, live: null, prompting: false, cancelSent: false, stopped, stop, confirm: null, subagent: null, released, markReleased };
   turns.set(conversationId, claim);
   return claim;
 }
@@ -457,6 +462,10 @@ const mcpServersFor = ({ workspace, bytnodeKey, exchangeAccounts, plugins, agent
         /* The agent-written plugins the user's browser approved — the key
            itself never leaves this process (`lib/plugins/user/approval.ts`). */
         { name: VERIFIED_GRANTS_ENV, value: JSON.stringify(verifiedGrantSigs()) },
+        /* In the desktop app `process.execPath` is its Electron binary, a
+           Node only with this variable — said explicitly: an agent may not
+           pass its own environment on to the servers it starts. */
+        ...(process.env.ELECTRON_RUN_AS_NODE === "1" ? [{ name: "ELECTRON_RUN_AS_NODE", value: "1" }] : []),
         ...parent,
       ],
     },
@@ -731,10 +740,10 @@ export async function runTurn(input: TurnInput, emit: (e: WireEvent) => void, si
     const ungated = await ungatedTools(input);
 
     /* What goes before the message: BytNode-AI's context on a session that
-       has not had it (Codex, Gemini — Claude gets it at creation), the
+       has not had it (Codex… — Claude gets it at creation), the
        previous thread on a Claude session opened again. ⚠️ Never around
        one of the agent's own commands: `/goal …` wrapped in our context is
-       no longer a command to Codex or Gemini CLI, nor to Claude once
+       no longer a command to Codex, nor to Claude once
        preceded by the thread. It goes as typed, and the intro waits for
        the next ordinary message. */
     let intro: ((text: string) => string) | null = l.pendingIntro;
@@ -857,6 +866,12 @@ export async function runTurn(input: TurnInput, emit: (e: WireEvent) => void, si
       },
     );
     t.confirm = confirmInThread({ session, emit, stopped: () => t.cancelled, calls: () => [...open].map((cid) => ({ id: cid, call: known.get(cid) })) });
+    /* A sub-agent's state and steps, on the Workflow step that launched it
+       (its row: `<step>:<index>`) — the user follows it there. */
+    t.subagent = (ev) => {
+      const step = matchServedCall([...open].map((cid) => ({ id: cid, call: known.get(cid) })), "Workflow", {});
+      if (step) emit({ type: "subagent", id: `${step}:${ev.index}`, ...ev });
+    };
     /* The composer's list for this session (its workspace's skills
        included) — it may have arrived before anyone listened. */
     const commands = session.conn.commandsOf(session.sessionId);
@@ -883,6 +898,7 @@ export async function runTurn(input: TurnInput, emit: (e: WireEvent) => void, si
     }
   } finally {
     t.confirm = null;
+    t.subagent = null;
     signal.removeEventListener("abort", onAbort);
     if (l) {
       l.conn.listen(l.sessionId, null, null);
@@ -1067,10 +1083,16 @@ export function closeConversation(conversationId: string): void {
    text it produces is its report; the session is closed right away.
 --------------------------------------------------------------------------- */
 
+/** What a sub-agent shows of itself in the parent's thread. */
+export type SubagentRelay = { index: number; title: string; profession: string; status: "running" | "done" | "failed"; report?: string; activity?: SubagentActivity };
+
 export type SubagentInput = {
   conversationId: string;
   token: string;
   profession: ProfessionId;
+  /** Its row in the parent's Workflow step (absent: nothing is shown). */
+  index?: number;
+  title?: string;
   text: string;
   /** The model id as the agent knows it, or null for the current one. */
   modelId: string | null;
@@ -1117,20 +1139,41 @@ export async function runSubagent(input: SubagentInput, signal: AbortSignal): Pr
   ]
     .filter(Boolean)
     .join("\n\n");
-  return throwawayTurn(
-    {
-      agent,
-      workspace,
-      system,
-      text: input.text,
-      modelId: input.modelId,
-      effort: parent.effort,
-      served: { workspace, bytnodeKey: input.bytnodeKey, exchangeAccounts: input.exchangeAccounts, plugins: parent.plugins, agentId: parent.agentId },
-      label: `sub-agent ${input.profession}`,
-      origin: parent.origin,
-    },
-    signal,
-  );
+  /* Its steps, live on the parent's Workflow row, and handed to the parent
+     agent with the report (`lib/tools/agents/activity.ts`). */
+  const log = new ActivityLog();
+  const row = input.index === undefined ? null : { index: input.index, title: input.title ?? `Task ${input.index + 1}`, profession: input.profession };
+  const relay = (ev: Omit<SubagentRelay, "index" | "title" | "profession">) => {
+    if (row) turns.get(input.conversationId)?.subagent?.({ ...row, ...ev });
+  };
+  relay({ status: "running" });
+  try {
+    const report = await throwawayTurn(
+      {
+        agent,
+        workspace,
+        system,
+        text: input.text,
+        modelId: input.modelId,
+        effort: parent.effort,
+        served: { workspace, bytnodeKey: input.bytnodeKey, exchangeAccounts: input.exchangeAccounts, plugins: parent.plugins, agentId: parent.agentId },
+        label: `sub-agent ${input.profession}`,
+        origin: parent.origin,
+        onUpdate: (u) => {
+          for (const e of eventsOfUpdate(u)) {
+            const activity = e.type === "tool_call" ? log.start(e.id, e.name, e.args) : e.type === "tool_result" ? log.finish(e.id, e.ok) : null;
+            if (activity) relay({ status: "running", activity });
+          }
+        },
+      },
+      signal,
+    );
+    relay({ status: "done", report });
+    return withTrace(report, log.steps);
+  } catch (e) {
+    relay({ status: "failed", report: failureBody(e instanceof Error ? e.message : String(e)) });
+    throw e;
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -1185,6 +1228,8 @@ type Throwaway = {
   /** The Next server's origin, when known: an agent that starts its MCP
       servers late then waits for our tools (`LATE_MCP`). */
   origin?: string;
+  /** Every update of the session, as it comes (a sub-agent's steps). */
+  onUpdate?: (u: SessionUpdate) => void;
 };
 
 /** One prompt in a session opened for it and closed after: nobody answers
@@ -1241,6 +1286,7 @@ async function throwawayTurn(t: Throwaway, signal: AbortSignal): Promise<string>
       l.sessionId,
       (n) => {
         const u = n.update;
+        t.onUpdate?.(u);
         if (u.sessionUpdate === "agent_message_chunk" && u.content.type === "text") chunks.push(u.content.text);
         else if (u.sessionUpdate === "tool_call" || u.sessionUpdate === "tool_call_update") known.set(u.toolCallId, mergeCallInfo(known.get(u.toolCallId), u));
       },

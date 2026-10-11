@@ -5,6 +5,7 @@ import { changeOf, heatOf, type Window } from "@/lib/plugins/watchlist/heat";
 import { useViewActive } from "../view-activity";
 import { moveOf, pairOf, pct, priceText, type Row } from "./format";
 import { useHeatField, type HeatTile } from "./heat-field";
+import { useMessages } from "@/lib/i18n/react";
 
 /* Every asset of the list as a tile, washed by its move over the chosen
    window — the whole list read at a glance, like the week's grid in the
@@ -13,6 +14,7 @@ import { useHeatField, type HeatTile } from "./heat-field";
    page's. A tile picks its asset. */
 
 export function HeatMap({ rows, win, selected, onPick, onMenu }: { rows: Row[]; win: Window; selected: string | null; onPick: (symbol: string) => void; onMenu: (e: MouseEvent<HTMLElement>, symbol: string) => void }) {
+  const m = useMessages();
   const canvas = useRef<HTMLCanvasElement>(null);
   const grid = useRef<HTMLDivElement>(null);
   const active = useViewActive();
@@ -41,7 +43,7 @@ export function HeatMap({ rows, win, selected, onPick, onMenu }: { rows: Row[]; 
           >
             <span className="wlv-tile-name">{base}</span>
             <span className="wlv-tile-move">{pct(change)}</span>
-            <span className="wlv-tile-price">{r.quote ? priceText(r.quote.price) : (r.error ?? "No price")}</span>
+            <span className="wlv-tile-price">{r.quote ? priceText(r.quote.price) : (r.error ?? m.watchlist.noPrice)}</span>
           </button>
         );
       })}

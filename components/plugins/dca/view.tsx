@@ -8,6 +8,7 @@ import type { Candle } from "@/lib/plugins/shared/candle";
 import type { Listed } from "@/lib/plugins/shared/prices";
 import { callPlugin } from "@/lib/plugins/client";
 import { DCA_DEFAULT, DCA_MAX, DCA_MIN, clampDcaWidth, updateUiPrefs, useUiPrefs } from "@/lib/state/ui";
+import { useMessages } from "@/lib/i18n/react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Pencil, Plus, Trash } from "@/components/ui/icons";
 import type { ViewProps } from "../views";
@@ -45,6 +46,8 @@ const REFRESH = 15_000;
 const PRICES = 60_000;
 
 export function DcaView({ settings }: ViewProps) {
+  const t = useMessages();
+  const w = t.dca;
   const state = usePluginData<State>("dca", "state", settings, {}, { keep: "latest" });
   const prices = usePluginData<{ prices: Record<string, number> }>("dca", "prices", settings, {}, { keep: "latest" });
   useAwakeInterval(state.reload, REFRESH);
@@ -80,7 +83,7 @@ export function DcaView({ settings }: ViewProps) {
   const series = curve.data ? curve.data.series : curve.loading ? null : [];
 
   const pairs = Array.isArray(pairsData.data) && pairsData.data.length ? pairsData.data : null;
-  const pairsUnavailable = !settings.keys.bytnode.trim() ? "The list of pairs comes from BytNode: add your key in Settings → Auth." : pairsData.data && !pairs ? "BytNode's list of pairs could not be read — type a pair." : null;
+  const pairsUnavailable = !settings.keys.bytnode.trim() ? w.pairsNeedKey : pairsData.data && !pairs ? w.pairsUnreadable : null;
 
   const reload = () => {
     state.reload();
@@ -125,17 +128,17 @@ export function DcaView({ settings }: ViewProps) {
     if (!at) return [];
     if (at.kind === "plan")
       return [
-        { label: "Edit the DCA", icon: <Pencil />, onSelect: () => setScope({ kind: "config", planId: at.id }) },
-        { label: "Delete the DCA", icon: <Trash />, danger: true, onSelect: () => setConfirm({ kind: "plan", id: at.id }) },
+        { label: w.editPlan, icon: <Pencil />, onSelect: () => setScope({ kind: "config", planId: at.id }) },
+        { label: w.deletePlan, icon: <Trash />, danger: true, onSelect: () => setConfirm({ kind: "plan", id: at.id }) },
       ];
     return [
-      { label: "Add a DCA", icon: <Plus />, onSelect: () => setScope({ kind: "config", groupId: at.id }) },
-      { label: "Rename", icon: <Pencil />, onSelect: () => setScope({ kind: "group", id: at.id, rename: true }) },
-      { label: "Delete the group", icon: <Trash />, danger: true, onSelect: () => setConfirm({ kind: "group", id: at.id }) },
+      { label: w.addPlan, icon: <Plus />, onSelect: () => setScope({ kind: "config", groupId: at.id }) },
+      { label: t.common.rename, icon: <Pencil />, onSelect: () => setScope({ kind: "group", id: at.id, rename: true }) },
+      { label: w.deleteGroup, icon: <Trash />, danger: true, onSelect: () => setConfirm({ kind: "group", id: at.id }) },
     ];
   };
 
-  const status = curve.loading && curve.data ? "Updating…" : "";
+  const status = curve.loading && curve.data ? w.updating : "";
   const confirmedPlan = confirm?.kind === "plan" ? plans.find((p) => p.id === confirm.id) : undefined;
   const confirmedGroup = confirm?.kind === "group" ? groups?.find((g) => g.id === confirm.id) : undefined;
   const configured = scope?.kind === "config" && scope.planId ? plans.find((p) => p.id === scope.planId) : undefined;
@@ -145,10 +148,17 @@ export function DcaView({ settings }: ViewProps) {
     <div className="wlv dcv">
       <div className="wlv-panel" ref={panel} style={{ "--wlv-list": `${ui.dcaWidth}px` } as CSSProperties}>
         <Side groups={groups} plans={plans} figures={figures} unit={unit} accounts={accounts} open={openGroup ?? null} openPlan={scope?.kind === "plan" ? scope.id : null} onOpen={(id) => setScope({ kind: "group", id })} onPlan={(id) => setScope({ kind: "plan", id })} onMenu={(e, id) => menu.open(e, { kind: "group", id })} onPlanMenu={(e, id) => menu.open(e, { kind: "plan", id })} onCreateGroup={createGroup} />
-        <ColumnHandle panel={panel} cssVar="--wlv-list" width={ui.dcaWidth} min={DCA_MIN} max={DCA_MAX} reset={DCA_DEFAULT} clamp={clampDcaWidth} onCommit={(w) => updateUiPrefs({ dcaWidth: w })} label="Width of the groups column" />
+        <ColumnHandle panel={panel} cssVar="--wlv-list" width={ui.dcaWidth} min={DCA_MIN} max={DCA_MAX} reset={DCA_DEFAULT} clamp={clampDcaWidth} onCommit={(w) => updateUiPrefs({ dcaWidth: w })} label={w.columnWidth} />
         {scope?.kind === "config" && groups ? (
           <main className="wlv-pane wlv-sheet dcv-sheet">
-            <ConfigHead title={configured ? `Configure ${planTitle(configured)}` : "New DCA"} sub={configured ? `In ${groups.find((g) => g.id === configured.groupId)?.name ?? "its group"}` : `In ${groups.find((g) => g.id === scope.groupId)?.name ?? "a group"}`} onClose={closeConfig} />
+            <ConfigHead
+              title={configured ? w.configureTitle(planTitle(configured)) : w.newPlan}
+              sub={(() => {
+                const name = groups.find((g) => g.id === (configured ? configured.groupId : scope.groupId))?.name;
+                return name ? w.inGroup(name) : configured ? w.inItsGroup : w.inAGroup;
+              })()}
+              onClose={closeConfig}
+            />
             <div className="wlv-body dcv-body">
               <DcaConfig key={configured?.id ?? `new:${scope.groupId ?? ""}`} settings={settings} plan={configured} groups={groups} accounts={accounts} pairs={pairs} pairsUnavailable={pairsUnavailable} paperCash={state.data?.paperCash ?? "USDT"} groupId={scope.groupId} onSave={saveConfig} onCancel={closeConfig} />
             </div>
@@ -177,16 +187,16 @@ export function DcaView({ settings }: ViewProps) {
           />
         ) : (
           <main className="wlv-pane wlv-sheet dcv-sheet">
-            <div className="dcv-empty">{state.error ? <b>{state.error}</b> : groups ? <span>Make a group in the column to hold your DCAs.</span> : <span>Reading your DCAs…</span>}</div>
+            <div className="dcv-empty">{state.error ? <b>{state.error}</b> : groups ? <span>{w.emptyMakeGroup}</span> : <span>{w.reading}</span>}</div>
           </main>
         )}
       </div>
-      {menu.at && <ItemMenu at={menu.at} label={menu.at.kind === "plan" ? "DCA actions" : "Group actions"} items={menuItems()} onClose={menu.close} />}
+      {menu.at && <ItemMenu at={menu.at} label={menu.at.kind === "plan" ? w.planActions : w.groupActions} items={menuItems()} onClose={menu.close} />}
       {confirmedPlan && (
         <ConfirmDialog
-          title={`Delete ${planTitle(confirmedPlan)}?`}
-          body="The DCA stops and is removed with its history. What it bought stays where it is — in the paper portfolio or on the exchange; nothing is sold."
-          confirmLabel="Delete"
+          title={w.deletePlanTitle(planTitle(confirmedPlan))}
+          body={w.deletePlanBody}
+          confirmLabel={t.common.delete}
           onConfirm={() => {
             const id = confirmedPlan.id;
             const home = confirmedPlan.groupId;
@@ -198,12 +208,9 @@ export function DcaView({ settings }: ViewProps) {
       )}
       {confirmedGroup && (
         <ConfirmDialog
-          title={`Delete the group "${confirmedGroup.name}"?`}
-          body={(() => {
-            const n = plans.filter((p) => p.groupId === confirmedGroup.id).length;
-            return n ? `Its ${n} DCA${n === 1 ? "" : "s"} stop and are deleted with it. What they bought stays where it is — nothing is sold.` : "The group is empty: nothing else is touched.";
-          })()}
-          confirmLabel="Delete the group"
+          title={w.deleteGroupTitle(confirmedGroup.name)}
+          body={w.deleteGroupBody(plans.filter((p) => p.groupId === confirmedGroup.id).length)}
+          confirmLabel={w.deleteGroup}
           onConfirm={() => {
             const id = confirmedGroup.id;
             setConfirm(null);

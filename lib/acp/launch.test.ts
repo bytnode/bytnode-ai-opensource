@@ -11,18 +11,35 @@ describe("brokenInstall", () => {
   const dir = agentDir("claude");
   const nm = path.join(dir, "node_modules");
   const lock = path.join(dir, "package-lock.json");
+  const adapter = path.join(nm, "@zed-industries", "claude-agent-acp", "dist", "index.js");
+  const sdk = path.join(nm, "@anthropic-ai", "claude-agent-sdk", "cli.js");
 
   it("flags a node_modules without package-lock: npm was interrupted", () => {
-    expect(brokenInstall("claude", has(nm))).toMatch(/Incomplete/);
+    expect(brokenInstall("claude", has(nm, adapter, sdk))).toMatch(/Incomplete/);
   });
   it("accepts a finished installation, or none", () => {
-    expect(brokenInstall("claude", has(nm, lock))).toBeNull();
+    expect(brokenInstall("claude", has(nm, lock, adapter, sdk))).toBeNull();
     expect(brokenInstall("claude", has())).toBeNull();
+  });
+  /* 2026-10-04: an update failed midway, the old lock stayed, the SDK's
+     folders were empty — and « Sign in » ran a cli.js that was gone. */
+  it("flags an install whose lock survived but whose files did not", () => {
+    expect(brokenInstall("claude", has(nm, lock, adapter))).toMatch(/Incomplete/);
+    expect(brokenInstall("claude", has(nm, lock, sdk))).toMatch(/Incomplete/);
   });
 });
 
 describe("npmCli (windows)", () => {
   const win = { platform: "win32" as NodeJS.Platform, env: { PATHEXT: ".COM;.EXE;.CMD" } };
+
+  it("takes the npm the desktop app ships first", () => {
+    const execPath = "C:\\Users\\u\\AppData\\Local\\Programs\\BytNode-AI\\BytNode-AI.exe";
+    const shipped = "C:\\Users\\u\\AppData\\Local\\Programs\\BytNode-AI\\resources\\npm\\bin\\npm-cli.js";
+    const env = { ...win.env, BYTNODE_AI_NPM_CLI: shipped };
+    expect(npmCli({ ...win, env, execPath, exists: has(shipped) })).toEqual({ command: execPath, args: [shipped] });
+    /* Gone (a broken install): the usual search. */
+    expect(npmCli({ ...win, env, execPath, exists: has() })).toEqual({ command: "npm", args: [], shell: true });
+  });
 
   it("takes the npm-cli.js next to node (official installer)", () => {
     const execPath = "C:\\Program Files\\nodejs\\node.exe";
@@ -100,7 +117,7 @@ describe("launchFile", () => {
 
   it("a Node script runs with this Node", () => {
     expect(launchFile(bin, ["agent", "stdio"], "#!/usr/bin/env node\n// …")).toEqual({ command: process.execPath, args: [bin, "agent", "stdio"] });
-    expect(launchFile("/x/bundle/gemini.js", ["--acp"], "")).toEqual({ command: process.execPath, args: ["/x/bundle/gemini.js", "--acp"] });
+    expect(launchFile("/x/npm-loader.js", ["--acp"], "")).toEqual({ command: process.execPath, args: ["/x/npm-loader.js", "--acp"] });
   });
 
   it("a native binary (ELF, Mach-O, PE) runs as itself", () => {
@@ -120,6 +137,11 @@ describe("the sign-in terminal, macOS / Linux", () => {
     expect(line).toMatch(/^env -u ANTHROPIC_API_KEY /);
     expect(line).toContain("-u XAI_API_KEY");
     expect(line).toContain(`'GROK_MODE=it'\\''s' '/opt/grok' 'login';`);
+  });
+
+  it("keeps the desktop app's binary a Node in the terminal", () => {
+    expect(posixTerminalLine("/Applications/BytNode-AI.app/Contents/MacOS/BytNode-AI", ["cli.js"], {}, true)).toContain("FORCE_COLOR=0 ELECTRON_RUN_AS_NODE=1 '/Applications/");
+    expect(posixTerminalLine("/usr/bin/node", ["cli.js"], {}, false)).not.toContain("ELECTRON_RUN_AS_NODE");
   });
 
   it("quotes an AppleScript string", () => {

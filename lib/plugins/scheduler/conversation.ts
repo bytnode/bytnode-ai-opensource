@@ -31,6 +31,39 @@ export function runConversation(run: RunRecord, agent: AgentConfig): Conversatio
   };
 }
 
+/** A scheduled task's folder in the sidebar: its reports, newest first. */
+export type TaskFolder = { taskId: string; title: string; conversations: Conversation[] };
+
+/** The date `runConversation` puts after the task's title. */
+const DATE_SUFFIX = / · \d{4}-\d{2}-\d{2}$/;
+
+/** The reports grouped by their task, one folder each — the folder of the
+    latest report first. A folder is named after its task: the title of its
+    newest report still in `runConversation`'s form, without the date (the
+    user may have renamed some). */
+export function taskFolders(conversations: Conversation[]): TaskFolder[] {
+  const folders = new Map<string, TaskFolder>();
+  const reports = conversations.filter((c) => c.scheduled).sort((a, b) => b.updatedAt - a.updatedAt);
+  for (const c of reports) {
+    const id = c.scheduled!.taskId;
+    let folder = folders.get(id);
+    if (!folder) folders.set(id, (folder = { taskId: id, title: "", conversations: [] }));
+    folder.conversations.push(c);
+  }
+  for (const folder of folders.values()) {
+    const named = folder.conversations.find((c) => DATE_SUFFIX.test(c.title)) ?? folder.conversations[0];
+    folder.title = named.title.replace(DATE_SUFFIX, "").trim() || named.title;
+  }
+  return [...folders.values()];
+}
+
+/** A report's line inside its task's folder: the folder already names the
+    task, so a title in `runConversation`'s form reads as its date alone. */
+export function reportLabel(c: Conversation, folder: TaskFolder): string {
+  const prefix = `${folder.title} · `;
+  return c.title.startsWith(prefix) && DATE_SUFFIX.test(c.title) ? c.title.slice(prefix.length) : c.title;
+}
+
 /** What to import from a batch of runs: the conversations to create (runs
     of an agent that still exists, not already there) and where the next
     import starts. */

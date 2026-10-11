@@ -136,7 +136,7 @@ export function acpWorkflowTool(link: ParentLink, models: string[], transport: T
       const { tasks } = read;
       const results = await runInPool(tasks, async (task) => {
         try {
-          const report = await runRemote(link, task, args.context, transport, ctx.signal);
+          const report = await runRemote(link, task, tasks.indexOf(task), args.context, transport, ctx.signal);
           return reportSection(task, report);
         } catch (e) {
           return reportSection(task, failureBody(e instanceof Error ? e.message : String(e)));
@@ -149,7 +149,7 @@ export function acpWorkflowTool(link: ParentLink, models: string[], transport: T
 
 /* One sub-agent, end to end: the NDJSON request holds as long as it works
    (`tick`), then returns its report or its error. */
-async function runRemote(link: ParentLink, task: SubagentTask, context: string | undefined, transport: Transport, signal: AbortSignal): Promise<string> {
+async function runRemote(link: ParentLink, task: SubagentTask, index: number, context: string | undefined, transport: Transport, signal: AbortSignal): Promise<string> {
   const res = await fetch(`${link.origin}/api/acp/subagent`, {
     method: "POST",
     headers: { "content-type": "application/json", ...transportHeaders({ ...transport, openrouterKey: "" }) },
@@ -157,6 +157,9 @@ async function runRemote(link: ParentLink, task: SubagentTask, context: string |
       conversationId: link.conversationId,
       token: link.token,
       profession: task.profession,
+      /* Its row in the parent's thread, where its steps are shown. */
+      index,
+      title: task.title,
       text: subagentMessage(task, context),
       model: task.model ?? null,
     }),

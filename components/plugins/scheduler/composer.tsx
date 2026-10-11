@@ -1,13 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import type { AgentConfig } from "@/lib/domain/types";
+import type { AgentConfig, TelegramBot } from "@/lib/domain/types";
 import { isFrequency, nextRun, parseFrequency } from "@/lib/plugins/core/frequency";
 import { relative } from "@/lib/plugins/scheduler/timeline";
 import { Segmented } from "@/components/ui/segmented";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Plus } from "@/components/ui/icons";
+import { TelegramPick, type TelegramChoice } from "./telegram-pick";
+import { useMessages } from "@/lib/i18n/react";
+import { dateTag } from "@/lib/i18n/store";
+import { capitalize } from "@/lib/plugins/shared/frequency-words";
 
 /* ---------------------------------------------------------------------------
    "New scheduled task", at the top of the tab — folded into one line until
@@ -21,27 +25,36 @@ import { Plus } from "@/components/ui/icons";
 
 type Mode = "hours" | "daily" | "weekly" | "custom";
 
-const MODES: Array<{ value: Mode; label: string }> = [
-  { value: "hours", label: "Every few hours" },
-  { value: "daily", label: "Daily" },
-  { value: "weekly", label: "Weekly" },
-  { value: "custom", label: "Custom" },
-];
-const HOURS = ["1", "2", "4", "6", "12"].map((h) => ({ value: h, label: h === "1" ? "Every hour" : `${h} h` }));
-const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map((d) => ({ value: d, label: d.slice(0, 3).replace(/^./, (c) => c.toUpperCase()) }));
-const HINT = "every 30 minutes · every 4 hours · daily at 08:00 · every monday at 09:30";
+const WEEK = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+/** A weekday's short name in the interface's language: 1 January 2024
+    was a Monday. */
+const dayName = (i: number) => capitalize(new Date(2024, 0, 1 + i).toLocaleDateString(dateTag(), { weekday: "short" }));
 
 type Props = {
   open: boolean;
   onOpen: (open: boolean) => void;
   agents: AgentConfig[];
+  /** The Telegram bots a report can also go to. */
+  bots: TelegramBot[];
   /** The server's now, for the next run's preview. */
   now: number | null;
   /** Schedules the task; answers why not, or null. */
-  onCreate: (task: { title: string; agent: string; frequency: string; prompt: string; catchUp: "run-once-on-start" | "skip" }) => Promise<string | null>;
+  onCreate: (task: { title: string; agent: string; frequency: string; prompt: string; catchUp: "run-once-on-start" | "skip"; telegramBot?: string; report?: "full" | "short" }) => Promise<string | null>;
 };
 
-export function Composer({ open, onOpen, agents, now, onCreate }: Props) {
+export function Composer({ open, onOpen, agents, bots, now, onCreate }: Props) {
+  const t = useMessages();
+  const w = t.scheduler.composer;
+  const modes: Array<{ value: Mode; label: string }> = [
+    { value: "hours", label: w.everyFewHours },
+    { value: "daily", label: w.daily },
+    { value: "weekly", label: w.weekly },
+    { value: "custom", label: w.custom },
+  ];
+  const hourChoices = ["1", "2", "4", "6", "12"].map((h) => ({ value: h, label: h === "1" ? w.everyHour : w.hours(h) }));
+  const days = WEEK.map((d, i) => ({ value: d, label: dayName(i) }));
+  /* The custom frequency stays in the grammar the scheduler reads (English). */
+  const hint = w.hint;
   const [title, setTitle] = useState("");
   const [agent, setAgent] = useState(agents[0]?.id ?? "");
   const [prompt, setPrompt] = useState("");
@@ -51,6 +64,7 @@ export function Composer({ open, onOpen, agents, now, onCreate }: Props) {
   const [day, setDay] = useState("monday");
   const [custom, setCustom] = useState("every 30 minutes");
   const [catchUp, setCatchUp] = useState(false);
+  const [telegram, setTelegram] = useState<TelegramChoice>({ bot: "", report: "full" });
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -60,17 +74,20 @@ export function Composer({ open, onOpen, agents, now, onCreate }: Props) {
   const tooOften = !("error" in parsed) && parsed.kind === "interval" && parsed.minutes < 15;
   const next = now !== null && !("error" in parsed) ? relative(parsed.kind === "interval" ? now : nextRun(parsed, now), now) : null;
   const chosen = agents.find((a) => a.id === agent) ?? agents[0];
-  const ready = title.trim() !== "" && prompt.trim() !== "" && Boolean(chosen) && isFrequency(frequency) && !tooOften;
+  /* What is missing, said when Schedule is pressed (user request,
+     2026-10-08: a button that stays pale says nothing). */
+  const why = !title.trim() ? w.giveTitle : !prompt.trim() ? w.sayWhat : !chosen ? w.createAgent : !isFrequency(frequency) ? w.unreadable : tooOften ? w.tooOften : null;
 
   const submit = async () => {
-    if (!ready || busy || !chosen) return;
+    if (busy) return;
+    if (why || !chosen) return setProblem(why ?? w.createAgent);
     setBusy(true);
     setDone(null);
-    const p = await onCreate({ title: title.trim(), agent: chosen.id, frequency, prompt: prompt.trim(), catchUp: catchUp ? "run-once-on-start" : "skip" });
+    const p = await onCreate({ title: title.trim(), agent: chosen.id, frequency, prompt: prompt.trim(), catchUp: catchUp ? "run-once-on-start" : "skip", ...(telegram.bot ? { telegramBot: telegram.bot, report: telegram.report } : {}) });
     setBusy(false);
     setProblem(p);
     if (p) return;
-    setDone(`“${title.trim()}” is scheduled — ${next === "now" ? "its first run starts now" : `first run ${next}`}.`);
+    setDone(next === null || next === t.scheduler.relative.now ? w.scheduledNow(title.trim()) : w.scheduled(title.trim(), next));
     setTitle("");
     setPrompt("");
     onOpen(false);
@@ -80,7 +97,7 @@ export function Composer({ open, onOpen, agents, now, onCreate }: Props) {
     return (
       <button type="button" className="sdv-composer-open" onClick={() => onOpen(true)}>
         <Plus />
-        New scheduled task
+        {w.newTask}
         {done && <small>{done}</small>}
       </button>
     );
@@ -89,45 +106,50 @@ export function Composer({ open, onOpen, agents, now, onCreate }: Props) {
   return (
     <form
       className="sdv-composer"
-      aria-label="Schedule a task"
+      aria-label={w.label}
       onSubmit={(e) => {
         e.preventDefault();
         void submit();
       }}
     >
       <div className="sdv-composer-top">
-        <input className="sdv-title-input" aria-label="Task name" placeholder="Schedule a task — “Morning market brief”" value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} />
+        <input className="sdv-title-input" aria-label={w.taskName} placeholder={w.taskTitle} value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} />
         <div className="sdv-agent">
-          <span className="sdv-label">Run by</span>
-          {agents.length ? <Select id="sdv-agent" label="Agent" value={chosen?.id ?? ""} options={agents.map((a) => ({ value: a.id, label: a.name }))} onChange={setAgent} /> : <span className="sdv-none">Create an agent first</span>}
+          <span className="sdv-label">{w.runBy}</span>
+          {agents.length ? <Select id="sdv-agent" label={w.agent} value={chosen?.id ?? ""} options={agents.map((a) => ({ value: a.id, label: a.name }))} onChange={setAgent} /> : <span className="sdv-none">{w.noAgent}</span>}
         </div>
       </div>
 
       <textarea
         className="wlv-input sdv-prompt"
-        aria-label="What the agent must do"
+        aria-label={w.whatToDo}
         rows={3}
-        placeholder="What the agent must do, as you would ask it: “Summarise the overnight moves of my watchlist, the funding rates and the events of the day. Sources and times for every figure.”"
+        placeholder={w.promptPlaceholder}
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
       />
 
       <div className="sdv-when">
-        <span className="sdv-label">When</span>
-        <Segmented label="Frequency" value={mode} options={MODES} onChange={setMode} />
+        <span className="sdv-label">{w.when}</span>
+        <Segmented label={w.frequency} value={mode} options={modes} onChange={setMode} />
         <div className="sdv-when-detail">
-          {mode === "hours" && <Segmented label="Every" value={hours} options={HOURS} onChange={setHours} />}
-          {mode === "weekly" && <Segmented label="Day" value={day} options={DAYS} onChange={setDay} />}
-          {(mode === "daily" || mode === "weekly") && <input className="wlv-input sdv-time" type="time" aria-label="At" value={time} onChange={(e) => setTime(e.target.value || "08:00")} />}
-          {mode === "custom" && <input className="wlv-input sdv-custom" aria-label="Custom frequency" value={custom} placeholder={HINT} title={HINT} spellCheck={false} aria-invalid={!isFrequency(custom)} onChange={(e) => setCustom(e.target.value)} />}
+          {mode === "hours" && <Segmented label={w.every} value={hours} options={hourChoices} onChange={setHours} />}
+          {mode === "weekly" && <Segmented label={w.day} value={day} options={days} onChange={setDay} />}
+          {(mode === "daily" || mode === "weekly") && <input className="wlv-input sdv-time" type="time" aria-label={w.at} value={time} onChange={(e) => setTime(e.target.value || "08:00")} />}
+          {mode === "custom" && <input className="wlv-input sdv-custom" aria-label={w.customFrequency} value={custom} placeholder={hint} title={hint} spellCheck={false} aria-invalid={!isFrequency(custom)} onChange={(e) => setCustom(e.target.value)} />}
         </div>
-        <span className={`sdv-next${"error" in parsed || tooOften ? " is-error" : ""}`}>{"error" in parsed ? "Not a frequency the scheduler reads" : tooOften ? "An agent task runs at most every 15 minutes" : next ? `First run ${next}` : ""}</span>
+        <span className={`sdv-next${"error" in parsed || tooOften ? " is-error" : ""}`}>{"error" in parsed ? w.notAFrequency : tooOften ? w.tooOftenShort : next ? w.firstRun(next) : ""}</span>
+      </div>
+
+      <div className="sdv-when">
+        <span className="sdv-label">Telegram</span>
+        <TelegramPick id="sdv-telegram" bots={bots} value={telegram} onChange={setTelegram} />
       </div>
 
       <div className="sdv-composer-foot">
         <label className="sdv-switch">
-          <Switch on={catchUp} onChange={setCatchUp} label="Catch up a missed run" />
-          <span>Catch up a run missed while the app was closed</span>
+          <Switch on={catchUp} onChange={setCatchUp} label={w.catchUp} />
+          <span>{w.catchUpLong}</span>
         </label>
         <span className="sdv-composer-actions">
           <button
@@ -138,10 +160,10 @@ export function Composer({ open, onOpen, agents, now, onCreate }: Props) {
               setProblem(null);
             }}
           >
-            Cancel
+            {t.common.cancel}
           </button>
-          <button type="submit" className="sdv-schedule" disabled={!ready || busy}>
-            {busy ? "Scheduling…" : "Schedule"}
+          <button type="submit" className="sdv-schedule" disabled={busy}>
+            {busy ? w.scheduling : w.schedule}
           </button>
         </span>
       </div>

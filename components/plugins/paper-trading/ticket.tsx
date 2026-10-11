@@ -11,6 +11,7 @@ import { useViewActive } from "../view-activity";
 import { CASH, baseOf, dayOf, pct, price, toneOf, usdt, type Focus, type PaperState } from "./format";
 import { useNoteField } from "./note-field";
 import { PairField } from "./pair-field";
+import { useMessages } from "@/lib/i18n/react";
 
 /* ---------------------------------------------------------------------------
    The right column (closable, its width the user's): the card — what the
@@ -29,18 +30,9 @@ type Market = "spot" | "futures";
 type Kind = "market" | "limit";
 type Unit = "quote" | "base";
 
-const SIDES: Array<{ value: Side; label: string }> = [
-  { value: "buy", label: "Buy" },
-  { value: "sell", label: "Sell" },
-];
-const MARKETS: Array<{ value: Market; label: string }> = [
-  { value: "spot", label: "Spot" },
-  { value: "futures", label: "Futures" },
-];
-const KINDS: Array<{ value: Kind; label: string }> = [
-  { value: "market", label: "Market" },
-  { value: "limit", label: "Limit" },
-];
+const SIDES: Side[] = ["buy", "sell"];
+const MARKETS: Market[] = ["spot", "futures"];
+const KINDS: Kind[] = ["market", "limit"];
 const LEVERAGES = ["1", "2", "3", "5", "10", "20"] as const;
 const QUICK = ["BTC", "ETH", "SOL"];
 
@@ -50,6 +42,8 @@ const num = (s: string): number => {
 };
 
 export function Card({ data }: { data: PaperState | null }) {
+  const m = useMessages();
+  const t = m.paperTrading.card;
   const canvas = useRef<HTMLCanvasElement>(null);
   const active = useViewActive();
   const v = data?.valuation;
@@ -60,7 +54,7 @@ export function Card({ data }: { data: PaperState | null }) {
     <div className={`ptv-card ${toneOf(ret)}`}>
       <canvas ref={canvas} className="ptv-card-canvas" aria-hidden />
       <div className="ptv-card-top">
-        <span className="ptv-card-label">{data?.name ?? "Paper money"}</span>
+        <span className="ptv-card-label">{data?.name ?? t.paperMoney}</span>
         <span className="xch-badge is-paper">PAPER</span>
       </div>
       <p className="ptv-card-value">
@@ -70,16 +64,15 @@ export function Card({ data }: { data: PaperState | null }) {
       <p className="ptv-card-move">
         {change !== undefined ? (
           <>
-            <b>{pct(ret)}</b> {change >= 0 ? "+" : "−"}
-            {usdt(Math.abs(change))} since {data ? dayOf(data.createdAt) : ""}
+            <b>{pct(ret)}</b> {t.since(`${change >= 0 ? "+" : "−"}${usdt(Math.abs(change))}`, data ? dayOf(data.createdAt) : "")}
           </>
         ) : v && v.missing.length ? (
-          `No price for ${v.missing.join(", ")}`
+          t.noPrice(v.missing)
         ) : (
-          "Reading the market…"
+          t.readingMarket
         )}
       </p>
-      <p className="ptv-card-foot">{data ? `Started with ${usdt(data.capital)} ${CASH}` : " "}</p>
+      <p className="ptv-card-foot">{data ? t.startedWith(`${usdt(data.capital)} ${CASH}`) : " "}</p>
     </div>
   );
 }
@@ -101,6 +94,8 @@ type TicketProps = {
 };
 
 export function Ticket({ data, portfolio, settings, symbol, onSymbol, quote: q, pairs, pairsUnavailable, onPlaced }: TicketProps) {
+  const m = useMessages();
+  const t = m.paperTrading.ticket;
   const [side, setSide] = useState<Side>("buy");
   const [market, setMarket] = useState<Market>("spot");
   const [kind, setKind] = useState<Kind>("market");
@@ -112,7 +107,7 @@ export function Ticket({ data, portfolio, settings, symbol, onSymbol, quote: q, 
   const [problem, setProblem] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const live = q && !("error" in q) ? q.price : undefined;
-  const base = baseOf(symbol) || "base";
+  const base = baseOf(symbol) || t.base;
 
   /* An open position fixes the leverage: the engine refuses another. */
   const position = data?.valuation.positions.find((p) => p.symbol === symbol);
@@ -139,8 +134,8 @@ export function Ticket({ data, portfolio, settings, symbol, onSymbol, quote: q, 
   })();
 
   const ready = Boolean(data) && symbol !== "" && amount > 0 && Number.isFinite(qty) && (kind === "market" ? live !== undefined : num(limit) > 0);
-  const verb = market === "futures" ? (side === "buy" ? "Long" : "Short") : side === "buy" ? "Buy" : "Sell";
-  const action = `${verb} ${base}${market === "futures" ? ` ×${lev}` : ""}`;
+  const verb = market === "futures" ? (side === "buy" ? "long" : "short") : side;
+  const action = t.action(verb, base, market === "futures" ? lev : null);
 
   const place = async () => {
     setPlacing(true);
@@ -160,8 +155,8 @@ export function Ticket({ data, portfolio, settings, symbol, onSymbol, quote: q, 
     setProblem(p);
     if (p) return;
     setSize("");
-    const said = side === "buy" ? (market === "futures" ? "Long opened" : "Bought") : market === "futures" ? "Short opened" : "Sold";
-    setDone(kind === "limit" ? `Limit order placed: ${verb.toLowerCase()} ${fmt(qty)} ${base} at ${price(num(limit))}.` : `${said}: about ${fmt(qty)} ${base} at ${price(at)}.`);
+    const said = side === "buy" ? (market === "futures" ? "longOpened" : "bought") : market === "futures" ? "shortOpened" : "sold";
+    setDone(kind === "limit" ? t.limitPlaced(verb, fmt(qty), base, price(num(limit))) : t.filled(said, fmt(qty), base, price(at)));
     onPlaced(kind === "limit" ? undefined : market === "futures" ? { kind: "position", symbol } : side === "buy" ? { kind: "holding", asset: base } : undefined);
   };
 
@@ -170,27 +165,30 @@ export function Ticket({ data, portfolio, settings, symbol, onSymbol, quote: q, 
   return (
     <form
       className="ptv-ticket"
-      aria-label="New paper order"
+      aria-label={m.paperTrading.newOrderLabel}
       onSubmit={(e) => {
         e.preventDefault();
-        if (ready && !placing) void place();
+        if (placing) return;
+        /* What is missing, said when the order is pressed. */
+        if (!ready) return setProblem(!symbol ? t.missingAsset : !(amount > 0) ? t.missingAmount : kind !== "market" && !(num(limit) > 0) ? t.missingLimit : t.waitingPrice);
+        void place();
       }}
     >
       <p className="ptv-ticket-title">
-        <span className="pv-ink">New order</span>
+        <span className="pv-ink">{t.title}</span>
       </p>
 
       <div className={`ptv-sides is-${side}`}>
-        <Segmented label="Side" value={side} options={SIDES} onChange={setSide} wide />
+        <Segmented label={t.side} value={side} options={SIDES.map((s) => ({ value: s, label: t.sides[s] }))} onChange={setSide} wide />
       </div>
-      <Segmented label="Market" value={market} options={MARKETS} onChange={setMarket} wide />
+      <Segmented label={t.market} value={market} options={MARKETS.map((k) => ({ value: k, label: t.markets[k] }))} onChange={setMarket} wide />
 
       <div className="ptv-field">
-        <span className="ptv-field-label">Pair</span>
+        <span className="ptv-field-label">{t.pair}</span>
         <PairField value={symbol} pairs={pairs} unavailable={pairsUnavailable} onChange={onSymbol} />
       </div>
       <div className="ptv-quote">
-        <span className="ptv-chips" role="group" aria-label="Quick pairs">
+        <span className="ptv-chips" role="group" aria-label={t.quickPairs}>
           {quick.map((a) => (
             <button key={a} type="button" className={`ptv-chip${base === a ? " is-on" : ""}`} onClick={() => onSymbol(`${a}/${CASH}`)}>
               {a}
@@ -200,20 +198,20 @@ export function Ticket({ data, portfolio, settings, symbol, onSymbol, quote: q, 
         <span className={`ptv-price${q && "error" in q ? " is-error" : ""}`}>{q ? ("error" in q ? q.error : price(q.price)) : symbol ? "…" : ""}</span>
       </div>
 
-      <Segmented label="Order type" value={kind} options={KINDS} onChange={setKind} wide />
+      <Segmented label={t.orderType} value={kind} options={KINDS.map((k) => ({ value: k, label: t.kinds[k] }))} onChange={setKind} wide />
       {kind === "limit" && (
         <label className="ptv-field">
-          <span className="ptv-field-label">Price</span>
-          <input className="wlv-input" inputMode="decimal" value={limit} placeholder={live !== undefined ? price(live) : "Limit price"} onChange={(e) => setLimit(e.target.value)} />
+          <span className="ptv-field-label">{t.price}</span>
+          <input className="wlv-input" inputMode="decimal" value={limit} placeholder={live !== undefined ? price(live) : t.limitPrice} onChange={(e) => setLimit(e.target.value)} />
         </label>
       )}
 
       <div className="ptv-field">
-        <span className="ptv-field-label">Amount</span>
+        <span className="ptv-field-label">{t.amount}</span>
         <div className="ptv-amount">
-          <input className="wlv-input" inputMode="decimal" aria-label="Amount" value={size} placeholder={unit === "quote" ? "100" : "0.01"} onChange={(e) => setSize(e.target.value)} />
+          <input className="wlv-input" inputMode="decimal" aria-label={t.amount} value={size} placeholder={unit === "quote" ? "100" : "0.01"} onChange={(e) => setSize(e.target.value)} />
           <Segmented
-            label="Amount in"
+            label={t.amountIn}
             value={unit}
             options={[
               { value: "quote", label: CASH },
@@ -224,43 +222,43 @@ export function Ticket({ data, portfolio, settings, symbol, onSymbol, quote: q, 
         </div>
         {max !== undefined && max > 0 && (
           <button type="button" className="ptv-max" onClick={() => setSize(String(unit === "quote" ? Math.floor(max * 100) / 100 : Math.floor(max * 1e6) / 1e6))}>
-            Max {unit === "quote" ? usdt(max) : fmt(max)}
+            {t.max(unit === "quote" ? usdt(max) : fmt(max))}
           </button>
         )}
       </div>
 
       {market === "futures" && (
         <div className="ptv-field">
-          <span className="ptv-field-label">Leverage{position ? ` — your ${base} position is at ×${position.leverage}` : ""}</span>
+          <span className="ptv-field-label">{position ? t.leverageLocked(base, position.leverage) : t.leverage}</span>
           <div className={position ? "ptv-locked" : undefined}>
-            <Segmented label="Leverage" value={lev} options={levOptions.map((l) => ({ value: l, label: `×${l}` }))} onChange={(l) => !position && setLeverage(l)} wide />
+            <Segmented label={t.leverage} value={lev} options={levOptions.map((l) => ({ value: l, label: `×${l}` }))} onChange={(l) => !position && setLeverage(l)} wide />
           </div>
         </div>
       )}
 
       <dl className="ptv-estimate">
         <div>
-          <dt>{unit === "quote" ? "Quantity" : "Cost"}</dt>
+          <dt>{unit === "quote" ? t.quantity : t.cost}</dt>
           <dd>{amount > 0 && Number.isFinite(qty) ? (unit === "quote" ? `≈ ${fmt(qty)} ${base}` : `≈ ${usdt(notional)} ${CASH}`) : "—"}</dd>
         </div>
         {margin !== undefined && (
           <div>
-            <dt>Margin</dt>
+            <dt>{t.margin}</dt>
             <dd>{amount > 0 && Number.isFinite(margin) ? `${usdt(margin)} ${CASH}` : "—"}</dd>
           </div>
         )}
         <div>
-          <dt>Fee</dt>
+          <dt>{t.fee}</dt>
           <dd>{amount > 0 && Number.isFinite(notional) ? `≈ ${usdt(notional * fee)} ${CASH}` : `${fmt(data?.feePercent)} %`}</dd>
         </div>
         <div>
-          <dt>Available</dt>
+          <dt>{t.available}</dt>
           <dd>{market === "spot" && side === "sell" ? `${fmt(held ?? 0)} ${base}` : `${usdt(cash)} ${CASH}`}</dd>
         </div>
       </dl>
 
-      <button type="submit" className={`ptv-place is-${side}`} disabled={!ready || placing}>
-        {placing ? "Placing…" : action}
+      <button type="submit" className={`ptv-place is-${side}`} disabled={placing}>
+        {placing ? t.placing : action}
       </button>
       {problem && <p className="ptv-ticket-problem">{problem}</p>}
       {done && !problem && (
@@ -269,9 +267,7 @@ export function Ticket({ data, portfolio, settings, symbol, onSymbol, quote: q, 
           {done}
         </p>
       )}
-      <p className="ptv-ticket-note">
-        Fills at the live price with {fmt(data?.feePercent)} % fees and {fmt(data?.slippagePercent)} % slippage. Paper money: no exchange is touched.
-      </p>
+      <p className="ptv-ticket-note">{t.note(fmt(data?.feePercent), fmt(data?.slippagePercent))}</p>
     </form>
   );
 }

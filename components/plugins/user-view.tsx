@@ -7,6 +7,7 @@ import { callPlugin, reportViewError } from "@/lib/plugins/client";
 import { openView } from "@/lib/state/tabs";
 import { refreshUserPlugins, useUserPlugins } from "@/lib/state/user-plugins";
 import { Close, Refresh } from "@/components/ui/icons";
+import { useMessages } from "@/lib/i18n/react";
 import { viewTransport } from "./use-plugin-data";
 import { useAwakeInterval } from "./view-activity";
 
@@ -92,6 +93,7 @@ function appFonts(): Promise<{ faces: Face[]; vars: Record<string, string> }> {
 }
 
 export function UserPluginView({ entry, settings }: { entry: ViewEntry; settings: Settings }) {
+  const m = useMessages();
   const frame = useRef<HTMLIFrameElement>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [round, setRound] = useState(0);
@@ -169,16 +171,16 @@ export function UserPluginView({ entry, settings }: { entry: ViewEntry; settings
       {problem && (
         <div className="uv-problem" role="status">
           <span>
-            This page ran into an error: {problem} <small>Its agent sees it at its next check.</small>
+            {m.plugins.userView.error(problem)} <small>{m.plugins.userView.agentSees}</small>
           </span>
           <button type="button" className="btn btn-sm btn-ghost" onClick={() => {
               setProblem(null);
               setRound((r) => r + 1);
             }}>
             <Refresh />
-            Reload
+            {m.plugins.userView.reload}
           </button>
-          <button type="button" className="uv-dismiss" onClick={() => setProblem(null)} aria-label="Hide">
+          <button type="button" className="uv-dismiss" onClick={() => setProblem(null)} aria-label={m.common.hide}>
             <Close />
           </button>
         </div>

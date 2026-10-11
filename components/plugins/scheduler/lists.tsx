@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import type { AgentConfig } from "@/lib/domain/types";
+import type { AgentConfig, TelegramBot } from "@/lib/domain/types";
 import { findAgent } from "@/lib/plugins/scheduler/tasks";
 import { frequencyText, relative } from "@/lib/plugins/scheduler/timeline";
 import { Switch } from "@/components/ui/switch";
-import { ChevronRight } from "@/components/ui/icons";
+import { ChevronRight, Trash } from "@/components/ui/icons";
 import { hueOf, type RunRow, type TaskRow } from "./format";
+import { TelegramPick } from "./telegram-pick";
+import { useMessages } from "@/lib/i18n/react";
 
 /* ---------------------------------------------------------------------------
    The agent tasks, and what they produced.
@@ -22,9 +24,14 @@ import { hueOf, type RunRow, type TaskRow } from "./format";
 
 type Act = (action: string, params: Record<string, unknown>) => Promise<string | null>;
 
-export function Tasks({ tasks, agents, now, onAct }: { tasks: TaskRow[]; agents: AgentConfig[]; now: number; onAct: Act }) {
+export function Tasks({ tasks, agents, bots, now, onAct }: { tasks: TaskRow[]; agents: AgentConfig[]; bots: TelegramBot[]; now: number; onAct: Act }) {
+  const t = useMessages();
+  const w = t.scheduler.list;
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  /* The trash beside the switch (user request, 2026-10-08): the switch
+     pauses, the trash deletes for good — at once, no confirmation (the
+     user's choice). */
   const run = async (key: string, action: string, params: Record<string, unknown>) => {
     setBusy(key);
     await onAct(action, params);
@@ -32,40 +39,53 @@ export function Tasks({ tasks, agents, now, onAct }: { tasks: TaskRow[]; agents:
   };
   return (
     <ul className="sdv-rows">
-      {tasks.map((t) => {
-        const name = findAgent(agents, t.agent)?.name ?? t.agent;
-        const paused = t.status === "paused";
-        const unfolded = open === t.id;
-        const s = t.state;
+      {tasks.map((task) => {
+        const name = findAgent(agents, task.agent)?.name ?? task.agent;
+        const paused = task.status === "paused";
+        const unfolded = open === task.id;
+        const s = task.state;
         return (
-          <li key={t.id} className={`sdv-task${paused ? " is-paused" : ""}${unfolded ? " is-open" : ""}`}>
+          <li key={task.id} className={`sdv-task${paused ? " is-paused" : ""}${unfolded ? " is-open" : ""}`}>
             <div className="sdv-task-row">
-              <button type="button" className="sdv-task-main" aria-expanded={unfolded} onClick={() => setOpen(unfolded ? null : t.id)}>
+              <button type="button" className="sdv-task-main" aria-expanded={unfolded} onClick={() => setOpen(unfolded ? null : task.id)}>
                 <span className="sdv-task-name">
-                  <b>{t.title}</b>
+                  <b>{task.title}</b>
                   <small>
-                    {frequencyText(t.frequency)}
+                    {frequencyText(task.frequency)}
                     <span className="sdv-agent">
                       <i style={{ background: hueOf(name) }}>{name.charAt(0).toUpperCase()}</i>
                       {name}
                     </span>
-                    {s.lastRun && <span className={s.lastStatus === "failed" ? "is-failed" : "is-ok"}>{s.lastStatus === "failed" ? `failed ${relative(s.lastRun, now)}` : `ran ${relative(s.lastRun, now)}`}</span>}
+                    {s.lastRun && <span className={s.lastStatus === "failed" ? "is-failed" : "is-ok"}>{s.lastStatus === "failed" ? w.failed(relative(s.lastRun, now)) : w.ran(relative(s.lastRun, now))}</span>}
                   </small>
                 </span>
-                <span className="sdv-task-next">{t.running ? <b className="is-running">Running</b> : paused ? "Paused" : relative(s.nextRun, now)}</span>
+                <span className="sdv-task-next">{task.running ? <b className="is-running">{w.running}</b> : paused ? w.paused : relative(s.nextRun, now)}</span>
               </button>
-              <Switch on={!paused} onChange={(on) => void run(`switch:${t.id}`, "update", { id: t.id, action: on ? "resume" : "pause" })} label={paused ? `Resume ${t.title}` : `Pause ${t.title}`} disabled={busy !== null} />
+              <Switch on={!paused} onChange={(on) => void run(`switch:${task.id}`, "update", { id: task.id, action: on ? "resume" : "pause" })} label={paused ? w.resume(task.title) : w.pause(task.title)} disabled={busy !== null} />
+              <button type="button" className="sdv-trash" disabled={busy !== null} onClick={() => void run(`del:${task.id}`, "update", { id: task.id, action: "delete" })} aria-label={w.delete(task.title)} title={t.common.delete}>
+                <Trash />
+              </button>
             </div>
             {unfolded && (
               <div className="sdv-task-more">
-                <p className="sdv-task-prompt">{t.prompt}</p>
-                {s.lastStatus === "failed" && s.lastMessage && <p className="sdv-task-error">Last run failed: {s.lastMessage}</p>}
+                <p className="sdv-task-prompt">{task.prompt}</p>
+                {s.lastStatus === "failed" && s.lastMessage && <p className="sdv-task-error">{w.lastFailed(s.lastMessage)}</p>}
+                <div className="sdv-task-telegram">
+                  <span className="sdv-label">Telegram</span>
+                  <TelegramPick
+                    id={`sdv-tg-${task.id}`}
+                    bots={bots}
+                    disabled={busy !== null}
+                    value={{ bot: task.telegram?.bot ?? "", report: task.telegram?.report ?? "full" }}
+                    onChange={(v) => void run(`tg:${task.id}`, "telegram", { id: task.id, bot: v.bot, report: v.report })}
+                  />
+                </div>
                 <div className="sdv-task-actions">
-                  <button type="button" className="sdv-link" disabled={t.running || busy !== null} onClick={() => void run(`now:${t.id}`, "run-now", { id: t.id })}>
-                    {busy === `now:${t.id}` ? "Starting…" : "Run now"}
+                  <button type="button" className="sdv-link" disabled={task.running || busy !== null} onClick={() => void run(`now:${task.id}`, "run-now", { id: task.id })}>
+                    {busy === `now:${task.id}` ? w.starting : w.runNow}
                   </button>
-                  <button type="button" className="sdv-link is-danger" disabled={busy !== null} onClick={() => void run(`del:${t.id}`, "update", { id: t.id, action: "delete" })}>
-                    Delete
+                  <button type="button" className="sdv-link is-danger" disabled={busy !== null} onClick={() => void run(`del:${task.id}`, "update", { id: task.id, action: "delete" })}>
+                    {t.common.delete}
                   </button>
                 </div>
               </div>
@@ -88,7 +108,9 @@ const plain = (text: string) =>
     .replace(/\s*\n+\s*/g, " ")
     .trim();
 
-export function Runs({ runs, now, onOpen }: { runs: RunRow[]; now: number; onOpen: (id: string) => void }) {
+export function Runs({ runs, now, onOpen, onDelete }: { runs: RunRow[]; now: number; onOpen: (id: string) => void; onDelete: (id: string) => void }) {
+  const t = useMessages();
+  const w = t.scheduler.list;
   const [all, setAll] = useState(false);
   return (
     <>
@@ -103,27 +125,31 @@ export function Runs({ runs, now, onOpen }: { runs: RunRow[]; now: number; onOpe
                   {r.title}
                   <small>{relative(r.finishedAt, now)}</small>
                 </b>
-                <span className={`sdv-run-text${r.ok ? "" : " is-failed"}`}>{r.ok ? (r.excerpt ? plain(r.excerpt) : "Done.") : (r.error ?? "Failed.")}</span>
+                <span className={`sdv-run-text${r.ok ? "" : " is-failed"}`}>{r.ok ? (r.excerpt ? plain(r.excerpt) : w.done) : (r.error ?? w.failedRun)}</span>
               </span>
               {opens && <ChevronRight />}
             </>
           );
           return (
-            <li key={r.id}>
+            <li key={r.id} className="sdv-run-line">
               {opens ? (
-                <button type="button" className="sdv-run is-link" onClick={() => onOpen(r.id)} title="Open the report as a conversation">
+                <button type="button" className="sdv-run is-link" onClick={() => onOpen(r.id)} title={w.openReport}>
                   {body}
                 </button>
               ) : (
                 <div className="sdv-run">{body}</div>
               )}
+              {/* Deleted at once, like a task (user request). */}
+              <button type="button" className="sdv-trash" onClick={() => onDelete(r.id)} aria-label={w.deleteRun(r.title)} title={t.common.delete}>
+                <Trash />
+              </button>
             </li>
           );
         })}
       </ul>
       {runs.length > SHOWN_RUNS && (
         <button type="button" className="sdv-more" onClick={() => setAll(!all)}>
-          {all ? "Show fewer" : `Show all ${runs.length}`}
+          {all ? w.showFewer : w.showAll(runs.length)}
         </button>
       )}
     </>

@@ -66,7 +66,7 @@ export function AppShell({ settings }: { settings: Settings }) {
       <div className="shell-body">
         {/* `data-view`: the tab bar's preview finds the page it shows. */}
         <div className="shell-pane" data-view={HOME} hidden={active !== HOME}>
-          <ChatShell settings={settings} />
+          <ChatShell settings={settings} front={active === HOME} />
         </div>
         {visible.map((tab) => {
           const entry = viewEntry(tab.view, extra);

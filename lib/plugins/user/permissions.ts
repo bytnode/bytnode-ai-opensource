@@ -15,6 +15,8 @@
    Pure: shared browser / server, tested.
 --------------------------------------------------------------------------- */
 
+import { en, type Messages } from "@/lib/i18n/messages/en";
+
 export type ExchangeAccess = "none" | "read" | "orders";
 
 export type Permissions = {
@@ -112,15 +114,18 @@ export function hostAllowed(host: string, allowed: string[]): boolean {
 
 export type PermissionLine = { key: keyof Permissions; text: string; danger?: boolean };
 
-/** The permissions in plain words, one line each: what the user grants. */
-export function describePermissions(p: Permissions): PermissionLine[] {
+/** The permissions in plain words, one line each: what the user grants.
+    In English unless `m` says otherwise: the agents read these lines too
+    (`check.ts`, the plugin tools); a screen passes its `useMessages()`. */
+export function describePermissions(p: Permissions, m: Messages = en): PermissionLine[] {
+  const t = m.plugins.permissions;
   const out: PermissionLine[] = [];
-  if (p.network.length) out.push({ key: "network", text: `Call ${p.network.join(", ")} on the internet` });
-  if (p.bytnode) out.push({ key: "bytnode", text: "Read BytNode's market data with your key (it never sees the key)" });
-  if (p.exchange === "read") out.push({ key: "exchange", text: "Read the exchange accounts you choose (test or real): balances, positions, orders, history — never your keys" });
-  if (p.exchange === "orders") out.push({ key: "exchange", text: "Read the exchange accounts you choose (test or real), and propose orders — each one waits for your confirmation", danger: true });
-  if (p.schedule) out.push({ key: "schedule", text: "Run on a schedule while BytNode-AI is open" });
-  if (p.notify) out.push({ key: "notify", text: "Send you notifications" });
+  if (p.network.length) out.push({ key: "network", text: t.network(p.network) });
+  if (p.bytnode) out.push({ key: "bytnode", text: t.bytnode });
+  if (p.exchange === "read") out.push({ key: "exchange", text: t.exchangeRead });
+  if (p.exchange === "orders") out.push({ key: "exchange", text: t.exchangeOrders, danger: true });
+  if (p.schedule) out.push({ key: "schedule", text: t.schedule });
+  if (p.notify) out.push({ key: "notify", text: t.notify });
   return out;
 }
 

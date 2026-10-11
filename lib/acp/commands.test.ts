@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { agentCommands, isAgentCommandText } from "./commands";
 
-/* The lists as the three agents really publish them (probed 2026-09-28:
-   Claude Code 2.1 via claude-agent-acp, codex-acp 1.13, Gemini CLI 0.56). */
+/* The lists as the agents really publish them (probed 2026-09-28:
+   Claude Code 2.1 via claude-agent-acp, codex-acp 1.13, Gemini CLI 0.56 —
+   removed since, its list kept as a sample of sub-commands). */
 describe("agentCommands", () => {
   it("keeps names, hints and descriptions; drops the agent's internal plumbing", () => {
     const list = agentCommands(

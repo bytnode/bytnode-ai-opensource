@@ -14,7 +14,6 @@ const [, , agent] = process.argv;
 const L = {
   copilot: [path.join(agents, "copilot/node_modules/@github/copilot/npm-loader.js"), "--acp"],
   grok: [path.join(agents, "grok/node_modules/@xai-official/grok/bin/grok"), "agent", "stdio"],
-  gemini: [path.join(agents, "gemini/node_modules/@google/gemini-cli/bundle/gemini.js"), "--acp"],
 };
 const env = { ...process.env, NO_COLOR: "1" }; for (const k of ["OPENAI_API_KEY","ANTHROPIC_API_KEY","XAI_API_KEY","GITHUB_TOKEN","GH_TOKEN"]) delete env[k];
 const child = spawn(process.execPath, L[agent], { cwd, env, stdio: ["pipe", "pipe", "pipe"] });

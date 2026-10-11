@@ -25,6 +25,8 @@ export type Alert = {
   note?: string;
   /** The exchange account of a position condition (its id). */
   accountId?: string;
+  /** The Telegram bot it is also sent to, by id (user request, 2026-10-08). */
+  telegramBot?: string;
   createdAt: string;
   status: "active" | "paused" | "done";
   /** Per asset: does the condition hold, when did it last fire, what was
@@ -43,7 +45,10 @@ export function alertLabel(condition: string): string {
   return "error" in c ? condition : describeCondition(c);
 }
 
-export type AlertInput = { target?: unknown; condition?: unknown; once?: unknown; note?: unknown; accountId?: string };
+export type AlertInput = { target?: unknown; condition?: unknown; once?: unknown; note?: unknown; accountId?: string; telegramBot?: unknown };
+
+/** What Telegram receives when an alert fires. Pure. */
+export const alertTelegramText = (t: Pick<Trigger, "symbol" | "condition" | "observed" | "note">): string => `🔔 ${t.symbol}: ${alertLabel(t.condition)}\n${t.observed}${t.note ? `\n${t.note}` : ""}`;
 
 /** A new alert, checked: the alert, or why not. */
 export function newAlert(input: AlertInput, id: string, now: Date): { alert: Alert; condition: AlertCondition } | { error: string } {
@@ -56,6 +61,7 @@ export function newAlert(input: AlertInput, id: string, now: Date): { alert: Ale
   if (onPosition(condition) && target === WATCHLIST) return { error: "A position condition is for one pair, not the whole watchlist." };
   if (onPosition(condition) && !input.accountId) return { error: "A position condition needs the exchange account that holds the position." };
   const note = typeof input.note === "string" && input.note.trim() ? input.note.trim().slice(0, 200) : undefined;
+  const telegramBot = typeof input.telegramBot === "string" && input.telegramBot.trim() ? input.telegramBot.trim() : undefined;
   return {
     condition,
     alert: {
@@ -65,6 +71,7 @@ export function newAlert(input: AlertInput, id: string, now: Date): { alert: Ale
       once: input.once !== false,
       ...(note ? { note } : {}),
       ...(onPosition(condition) ? { accountId: input.accountId } : {}),
+      ...(telegramBot ? { telegramBot } : {}),
       createdAt: now.toISOString(),
       status: "active",
       state: {},

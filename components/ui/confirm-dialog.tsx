@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useMessages } from "@/lib/i18n/react";
 import "./ui.css";
 
 type Props = {
@@ -19,7 +20,8 @@ type Props = {
    and "Cancel" stays bare. Escape cancels; focus lands on Cancel so a stray
    Enter deletes nothing.
 --------------------------------------------------------------------------- */
-export function ConfirmDialog({ title, body, confirmLabel, cancelLabel = "Cancel", onConfirm, onCancel }: Props) {
+export function ConfirmDialog({ title, body, confirmLabel, cancelLabel, onConfirm, onCancel }: Props) {
+  const m = useMessages();
   const cancel = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -42,7 +44,7 @@ export function ConfirmDialog({ title, body, confirmLabel, cancelLabel = "Cancel
         </p>
         <div className="cd-actions">
           <button ref={cancel} type="button" className="btn btn-ghost" onClick={onCancel}>
-            {cancelLabel}
+            {cancelLabel ?? m.common.cancel}
           </button>
           <button type="button" className="btn btn-primary" onClick={onConfirm}>
             {confirmLabel}

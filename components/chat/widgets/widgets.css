@@ -1,0 +1,982 @@
+/* ---------------------------------------------------------------------------
+   The widgets (`widgets-layer.tsx`), in the app's language: no pane of
+   their own — they FLOAT on the conversation page's own ground, as a Mac's
+   widgets on its desktop, wherever the user drags them. Each card is a
+   frosted glass over the light the shader paints under it
+   (`widget-field.ts`), with Apple's widget corners, figures in the display
+   face, the plugins' three label levels, green and red for what rises and
+   falls, blue for what is under way. The tokens are the chat page's
+   (`.chat, .fc` in chat.css); the calendars' colours are restated here
+   (they live under `.pv-bare` in plugins.css).
+--------------------------------------------------------------------------- */
+
+.wg {
+  --cal-macro: #0a84ff;
+  --cal-unlock: #ff9f0a;
+  --cal-listing: #30d158;
+  --cal-expiry: #bf5af2;
+  --cal-upgrade: #40c8e0;
+  --cal-project: #ff375f;
+  --cal-task: #5e5ce6;
+  --cal-scheduled: #ac8e68;
+  --wg-r: 19px;
+  color: var(--label);
+  font-variant-numeric: tabular-nums;
+}
+
+html[data-theme="light"] .wg {
+  --cal-macro: #007aff;
+  --cal-unlock: #ff9500;
+  --cal-listing: #34c759;
+  --cal-expiry: #af52de;
+  --cal-upgrade: #32ade6;
+  --cal-project: #ff2d55;
+  --cal-task: #5856d6;
+  --cal-scheduled: #a2845e;
+}
+
+.wg :focus-visible {
+  outline: 2px solid #0a84ff;
+  outline-offset: 2px;
+}
+
+.wg .is-up {
+  --tone: var(--up);
+}
+
+.wg .is-down {
+  --tone: var(--down);
+}
+
+.wg .is-flat {
+  --tone: var(--label-3);
+}
+
+/* The layer over the conversation page: transparent, it lets the page be
+   used — only the cards take the hand. */
+.wgl {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+/* Hidden by the menu: not a trace of them. `visibility`, not `display`:
+   the layer keeps its size, which places the next widget added. */
+.wgl[hidden] {
+  display: block;
+  visibility: hidden;
+}
+
+.wgl .wg-field,
+.wgl-cards {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.wg-field {
+  pointer-events: none;
+}
+
+.wgl .wg-card {
+  position: absolute;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  /* Let go, it GLIDES to its place (back by a border, beside a small
+     one, off another); carried, it has no easing. */
+  transition:
+    left 340ms var(--ease),
+    top 340ms var(--ease),
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+/* Pressed: it gives a little under the finger. */
+.wgl .wg-card:active:not(.is-carried) {
+  scale: 0.985;
+}
+
+/* Carried: lifted, on top, no easing — it is where the hand is. */
+.wgl .wg-card.is-carried {
+  z-index: 2;
+  cursor: grabbing;
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--ink), 0.16),
+    0 26px 50px -18px rgba(2, 6, 14, 0.9);
+  transition: none;
+}
+
+
+/* --- The header's button and its menu ----------------------------------------- */
+
+/* The widgets' button never moves (user request): FIXED at the page's top
+   right — out of the head's flow, which the widgets lower and narrow —,
+   over the widgets' layer. No widget may cover it (`BUTTON` in
+   widgets-layer.tsx reserves its corner). */
+.wgm {
+  position: absolute;
+  top: 20px;
+  right: 22px;
+  z-index: 5;
+}
+
+/* Editing: « Done » in the button's place, the app's blue. */
+.wgm-done {
+  height: 34px;
+  margin-top: 1px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #0a84ff;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 22px -8px rgba(10, 132, 255, 0.7);
+  animation: sp-in 140ms var(--ease) both;
+}
+
+.wgm-done:hover {
+  background: #2b95ff;
+}
+
+.wgm-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 12;
+  display: grid;
+  gap: 2px;
+  width: 210px;
+  padding: 6px;
+  border-radius: 16px;
+  background: var(--pop);
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 18px 44px -12px rgba(2, 6, 14, 0.7);
+  animation: sp-in 140ms var(--ease) both;
+}
+
+.wgm-pop button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--label);
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wgm-pop button:hover:not(:disabled) {
+  background: var(--fill);
+}
+
+.wgm-pop button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.wgm-pop svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--label-2);
+}
+
+/* --- A widget's right-click menu (user request) ------------------------------------ */
+
+/* The header menu's look, where the click was: the sizes (the current one
+   checked), then edit, hide, remove (red). In the layer, not in its zoomed
+   cards: drawn at the page's own size. */
+.wg-ctx {
+  position: absolute;
+  z-index: 1000;
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border-radius: 16px;
+  background: var(--pop);
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 18px 44px -12px rgba(2, 6, 14, 0.7);
+  pointer-events: auto;
+  animation: sp-in 120ms var(--ease) both;
+}
+
+.wg-ctx button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--label);
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wg-ctx button:hover,
+.wg-ctx button:focus-visible {
+  background: var(--fill);
+  outline: none;
+}
+
+.wg-ctx svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--label-2);
+}
+
+.wg-ctx-check {
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+}
+
+.wg-ctx-check svg {
+  color: var(--label);
+}
+
+.wg-ctx hr {
+  height: 1px;
+  margin: 3px 6px;
+  border: 0;
+  background: var(--line);
+}
+
+.wg-ctx .is-danger,
+.wg-ctx .is-danger svg {
+  color: #ff5f57;
+}
+
+.wg-ctx .is-danger:hover {
+  background: rgba(255, 95, 87, 0.13);
+}
+
+/* --- Heads and chips (the gallery) ---------------------------------------------- */
+
+.wg-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 2px 12px 6px;
+}
+
+.wg-title {
+  flex: 1;
+  margin: 0;
+  font-family: var(--font-display), sans-serif;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  background-image: var(--title-ink);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.wg-chip {
+  height: 30px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--label-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wg-chip:hover {
+  background: var(--fill-strong);
+  color: var(--label);
+}
+
+.wg-chip.is-on {
+  background: rgba(var(--ink), 0.9);
+  color: rgb(var(--ink-inv));
+}
+
+.wg-round {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--fill);
+  color: var(--label-2);
+  cursor: pointer;
+}
+
+.wg-round:hover {
+  background: var(--fill-strong);
+  color: var(--label);
+}
+
+.wg-round svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* --- A card ---------------------------------------------------------------------- */
+
+.wg-card {
+  position: relative;
+  min-width: 0;
+  border-radius: var(--wg-r);
+  background: rgba(var(--voile), 0.5);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+  backdrop-filter: blur(22px) saturate(1.35);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--ink), 0.07),
+    inset 0 1px 0 rgba(var(--ink), 0.08),
+    0 14px 32px -18px rgba(2, 6, 14, 0.8);
+  transition:
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+/* Without the field, a quiet ground of its own. */
+.wgl:not(:has(.wg-field.is-live)) .wg-card,
+.wg-preview .wg-card {
+  background: rgba(var(--voile), 0.62);
+}
+
+html[data-theme="light"] .wg-card {
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--ink), 0.06),
+    0 12px 28px -16px rgba(20, 30, 50, 0.35);
+}
+
+.wg-card-in {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 11px 13px 11px;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.wg-card.is-link .wg-card-in {
+  cursor: pointer;
+}
+
+.wg-card.is-link:hover {
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--ink), 0.16),
+    inset 0 1px 0 rgba(var(--ink), 0.1),
+    0 16px 36px -18px rgba(2, 6, 14, 0.85);
+  transform: translateY(-1px);
+}
+
+/* The widget's name: its plugin's icon and name, quiet. */
+.wg-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--label-2);
+}
+
+.wg-name svg {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  stroke-width: 1.9;
+}
+
+.wg-name > span:first-of-type {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wg-name-aside {
+  margin-left: auto;
+  flex: none;
+  font-weight: 500;
+  color: var(--label-3);
+}
+
+/* The one thing that matters: a big figure. */
+.wg-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  margin-top: auto;
+}
+
+.wg-card.is-medium .wg-hero,
+.wg-card.is-large .wg-hero {
+  margin-top: 10px;
+}
+
+.wg-sym {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--label);
+}
+
+.wg-sym small,
+.wg-row-name small {
+  font-weight: 500;
+  color: var(--label-3);
+}
+
+.wg-big {
+  overflow: hidden;
+  font-family: var(--font-display), sans-serif;
+  font-size: 21px;
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background-image: var(--title-ink);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.wg-big.is-mid {
+  font-size: 16.5px;
+}
+
+/* A small card says one thing on one line each. */
+.wg-hero .wg-label,
+.wg-hero .wg-sub {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wg-move {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--tone);
+}
+
+.wg-move small {
+  font-weight: 500;
+  color: var(--label-3);
+}
+
+.wg-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--label-3);
+}
+
+.wg-label.is-hot,
+.wg-row-when.is-hot {
+  color: #ff9f0a;
+}
+
+.wg-sub {
+  overflow: hidden;
+  font-size: 11px;
+  color: var(--label-2);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wg-gap {
+  margin: 10px 0 2px;
+}
+
+.wg-foot {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--label-3);
+}
+
+.wg-foot b {
+  color: var(--label-2);
+  font-weight: 600;
+}
+
+.wg-foot .is-up,
+.wg-foot .is-down,
+.wg-foot.is-down {
+  color: var(--tone, var(--down));
+  font-weight: 600;
+}
+
+.wg-quiet {
+  margin: auto 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--label-3);
+}
+
+/* A line of a series, in its tone. */
+.wg-spark {
+  display: block;
+  flex: none;
+  width: 100%;
+  height: 26px;
+  margin-top: 8px;
+  overflow: visible;
+}
+
+.wg-card.is-large .wg-spark {
+  height: 52px;
+}
+
+.wg-spark-line {
+  fill: none;
+  stroke: var(--tone, #0a84ff);
+  stroke-width: 1.7;
+  stroke-linejoin: round;
+}
+
+.wg-spark-area {
+  fill: var(--tone, #0a84ff);
+  opacity: 0.12;
+}
+
+.wg-spark.is-flat {
+  --tone: #0a84ff;
+}
+
+/* Rows: a name and its line, a value, a pill. */
+.wg-rows {
+  display: grid;
+  gap: 2px;
+  margin: 6px -6px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wg-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 29px;
+  padding: 3px 6px;
+  border-radius: 10px;
+}
+
+.wg-row-name {
+  display: grid;
+  min-width: 0;
+}
+
+.wg-row-name b,
+.wg-row-name small {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wg-row-name b {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.wg-row-name small {
+  font-size: 10.5px;
+}
+
+.wg-row-value {
+  font-size: 12px;
+  color: var(--label);
+}
+
+.wg-row-when {
+  font-size: 11px;
+  color: var(--label-3);
+  white-space: nowrap;
+}
+
+.wg-row-when.is-now {
+  color: #0a84ff;
+  font-weight: 600;
+}
+
+.wg-pill {
+  min-width: 56px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--tone) 16%, transparent);
+  color: var(--tone);
+  font-size: 11px;
+  font-weight: 650;
+  text-align: right;
+}
+
+.wg-pill.is-flat {
+  background: var(--fill);
+}
+
+/* Two facts side by side, on the plugins' tiles. */
+.wg-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+  margin-top: 7px;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.wg-facts > div {
+  display: grid;
+  gap: 2px;
+  padding: 5px 8px;
+  background: var(--tile);
+}
+
+.wg-fact {
+  overflow: hidden;
+  font-family: var(--font-display), sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wg-fact.is-up,
+.wg-fact.is-down {
+  color: var(--tone);
+}
+
+/* The portfolio's split. */
+.wg-shares {
+  display: grid;
+  gap: 7px;
+  margin: 9px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wg-shares li {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 56px;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.wg-share-name {
+  font-weight: 600;
+}
+
+.wg-share-bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--fill);
+}
+
+.wg-share-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #0a84ff, #5ab0ff);
+}
+
+.wg-share-pct {
+  color: var(--label-3);
+  text-align: right;
+}
+
+/* The calendar's coming events, each with its calendar's colour. */
+.wg-events {
+  display: grid;
+  gap: 4px;
+  margin: 7px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wg-events li {
+  display: grid;
+  gap: 1px;
+  padding: 2px 0 2px 10px;
+  border-left: 3px solid var(--tone);
+  border-radius: 2px;
+}
+
+.wg-event-when {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--tone);
+}
+
+.wg-event-title {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.wg-hero .wg-event-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+/* The calculator's fields. */
+.wg-calc {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.wg-input {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--label-3);
+}
+
+.wg-input input {
+  width: 100%;
+  min-width: 0;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--tile-strong);
+  color: var(--label);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.wg-input input:focus {
+  outline: 2px solid #0a84ff;
+  outline-offset: 0;
+}
+
+/* --- Edit mode: Apple's jiggle, a remove badge, the sizes ------------------------- */
+
+.wg.is-editing .wg-card:not(.is-carried) {
+  cursor: grab;
+  animation: wg-jiggle 360ms ease-in-out infinite alternate;
+}
+
+.wg.is-editing .wg-card:nth-child(2n) {
+  animation-delay: -180ms;
+}
+
+@keyframes wg-jiggle {
+  from {
+    transform: rotate(-0.6deg);
+  }
+  to {
+    transform: rotate(0.6deg);
+  }
+}
+
+.wg-remove {
+  position: absolute;
+  top: -7px;
+  left: -7px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(var(--ink), 0.82);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+
+.wg-remove span {
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  background: rgb(var(--ink-inv));
+}
+
+.wg-sizes {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--pop);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  transform: translateX(-50%);
+}
+
+.wg-sizes button {
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--label-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.wg-sizes button.is-on {
+  background: rgba(var(--ink), 0.9);
+  color: rgb(var(--ink-inv));
+}
+
+/* --- The gallery: the settings panel (`settings.css`) ------------------------ */
+
+.wg-gallery .st {
+  width: min(900px, 100%);
+  height: min(640px, 100vh - 32px);
+}
+
+.wg-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wg-nav-item svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.8;
+  color: var(--label-2);
+}
+
+.wg-gallery .btn svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+/* The preview, on the panel's own ground: a tile, the widget in the
+   middle. */
+.wg-preview {
+  display: grid;
+  place-items: center;
+  min-height: 310px;
+  border-radius: 14px;
+  background: rgba(var(--ink), 0.035);
+}
+
+.wg-preview .wg-card {
+  position: relative;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wg.is-editing .wg-card {
+    animation: none;
+  }
+}
+
+/* --- The conversation's room ------------------------------------------------------ */
+
+/* What the widgets leave the conversation (`roomFor` in
+   lib/widgets/catalog.ts, handed over by widgets-layer.tsx as variables on
+   the page, in screen pixels; none without widgets — the page as it was):
+     --wg-top          the head goes DOWN under a widget at the top over the
+                       title (and all under it);
+     --wg-thread       the thread goes down under a widget at the top over
+                       the conversation's column — just enough for its text
+                       to keep `CLEARANCE`, 2 cm (user request: never sideways
+                       for those, and no more than on the sides);
+     --wg-bottom       the composer rises over the widgets at the bottom;
+     --wg-head-l / -r  the head's distance from the page's sides;
+     --wg-body-l / -r  the thread's and the composer's — one column: they
+                       stay centred while the room allows it and move only
+                       by what is needed (`--w` their width, `margin-left`
+                       their place: centred, but never left of `--l` nor
+                       past `100% - --r`).
+   ⚠️ MARGINS (and side paddings), never a padding-top or bottom: the
+   layer reads the parts' natural height and inner margins, which must not
+   include what the widgets gave; and the thread's BOX goes down, never its
+   content (a padding inside the scroller let the text scroll back under
+   the widget). Slow. */
+.chat-main > .chat-top {
+  margin-top: var(--wg-top, 0px);
+  padding-left: max(30px, var(--wg-head-l, 0px));
+  /* The fixed button's room: 22 + 34 + 12. */
+  padding-right: max(68px, var(--wg-head-r, 0px));
+  transition:
+    margin-top 480ms var(--ease),
+    padding 480ms var(--ease);
+}
+
+.chat-main > .thread-wrap {
+  margin-top: var(--wg-thread, 0px);
+  transition: margin-top 480ms var(--ease);
+}
+
+.chat-main .thread-inner {
+  --l: max(0px, var(--wg-body-l, 0px) - 28px);
+  --r: max(0px, var(--wg-body-r, 0px) - 28px);
+  --w: min(var(--thread), 100% - var(--l) - var(--r));
+  width: var(--w);
+  margin-left: max(var(--l), min((100% - var(--w)) / 2, 100% - var(--r) - var(--w)));
+  margin-right: 0;
+  transition:
+    margin-left 480ms var(--ease),
+    width 480ms var(--ease);
+}
+
+.chat-main > .chat-composer {
+  --l: max(0px, var(--wg-body-l, 0px) - 20px);
+  --r: max(0px, var(--wg-body-r, 0px) - 20px);
+  --w: min(var(--thread), 100% - var(--l) - var(--r));
+  width: var(--w);
+  margin-left: max(var(--l), min((100% - var(--w)) / 2, 100% - var(--r) - var(--w)));
+  margin-right: 0;
+  margin-bottom: var(--wg-bottom, 0px);
+  transition:
+    margin-left 480ms var(--ease),
+    margin-bottom 480ms var(--ease),
+    width 480ms var(--ease);
+}

@@ -34,6 +34,7 @@ export async function POST(req: Request) {
     openrouterKey: s.keys.openrouter,
     bytnodeKey: s.keys.bytnode,
     exchangeAccounts: s.keys.exchanges,
+    telegramBots: s.keys.telegram,
     agents: s.agents,
     profile: s.profile,
     plugins: s.plugins,

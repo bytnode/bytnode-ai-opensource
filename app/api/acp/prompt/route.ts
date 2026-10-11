@@ -6,6 +6,7 @@ import { syncSkills } from "@/lib/acp/skills-sync";
 import { loadProfession } from "@/lib/professions/load";
 import { DEFAULT_PROFESSION, isProfessionId } from "@/lib/professions/catalog";
 import { PROJECT_ROOT, resolveWorkspace, workspaceError } from "@/lib/server/workspace";
+import { selfOrigin } from "@/lib/server/origin";
 import { userSkills } from "@/lib/tools/skills/skill";
 import { readyRuntime } from "@/lib/plugins/host";
 import { pluginSkills } from "@/lib/plugins/extras";
@@ -105,7 +106,7 @@ export async function POST(req: Request) {
       agent,
       agentId,
       workspace,
-      origin: new URL(req.url).origin,
+      origin: selfOrigin(req.url),
       bytnodeKey,
       exchangeAccounts,
       plugins,

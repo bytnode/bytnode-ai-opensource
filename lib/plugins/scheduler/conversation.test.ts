@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentConfig } from "@/lib/domain/types";
-import { importBatch, runConversation } from "./conversation";
+import { importBatch, reportLabel, runConversation, taskFolders } from "./conversation";
 import type { RunRecord } from "./tasks";
 
 const agent = { id: "a1", name: "Analyst", defaultModelId: "anthropic/claude-sonnet-5", defaultEffort: "low" } as AgentConfig;
@@ -42,5 +42,26 @@ describe("scheduled runs as conversations", () => {
     expect(r.conversations.map((c) => c.id)).toEqual(["run-1"]);
     expect(r.since).toBe("2026-09-23T06:04:00.000Z");
     expect(importBatch([], [agent], new Set(), r.since).since).toBe(r.since);
+  });
+});
+
+describe("the sidebar's folders, one per scheduled task", () => {
+  const report = (id: string, taskId: string, title: string, updatedAt: number) => ({ ...runConversation(run(id, { ref: taskId, title }), agent), title: `${title} · 2026-09-2${id}`, updatedAt });
+
+  it("groups the reports by task, the latest folder and report first; ordinary conversations stay out", () => {
+    const plain = { ...report("9", "x", "Chat", 99), scheduled: undefined };
+    const folders = taskFolders([report("1", "t1", "Morning brief", 10), report("2", "t2", "BTC check", 30), report("3", "t1", "Morning brief", 20), plain]);
+    expect(folders.map((f) => [f.taskId, f.title, f.conversations.map((c) => c.id)])).toEqual([
+      ["t2", "BTC check", ["run-2"]],
+      ["t1", "Morning brief", ["run-3", "run-1"]],
+    ]);
+  });
+
+  it("names a folder after its task even when its newest report was renamed", () => {
+    const renamed = { ...report("3", "t1", "Morning brief", 20), title: "Great call" };
+    const [folder] = taskFolders([report("1", "t1", "Morning brief", 10), renamed]);
+    expect(folder.title).toBe("Morning brief");
+    expect(reportLabel(folder.conversations[1], folder)).toBe("2026-09-21");
+    expect(reportLabel(renamed, folder)).toBe("Great call");
   });
 });

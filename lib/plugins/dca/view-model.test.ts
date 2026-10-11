@@ -78,7 +78,8 @@ describe("the form's frequency", () => {
   });
 
   it("reads them back in a sentence", () => {
-    expect(frequencyWords("every monday at 09:00")).toBe("every Monday at 09:00");
-    expect(frequencyWords("daily at 08:00")).toBe("Every day at 08:00");
+    expect(frequencyWords("every monday at 09:00")).toBe("Every Monday at 09:00");
+    expect(frequencyWords("daily at 08:00")).toBe("Daily at 08:00");
+    expect(frequencyWords("every 14 days")).toBe("Every 14 days");
   });
 });

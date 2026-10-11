@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import type { Listed } from "@/lib/plugins/shared/prices";
 import { Search } from "@/components/ui/icons";
 import { CASH } from "./format";
+import { useMessages } from "@/lib/i18n/react";
 
 /* ---------------------------------------------------------------------------
    The ticket's pair: a search among every pair BytNode covers in USDT (the
@@ -44,6 +45,8 @@ type Props = {
 };
 
 export function PairField({ value, pairs, unavailable, onChange }: Props) {
+  const m = useMessages();
+  const t = m.paperTrading.pair;
   const [query, setQuery] = useState<string | null>(null);
   const [active, setActive] = useState(0);
   const list = useId();
@@ -70,13 +73,13 @@ export function PairField({ value, pairs, unavailable, onChange }: Props) {
         <input
           className="wlv-input"
           role="combobox"
-          aria-label="Pair"
+          aria-label={t.label}
           aria-expanded={shown}
           aria-controls={list}
           aria-autocomplete="list"
           aria-activedescendant={shown ? `${list}-${lit}` : undefined}
           value={searching ? query : value}
-          placeholder={`Search ${pairs?.length ?? ""} pairs — btc, Solana…`}
+          placeholder={t.placeholder(pairs?.length ?? null)}
           autoComplete="off"
           spellCheck={false}
           onFocus={(e) => {
@@ -107,7 +110,7 @@ export function PairField({ value, pairs, unavailable, onChange }: Props) {
       </div>
       {unavailable && <p className="wlv-add-note">{unavailable}</p>}
       {shown && (
-        <ul className="wlv-suggest ptv-suggest" id={list} role="listbox" aria-label="Pairs">
+        <ul className="wlv-suggest ptv-suggest" id={list} role="listbox" aria-label={t.options}>
           {options.map((o, i) => (
             <li
               key={o.symbol}
@@ -122,8 +125,8 @@ export function PairField({ value, pairs, unavailable, onChange }: Props) {
               onClick={() => choose(o)}
             >
               <b>{o.base}</b>
-              <span className="wlv-suggest-name">{o.typed ? "Not listed by BytNode — priced from an exchange account" : (o.name ?? o.symbol)}</span>
-              {o.symbol === value && <small className="wlv-suggest-src">Chosen</small>}
+              <span className="wlv-suggest-name">{o.typed ? t.notListed : (o.name ?? o.symbol)}</span>
+              {o.symbol === value && <small className="wlv-suggest-src">{t.chosen}</small>}
               <span className="wlv-suggest-pair">{CASH}</span>
             </li>
           ))}

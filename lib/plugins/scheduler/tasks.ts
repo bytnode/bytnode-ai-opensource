@@ -1,3 +1,4 @@
+import { shortReport } from "@/lib/telegram/text";
 import type { AgentConfig } from "@/lib/domain/types";
 import { nextRun, parseFrequency } from "../core/frequency";
 import type { CatchUp, RunState } from "../core/schedule";
@@ -12,6 +13,10 @@ import type { CatchUp, RunState } from "../core/schedule";
 
 export { afterRun, decide, type CatchUp, type Decision, type RunRecord, type RunState } from "../core/schedule";
 
+/** Where a task's report is also sent (user request, 2026-10-08): one of
+    the user's Telegram bots, by id, with the whole report or its start. */
+export type TaskTelegram = { bot: string; report: "full" | "short" };
+
 export type AgentTask = {
   id: string;
   title: string;
@@ -23,7 +28,32 @@ export type AgentTask = {
   catchUp: CatchUp;
   status: "active" | "paused";
   createdAt: string;
+  telegram?: TaskTelegram;
 };
+
+/** The Telegram destination asked for: a bot and a report length, or none. */
+export function readTelegram(input: { telegramBot?: unknown; report?: unknown }): TaskTelegram | undefined {
+  const bot = typeof input.telegramBot === "string" ? input.telegramBot.trim() : "";
+  if (!bot) return undefined;
+  return { bot, report: input.report === "short" ? "short" : "full" };
+}
+
+/** A task's Telegram destination changed (or removed: `undefined`). */
+export function setTaskTelegram(tasks: AgentTask[], ref: string, telegram: TaskTelegram | undefined): { tasks: AgentTask[]; task: AgentTask } | { error: string } {
+  const task = findTask(tasks, ref);
+  if (!task) return { error: `No scheduled task "${ref}".` };
+  const { telegram: _old, ...rest } = task;
+  void _old;
+  const changed: AgentTask = telegram ? { ...rest, telegram } : rest;
+  return { tasks: tasks.map((t) => (t.id === task.id ? changed : t)), task: changed };
+}
+
+/** What Telegram receives when a task has run: its title, then the report
+    (whole or its start), or why it failed. */
+export function telegramText(task: Pick<AgentTask, "title" | "telegram">, result: { ok: true; text: string } | { ok: false; error: string }): string {
+  if (!result.ok) return `⚠️ Scheduled task failed: ${task.title}\n\n${result.error}`;
+  return `🗓 ${task.title}\n\n${task.telegram?.report === "short" ? shortReport(result.text) : result.text}`;
+}
 
 /** The agent a task names, by id or by name. */
 export const findAgent = (agents: AgentConfig[], ref: string): AgentConfig | undefined => {
@@ -32,7 +62,7 @@ export const findAgent = (agents: AgentConfig[], ref: string): AgentConfig | und
 };
 
 /** A task as the agent or the view creates it: checked, or why not. */
-export function newTask(input: { title?: unknown; prompt?: unknown; agent?: unknown; frequency?: unknown; catchUp?: unknown }, id: string, now: Date): AgentTask | { error: string } {
+export function newTask(input: { title?: unknown; prompt?: unknown; agent?: unknown; frequency?: unknown; catchUp?: unknown; telegramBot?: unknown; report?: unknown }, id: string, now: Date): AgentTask | { error: string } {
   const title = typeof input.title === "string" ? input.title.trim() : "";
   const prompt = typeof input.prompt === "string" ? input.prompt.trim() : "";
   const agent = typeof input.agent === "string" ? input.agent.trim() : "";
@@ -43,7 +73,8 @@ export function newTask(input: { title?: unknown; prompt?: unknown; agent?: unkn
   const f = parseFrequency(frequency);
   if ("error" in f) return { error: f.error };
   if (f.kind === "interval" && f.minutes < 15) return { error: "An agent task runs at most every 15 minutes: it costs a model's time." };
-  return { id, title: title.slice(0, 120), prompt: prompt.slice(0, 8000), agent, frequency, catchUp: input.catchUp === "run-once-on-start" ? "run-once-on-start" : "skip", status: "active", createdAt: now.toISOString() };
+  const telegram = readTelegram(input);
+  return { id, title: title.slice(0, 120), prompt: prompt.slice(0, 8000), agent, frequency, catchUp: input.catchUp === "run-once-on-start" ? "run-once-on-start" : "skip", status: "active", createdAt: now.toISOString(), ...(telegram ? { telegram } : {}) };
 }
 
 /** The conversation a finished task becomes in the browser. */

@@ -3,7 +3,10 @@
 import { useState, type ReactNode } from "react";
 import type { ExchangeAccount, Settings } from "@/lib/domain/types";
 import type { DcaGroup } from "@/lib/plugins/dca/groups";
-import { WEEKDAYS, cadenceOf, frequencyOf, frequencyWords, nthPurchase, perMonth, purchasesUntil, schedule, type Cadence, type PlanRow, type Weekday } from "@/lib/plugins/dca/view-model";
+import { WEEKDAYS, cadenceOf, frequencyOf, frequencyPhrase, nthPurchase, perMonth, purchasesUntil, schedule, type Cadence, type PlanRow, type Weekday } from "@/lib/plugins/dca/view-model";
+import { capitalize } from "@/lib/plugins/shared/frequency-words";
+import { useMessages } from "@/lib/i18n/react";
+import { dateTag } from "@/lib/i18n/store";
 import type { Listed, Priced } from "@/lib/plugins/shared/prices";
 import { Segmented } from "@/components/ui/segmented";
 import { Select } from "@/components/ui/select";
@@ -41,14 +44,10 @@ type Props = {
   onCancel: () => void;
 };
 
-const KINDS: Array<{ value: Cadence["kind"]; label: string }> = [
-  { value: "daily", label: "Every day" },
-  { value: "weekly", label: "Every week" },
-  { value: "days", label: "Every N days" },
-  { value: "hours", label: "Every N hours" },
-];
-const DAYS = WEEKDAYS.map((d) => ({ value: d, label: d.slice(0, 3).replace(/^./, (c) => c.toUpperCase()) }));
 const DAY = 86_400_000;
+/** A weekday's short name in the interface's language ("Mon", « Lun. »):
+    1 January 2024 was a Monday, the first of `WEEKDAYS`. */
+const dayName = (i: number) => capitalize(new Date(2024, 0, 1 + i).toLocaleDateString(dateTag(), { weekday: "short" }));
 
 /** The sheet scrolled back to its top: each step starts there. */
 const toTop = (from: HTMLElement) => from.closest(".wlv-body")?.scrollTo({ top: 0 });
@@ -62,6 +61,15 @@ const localInput = (t: number) => {
 };
 
 export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavailable, paperCash, groupId, onSave, onCancel }: Props) {
+  const t = useMessages();
+  const w = t.dca.config;
+  const kinds: Array<{ value: Cadence["kind"]; label: string }> = [
+    { value: "daily", label: w.everyDay },
+    { value: "weekly", label: w.everyWeek },
+    { value: "days", label: w.everyNDays },
+    { value: "hours", label: w.everyNHours },
+  ];
+  const weekdays = WEEKDAYS.map((d, i) => ({ value: d, label: dayName(i) }));
   const editing = plan !== undefined;
   const initial = plan ? cadenceOf(plan.frequency) : ({ kind: "weekly", weekday: "monday", time: "09:00" } as Cadence);
   const [now] = useState(openedNow);
@@ -110,11 +118,11 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
   const choices = accounts.filter((a) => a.testnet === (mode === "testnet"));
   const account = editing ? accounts.find((a) => a.id === plan.accountId) : mode === "paper" ? undefined : (choices.find((a) => a.id === accountId) ?? choices[0]);
   const badge: Badge = mode === "paper" ? "PAPER" : mode === "testnet" ? "TESTNET" : "LIVE";
-  const noAccount = mode === "testnet" ? "No testnet account: add one with test-network keys in Settings → Auth." : "No live exchange account: add one in Settings → Auth.";
+  const noAccount = mode === "testnet" ? w.noTestnetAccount : w.noLiveAccount;
 
   const endOk = end === "never" || (end === "count" ? nCount >= 1 : Number.isFinite(endMs) && endMs! > startMs);
   const ready = !!symbol && quoteAmount > 0 && cadenceOk && endOk && (destination === "paper" || !!account) && !!group && (editing || start === "now" || Number.isFinite(startMs));
-  const why = !(quoteAmount > 0) ? "Give the amount spent each time." : !cadenceOk ? "The schedule is not complete." : !endOk ? "The end must come after the start." : destination === "exchange" && !account ? noAccount : !group ? "Choose a group." : null;
+  const why = !(quoteAmount > 0) ? w.giveAmount : !cadenceOk ? w.scheduleIncomplete : !endOk ? w.endAfterStart : destination === "exchange" && !account ? noAccount : !group ? w.chooseGroup : null;
 
   const save = async () => {
     setBusy(true);
@@ -128,30 +136,28 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
   };
 
   const title = name.trim() || `${base} · ${quoteAmount > 0 ? `${fmt(quoteAmount)} ${quoteCcy}` : quoteCcy}`;
-  const day = (t: number) => new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const day = (at: number) => new Date(at).toLocaleDateString(dateTag(), { day: "numeric", month: "short", year: "numeric" });
 
   if (step === "review") {
     return (
-      <section className="dcv-review" aria-label="What this DCA will do">
+      <section className="dcv-review" aria-label={w.reviewLabel}>
         <header className="dcv-review-head">
           <span className={badgeClass(badge)}>{badge}</span>
           <h3>{title}</h3>
-          <p>
-            {fmt(quoteAmount)} {quoteCcy} of {base}, {frequencyWords(frequency).replace(/^Every/, "every")}
-          </p>
+          <p>{w.buys(`${fmt(quoteAmount)} ${quoteCcy}`, base, frequencyPhrase(frequency))}</p>
         </header>
 
         <dl className="dcv-facts">
-          <Fact label="Each time">{price !== undefined ? `≈ ${fmt(quoteAmount / price)} ${base}` : `${fmt(quoteAmount)} ${quoteCcy}`}</Fact>
-          <Fact label="A month">{month ? `${fmt(month * quoteAmount, 0)} ${quoteCcy}` : "—"}</Fact>
-          <Fact label={total !== undefined ? `In all · ${total} purchases` : "A year"}>{total !== undefined ? `${fmt(total * quoteAmount, 0)} ${quoteCcy}` : month ? `${fmt(month * quoteAmount * 12.17, 0)} ${quoteCcy}` : "—"}</Fact>
-          <Fact label="Ends">{end === "never" ? "Never" : endMs !== undefined && Number.isFinite(endMs) ? day(endMs) : "—"}</Fact>
-          <Fact label="Buys on">{mode === "paper" ? "Paper portfolio" : `${account?.label ?? "—"} · ${mode === "testnet" ? "testnet" : "live"}`}</Fact>
-          <Fact label="Group">{groups.find((g) => g.id === group)?.name ?? "—"}</Fact>
+          <Fact label={w.eachTime}>{price !== undefined ? `≈ ${fmt(quoteAmount / price)} ${base}` : `${fmt(quoteAmount)} ${quoteCcy}`}</Fact>
+          <Fact label={w.aMonth}>{month ? `${fmt(month * quoteAmount, 0)} ${quoteCcy}` : "—"}</Fact>
+          <Fact label={total !== undefined ? w.inAll(total) : w.aYear}>{total !== undefined ? `${fmt(total * quoteAmount, 0)} ${quoteCcy}` : month ? `${fmt(month * quoteAmount * 12.17, 0)} ${quoteCcy}` : "—"}</Fact>
+          <Fact label={w.ends}>{end === "never" ? w.never : endMs !== undefined && Number.isFinite(endMs) ? day(endMs) : "—"}</Fact>
+          <Fact label={w.buysOn}>{mode === "paper" ? w.paperPortfolio : `${account?.label ?? "—"} · ${mode === "testnet" ? w.testnet : w.live}`}</Fact>
+          <Fact label={w.group}>{groups.find((g) => g.id === group)?.name ?? "—"}</Fact>
         </dl>
 
         <div className="dcv-next">
-          <span className="dcv-caption">{editing ? "Next purchases" : "First purchases"}</span>
+          <span className="dcv-caption">{editing ? w.nextPurchases : w.firstPurchases}</span>
           <ol>
             {upcoming.map((t) => (
               <li key={t}>{when(new Date(t).toISOString())}</li>
@@ -161,10 +167,10 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
 
         <p className={`dcv-sentence${mode === "live" ? " is-real" : ""}`}>
           {mode === "paper"
-            ? `Simulated: bought automatically in the paper portfolio.${quoteCcy !== paperCash ? ` The paper portfolio trades against ${paperCash}.` : ""}`
+            ? w.paperSentence(quoteCcy !== paperCash ? paperCash : null)
             : mode === "testnet"
-              ? `Test network on ${account?.label ?? "the account"}: no real money — each purchase still waits for your click in the notifications.`
-              : `Real money on ${account?.label ?? "the account"}: each purchase waits for your click in the notifications.`}
+              ? w.testnetSentence(account?.label ?? null)
+              : w.liveSentence(account?.label ?? null)}
         </p>
 
         {problem && <p className="dcv-problem">{problem}</p>}
@@ -177,10 +183,10 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
               toTop(e.currentTarget);
             }}
           >
-            Back
+            {t.common.back}
           </button>
           <button type="button" className="dcv-button is-primary" disabled={busy} onClick={() => void save()}>
-            {busy ? "Saving…" : editing ? "Save changes" : "Create DCA"}
+            {busy ? w.saving : editing ? w.saveChanges : w.create}
           </button>
         </div>
       </section>
@@ -189,120 +195,120 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
 
   return (
     <div className="dcv-config">
-        <Block title="What">
-          <Row label="Asset" hint={price !== undefined ? `${fmt(price)} ${quoteCcy} now` : quote.data && "error" in quote.data ? quote.data.error : undefined}>
+        <Block title={w.what}>
+          <Row label={w.asset} hint={price !== undefined ? w.priceNow(`${fmt(price)} ${quoteCcy}`) : quote.data && "error" in quote.data ? quote.data.error : undefined}>
             {editing ? (
               <b className="dcv-fixed">{symbol}</b>
             ) : (
               <PairField value={symbol} pairs={pairs} unavailable={pairsUnavailable} onChange={setSymbol} />
             )}
           </Row>
-          <Row label="Each time" hint={price !== undefined && quoteAmount > 0 ? `≈ ${fmt(quoteAmount / price)} ${base}` : undefined}>
+          <Row label={w.eachTime} hint={price !== undefined && quoteAmount > 0 ? `≈ ${fmt(quoteAmount / price)} ${base}` : undefined}>
             <span className="dcv-amount">
-              <input className="wlv-input" inputMode="decimal" placeholder="100" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="Amount each time" />
+              <input className="wlv-input" inputMode="decimal" placeholder="100" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label={w.amountEachTime} />
               <b>{quoteCcy}</b>
             </span>
           </Row>
         </Block>
 
-        <Block title="When">
-          <Row label="How often">
-            <Segmented label="How often" value={kind} options={KINDS} onChange={setKind} />
+        <Block title={w.when}>
+          <Row label={w.howOften}>
+            <Segmented label={w.howOften} value={kind} options={kinds} onChange={setKind} />
           </Row>
           {kind === "weekly" && (
-            <Row label="Day">
-              <Segmented label="Day" value={weekday} options={DAYS} onChange={setWeekday} />
+            <Row label={w.day}>
+              <Segmented label={w.day} value={weekday} options={weekdays} onChange={setWeekday} />
             </Row>
           )}
           {(kind === "daily" || kind === "weekly") && (
-            <Row label="At">
-              <input className="wlv-input dcv-time" type="time" aria-label="At" value={time} onChange={(e) => setTime(e.target.value)} />
+            <Row label={w.at}>
+              <input className="wlv-input dcv-time" type="time" aria-label={w.at} value={time} onChange={(e) => setTime(e.target.value)} />
             </Row>
           )}
           {kind === "days" && (
-            <Row label="Every">
+            <Row label={w.every}>
               <span className="dcv-amount dcv-short">
-                <input className="wlv-input" inputMode="numeric" aria-label="Every how many days" value={days} onChange={(e) => setDays(e.target.value)} />
-                <b>days</b>
+                <input className="wlv-input" inputMode="numeric" aria-label={w.everyHowManyDays} value={days} onChange={(e) => setDays(e.target.value)} />
+                <b>{w.days}</b>
               </span>
             </Row>
           )}
           {kind === "hours" && (
-            <Row label="Every">
+            <Row label={w.every}>
               <span className="dcv-amount dcv-short">
-                <input className="wlv-input" inputMode="numeric" aria-label="Every how many hours" value={hours} onChange={(e) => setHours(e.target.value)} />
-                <b>hours</b>
+                <input className="wlv-input" inputMode="numeric" aria-label={w.everyHowManyHours} value={hours} onChange={(e) => setHours(e.target.value)} />
+                <b>{w.hours}</b>
               </span>
             </Row>
           )}
-          <Row label="Starts">
+          <Row label={w.starts}>
             {editing ? (
-              <b className="dcv-fixed">{`started ${when(plan.startAt)}`}</b>
+              <b className="dcv-fixed">{w.started(when(plan.startAt))}</b>
             ) : (
               <span className="dcv-inline">
                 <Segmented
-                  label="Starts"
+                  label={w.starts}
                   value={start}
                   options={[
-                    { value: "now", label: "Now" },
-                    { value: "date", label: "On a date" },
+                    { value: "now", label: w.now },
+                    { value: "date", label: w.onADate },
                   ]}
                   onChange={setStart}
                 />
-                {start === "date" && <input className="wlv-input dcv-date" type="datetime-local" aria-label="Start" value={startDate} onChange={(e) => setStartDate(e.target.value)} />}
+                {start === "date" && <input className="wlv-input dcv-date" type="datetime-local" aria-label={w.start} value={startDate} onChange={(e) => setStartDate(e.target.value)} />}
               </span>
             )}
           </Row>
-          <Row label="Ends">
+          <Row label={w.ends}>
             <span className="dcv-inline">
               <Segmented
-                label="Ends"
+                label={w.ends}
                 value={end}
                 options={[
-                  { value: "never", label: "Never" },
-                  { value: "date", label: "On a date" },
-                  { value: "count", label: "After N purchases" },
+                  { value: "never", label: w.never },
+                  { value: "date", label: w.onADate },
+                  { value: "count", label: w.afterNPurchases },
                 ]}
                 onChange={setEnd}
               />
-              {end === "date" && <input className="wlv-input dcv-date" type="date" aria-label="End" value={endDate} onChange={(e) => setEndDate(e.target.value)} />}
+              {end === "date" && <input className="wlv-input dcv-date" type="date" aria-label={w.end} value={endDate} onChange={(e) => setEndDate(e.target.value)} />}
               {end === "count" && (
                 <span className="dcv-amount dcv-short">
-                  <input className="wlv-input" inputMode="numeric" aria-label="Number of purchases" value={count} onChange={(e) => setCount(e.target.value)} />
-                  <b>purchases</b>
+                  <input className="wlv-input" inputMode="numeric" aria-label={w.numberOfPurchases} value={count} onChange={(e) => setCount(e.target.value)} />
+                  <b>{w.purchases}</b>
                 </span>
               )}
             </span>
           </Row>
         </Block>
 
-        <Block title="Where">
+        <Block title={w.where}>
           {editing ? (
-            <Row label="Buys on">
+            <Row label={w.buysOn}>
               <span className="dcv-inline">
                 <span className={badgeClass(badge)}>{badge}</span>
-                <b className="dcv-fixed">{destination === "paper" ? "Paper portfolio" : (account?.label ?? "a removed account")}</b>
+                <b className="dcv-fixed">{destination === "paper" ? w.paperPortfolio : (account?.label ?? t.dca.sheet.removedAccount)}</b>
               </span>
             </Row>
           ) : (
             <>
-              <Row label="Mode" hint={mode === "paper" ? "Simulated in the paper portfolio, bought automatically." : mode === "testnet" ? "The exchange's test network: no real money." : "Real money — each purchase is confirmed by you."}>
+              <Row label={w.mode} hint={mode === "paper" ? w.paperHint : mode === "testnet" ? w.testnetHint : w.liveHint}>
                 <Segmented
-                  label="Mode"
+                  label={w.mode}
                   value={mode}
                   options={[
-                    { value: "paper", label: "Paper" },
-                    { value: "testnet", label: "Testnet" },
-                    { value: "live", label: "Live" },
+                    { value: "paper", label: w.paper },
+                    { value: "testnet", label: w.testnetMode },
+                    { value: "live", label: w.liveMode },
                   ]}
                   onChange={setMode}
                 />
               </Row>
               {mode !== "paper" && (
-                <Row label="Account" hint={choices.length ? undefined : noAccount}>
+                <Row label={w.account} hint={choices.length ? undefined : noAccount}>
                   <span className="dcv-inline">
                     <span className={badgeClass(badge)}>{badge}</span>
-                    <Select id="dca-account" label="Account" value={account?.id ?? ""} placeholder={mode === "testnet" ? "No testnet account" : "No live account"} options={choices.map((a) => ({ value: a.id, label: a.label }))} onChange={setAccountId} />
+                    <Select id="dca-account" label={w.account} value={account?.id ?? ""} placeholder={mode === "testnet" ? w.noTestnetChoice : w.noLiveChoice} options={choices.map((a) => ({ value: a.id, label: a.label }))} onChange={setAccountId} />
                   </span>
                 </Row>
               )}
@@ -310,19 +316,19 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
           )}
         </Block>
 
-        <Block title="Filed">
-          <Row label="Group">
-            <Select id="dca-group" label="Group" value={group} placeholder="No group — make one first" options={groups.map((g) => ({ value: g.id, label: g.name }))} onChange={setGroup} />
+        <Block title={w.filed}>
+          <Row label={w.group}>
+            <Select id="dca-group" label={w.group} value={group} placeholder={w.noGroupChoice} options={groups.map((g) => ({ value: g.id, label: g.name }))} onChange={setGroup} />
           </Row>
-          <Row label="Name">
-            <input className="wlv-input" placeholder={`Optional — ${base} ${frequencyWords(frequency).replace(/^Every/, "every")}`} value={name} maxLength={60} onChange={(e) => setName(e.target.value)} aria-label="Name" />
+          <Row label={w.name}>
+            <input className="wlv-input" placeholder={w.namePlaceholder(`${base} ${frequencyPhrase(frequency)}`)} value={name} maxLength={60} onChange={(e) => setName(e.target.value)} aria-label={w.name} />
           </Row>
         </Block>
 
       <footer className="dcv-config-foot">
         {!ready && why && <span className="dcv-config-why">{why}</span>}
         <button type="button" className="dcv-button" onClick={onCancel}>
-          Cancel
+          {t.common.cancel}
         </button>
         <button
           type="button"
@@ -334,7 +340,7 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
             toTop(e.currentTarget);
           }}
         >
-          Continue
+          {w.continue}
         </button>
       </footer>
     </div>
@@ -343,6 +349,7 @@ export function DcaConfig({ settings, plan, groups, accounts, pairs, pairsUnavai
 
 /** The header of the configuration (the sheet's), with its close button. */
 export function ConfigHead({ title, sub, onClose }: { title: string; sub: string; onClose: () => void }) {
+  const t = useMessages();
   return (
     <header className="wlv-head">
       <div className="wlv-title-block">
@@ -351,7 +358,7 @@ export function ConfigHead({ title, sub, onClose }: { title: string; sub: string
         </h2>
         <p className="wlv-sheet-sub">{sub}</p>
       </div>
-      <button type="button" className="wlv-icon" onClick={onClose} aria-label="Close the configuration" title="Close">
+      <button type="button" className="wlv-icon" onClick={onClose} aria-label={t.dca.config.closeConfig} title={t.common.close}>
         <Close />
       </button>
     </header>

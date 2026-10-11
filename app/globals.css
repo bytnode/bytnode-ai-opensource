@@ -245,6 +245,16 @@ textarea.field-input {
   font-size: 0.8rem;
 }
 
+.field-link.is-button {
+  margin-top: 4px;
+}
+
+.field-link.is-button a {
+  display: inline-flex;
+  text-decoration: none;
+  color: var(--fg);
+}
+
 .field-error {
   font-size: 0.82rem;
   color: var(--fg);

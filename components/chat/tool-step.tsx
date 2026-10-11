@@ -11,6 +11,7 @@ import { pickAccount } from "@/lib/tools/exchange/accounts";
 import { useSettings } from "@/lib/state/settings";
 import { Check, ChevronDown, Close, Spinner } from "@/components/ui/icons";
 import { Badge, OpenViewCard, ToolCardView } from "@/components/plugins/cards";
+import { useMessages } from "@/lib/i18n/react";
 
 type ToolStep = Extract<Step, { type: "tool" }>;
 
@@ -95,9 +96,10 @@ export function ToolStepView({ step, onAnswer, fileUrl }: Props) {
    way (MCP call from a subscription agent), are read from the output split
    on its headings.
 --------------------------------------------------------------------------- */
-type Row = { index: number; title: string; profession?: string; status: SubagentState["status"] | "pending"; report?: string };
+type Row = { index: number; title: string; profession?: string; status: SubagentState["status"] | "pending"; report?: string; activity?: SubagentState["activity"] };
 
-function workflowRows(step: ToolStep): Row[] {
+/** `task`: the name of a task given no title (« Task 2 »). */
+function workflowRows(step: ToolStep, task: (n: number) => string): Row[] {
   const tasks = Array.isArray(step.args.tasks) ? (step.args.tasks as Array<Record<string, unknown> | null>) : [];
   const events = step.subagents ?? [];
   const settled = step.status === "done" || step.status === "failed";
@@ -109,16 +111,17 @@ function workflowRows(step: ToolStep): Row[] {
     const t = tasks[i];
     const ev = events.find((e) => e.index === i);
     const p = parsed[i];
-    const title = ev?.title ?? p?.title ?? (typeof t?.title === "string" && t.title.trim() ? t.title : `Task ${i + 1}`);
+    const title = ev?.title ?? p?.title ?? (typeof t?.title === "string" && t.title.trim() ? t.title : task(i + 1));
     const profession = ev?.profession ?? p?.profession ?? (typeof t?.profession === "string" ? t.profession : undefined);
     const status = ev?.status ?? (p ? (p.failed ? "failed" : "done") : fallback);
-    rows.push({ index: i, title, profession, status, report: ev?.report ?? p?.body });
+    rows.push({ index: i, title, profession, status, report: ev?.report ?? p?.body, activity: ev?.activity });
   }
   return rows;
 }
 
 function WorkflowView({ step }: { step: ToolStep }) {
-  const rows = workflowRows(step);
+  const m = useMessages();
+  const rows = workflowRows(step, m.chat.tool.task);
   if (rows.length === 0) return null;
   return (
     <ul className="wf">
@@ -129,10 +132,16 @@ function WorkflowView({ step }: { step: ToolStep }) {
   );
 }
 
+/* A row opens on what the sub-agent is doing — its steps, live — and on
+   its report once there is one (user request, 2026-10-08: « une boîte
+   noire »). Folded by default: the user clicks to follow. */
 function WorkflowRow({ row }: { row: Row }) {
+  const m = useMessages();
   const [open, setOpen] = useState(false);
-  const label = isProfessionId(row.profession) ? professionInfo(row.profession).label : null;
-  const canOpen = Boolean(row.report);
+  const label = isProfessionId(row.profession) ? m.onboarding.professions[professionInfo(row.profession).id].label : null;
+  const steps = row.activity ?? [];
+  const canOpen = Boolean(row.report) || steps.length > 0 || row.status === "running";
+  const hint = open ? m.chat.tool.hide : row.status === "running" ? m.chat.tool.follow : row.report ? m.chat.tool.viewReport : m.chat.tool.viewSteps;
   return (
     <li className={`wf-row wf-${row.status}${open ? " is-open" : ""}`}>
       <button type="button" className="wf-head" onClick={() => setOpen(!open)} disabled={!canOpen} aria-expanded={canOpen ? open : undefined}>
@@ -141,11 +150,30 @@ function WorkflowRow({ row }: { row: Row }) {
         </span>
         {label && <span className="wf-prof">{label}</span>}
         <span className="wf-title">{row.title}</span>
-        {canOpen && <span className="wf-hint">{open ? "hide the report" : "view the report"}</span>}
+        {canOpen && <span className="wf-hint">{hint}</span>}
       </button>
-      {open && row.report && (
-        <div className="wf-report md">
-          <Markdown text={row.report} />
+      {open && (
+        <div className="wf-open">
+          {steps.length > 0 ? (
+            <ol className="wf-steps">
+              {steps.map((s) => (
+                <li key={s.id} className={`wf-step is-${s.status}`}>
+                  <span className="ts-status" aria-hidden="true">
+                    {s.status === "running" ? <Spinner /> : s.status === "done" ? <Check /> : <Close />}
+                  </span>
+                  <span className="wf-step-name">{s.name}</span>
+                  {s.summary && <span className="wf-step-what mono">{s.summary}</span>}
+                </li>
+              ))}
+            </ol>
+          ) : row.status === "running" ? (
+            <p className="wf-quiet">{m.chat.tool.thinking}</p>
+          ) : null}
+          {row.report && (
+            <div className="wf-report md">
+              <Markdown text={row.report} />
+            </div>
+          )}
         </div>
       )}
     </li>
@@ -162,6 +190,7 @@ function WorkflowRow({ row }: { row: Row }) {
    time.
 --------------------------------------------------------------------------- */
 function Ask({ step, onAnswer }: { step: ToolStep; onAnswer: (allow: boolean, always?: boolean) => void }) {
+  const m = useMessages();
   const dangereux = isDangerous(step.name, step.args);
   /* An order, a close, a transfer — or any tool whose policy always asks:
      never an "Always". */
@@ -171,22 +200,18 @@ function Ask({ step, onAnswer }: { step: ToolStep; onAnswer: (allow: boolean, al
     <div className={`ts-ask${dangereux || fonds ? " is-danger" : ""}`}>
       <span className="ts-ask-text">
         {(isExchangeTool(step.name) || fonds) && <ExchangeBadge account={typeof step.args.account === "string" ? step.args.account : undefined} />}
-        {fonds
-          ? "This action commits funds. Allow it once, knowingly."
-          : dangereux
-            ? "This command is irreversible. Allow it once, knowingly."
-            : "The agent wants to run this tool."}
+        {fonds ? m.chat.tool.commitsFunds : dangereux ? m.chat.tool.irreversible : m.chat.tool.wantsTool}
       </span>
       <button type="button" className="btn btn-sm btn-primary" onClick={() => onAnswer(true)}>
-        Allow
+        {m.chat.tool.allow}
       </button>
       {rule && (
-        <button type="button" className="btn btn-sm" onClick={() => onAnswer(true, true)} title={`This permission will be remembered for this agent: ${rule}`}>
+        <button type="button" className="btn btn-sm" onClick={() => onAnswer(true, true)} title={m.chat.tool.remembered(rule)}>
           {ruleLabel(rule)}
         </button>
       )}
       <button type="button" className="btn btn-sm btn-ghost" onClick={() => onAnswer(false)}>
-        Deny
+        {m.chat.tool.deny}
       </button>
     </div>
   );
@@ -195,8 +220,9 @@ function Ask({ step, onAnswer }: { step: ToolStep; onAnswer: (allow: boolean, al
 /** LIVE or TESTNET, from the targeted account. An ambiguous account (several
     accounts, none named) counts as LIVE: we err on the cautious side. */
 export function ExchangeBadge({ account }: { account?: string }) {
+  const m = useMessages();
   const { settings } = useSettings();
   const picked = pickAccount(settings.keys.exchanges, account);
   const live = !("account" in picked) || !picked.account.testnet;
-  return <span className={`xch-badge${live ? " is-live" : ""}`}>{live ? "LIVE" : "TESTNET"}</span>;
+  return <span className={`xch-badge${live ? " is-live" : ""}`}>{live ? m.onboarding.agent.live : m.onboarding.agent.testnet}</span>;
 }

@@ -1,4 +1,6 @@
-import { describeFrequency, nextRun, parseFrequency } from "../core/frequency";
+import { currentMessages, dateTag } from "@/lib/i18n/store";
+import { nextRun, parseFrequency } from "../core/frequency";
+import { frequencyLabel, sayFrequency } from "../shared/frequency-words";
 
 /* ---------------------------------------------------------------------------
    The next hours of the scheduler, for the view's timeline: when each
@@ -26,7 +28,7 @@ export function timeline(items: Scheduled[], now: number, hours = 24): { marks: 
     const f = parseFrequency(it.every);
     if ("error" in f) continue;
     if (f.kind === "interval" && f.minutes <= 60) {
-      bands.push({ id: it.id, title: it.title, kind: it.kind, every: describeFrequency(f) });
+      bands.push({ id: it.id, title: it.title, kind: it.kind, every: sayFrequency(f) });
       continue;
     }
     const known = it.nextRun ? Date.parse(it.nextRun) : NaN;
@@ -39,20 +41,18 @@ export function timeline(items: Scheduled[], now: number, hours = 24): { marks: 
   return { marks: marks.sort((a, b) => a.at - b.at), bands };
 }
 
-/** A frequency as the user reads it back: "Daily at 08:00", "Every 4 hours". */
-export function frequencyText(every: string): string {
-  const f = parseFrequency(every);
-  const text = "error" in f ? every : describeFrequency(f);
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
+/** A frequency as the user reads it back, in the interface's language:
+    "Daily at 08:00", "Every 4 hours". */
+export const frequencyText = (every: string): string => frequencyLabel(every);
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const clock = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-/** A moment against now, in the machine's time: "in 12 min", "in 2 h 05",
-    "tomorrow 08:00", "Mon 09:30", "5 min ago", "yesterday 08:00", "12 Sept". */
+/** A moment against now, in the machine's time and the interface's
+    language: "in 12 min", "in 2 h 05", "tomorrow 08:00", "Mon 09:30",
+    "5 min ago", "yesterday 08:00", "12 Sept". */
 export function relative(iso: string | number | undefined, now: number): string {
+  const w = currentMessages().scheduler.relative;
   if (iso === undefined) return "—";
   const at = typeof iso === "number" ? iso : Date.parse(iso);
   if (!Number.isFinite(at)) return "—";
@@ -65,19 +65,20 @@ export function relative(iso: string | number | undefined, now: number): string 
     return x.getTime();
   };
   const days = Math.round((dayOf(at) - dayOf(now)) / 86_400_000);
-  if (minutes < 1) return diff >= 0 ? "now" : "just now";
+  const weekday = () => d.toLocaleDateString(dateTag(), { weekday: "short" });
+  if (minutes < 1) return diff >= 0 ? w.now : w.justNow;
   if (diff >= 0) {
-    if (minutes < 60) return `in ${minutes} min`;
-    if (minutes < 6 * 60) return `in ${Math.floor(minutes / 60)} h ${pad(minutes % 60)}`;
-    if (days === 0) return `today ${clock(d)}`;
-    if (days === 1) return `tomorrow ${clock(d)}`;
-    if (days < 7) return `${DAY_NAMES[d.getDay()]} ${clock(d)}`;
+    if (minutes < 60) return w.inMinutes(minutes);
+    if (minutes < 6 * 60) return w.inHours(Math.floor(minutes / 60), pad(minutes % 60));
+    if (days === 0) return w.todayAt(clock(d));
+    if (days === 1) return w.tomorrowAt(clock(d));
+    if (days < 7) return w.weekdayAt(weekday(), clock(d));
   } else {
-    if (minutes < 60) return `${minutes} min ago`;
-    if (minutes < 6 * 60) return `${Math.floor(minutes / 60)} h ago`;
-    if (days === 0) return `today ${clock(d)}`;
-    if (days === -1) return `yesterday ${clock(d)}`;
-    if (days > -7) return `${DAY_NAMES[d.getDay()]} ${clock(d)}`;
+    if (minutes < 60) return w.minutesAgo(minutes);
+    if (minutes < 6 * 60) return w.hoursAgo(Math.floor(minutes / 60));
+    if (days === 0) return w.todayAt(clock(d));
+    if (days === -1) return w.yesterdayAt(clock(d));
+    if (days > -7) return w.weekdayAt(weekday(), clock(d));
   }
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return d.toLocaleDateString(dateTag(), { day: "numeric", month: "short" });
 }

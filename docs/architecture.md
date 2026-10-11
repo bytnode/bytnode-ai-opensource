@@ -95,7 +95,7 @@ proxy.ts        Next 16 proxy protecting /api
 |---|---|
 | `agentchat:settings` | `Settings` (profile, keys, agents) |
 | `agentchat:conversations` | all conversations |
-| `agentchat:ui` | sidebar width / collapsed |
+| `agentchat:ui` | sidebar collapsed (its width is fixed), Agents section folded |
 
 - `storage.ts` — `Storage` interface, `BrowserStorage` / `MemoryStorage`. `set` returns `false`
   when the quota is exceeded.
@@ -286,7 +286,7 @@ Tool { name, description, parameters /* JSON Schema */, execute(args, ctx) }
 
 | Module | Responsibility |
 |---|---|
-| `agents.ts` | `ACP_AGENTS` catalogue (claude, openai, gemini, copilot, grok), shared with the browser |
+| `agents.ts` | `ACP_AGENTS` catalogue (claude, openai, copilot, grok; Gemini CLI removed 2026-10-09), shared with the browser |
 | `packages.ts` | `AGENT_SOURCES`: npm package, version range, `overrides`, ACP entry and args per agent (pure, tested) |
 | `install.ts` | writes `~/.bytnode-ai/agents/<id>/package.json` and runs the npm CLI bundled with the running Node |
 | `detect.ts` | `findOnPath` (PATHEXT-aware; resolves Windows `.cmd` shims back to the JS entry) |
@@ -294,7 +294,7 @@ Tool { name, description, parameters /* JSON Schema */, execute(args, ctx) }
 | `connection.ts` | JSON-RPC over stdio via `@agentclientprotocol/sdk`; drops stray string-id responses; image blocks gated on `promptCapabilities.image` |
 | `sessions.ts` | one session per conversation (key includes `toolsVersion()`), 15 min idle TTL, `session/load` after restart, `applyConfig` (model / effort / mode through `session/set_config_option`), MCP servers (BytNode HTTP + finance stdio), permission relay, `runSubagent` |
 | `translate.ts` | `session/update` → `WireEvent` (text, thought, plan, tool calls, usage) — pure, tested |
-| `auth.ts` | login state: dedicated CLI for claude/openai/gemini, otherwise a probe session (cached 90 s, 45 s timeout); first read returns `checking: true` and fills in the background |
+| `auth.ts` | login state: dedicated CLI for claude/openai, otherwise a probe session (cached 90 s, 45 s timeout); first read returns `checking: true` and fills in the background |
 | `models.ts` | models/efforts/modes from the agent's session config options (cached) |
 | `prompt.ts` | `buildAcpPrompt` — the BytNode-AI prompt for external agents |
 | `prepare.ts` | workspace preparation (Claude: `.claude/settings.local.json` with a known `permissions.defaultMode`) |
@@ -375,7 +375,10 @@ header and pass.
   - `thread.tsx`, `message.tsx` (steps, thoughts, plans, `CompactionView`), `markdown.tsx`
     (memoised per block), `tool-step.tsx` (tool rows, permission prompt, `ExchangeBadge`,
     `WorkflowView`), `composer.tsx` (`+` menu, slash completion), `model-picker.tsx`,
-    `sidebar.tsx`, `usage-meter.tsx`.
+    `sidebar.tsx`, `agent-page.tsx` (an agent's page, `openAgentPage` in `lib/state/navigation.ts`),
+    `usage-meter.tsx`, `widgets/` (the floating widgets: `widgets-layer.tsx`, `widget-views.tsx`, `widget-field.ts`; catalog in `lib/widgets/catalog.ts`, list in `lib/state/widgets.ts`), `floating-chat.tsx` (the floating agent over the plugins' tabs: a portal
+    rendered by `chat-shell.tsx` with the same `useChat`, the companion drawn by `companion.ts`,
+    its place and size from pure `lib/layout/float-dock.ts`).
 - **`onboarding/`** — `wizard.tsx` (first launch only), `step-profil.tsx`, `step-auth.tsx`
   (exports `KeyField`, `OpenRouterKey`, `BytnodeKey`, `Subscriptions` reused by settings),
   `step-agent.tsx`, `provider-picker.tsx`, `context-files.tsx`, `folder-field.tsx`,

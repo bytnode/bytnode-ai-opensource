@@ -2,7 +2,9 @@
 
 import type { ReactNode } from "react";
 import { compact, type Insight } from "@/lib/plugins/watchlist/insight";
-import { priceText } from "./format";
+import { fixed, priceText } from "./format";
+import { useMessages } from "@/lib/i18n/react";
+import { dateTag } from "@/lib/i18n/store";
 
 /* Under the chart, what else there is to know about the asset — six
    tiles of one block, like the calendar's grid (square inside, round only
@@ -18,40 +20,39 @@ const usd = (v: number | undefined) => (v === undefined ? "—" : `$${compact(v)
 const share = (v: number) => `${Math.round(v * 100)} %`;
 
 export function Insights({ insight, price, message }: Props) {
+  const m = useMessages();
+  const t = m.watchlist.insights;
   if (!insight && message) return <p className="wlv-insight-message">{message}</p>;
   const i = insight ?? {};
   const liqTotal = i.liqLongUsd !== undefined || i.liqShortUsd !== undefined ? (i.liqLongUsd ?? 0) + (i.liqShortUsd ?? 0) : undefined;
-  const at = i.fundingAt ? new Date(i.fundingAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : null;
+  const at = i.fundingAt ? new Date(i.fundingAt).toLocaleTimeString(dateTag(), { hour: "2-digit", minute: "2-digit" }) : null;
   return (
     <div className="wlv-insights" aria-busy={!insight}>
-      <Tile label="24 h range" value={i.range ? `${priceText(i.range.low)} – ${priceText(i.range.high)}` : "—"}>
+      <Tile label={t.range} value={i.range ? `${priceText(i.range.low)} – ${priceText(i.range.high)}` : "—"}>
         {i.range && price !== undefined && <Range low={i.range.low} high={i.range.high} at={price} />}
       </Tile>
-      <Tile label="24 h volume" value={usd(i.volumeUsd)}>
-        {i.buyShare !== undefined && <Split left={i.buyShare} leftLabel={`${share(i.buyShare)} buyers`} rightLabel="sellers" />}
+      <Tile label={t.volume} value={usd(i.volumeUsd)}>
+        {i.buyShare !== undefined && <Split left={i.buyShare} leftLabel={t.buyers(share(i.buyShare))} rightLabel={t.sellers} />}
       </Tile>
-      <Tile label="Market cap" value={usd(i.marketCap)}>
+      <Tile label={t.marketCap} value={usd(i.marketCap)}>
         {(i.fdv !== undefined || i.supplyShare !== undefined) && (
           <span className="wlv-insight-sub">
-            {i.fdv !== undefined && `FDV ${usd(i.fdv)}`}
+            {i.fdv !== undefined && t.fdv(usd(i.fdv))}
             {i.fdv !== undefined && i.supplyShare !== undefined && " · "}
-            {i.supplyShare !== undefined && `${share(i.supplyShare)} in circulation`}
+            {i.supplyShare !== undefined && t.circulating(share(i.supplyShare))}
           </span>
         )}
       </Tile>
-      <Tile label="Funding" value={i.funding === undefined ? "—" : `${i.funding >= 0 ? "+" : "−"}${Math.abs(i.funding).toFixed(4)} %`} tone={i.funding === undefined || i.funding === 0 ? undefined : i.funding > 0 ? "is-up" : "is-down"}>
+      <Tile label={t.funding} value={i.funding === undefined ? "—" : `${i.funding >= 0 ? "+" : "−"}${fixed(Math.abs(i.funding), 4)} %`} tone={i.funding === undefined || i.funding === 0 ? undefined : i.funding > 0 ? "is-up" : "is-down"}>
         {i.funding !== undefined && (
-          <span className="wlv-insight-sub">
-            per 8 h{i.fundingApr !== undefined && ` · APR ${i.fundingApr.toFixed(1)} %`}
-            {at && ` · next ${at}`}
-          </span>
+          <span className="wlv-insight-sub">{t.fundingSub(i.fundingApr !== undefined ? `${fixed(i.fundingApr, 1)} %` : null, at)}</span>
         )}
       </Tile>
-      <Tile label="Open interest" value={usd(i.oiUsd)}>
-        {i.longShare !== undefined && <Split left={i.longShare} leftLabel={`${share(i.longShare)} long`} rightLabel="short" />}
+      <Tile label={t.openInterest} value={usd(i.oiUsd)}>
+        {i.longShare !== undefined && <Split left={i.longShare} leftLabel={t.long(share(i.longShare))} rightLabel={t.short} />}
       </Tile>
-      <Tile label="24 h liquidations" value={usd(liqTotal)}>
-        {liqTotal !== undefined && liqTotal > 0 && <Split left={(i.liqLongUsd ?? 0) / liqTotal} leftLabel={`Longs ${usd(i.liqLongUsd)}`} rightLabel={`Shorts ${usd(i.liqShortUsd)}`} invert />}
+      <Tile label={t.liquidations} value={usd(liqTotal)}>
+        {liqTotal !== undefined && liqTotal > 0 && <Split left={(i.liqLongUsd ?? 0) / liqTotal} leftLabel={t.longs(usd(i.liqLongUsd))} rightLabel={t.shorts(usd(i.liqShortUsd))} invert />}
       </Tile>
     </div>
   );
@@ -69,9 +70,10 @@ export function Tile({ label, value, tone, children }: { label: string; value: s
 
 /** Where the price sits in the day's range. */
 function Range({ low, high, at }: { low: number; high: number; at: number }) {
+  const m = useMessages();
   const f = high > low ? Math.max(0, Math.min(1, (at - low) / (high - low))) : 0.5;
   return (
-    <span className="wlv-range" aria-label={`Price at ${Math.round(f * 100)} % of the day's range`}>
+    <span className="wlv-range" aria-label={m.watchlist.insights.rangeAt(share(f))}>
       <i style={{ left: `${f * 100}%` }} />
     </span>
   );

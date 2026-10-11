@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import type { Settings } from "@/lib/domain/types";
 import { WATCHLIST } from "@/lib/plugins/alerts/alerts";
-import { describeCondition, type CompareOp } from "@/lib/plugins/alerts/conditions";
+import type { CompareOp } from "@/lib/plugins/alerts/conditions";
+import { conditionWords } from "@/lib/plugins/alerts/words";
+import { useMessages } from "@/lib/i18n/react";
+import type { Messages } from "@/lib/i18n/messages/en";
 import { BLANK_DRAFT, buildCondition, compares, crosses, defaultAgainst, defaultMetric, draftCondition, type Draft, type PositionField, type Subject } from "@/lib/plugins/alerts/draft";
 import { metricUnit, timeframeOf, type Metric, type MetricKind } from "@/lib/plugins/alerts/metrics";
 import { callPlugin } from "@/lib/plugins/client";
@@ -12,7 +15,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { Select } from "@/components/ui/select";
 import { Close } from "@/components/ui/icons";
 import { act } from "../use-plugin-data";
-import { Chips, INDICATORS, MARKET, MetricParams, MetricPicker } from "./metric-picker";
+import { Chips, MARKET_KINDS, MetricParams, MetricPicker, indicators, market } from "./metric-picker";
 import { PairField } from "./pair-field";
 
 /* ---------------------------------------------------------------------------
@@ -29,35 +32,40 @@ import { PairField } from "./pair-field";
    the ✕ closes it; what was set is lost.
 --------------------------------------------------------------------------- */
 
-const OPS: Array<{ value: CompareOp; label: string }> = [
-  { value: ">", label: "Above" },
-  { value: "<", label: "Below" },
-  { value: "crosses_above", label: "Crosses above" },
-  { value: "crosses_below", label: "Crosses below" },
+const ops = (t: Messages): Array<{ value: CompareOp; label: string }> => [
+  { value: ">", label: t.alerts.composer.above },
+  { value: "<", label: t.alerts.composer.below },
+  { value: "crosses_above", label: t.alerts.composer.crossesAbove },
+  { value: "crosses_below", label: t.alerts.composer.crossesBelow },
 ];
 
-const POSITION: Array<{ kind: PositionField; label: string }> = [
+const position = (t: Messages): Array<{ kind: PositionField; label: string }> => [
   { kind: "pnl", label: "PnL" },
   { kind: "pnlPct", label: "PnL %" },
-  { kind: "liq", label: "Liquidation" },
-  { kind: "closed", label: "Closed" },
+  { kind: "liq", label: t.alerts.composer.liquidation },
+  { kind: "closed", label: t.alerts.composer.closed },
 ];
 
 type Group = "market" | "indicator" | "position" | "event";
 
-const groupOf = (s: Subject): Group => (s.kind === "metric" ? (MARKET.some((m) => m.kind === s.metric.kind) ? "market" : "indicator") : s.kind);
+const groupOf = (s: Subject): Group => (s.kind === "metric" ? (MARKET_KINDS.includes(s.metric.kind) ? "market" : "indicator") : s.kind);
 
 const PREVIEW_DELAY = 500;
 
 type Preview = { holds: boolean; observed: string; value?: number } | { error: string };
 
-function hint(d: Draft): string {
-  if (d.subject.kind === "event") return "Fires when a notable event (importance 2 or more) concerning the asset comes within that window — from the Calendar.";
-  if (d.subject.kind === "position" && d.subject.field === "closed") return "Fires when the position, once open, is closed.";
-  if (d.subject.kind === "position" && d.subject.field === "liq") return "The distance from the mark price to the liquidation price, in %.";
-  if (d.op === "crosses_above" || d.op === "crosses_below") return "Fires only when it crosses after you set the alert.";
-  return "Fires as soon as it is so — right away if it already is.";
+function hint(t: Messages, d: Draft): string {
+  const w = t.alerts.composer;
+  if (d.subject.kind === "event") return w.hintEvent;
+  if (d.subject.kind === "position" && d.subject.field === "closed") return w.hintClosed;
+  if (d.subject.kind === "position" && d.subject.field === "liq") return w.hintLiq;
+  if (d.op === "crosses_above" || d.op === "crosses_below") return w.hintCross;
+  return w.hintNow;
 }
+
+/** The draft's error in the user's words: the one the form can show
+    ("Enter a number."), else the plugin's own. */
+const errorWords = (t: Messages, error: string) => (error === "Enter a number." ? t.alerts.composer.enterNumber : error);
 
 const unitOf = (d: Draft): string => {
   if (d.subject.kind === "position") return d.subject.field === "pnl" ? "USDT" : "%";
@@ -69,11 +77,16 @@ const unitOf = (d: Draft): string => {
 type Props = { settings: Settings; pairs: Listed[] | null; calendar: boolean; onDone: () => void; onClose: () => void };
 
 export function Composer({ settings, pairs, calendar, onDone, onClose }: Props) {
+  const t = useMessages();
+  const w = t.alerts.composer;
   const accounts = settings.keys.exchanges;
   const [target, setTarget] = useState("BTC/USDT");
   const [draft, setDraft] = useState<Draft>(BLANK_DRAFT);
   const [once, setOnce] = useState(true);
   const [note, setNote] = useState("");
+  /* Also to one of the user's Telegram bots (user request, 2026-10-08). */
+  const bots = settings.keys.telegram;
+  const [telegramBot, setTelegramBot] = useState("");
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -123,10 +136,10 @@ export function Composer({ settings, pairs, calendar, onDone, onClose }: Props) 
     change({ subject, op, against });
   };
   const groups: Array<{ value: Group; label: string }> = [
-    { value: "market", label: "Market" },
-    { value: "indicator", label: "Indicator" },
-    ...(accounts.length ? [{ value: "position" as const, label: "Position" }] : []),
-    ...(calendar ? [{ value: "event" as const, label: "Event" }] : []),
+    { value: "market", label: t.alerts.metric.market },
+    { value: "indicator", label: t.alerts.metric.indicator },
+    ...(accounts.length ? [{ value: "position" as const, label: w.position }] : []),
+    ...(calendar ? [{ value: "event" as const, label: w.event }] : []),
   ];
   const group = groupOf(s);
   const pickGroup = (g: Group) => {
@@ -139,16 +152,19 @@ export function Composer({ settings, pairs, calendar, onDone, onClose }: Props) 
   const pickKind = (kind: MetricKind) => watch({ kind: "metric", metric: defaultMetric(kind, (s.kind === "metric" && timeframeOf(s.metric)) || "1h") });
 
   const create = async () => {
-    if (typeof condition !== "string") return setProblem(condition.error);
+    /* What is missing, said when Create is pressed. */
+    if (!target.trim()) return setProblem(w.choosePair);
+    if (typeof condition !== "string") return setProblem(errorWords(t, condition.error));
+    if (onPosition && !accountId) return setProblem(w.chooseAccount);
     setBusy(true);
-    const p = await act("alerts", "create", { target, condition, once, note, ...(onPosition ? { accountId } : {}) }, settings);
+    const p = await act("alerts", "create", { target, condition, once, note, ...(onPosition ? { accountId } : {}), ...(telegramBot ? { telegramBot } : {}) }, settings);
     setBusy(false);
     setProblem(p);
     if (!p) onDone();
   };
 
-  const sentence = "error" in parsed ? null : describeCondition(parsed);
-  const where = target === WATCHLIST ? "each asset of my watchlist" : target;
+  const sentence = "error" in parsed ? null : conditionWords(parsed);
+  const where = target === WATCHLIST ? w.everyAsset : target;
 
   return (
     <div
@@ -158,41 +174,41 @@ export function Composer({ settings, pairs, calendar, onDone, onClose }: Props) 
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="alv-composer" role="dialog" aria-modal="true" aria-label="New alert">
+      <div className="alv-composer" role="dialog" aria-modal="true" aria-label={w.label}>
         <header className="alv-composer-head">
-          <h2 className="alv-h2">New alert</h2>
+          <h2 className="alv-h2">{w.label}</h2>
           <span className="alv-spacer" />
-          <button type="button" className="alv-icon" onClick={onClose} aria-label="Close" title="Close">
+          <button type="button" className="alv-icon" onClick={onClose} aria-label={t.common.close} title={t.common.close}>
             <Close />
           </button>
         </header>
 
         <div className="alv-steps">
           <section className="alv-step">
-            <h3 className="alv-step-label">Asset</h3>
+            <h3 className="alv-step-label">{w.asset}</h3>
             <PairField value={target} pairs={pairs} onChange={setTarget} />
           </section>
 
           <section className="alv-step">
-            <h3 className="alv-step-label">Watch</h3>
-            {groups.length > 1 && <Segmented label="What to watch" value={group} options={groups} onChange={pickGroup} />}
-            {group === "market" && <Chips label="Market" options={MARKET} value={s.kind === "metric" ? s.metric.kind : null} onChange={pickKind} />}
-            {group === "indicator" && <Chips label="Indicators" options={INDICATORS} value={s.kind === "metric" ? s.metric.kind : null} onChange={pickKind} />}
-            {group === "position" && <Chips label="Position" options={POSITION} value={s.kind === "position" ? s.field : null} onChange={(field) => watch({ kind: "position", field })} />}
+            <h3 className="alv-step-label">{w.watch}</h3>
+            {groups.length > 1 && <Segmented label={w.whatToWatch} value={group} options={groups} onChange={pickGroup} />}
+            {group === "market" && <Chips label={t.alerts.metric.market} options={market(t)} value={s.kind === "metric" ? s.metric.kind : null} onChange={pickKind} />}
+            {group === "indicator" && <Chips label={t.alerts.metric.indicators} options={indicators(t)} value={s.kind === "metric" ? s.metric.kind : null} onChange={pickKind} />}
+            {group === "position" && <Chips label={w.position} options={position(t)} value={s.kind === "position" ? s.field : null} onChange={(field) => watch({ kind: "position", field })} />}
             {s.kind === "metric" && <MetricParams metric={s.metric} onChange={(metric: Metric) => change({ subject: { kind: "metric", metric } })} />}
             {s.kind === "position" && (
               <div className="alv-params">
                 <label className="alv-num">
-                  <span>Account</span>
-                  <Select id="alv-account" label="Exchange account" value={accountId} options={accounts.map((a) => ({ value: a.id, label: a.label, meta: a.testnet ? "testnet" : undefined }))} onChange={setAccountId} />
+                  <span>{w.account}</span>
+                  <Select id="alv-account" label={w.exchangeAccount} value={accountId} options={accounts.map((a) => ({ value: a.id, label: a.label, meta: a.testnet ? w.testnet : undefined }))} onChange={setAccountId} />
                 </label>
               </div>
             )}
             {s.kind === "event" && (
               <div className="alv-params">
                 <label className="alv-num">
-                  <span>A notable event within</span>
-                  <Segmented label="Within" value={String(s.hours)} options={["6", "12", "24", "48", "72"].map((h) => ({ value: h, label: `${h} h` }))} onChange={(h) => change({ subject: { kind: "event", hours: Number(h) } })} />
+                  <span>{w.eventWithin}</span>
+                  <Segmented label={w.within} value={String(s.hours)} options={["6", "12", "24", "48", "72"].map((h) => ({ value: h, label: w.hours(h) }))} onChange={(h) => change({ subject: { kind: "event", hours: Number(h) } })} />
                 </label>
               </div>
             )}
@@ -200,15 +216,15 @@ export function Composer({ settings, pairs, calendar, onDone, onClose }: Props) 
 
           {compares(s) && (
             <section className="alv-step">
-              <h3 className="alv-step-label">Condition</h3>
-              <Segmented label="Condition" value={draft.op} options={crosses(s) ? OPS : OPS.slice(0, 2)} onChange={(op) => change({ op })} />
+              <h3 className="alv-step-label">{w.condition}</h3>
+              <Segmented label={w.condition} value={draft.op} options={crosses(s) ? ops(t) : ops(t).slice(0, 2)} onChange={(op) => change({ op })} />
               {s.kind === "metric" && (
                 <Segmented
-                  label="Compared with"
+                  label={t.alerts.metric.comparedWith}
                   value={draft.against.kind}
                   options={[
-                    { value: "value", label: "A value" },
-                    { value: "metric", label: "Another indicator" },
+                    { value: "value", label: w.aValue },
+                    { value: "metric", label: w.anotherIndicator },
                   ]}
                   onChange={(k) => change({ against: k === "value" ? defaultAgainst(s.metric) : { kind: "metric", metric: s.metric.kind === "price" ? defaultMetric("ema", "4h") : { kind: "price" } } })}
                 />
@@ -218,8 +234,8 @@ export function Composer({ settings, pairs, calendar, onDone, onClose }: Props) 
                   <input
                     className="alv-input"
                     inputMode="decimal"
-                    aria-label="Level"
-                    placeholder={current !== undefined ? `Now ${current}` : "Level"}
+                    aria-label={w.level}
+                    placeholder={current !== undefined ? w.levelNow(String(current)) : w.level}
                     value={draft.against.value}
                     onChange={(e) => change({ against: { kind: "value", value: e.target.value } })}
                   />
@@ -228,22 +244,30 @@ export function Composer({ settings, pairs, calendar, onDone, onClose }: Props) 
               ) : (
                 <MetricPicker metric={draft.against.metric} onChange={(metric) => change({ against: { kind: "metric", metric } })} />
               )}
-              <p className="alv-hint">{hint(draft)}</p>
+              <p className="alv-hint">{hint(t, draft)}</p>
             </section>
           )}
 
           <section className="alv-step">
-            <h3 className="alv-step-label">Notify</h3>
+            <h3 className="alv-step-label">{w.notify}</h3>
             <Segmented
-              label="How often"
+              label={w.howOften}
               value={once ? "once" : "every"}
               options={[
-                { value: "once", label: "Once" },
-                { value: "every", label: "Every time" },
+                { value: "once", label: t.alerts.row.once },
+                { value: "every", label: t.alerts.row.everyTime },
               ]}
               onChange={(v) => setOnce(v === "once")}
             />
-            <input className="alv-input" aria-label="Note" placeholder="A note, shown with the notification — optional" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} />
+            <input className="alv-input" aria-label={w.note} placeholder={w.notePlaceholder} maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} />
+            {bots.length ? (
+              <div className="alv-telegram">
+                <span className="alv-muted">{w.alsoTelegram}</span>
+                <Select id="alv-telegram" label={w.telegramBot} value={telegramBot} options={[{ value: "", label: w.dontSend }, ...bots.map((b) => ({ value: b.id, label: b.name }))]} onChange={setTelegramBot} />
+              </div>
+            ) : (
+              <span className="alv-muted">{w.noBot}</span>
+            )}
           </section>
         </div>
 
@@ -254,18 +278,18 @@ export function Composer({ settings, pairs, calendar, onDone, onClose }: Props) 
                 {where} · <b>{sentence}</b>
               </p>
             ) : (
-              <p className="alv-sentence is-muted">{typeof condition === "string" ? "" : condition.error === "Enter a number." ? "Type the level to finish the alert." : condition.error}</p>
+              <p className="alv-sentence is-muted">{typeof condition === "string" ? "" : condition.error === "Enter a number." ? w.typeLevel : condition.error}</p>
             )}
             <p className="alv-now">
-              {!previewable ? (onPosition ? "Read on the position at the first check." : " ") : !now ? "Reading…" : "error" in now ? <span className="is-bad">{now.error}</span> : <>Now: {now.observed}{text && now.holds && (draft.op === ">" || draft.op === "<") ? " — true already: it fires at the first check" : ""}</>}
+              {!previewable ? (onPosition ? w.readOnPosition : " ") : !now ? w.reading : "error" in now ? <span className="is-bad">{now.error}</span> : <>{w.now(now.observed)}{text && now.holds && (draft.op === ">" || draft.op === "<") ? w.trueAlready : ""}</>}
             </p>
             {problem && <p className="alv-problem">{problem}</p>}
           </div>
           <button type="button" className="alv-btn" onClick={onClose}>
-            Cancel
+            {t.common.cancel}
           </button>
-          <button type="button" className="alv-btn is-primary" disabled={busy || typeof condition !== "string" || !target.trim() || (onPosition && !accountId)} onClick={() => void create()}>
-            Create alert
+          <button type="button" className="alv-btn is-primary" disabled={busy} onClick={() => void create()}>
+            {w.create}
           </button>
         </footer>
       </div>

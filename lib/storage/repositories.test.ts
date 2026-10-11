@@ -140,6 +140,23 @@ describe("SettingsRepository", () => {
     });
     expect(new SettingsRepository(new MemoryStorage()).load().plugins).toEqual({});
   });
+  test("an agent on Gemini CLI (removed) moves to Gemini through OpenRouter, keeping the rest", () => {
+    const repo = new SettingsRepository(new MemoryStorage());
+    const old = { id: "g", name: "G", profession: "standard" as const, providerId: "acp:gemini", defaultModelId: "acp:gemini/auto", defaultEffort: "high", workspace: "C:/proj", permissionMode: "ask" as const, scope: "workspace" as const, allowRules: ["Write"], exchangeAccountIds: [], contextText: "ctx", contextFiles: [], createdAt: 3 };
+    repo.save({ ...defaultSettings(), agents: [old], activeAgentId: "g" });
+    expect(repo.load().agents).toEqual([{ ...old, providerId: "google", defaultModelId: null, defaultEffort: null }]);
+  });
+
+  test("the language: English when absent or unknown, a known one kept", () => {
+    const store = new MemoryStorage();
+    store.set("agentchat:settings", JSON.stringify({ version: 4 }));
+    expect(new SettingsRepository(store).load().language).toBe("en");
+    store.set("agentchat:settings", JSON.stringify({ version: 4, language: "zh" }));
+    expect(new SettingsRepository(store).load().language).toBe("zh");
+    store.set("agentchat:settings", JSON.stringify({ version: 4, language: "it" }));
+    expect(new SettingsRepository(store).load().language).toBe("en");
+  });
+
   test("drops an active id that names no agent", () => {
     const store = new MemoryStorage();
     store.set("agentchat:settings", JSON.stringify({ version: 2, agents: [], activeAgentId: "ghost" }));

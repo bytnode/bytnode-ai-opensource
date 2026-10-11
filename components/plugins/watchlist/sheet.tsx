@@ -14,6 +14,8 @@ import type { Technicals } from "@/lib/plugins/watchlist/technicals";
 import type { CalendarEvent } from "@/lib/plugins/calendar/events";
 import type { Insight } from "@/lib/plugins/watchlist/insight";
 import { PriceChart, type ChartMode } from "./price-chart";
+import { useMessages } from "@/lib/i18n/react";
+import { dateTag } from "@/lib/i18n/store";
 
 /* The right sheet, top to bottom: the chosen asset's name in BytNode's
    ink and its note (edited in place); one row of figures — the price,
@@ -51,15 +53,18 @@ type Props = {
   onNote: (symbol: string, note: string) => void;
 };
 
-const MODES: Array<{ value: ChartMode; label: string }> = [
-  { value: "line", label: "Line" },
-  { value: "candles", label: "Candles" },
-];
-
 export function Sheet({ rows, asset, live, win, interval, candles, chartMessage, insight, insightMessage, technicals, technicalsMessage, coming, loading, problem, onWindow, onInterval, onPick, onMenu, onReload, onRemove, onNote }: Props) {
+  const m = useMessages();
+  const t = m.watchlist.sheet;
   const [mode, setMode] = useState<ChartMode>("line");
+  const modes: Array<{ value: ChartMode; label: string }> = [
+    { value: "line", label: t.line },
+    { value: "candles", label: t.candles },
+  ];
   const at = asset?.quote?.at;
-  const status = loading ? "Loading…" : at ? `${live ? "Live" : "Updated"} ${new Date(at).toLocaleTimeString("en-GB")}` : rows ? "No price yet" : "Loading…";
+  const time = at ? new Date(at).toLocaleTimeString(dateTag()) : "";
+  const status = loading ? m.common.loading : at ? (live ? t.live(time) : t.updated(time)) : rows ? t.noPriceYet : m.common.loading;
+  const intervalLabel = INTERVALS.find((i) => i.value === interval)?.label ?? interval;
 
   return (
     <main className="wlv-pane wlv-sheet">
@@ -69,17 +74,17 @@ export function Sheet({ rows, asset, live, win, interval, candles, chartMessage,
         ) : (
           <div className="wlv-title-block">
             <h2 className="wlv-sheet-title">
-              <span className="pv-ink">{rows ? "Nothing followed yet" : "Watchlist"}</span>
+              <span className="pv-ink">{rows ? t.emptyTitle : m.watchlist.title}</span>
             </h2>
-            <p className="wlv-sheet-sub">{rows ? "Add an asset on the left, or ask an agent: “add BTC and ETH to my watchlist”." : "Reading your assets…"}</p>
+            <p className="wlv-sheet-sub">{rows ? t.emptyHint : t.reading}</p>
           </div>
         )}
         <span className={`wlv-status${live ? " is-live" : ""}`}>{status}</span>
-        <button type="button" className="wlv-icon" onClick={onReload} aria-label="Read the prices again" title="Read the prices again">
+        <button type="button" className="wlv-icon" onClick={onReload} aria-label={t.readAgain} title={t.readAgain}>
           <Refresh />
         </button>
         {asset && (
-          <button type="button" className="wlv-icon" onClick={() => onRemove(asset.symbol)} aria-label={`Remove ${asset.symbol}`} title="Remove from the watchlist">
+          <button type="button" className="wlv-icon" onClick={() => onRemove(asset.symbol)} aria-label={t.removeLabel(asset.symbol)} title={t.removeTitle}>
             <Trash />
           </button>
         )}
@@ -88,36 +93,36 @@ export function Sheet({ rows, asset, live, win, interval, candles, chartMessage,
       <div className="wlv-body">
         {asset && <Figures asset={asset} win={win} onWindow={onWindow} />}
         {asset && (
-          <section className="wlv-chart-block" aria-label={`${asset.symbol} chart`}>
+          <section className="wlv-chart-block" aria-label={t.chartLabel(asset.symbol)}>
             <div className="wlv-chart-bar">
-              <Segmented label="Interval" value={interval} options={INTERVALS} onChange={onInterval} />
-              <Segmented label="Chart style" value={mode} options={MODES} onChange={setMode} />
+              <Segmented label={t.interval} value={interval} options={INTERVALS} onChange={onInterval} />
+              <Segmented label={t.chartStyle} value={mode} options={modes} onChange={setMode} />
             </div>
             <PriceChart candles={candles} interval={interval} mode={mode} message={chartMessage} />
           </section>
         )}
         {asset && (
           <>
-            <Section title="Key figures">
+            <Section title={t.keyFigures}>
               <Insights insight={insight} price={asset.quote?.price} message={insightMessage} />
             </Section>
-            <Section title="Signals" sub={`on ${INTERVALS.find((i) => i.value === interval)?.label ?? interval} candles`}>
-              <Signals technicals={technicals} price={asset.quote?.price} interval={INTERVALS.find((i) => i.value === interval)?.label ?? interval} message={technicalsMessage} />
+            <Section title={t.signals} sub={t.onCandles(intervalLabel)}>
+              <Signals technicals={technicals} price={asset.quote?.price} interval={intervalLabel} message={technicalsMessage} />
             </Section>
             {insight && (insight.magnetUp || insight.magnetDown || insight.bookImbalance !== undefined || insight.flowBuyShare !== undefined) && (
-              <Section title="Pressure" sub="where the price may be pulled">
+              <Section title={t.pressure} sub={t.pressureSub}>
                 <Pressure insight={insight} price={asset.quote?.price} />
               </Section>
             )}
             {coming && (
-              <Section title="Coming up" sub="from the calendar">
+              <Section title={t.comingUp} sub={t.fromCalendar}>
                 <ComingUp events={coming} base={pairOf(asset.symbol)[0]} />
               </Section>
             )}
           </>
         )}
         {rows && rows.length > 1 && (
-          <Section title="All assets" sub={`${WINDOWS.find((w) => w.value === win)?.label} move`}>
+          <Section title={t.allAssets} sub={t.windowMove(m.watchlist.windows[win])}>
             <HeatMap rows={rows} win={win} selected={asset?.symbol ?? null} onPick={onPick} onMenu={onMenu} />
           </Section>
         )}
@@ -142,6 +147,8 @@ export function Section({ title, sub, children }: { title: string; sub?: string;
 /** The asset's name, and its note — a click edits it, Enter or leaving
     the field keeps it, Escape leaves it as it was. */
 function AssetTitle({ asset, onNote }: { asset: Row; onNote: (symbol: string, note: string) => void }) {
+  const m = useMessages();
+  const t = m.watchlist.sheet;
   const [base, quote] = pairOf(asset.symbol);
   const [draft, setDraft] = useState<string | null>(null);
   const keep = () => {
@@ -155,16 +162,16 @@ function AssetTitle({ asset, onNote }: { asset: Row; onNote: (symbol: string, no
         {quote && <span className="wlv-pair">/ {quote}</span>}
       </h2>
       {draft === null ? (
-        <button type="button" className={`wlv-note${asset.note ? "" : " is-empty"}`} onClick={() => setDraft(asset.note ?? "")} title="Edit the note">
-          <span>{asset.note || "Add a note"}</span>
+        <button type="button" className={`wlv-note${asset.note ? "" : " is-empty"}`} onClick={() => setDraft(asset.note ?? "")} title={t.editNote}>
+          <span>{asset.note || t.addNote}</span>
           <Pencil />
         </button>
       ) : (
         <input
           className="wlv-input wlv-note-edit"
-          aria-label={`Note on ${asset.symbol}`}
+          aria-label={t.noteLabel(asset.symbol)}
           value={draft}
-          placeholder="Why you follow it"
+          placeholder={t.notePlaceholder}
           autoFocus
           onChange={(e) => setDraft(e.target.value)}
           onBlur={keep}
@@ -182,10 +189,11 @@ function AssetTitle({ asset, onNote }: { asset: Row; onNote: (symbol: string, no
     chosen window and where it comes from — then the four windows as one
     row of small tiles, the chosen one lit; a tile chooses its window. */
 function Figures({ asset, win, onWindow }: { asset: Row; win: Window; onWindow: (w: Window) => void }) {
+  const m = useMessages();
   const q = asset.quote;
   const [, quote] = pairOf(asset.symbol);
   const change = changeOf(q, win);
-  const label = WINDOWS.find((w) => w.value === win)?.label ?? win;
+  const label = m.watchlist.windows[win];
   return (
     <div className="wlv-figures">
       <div className="wlv-hero">
@@ -199,15 +207,15 @@ function Figures({ asset, win, onWindow }: { asset: Row; win: Window; onWindow: 
             <small>{label}</small>
           </span>
         </p>
-        <p className="wlv-source">{q ? `${sourceName(q.source)} · ${timeOf(q.at)} · following since ${dateOf(asset.addedAt)}` : (asset.error ?? "No price for this pair")}</p>
+        <p className="wlv-source">{q ? m.watchlist.sheet.source(sourceName(q.source), timeOf(q.at), dateOf(asset.addedAt)) : (asset.error ?? m.watchlist.sheet.noPairPrice)}</p>
       </div>
-      <div className="wlv-ladder" role="radiogroup" aria-label="Change over">
+      <div className="wlv-ladder" role="radiogroup" aria-label={m.watchlist.changeOver}>
         {WINDOWS.map((w) => {
           const c = changeOf(q, w.value);
           const heat = heatOf(c, w.value);
           return (
             <button key={w.value} type="button" role="radio" aria-checked={w.value === win} className={`wlv-rung ${moveOf(c)}${w.value === win ? " is-on" : ""}`} onClick={() => onWindow(w.value)}>
-              <span className="wlv-rung-label">{w.label}</span>
+              <span className="wlv-rung-label">{m.watchlist.windows[w.value]}</span>
               <span className="wlv-rung-value">{pct(c)}</span>
               {/* The move on its window's scale, from the middle. */}
               <span className="wlv-rung-bar" aria-hidden>

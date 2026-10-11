@@ -5,6 +5,8 @@ import type { Interval } from "@/lib/plugins/shared/candle";
 import { defaultMetric } from "@/lib/plugins/alerts/draft";
 import { TIMEFRAMES, WINDOWS, timeframeOf, type Metric, type MetricKind } from "@/lib/plugins/alerts/metrics";
 import { Segmented } from "@/components/ui/segmented";
+import { useMessages } from "@/lib/i18n/react";
+import type { Messages } from "@/lib/i18n/messages/en";
 
 /* ---------------------------------------------------------------------------
    A metric and its parameters, as chips and a few small fields: the kind
@@ -14,21 +16,25 @@ import { Segmented } from "@/components/ui/segmented";
    is compared with.
 --------------------------------------------------------------------------- */
 
-export const MARKET: Array<{ kind: MetricKind; label: string }> = [
-  { kind: "price", label: "Price" },
-  { kind: "change", label: "Change" },
-  { kind: "funding", label: "Funding" },
+/** The market's figures, then the indicators — with their names in the
+    interface's language (the acronyms stay as traders write them). */
+export const MARKET_KINDS: MetricKind[] = ["price", "change", "funding"];
+
+export const market = (t: Messages): Array<{ kind: MetricKind; label: string }> => [
+  { kind: "price", label: t.alerts.metric.price },
+  { kind: "change", label: t.alerts.metric.change },
+  { kind: "funding", label: t.alerts.metric.funding },
 ];
 
-export const INDICATORS: Array<{ kind: MetricKind; label: string }> = [
+export const indicators = (t: Messages): Array<{ kind: MetricKind; label: string }> => [
   { kind: "rsi", label: "RSI" },
   { kind: "ema", label: "EMA" },
   { kind: "sma", label: "SMA" },
   { kind: "macd", label: "MACD" },
-  { kind: "bb", label: "Bollinger" },
-  { kind: "stoch", label: "Stochastic" },
+  { kind: "bb", label: t.alerts.metric.bollinger },
+  { kind: "stoch", label: t.alerts.metric.stochastic },
   { kind: "atr", label: "ATR" },
-  { kind: "volume", label: "Volume" },
+  { kind: "volume", label: t.alerts.metric.volume },
 ];
 
 const TF_OPTIONS = TIMEFRAMES.map((t) => ({ value: t, label: t.replace("h", "H").replace("d", "D") }));
@@ -75,37 +81,38 @@ function Num({ label, value, min, max, onChange }: { label: string; value: numbe
 }
 
 export function MetricParams({ metric, onChange }: { metric: Metric; onChange: (m: Metric) => void }) {
+  const w = useMessages().alerts.metric;
   const tf = timeframeOf(metric);
   return (
     <div className="alv-params">
-      {metric.kind === "change" && <Segmented label="Over" value={metric.window} options={WINDOWS.map((w) => ({ value: w, label: w }))} onChange={(window) => onChange({ ...metric, window })} />}
+      {metric.kind === "change" && <Segmented label={w.over} value={metric.window} options={WINDOWS.map((w) => ({ value: w, label: w }))} onChange={(window) => onChange({ ...metric, window })} />}
       {(metric.kind === "rsi" || metric.kind === "ema" || metric.kind === "sma" || metric.kind === "atr" || metric.kind === "bb" || metric.kind === "stoch") && (
-        <Num label="Length" value={metric.length} min={2} max={500} onChange={(length) => onChange({ ...metric, length })} />
+        <Num label={w.length} value={metric.length} min={2} max={500} onChange={(length) => onChange({ ...metric, length })} />
       )}
       {metric.kind === "macd" && (
         <>
-          <Num label="Fast" value={metric.fast} min={2} max={200} onChange={(fast) => onChange({ ...metric, fast })} />
-          <Num label="Slow" value={metric.slow} min={3} max={400} onChange={(slow) => onChange({ ...metric, slow })} />
-          <Num label="Signal" value={metric.signal} min={2} max={100} onChange={(signal) => onChange({ ...metric, signal })} />
-          <Segmented label="Line" value={metric.line} options={[{ value: "macd", label: "MACD" }, { value: "signal", label: "Signal" }, { value: "hist", label: "Histogram" }]} onChange={(line) => onChange({ ...metric, line })} />
+          <Num label={w.fast} value={metric.fast} min={2} max={200} onChange={(fast) => onChange({ ...metric, fast })} />
+          <Num label={w.slow} value={metric.slow} min={3} max={400} onChange={(slow) => onChange({ ...metric, slow })} />
+          <Num label={w.signal} value={metric.signal} min={2} max={100} onChange={(signal) => onChange({ ...metric, signal })} />
+          <Segmented label={w.line} value={metric.line} options={[{ value: "macd", label: "MACD" }, { value: "signal", label: w.signal }, { value: "hist", label: w.histogram }]} onChange={(line) => onChange({ ...metric, line })} />
         </>
       )}
       {metric.kind === "bb" && (
         <>
-          <Num label="Deviations" value={metric.mult} min={1} max={5} onChange={(mult) => onChange({ ...metric, mult })} />
-          <Segmented label="Band" value={metric.band} options={[{ value: "upper", label: "Upper" }, { value: "middle", label: "Middle" }, { value: "lower", label: "Lower" }]} onChange={(band) => onChange({ ...metric, band })} />
+          <Num label={w.deviations} value={metric.mult} min={1} max={5} onChange={(mult) => onChange({ ...metric, mult })} />
+          <Segmented label={w.band} value={metric.band} options={[{ value: "upper", label: w.upper }, { value: "middle", label: w.middle }, { value: "lower", label: w.lower }]} onChange={(band) => onChange({ ...metric, band })} />
         </>
       )}
       {metric.kind === "stoch" && (
         <>
-          <Num label="Smoothing" value={metric.smooth} min={1} max={50} onChange={(smooth) => onChange({ ...metric, smooth })} />
-          <Segmented label="Line" value={metric.line} options={[{ value: "k", label: "%K" }, { value: "d", label: "%D" }]} onChange={(line) => onChange({ ...metric, line })} />
+          <Num label={w.smoothing} value={metric.smooth} min={1} max={50} onChange={(smooth) => onChange({ ...metric, smooth })} />
+          <Segmented label={w.line} value={metric.line} options={[{ value: "k", label: "%K" }, { value: "d", label: "%D" }]} onChange={(line) => onChange({ ...metric, line })} />
         </>
       )}
       {tf && (
         <label className="alv-num">
-          <span>Timeframe</span>
-          <Segmented label="Timeframe" value={tf} options={TF_OPTIONS} onChange={(t: Interval) => onChange({ ...metric, tf: t } as Metric)} />
+          <span>{w.timeframe}</span>
+          <Segmented label={w.timeframe} value={tf} options={TF_OPTIONS} onChange={(t: Interval) => onChange({ ...metric, tf: t } as Metric)} />
         </label>
       )}
     </div>
@@ -115,12 +122,14 @@ export function MetricParams({ metric, onChange }: { metric: Metric; onChange: (
 /** A metric picked among all of them (what an alert is compared with):
     the market or an indicator, then which one. */
 export function MetricPicker({ metric, onChange }: { metric: Metric; onChange: (m: Metric) => void }) {
+  const t = useMessages();
+  const w = t.alerts.metric;
   const pick = (kind: MetricKind) => onChange(defaultMetric(kind, timeframeOf(metric) ?? "1h"));
-  const market = MARKET.some((m) => m.kind === metric.kind);
+  const onMarket = MARKET_KINDS.includes(metric.kind);
   return (
     <div className="alv-picker">
-      <Segmented label="Compared with" value={market ? "market" : "indicator"} options={[{ value: "market", label: "Market" }, { value: "indicator", label: "Indicator" }]} onChange={(g) => g !== (market ? "market" : "indicator") && pick(g === "market" ? "price" : "ema")} />
-      {market ? <Chips label="Market" options={MARKET} value={metric.kind} onChange={pick} /> : <Chips label="Indicators" options={INDICATORS} value={metric.kind} onChange={pick} />}
+      <Segmented label={w.comparedWith} value={onMarket ? "market" : "indicator"} options={[{ value: "market", label: w.market }, { value: "indicator", label: w.indicator }]} onChange={(g) => g !== (onMarket ? "market" : "indicator") && pick(g === "market" ? "price" : "ema")} />
+      {onMarket ? <Chips label={w.market} options={market(t)} value={metric.kind} onChange={pick} /> : <Chips label={w.indicators} options={indicators(t)} value={metric.kind} onChange={pick} />}
       <MetricParams metric={metric} onChange={onChange} />
     </div>
   );

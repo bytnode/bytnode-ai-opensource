@@ -7,5 +7,6 @@ export default defineConfig([
   ...nextTs,
   /* The create-plugin skill's examples are plugins as the agents write
      them (plain JS for the sandbox), checked by PluginCheck in their test. */
-  globalIgnores([".next/**", "out/**", "next-env.d.ts", "professions/**/examples/**"]),
+  /* `dist-desktop`: the desktop builds (scripts/desktop.ts). */
+  globalIgnores([".next/**", "out/**", "next-env.d.ts", "professions/**/examples/**", "dist-desktop/**"]),
 ]);

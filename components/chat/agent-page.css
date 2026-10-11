@@ -1,0 +1,504 @@
+/* ---------------------------------------------------------------------------
+   An agent's page (`agent-page.tsx`), in the bare views' language
+   (plugins.css `.pv-bare`, the watchlist's sheet): the app's beams behind,
+   no frame of its own, ONE sheet with round corners (slightly round where
+   it meets the tab bar) and everything on its ground. Rows light up whole, figures sit on
+   tiles parted by 2 px gaps whose group is one block, titles wear
+   BytNode's ink. Read in screen pixels: the page is not zoomed like a
+   plugin's tab (the composer lives in it).
+--------------------------------------------------------------------------- */
+
+/* The chat's own sheet steps aside: the page lays its panes straight on
+   the backdrop, like a plugin's tab. */
+.chat-main.is-page {
+  background: transparent;
+  box-shadow: none;
+}
+
+.agv {
+  --r-panel: 25px;
+  --side: 30px;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  color: var(--label);
+  font-variant-numeric: tabular-nums;
+}
+
+.agv :focus-visible {
+  outline: 2px solid #0a84ff;
+  outline-offset: 1px;
+}
+
+/* --- The sheet: the agent, the composer, the conversations --------------- */
+
+.agv-sheet {
+  --label-2: rgba(var(--ink), 0.8);
+  --label-3: rgba(var(--ink), 0.62);
+  --fill: rgba(var(--ink), 0.08);
+  flex: 1;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-bottom: 44px;
+  border-radius: var(--r-sm) var(--r-sm) var(--r-panel) var(--r-panel);
+  background: var(--sheet);
+  backdrop-filter: blur(24px) saturate(1.15);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--ink), 0.22) transparent;
+}
+
+html[data-theme="light"] .agv-sheet {
+  --label-2: rgba(var(--ink), 0.76);
+  --label-3: rgba(var(--ink), 0.6);
+}
+
+/* Everything in the sheet stands in ONE centred block: two columns on
+   the same ground, their tops level — the agent's name on the left, the
+   overview on the right. */
+.agv-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  column-gap: 96px;
+  align-items: start;
+  width: min(1250px, 100%);
+  margin: 0 auto;
+  /* Set down from the tab bar: the page opens on air, as Claude's
+     projects do (user request). */
+  padding: 110px var(--side) 0;
+}
+
+.agv-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.agv-col {
+  min-width: 0;
+}
+
+/* Its overview and what shapes it, beside the conversations, level with
+   the name; it stays in view while the list scrolls. */
+.agv-side {
+  position: sticky;
+  top: 0;
+  display: grid;
+  gap: 28px;
+  min-width: 0;
+}
+
+.agv-head .chat-menu {
+  margin: 0 4px 0 -8px;
+}
+
+.agv-head .wlv-sheet-title {
+  font-size: 30px;
+}
+
+.agv-head .wlv-status {
+  padding-top: 11px;
+}
+
+.agv-menu {
+  position: relative;
+  flex: none;
+  margin-top: 4px;
+}
+
+/* The watchlist's bubble, laid under the dots rather than at the click. */
+.agv-menu .agv-menu-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 220px;
+}
+
+/* The composer, at the head of the sheet. Its glow is kept smaller here:
+   the sheet scrolls, and the light must not widen it. */
+.agv-compose {
+  padding-top: 24px;
+}
+
+.agv .chat-composer {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.agv .chat-composer::before {
+  width: 130%;
+  height: calc(100% + 180px);
+  opacity: 0.55;
+}
+
+.agv .composer-input {
+  min-height: 64px;
+}
+
+.agv .agv-convs {
+  padding: 36px 0 0;
+}
+
+/* A line said quietly where a list would be. */
+.agv-quiet {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--label-3);
+}
+
+.agv-group + .agv-group {
+  margin-top: 18px;
+}
+
+.agv-group-label {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--label-3);
+}
+
+/* A conversation: a row that lights up whole, never a line between two. */
+.agv-rows {
+  display: grid;
+  gap: 2px;
+  margin: 0 -14px;
+  padding: 0;
+  list-style: none;
+}
+
+.agv-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  min-height: 62px;
+  padding: 9px 14px;
+  border: 0;
+  border-radius: var(--r);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.agv-row:hover {
+  background: var(--fill);
+}
+
+.agv-row-text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.agv-row-text b,
+.agv-row-text small {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.agv-row-text b {
+  font-family: var(--font-display), sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.agv-row-text small {
+  font-size: 13px;
+  color: var(--label-3);
+}
+
+.agv-row-mark {
+  width: 13px;
+  height: 13px;
+  margin-right: 7px;
+  vertical-align: -1px;
+  stroke-width: 1.9;
+  color: var(--label-3);
+}
+
+.agv-row-when {
+  font-size: 12.5px;
+  color: var(--label-3);
+  white-space: nowrap;
+}
+
+.agv-part-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 28px;
+  margin-bottom: 10px;
+}
+
+.agv-part-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+/* The overview: the watchlist's fact tiles (`.wlv-insights`), the last
+   one across with the two weeks of messages as bars — today in blue,
+   the colour of what is under way. */
+.agv-overview .wlv-insight {
+  min-height: 92px;
+}
+
+.agv-overview .wlv-insight-value small {
+  font-family: var(--font-body, inherit), sans-serif;
+  font-size: 12.5px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--label-3);
+}
+
+.agv-activity {
+  grid-column: 1 / -1;
+}
+
+.agv-bars {
+  display: grid;
+  grid-template-columns: repeat(14, minmax(0, 1fr));
+  align-items: end;
+  gap: 4px;
+  height: 38px;
+  margin-top: 6px;
+}
+
+.agv-bars i {
+  height: var(--h);
+  min-height: 3px;
+  border-radius: 3px;
+  background: rgba(var(--ink), 0.3);
+}
+
+.agv-bars i.is-empty {
+  background: rgba(var(--ink), 0.08);
+}
+
+.agv-bars i.is-today {
+  background: #0a84ff;
+}
+
+/* A block alone: the instructions, the empty well. */
+.agv-block {
+  display: block;
+  width: 100%;
+  padding: 13px 15px;
+  border: 0;
+  border-radius: var(--r-block);
+  background: var(--tile);
+  color: var(--label-2);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.5;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 100ms ease, color 100ms ease, box-shadow 100ms ease;
+}
+
+.agv-block:hover {
+  background: var(--tile-today);
+  color: var(--label);
+}
+
+.agv-instructions {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  line-clamp: 6;
+  white-space: pre-line;
+}
+
+.agv-edit-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.agv .agv-textarea {
+  display: block;
+  height: auto;
+  min-height: 150px;
+  padding: 12px 14px;
+  line-height: 1.5;
+  font-size: 13.5px;
+  resize: vertical;
+}
+
+/* No file yet: three sheets of paper over the invitation. Files dropped
+   anywhere on the part land. */
+.agv-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 26px 20px 22px;
+  color: var(--label-3);
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.agv-drop.is-over,
+.agv-tiles.is-over {
+  box-shadow: inset 0 0 0 var(--rule) #0a84ff;
+}
+
+.agv-drop-art {
+  position: relative;
+  width: 104px;
+  height: 52px;
+}
+
+.agv-drop-art span {
+  position: absolute;
+  bottom: 0;
+  width: 36px;
+  height: 30px;
+  border-radius: 7px;
+  background:
+    linear-gradient(var(--label-3), var(--label-3)) 7px 9px / 18px 1.5px no-repeat,
+    linear-gradient(var(--label-3), var(--label-3)) 7px 14px / 22px 1.5px no-repeat,
+    linear-gradient(var(--label-3), var(--label-3)) 7px 19px / 14px 1.5px no-repeat,
+    var(--tile-today);
+  box-shadow: 0 0 0 1px rgba(var(--ink), 0.14);
+}
+
+.agv-drop-art span:nth-child(1) {
+  left: 0;
+}
+
+.agv-drop-art span:nth-child(2) {
+  left: 34px;
+}
+
+.agv-drop-art span:nth-child(3) {
+  left: 60px;
+  bottom: 12px;
+  width: 42px;
+  height: 36px;
+  transform: rotate(-3deg);
+  background-color: rgba(var(--voile), 0.95);
+}
+
+/* Files and tasks: tiles of one block, round only at its outer corners. */
+.agv-tiles {
+  display: grid;
+  gap: var(--tile-gap);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+  border-radius: var(--r-block);
+}
+
+.agv-file {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 42px;
+  padding: 0 8px 0 14px;
+  background: var(--tile);
+}
+
+.agv-file > svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.7;
+  color: var(--label-3);
+}
+
+.agv-file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.agv-file-size {
+  flex: none;
+  font-family: var(--font-mono), monospace;
+  font-size: 11.5px;
+  color: var(--label-3);
+}
+
+.agv-file-remove {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--label-3);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 100ms ease;
+}
+
+.agv-file:hover .agv-file-remove,
+.agv-file-remove:focus-visible {
+  opacity: 1;
+}
+
+.agv-file-remove:hover {
+  background: var(--fill);
+  color: var(--label);
+}
+
+.agv-file-remove svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.agv-refused {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--down);
+}
+
+/* --- Narrower ------------------------------------------------------------- */
+
+@media (max-width: 1280px) {
+  .agv-layout {
+    column-gap: 56px;
+  }
+}
+
+/* Narrow: one column — the instructions and the context under the rest. */
+@media (max-width: 1000px) {
+  .agv-layout {
+    grid-template-columns: minmax(0, 1fr);
+    padding-top: 40px;
+  }
+
+  .agv-side {
+    position: static;
+    padding-top: 34px;
+  }
+}
+
+@media (max-width: 820px) {
+  .agv {
+    --side: 20px;
+  }
+}

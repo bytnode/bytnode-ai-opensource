@@ -3,6 +3,7 @@
 import { useState, type MouseEvent as ReactMouseEvent } from "react";
 import { ChevronDown, Plus } from "@/components/ui/icons";
 import { fmt } from "../bits";
+import { useMessages } from "@/lib/i18n/react";
 import { CASH, baseOf, pct, sameFocus, signed, toneOf, usdt, type BookRow, type Focus, type PaperState } from "./format";
 
 /* ---------------------------------------------------------------------------
@@ -39,6 +40,8 @@ type Props = {
 };
 
 export function Books({ books, selected, defaultCapital, onPick, expanded, onExpand, data, focus, onFocus, onCreate, onMenu }: Props) {
+  const m = useMessages();
+  const t = m.paperTrading.books;
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [capital, setCapital] = useState("");
@@ -46,8 +49,9 @@ export function Books({ books, selected, defaultCapital, onPick, expanded, onExp
   const [busy, setBusy] = useState(false);
 
   const create = async () => {
+    if (!name.trim()) return setProblem(t.nameNeeded);
     const amount = capital.trim() ? Number(capital.replace(/\s/g, "").replace(",", ".")) : defaultCapital;
-    if (!Number.isFinite(amount)) return setProblem("The capital is a number of USDT.");
+    if (!Number.isFinite(amount)) return setProblem(t.capitalNumber);
     setBusy(true);
     const p = await onCreate(name, amount);
     setBusy(false);
@@ -60,22 +64,22 @@ export function Books({ books, selected, defaultCapital, onPick, expanded, onExp
   };
 
   return (
-    <section className="wlv-pane wlv-side ptv-nav" aria-label="Paper portfolios">
+    <section className="wlv-pane wlv-side ptv-nav" aria-label={m.paperTrading.portfolios}>
       <header className="wlv-side-bar">
         <h2 className="wlv-title">
-          <span className="pv-ink">Paper trading</span>
+          <span className="pv-ink">{m.paperTrading.title}</span>
         </h2>
         {books && books.length > 1 && <span className="wlv-count">{books.length}</span>}
       </header>
 
-      <ul className="wlv-rows ptv-books" aria-label="Portfolios">
-        {books === null && <li className="ptv-books-loading">Reading your portfolios…</li>}
+      <ul className="wlv-rows ptv-books" aria-label={m.paperTrading.portfolioList}>
+        {books === null && <li className="ptv-books-loading">{t.reading}</li>}
         {books?.map((b, i) => {
           const on = b.id === selected;
-          const open = [b.positions ? `${b.positions} position${b.positions === 1 ? "" : "s"}` : "", b.orders ? `${b.orders} order${b.orders === 1 ? "" : "s"}` : ""].filter(Boolean).join(", ");
+          const open = [b.positions ? t.positions(b.positions) : "", b.orders ? t.orders(b.orders) : ""].filter(Boolean).join(", ");
           return (
             <li key={b.id} className={`ptv-book-item${expanded.includes(b.id) ? " is-open" : ""}`}>
-              <button type="button" className="ptv-book-toggle" onClick={() => onExpand(b.id)} aria-expanded={expanded.includes(b.id)} aria-label={`${expanded.includes(b.id) ? "Hide" : "Show"} the positions of ${b.name}`} title={expanded.includes(b.id) ? "Hide the positions" : "Show the positions"}>
+              <button type="button" className="ptv-book-toggle" onClick={() => onExpand(b.id)} aria-expanded={expanded.includes(b.id)} aria-label={expanded.includes(b.id) ? t.hidePositionsOf(b.name) : t.showPositionsOf(b.name)} title={expanded.includes(b.id) ? t.hidePositions : t.showPositions}>
                 <ChevronDown />
               </button>
               <button type="button" className={`wlv-row ptv-book${on && !focus ? " is-selected" : ""}${on && focus ? " is-parent" : ""}`} aria-current={(on && !focus) || undefined} onClick={() => onPick(b.id)} onContextMenu={(e) => onMenu(e, b.id)}>
@@ -83,7 +87,7 @@ export function Books({ books, selected, defaultCapital, onPick, expanded, onExp
                   <b>{b.name}</b>
                   <small>
                     <span className="ptv-book-value">{usdt(b.equity)}</span>
-                    {[i === 0 && books.length > 1 ? "default" : "", open].filter(Boolean).map((t) => ` · ${t}`).join("")}
+                    {[i === 0 && books.length > 1 ? t.isDefault : "", open].filter(Boolean).map((t) => ` · ${t}`).join("")}
                   </small>
                 </span>
                 <span className={`wlv-pill ${toneOf(b.returnPct)}`}>{pct(b.returnPct)}</span>
@@ -103,8 +107,8 @@ export function Books({ books, selected, defaultCapital, onPick, expanded, onExp
               if (!busy) void create();
             }}
           >
-            <input className="wlv-input" aria-label="Name of the new portfolio" placeholder="Name — “Swing BTC”" value={name} autoFocus maxLength={40} onChange={(e) => setName(e.target.value)} />
-            <input className="wlv-input" aria-label="Starting capital in USDT" inputMode="decimal" placeholder={`Capital — ${usdt(defaultCapital)} ${CASH}`} value={capital} onChange={(e) => setCapital(e.target.value)} />
+            <input className="wlv-input" aria-label={t.nameLabel} placeholder={t.namePlaceholder} value={name} autoFocus maxLength={40} onChange={(e) => setName(e.target.value)} />
+            <input className="wlv-input" aria-label={t.capitalLabel} inputMode="decimal" placeholder={t.capitalPlaceholder(`${usdt(defaultCapital)} ${CASH}`)} value={capital} onChange={(e) => setCapital(e.target.value)} />
             {problem && <p className="ptv-new-problem">{problem}</p>}
             <div className="ptv-new-actions">
               <button
@@ -115,17 +119,17 @@ export function Books({ books, selected, defaultCapital, onPick, expanded, onExp
                   setProblem(null);
                 }}
               >
-                Cancel
+                {m.common.cancel}
               </button>
-              <button type="submit" className="ptv-pill is-primary" disabled={busy || !name.trim()}>
-                {busy ? "Creating…" : "Create"}
+              <button type="submit" className="ptv-pill is-primary" disabled={busy}>
+                {busy ? t.creating : t.create}
               </button>
             </div>
           </form>
         ) : (
           <button type="button" className="ptv-new-open" onClick={() => setCreating(true)}>
             <Plus />
-            New portfolio
+            {t.newPortfolio}
           </button>
         )}
       </div>
@@ -136,11 +140,13 @@ export function Books({ books, selected, defaultCapital, onPick, expanded, onExp
 /** What an opened portfolio holds, one row each: the positions, then the
     spot holdings, each with its result; the one shown is lit. */
 function Items({ data, focus, onFocus }: { data: PaperState | null; focus: Focus | null; onFocus: (focus: Focus) => void }) {
-  if (!data) return <p className="ptv-items-note">Reading…</p>;
+  const m = useMessages();
+  const t = m.paperTrading.books;
+  if (!data) return <p className="ptv-items-note">{t.readingItems}</p>;
   const { positions, holdings } = data.valuation;
-  if (positions.length === 0 && holdings.length === 0) return <p className="ptv-items-note">Nothing open.</p>;
+  if (positions.length === 0 && holdings.length === 0) return <p className="ptv-items-note">{t.nothingOpen}</p>;
   return (
-    <ul className="ptv-items" aria-label={`What ${data.name} holds`}>
+    <ul className="ptv-items" aria-label={t.holds(data.name)}>
       {positions.map((p) => {
         const f: Focus = { kind: "position", symbol: p.symbol };
         const on = sameFocus(f, focus);
@@ -150,7 +156,7 @@ function Items({ data, focus, onFocus }: { data: PaperState | null; focus: Focus
             <button type="button" className={`ptv-item${on ? " is-selected" : ""}`} aria-current={on || undefined} onClick={() => onFocus(f)}>
               <span className="ptv-item-name">
                 <b>{baseOf(p.symbol)}</b>
-                <em className={p.side === "long" ? "is-up" : "is-down"}>{p.side === "long" ? "Long" : "Short"}</em>
+                <em className={p.side === "long" ? "is-up" : "is-down"}>{p.side === "long" ? m.paperTrading.long : m.paperTrading.short}</em>
                 <small>×{p.leverage}</small>
               </span>
               <span className={`ptv-item-result ${toneOf(p.unrealized)}`}>
@@ -169,7 +175,7 @@ function Items({ data, focus, onFocus }: { data: PaperState | null; focus: Focus
             <button type="button" className={`ptv-item${on ? " is-selected" : ""}`} aria-current={on || undefined} onClick={() => onFocus(f)}>
               <span className="ptv-item-name">
                 <b>{h.asset}</b>
-                <em>Spot</em>
+                <em>{m.paperTrading.spot}</em>
                 <small>{fmt(h.amount)}</small>
               </span>
               <span className={`ptv-item-result ${toneOf(h.unrealized)}`}>

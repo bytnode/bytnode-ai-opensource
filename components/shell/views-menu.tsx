@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import type { ViewEntry } from "@/lib/plugins/catalog";
+import { useMessages } from "@/lib/i18n/react";
+import { viewText } from "@/lib/i18n/plugin-text";
 import { Plus } from "@/components/ui/icons";
 import { useDismiss } from "@/components/ui/use-dismiss";
 import { TabIcon } from "./tab-icons";
@@ -20,6 +22,7 @@ const WIDTH = 320;
 const MARGIN = 8;
 
 export function ViewsMenu({ views, open, active, onPick }: Props) {
+  const m = useMessages();
   const [at, setAt] = useState<{ left: number; top: number } | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -42,7 +45,7 @@ export function ViewsMenu({ views, open, active, onPick }: Props) {
 
   return (
     <div className="tb-add" ref={root}>
-      <button type="button" className={`tb-icon${at ? " is-on" : ""}`} onClick={(e) => toggle(e.currentTarget)} aria-haspopup="menu" aria-expanded={at !== null} aria-label="Open a view" title="Open a view">
+      <button type="button" className={`tb-icon${at ? " is-on" : ""}`} onClick={(e) => toggle(e.currentTarget)} aria-haspopup="menu" aria-expanded={at !== null} aria-label={m.shell.openView} title={m.shell.openView}>
         <Plus />
       </button>
       {at && (
@@ -50,7 +53,7 @@ export function ViewsMenu({ views, open, active, onPick }: Props) {
           ref={list}
           className="tb-menu"
           role="menu"
-          aria-label="Views"
+          aria-label={m.shell.views}
           style={{ left: at.left, top: at.top, width: WIDTH } as CSSProperties}
           onKeyDown={(e) => {
             if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
@@ -60,12 +63,13 @@ export function ViewsMenu({ views, open, active, onPick }: Props) {
             items[(i + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length]?.focus();
           }}
         >
-          <p className="tb-menu-title">Open a view</p>
+          <p className="tb-menu-title">{m.shell.openView}</p>
           {views.length === 0 ? (
-            <p className="tb-menu-empty">No view yet: switch on a plugin that has one, in Settings → Plugins.</p>
+            <p className="tb-menu-empty">{m.shell.noViews}</p>
           ) : (
             views.map((v) => {
               const isOpen = open.includes(v.id);
+              const text = viewText(v.plugin.id, v, m);
               return (
                 <button
                   key={v.id}
@@ -81,10 +85,10 @@ export function ViewsMenu({ views, open, active, onPick }: Props) {
                     <TabIcon view={v.id} />
                   </span>
                   <span className="tb-menu-text">
-                    <b>{v.title}</b>
-                    <small>{v.description}</small>
+                    <b>{text.title}</b>
+                    <small>{text.description}</small>
                   </span>
-                  {isOpen && <span className="tb-menu-tag">{active === v.id ? "Here" : "Open"}</span>}
+                  {isOpen && <span className="tb-menu-tag">{active === v.id ? m.shell.viewHere : m.shell.viewOpen}</span>}
                 </button>
               );
             })

@@ -3,7 +3,7 @@ import path from "node:path";
 import type { SkillInfo } from "@/lib/tools/skills/skill";
 
 /* Drop the skills into the workspace, where the external agents look for
-   them: `.agents/skills/` (Codex, Gemini, Grok) and `.claude/skills/`
+   them: `.agents/skills/` (Codex, Copilot, Grok) and `.claude/skills/`
    (Claude Code). A faithful copy of each skill's folder — the profession's
    and those of the project's `skills/` folder, your own.
 

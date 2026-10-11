@@ -1,0 +1,83 @@
+import type { ReactNode } from "react";
+import type { Messages } from "../en";
+
+export const widgets: Messages["widgets"] = {
+  kinds: {
+    watchlist: { name: "自选列表", description: "你的资产、价格及 24 小时涨跌。" },
+    portfolio: { name: "投资组合", description: "你的总资产、涨跌及分布。" },
+    paper: { name: "模拟交易", description: "模拟组合的价值、收益和持仓。" },
+    dca: { name: "DCA", description: "接下来的买入，以及各计划已投入的金额。" },
+    calendar: { name: "日历", description: "本周接下来的安排。" },
+    scheduler: { name: "定时任务", description: "智能体的下次运行和最近的报告。" },
+    alerts: { name: "提醒", description: "你的提醒、当前读数，以及最近一次触发。" },
+    calculator: { name: "仓位计算", description: "根据风险、入场价和止损计算仓位。" },
+  },
+  sizes: { small: "小", medium: "中", large: "大" },
+  sizeLetters: { small: "小", medium: "中", large: "大" },
+
+  title: "小组件",
+  addWidget: "添加小组件",
+  editWidgets: "编辑小组件",
+  doneEditing: "完成编辑",
+  hideWidgets: "隐藏小组件",
+  showWidgets: "显示小组件",
+  showHidden: (n: number) => `显示已隐藏的小组件（${n}）`,
+
+  removeNamed: (name: string) => `移除“${name}”小组件`,
+  size: "尺寸",
+  menuOf: (name: string) => `“${name}”小组件`,
+  hideWidget: "隐藏小组件",
+  removeWidget: "移除小组件",
+
+  nothingToAdd: "没有可添加的小组件：相关插件已关闭，或小组件已被关闭。请查看“设置 → 插件”和“设置 → 小组件”。",
+  add: "添加",
+  sizeHint: "小尺寸只显示最重要的一项；中尺寸再多几项；大尺寸显示完整列表。",
+  preview: "预览",
+
+  watchlistEmpty: "请在自选列表中添加资产。",
+  last24h: "24 小时",
+  last7d: "7 天",
+  last30d: "30 天",
+  readingAccounts: "正在读取你的账户…",
+  portfolioEmpty: "在“设置 → 身份验证”中连接交易所账户，即可在此查看你的投资组合。",
+  today: "今日",
+  over30d: (move: ReactNode) => <>近 30 天 {move}</>,
+  sinceStart: "累计",
+  noPaperPortfolio: "还没有模拟组合。",
+  noOpenPosition: "暂无持仓。",
+  long: "多",
+  short: "空",
+  spot: "现货",
+  noActivePlan: "没有进行中的计划。",
+  nextPurchase: "下次买入",
+  invested: "已投入",
+  return: "收益",
+  nothingThisWeek: "本周暂无安排。",
+  moreThisWeek: (n: number) => `本周还有 ${n} 项`,
+  noScheduledTask: "没有定时任务。",
+  runningNow: "正在运行",
+  nextRun: "下次运行",
+  running: "运行中",
+  lastReports: "最近报告",
+  runDone: "完成",
+  runFailed: "失败",
+  alertsWatching: () => "监控中的提醒",
+  fired: (symbol: string, when: string) => `${symbol} ${when}触发`,
+  activeCount: (n: number) => `${n} 个生效`,
+  noActiveAlert: "没有生效的提醒。",
+  lastFired: (symbol: ReactNode, when: string, observed: string) => (
+    <>
+      最近触发：{symbol} {when} · {observed}
+    </>
+  ),
+  calculator: {
+    capital: "本金",
+    risk: "风险 %",
+    entry: "入场价",
+    stop: "止损",
+    size: "仓位",
+    notional: "名义价值",
+    leverage: "杠杆",
+    atRisk: "风险金额",
+  },
+};

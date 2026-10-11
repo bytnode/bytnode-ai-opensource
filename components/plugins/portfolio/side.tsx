@@ -4,6 +4,7 @@ import { useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from
 import type { Summary } from "@/lib/plugins/portfolio/aggregate";
 import type { AccountGroup } from "@/lib/plugins/portfolio/groups";
 import { ChevronDown, Folder, FolderOpen, Plus } from "@/components/ui/icons";
+import { useMessages } from "@/lib/i18n/react";
 import { CurrencyMenu } from "./currency-menu";
 
 /* The left column, a navigator: the tab's name with the currency beside
@@ -56,6 +57,8 @@ type Props = {
 };
 
 export function Side({ summary, known, problem, scope, onScope, currency, onCurrency, value, move, groups, groupTotal, onGroupMenu, editing, onEditing, onSaveGroup }: Props) {
+  const t = useMessages();
+  const w = t.portfolio.side;
   const accounts = summary?.accounts ?? [];
   const total = summary?.totalUsd ?? 0;
   const edited = editing?.kind === "edit" ? groups.find((g) => g.id === editing.id) : undefined;
@@ -85,7 +88,7 @@ export function Side({ summary, known, problem, scope, onScope, currency, onCurr
             <span className={`xch-badge${k.testnet ? "" : " is-live"}`}>{k.testnet ? "TESTNET" : "LIVE"}</span>
             <b>{k.label}</b>
           </span>
-          <span className="pfv-account-sub">{problem ? `Not read: ${problem}` : `${k.exchange} · reading the balances…`}</span>
+          <span className="pfv-account-sub">{problem ? w.notRead(problem) : w.readingBalances(k.exchange)}</span>
         </div>
       );
     }
@@ -99,7 +102,7 @@ export function Side({ summary, known, problem, scope, onScope, currency, onCurr
           <span className="pfv-account-value">{value(a.usd)}</span>
         </span>
         <span className="pfv-account-sub">
-          {a.error ? `Could not be read: ${a.error}` : `${a.exchange}${a.testnet ? " · not counted" : ` · ${(share * 100).toFixed(1)} %`}${a.unpriced ? ` · ${a.unpriced} unpriced` : ""}`}
+          {a.error ? w.couldNotRead(a.error) : `${a.exchange}${a.testnet ? ` · ${w.notCounted}` : ` · ${(share * 100).toFixed(1)} %`}${a.unpriced ? ` · ${w.unpriced(a.unpriced)}` : ""}`}
         </span>
         {!a.testnet && !a.error && (
           <span className="pfv-account-bar" aria-hidden>
@@ -111,22 +114,22 @@ export function Side({ summary, known, problem, scope, onScope, currency, onCurr
   };
 
   return (
-    <section className="wlv-pane wlv-side pfv-side" aria-label="Portfolios">
+    <section className="wlv-pane wlv-side pfv-side" aria-label={w.portfolios}>
       <header className="pfv-side-bar">
         <h2 className="wlv-title">
-          <span className="pv-ink">Portfolio</span>
+          <span className="pv-ink">{w.title}</span>
         </h2>
         <CurrencyMenu value={currency} onChange={onCurrency} />
       </header>
 
       {(summary || known.length > 0) && (
-        <nav className="pfv-nav" aria-label="Portfolios">
+        <nav className="pfv-nav" aria-label={w.portfolios}>
           {summary && (
             <button type="button" className={`pfv-whole${scope === ALL ? " is-on" : ""}`} aria-pressed={scope === ALL} onClick={() => onScope(ALL)}>
-              <span className="pfv-whole-label">All portfolios</span>
+              <span className="pfv-whole-label">{t.portfolio.allPortfolios}</span>
               <span className="pfv-whole-value">{value(total)}</span>
               <span className="pfv-whole-sub">
-                {accounts.filter((a) => !a.testnet).length} live account{accounts.filter((a) => !a.testnet).length === 1 ? "" : "s"}
+                {t.portfolio.liveAccounts(accounts.filter((a) => !a.testnet).length)}
                 {move && <b className={move.tone}>{move.text}</b>}
               </span>
             </button>
@@ -160,17 +163,17 @@ export function Side({ summary, known, problem, scope, onScope, currency, onCurr
                     <span className="pfv-account-value">{usd === null ? "—" : value(usd)}</span>
                   </span>
                   <span className="pfv-account-sub">
-                    {inside.length} account{inside.length === 1 ? "" : "s"}
+                    {w.accounts(inside.length)}
                     {usd !== null && total > 0 ? ` · ${((usd / total) * 100).toFixed(1)} %` : ""}
                   </span>
                 </button>
                 {inside.length > 0 && (
-                  <button type="button" className="pfv-fold" onClick={() => setUnfolded((u) => ({ ...u, [g.id]: !open }))} aria-expanded={open} aria-label={`${open ? "Close" : "Open"} ${g.name}`} title={open ? "Hide its accounts" : "Show its accounts"}>
+                  <button type="button" className="pfv-fold" onClick={() => setUnfolded((u) => ({ ...u, [g.id]: !open }))} aria-expanded={open} aria-label={open ? w.close(g.name) : w.open(g.name)} title={open ? w.hideAccounts : w.showAccounts}>
                     <ChevronDown />
                   </button>
                 )}
                 {open && (
-                  <ul className="pfv-accounts pfv-subs" aria-label={`The accounts of ${g.name}`}>
+                  <ul className="pfv-accounts pfv-subs" aria-label={w.accountsOf(g.name)}>
                     {inside.map((id) => (
                       <li key={id}>{tile(id)}</li>
                     ))}
@@ -196,7 +199,7 @@ export function Side({ summary, known, problem, scope, onScope, currency, onCurr
         ) : (
           <button type="button" className="pfv-new-group" onClick={() => onEditing({ kind: "new" })}>
             <Plus />
-            New group
+            {w.newGroup}
           </button>
         ))}
     </section>
@@ -205,6 +208,8 @@ export function Side({ summary, known, problem, scope, onScope, currency, onCurr
 
 /** A group's name and its accounts, ticked. */
 function GroupForm({ group, known, onCancel, onSave }: { group?: AccountGroup; known: Known[]; onCancel: () => void; onSave: Props["onSaveGroup"] }) {
+  const t = useMessages();
+  const w = t.portfolio.side;
   const [name, setName] = useState(group?.name ?? "");
   const [ids, setIds] = useState<string[]>(group ? group.accountIds.filter((id) => known.some((a) => a.id === id)) : []);
   const [problem, setProblem] = useState<string | null>(null);
@@ -214,10 +219,12 @@ function GroupForm({ group, known, onCancel, onSave }: { group?: AccountGroup; k
   return (
     <form
       className="pfv-group-form"
-      aria-label={group ? `Edit ${group.name}` : "New group of accounts"}
+      aria-label={group ? w.editGroup(group.name) : w.newGroupLabel}
       onSubmit={async (e) => {
         e.preventDefault();
         if (busy) return;
+        if (!name.trim()) return setProblem(w.nameIt);
+        if (ids.length === 0) return setProblem(w.tickOne);
         setBusy(true);
         const p = await onSave({ ...(group ? { id: group.id } : {}), name, accountIds: ids });
         setBusy(false);
@@ -225,9 +232,9 @@ function GroupForm({ group, known, onCancel, onSave }: { group?: AccountGroup; k
       }}
       onKeyDown={(e) => e.key === "Escape" && onCancel()}
     >
-      <input className="wlv-input" aria-label="Name of the group" placeholder="Group name — “Long term”" value={name} autoFocus maxLength={40} onChange={(e) => setName(e.target.value)} />
+      <input className="wlv-input" aria-label={w.groupName} placeholder={w.groupPlaceholder} value={name} autoFocus maxLength={40} onChange={(e) => setName(e.target.value)} />
       <fieldset className="pfv-group-pick">
-        <legend>Accounts in the group</legend>
+        <legend>{w.accountsInGroup}</legend>
         {known.map((a) => (
           <label key={a.id} className="pfv-group-option">
             <input type="checkbox" checked={ids.includes(a.id)} onChange={() => toggle(a.id)} />
@@ -240,10 +247,10 @@ function GroupForm({ group, known, onCancel, onSave }: { group?: AccountGroup; k
       {problem && <p className="pfv-group-problem">{problem}</p>}
       <div className="pfv-group-actions">
         <button type="button" className="pfv-group-button" onClick={onCancel}>
-          Cancel
+          {t.common.cancel}
         </button>
-        <button type="submit" className="pfv-group-button is-primary" disabled={busy || !name.trim() || ids.length === 0}>
-          {busy ? "Saving…" : group ? "Save" : "Create group"}
+        <button type="submit" className="pfv-group-button is-primary" disabled={busy}>
+          {busy ? w.saving : group ? t.common.save : w.createGroup}
         </button>
       </div>
     </form>

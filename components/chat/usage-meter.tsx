@@ -2,6 +2,8 @@
 
 import { fmtCost, fmtTokens, usageState } from "@/lib/agent/usage";
 import type { UsageInfo } from "@/lib/agent/events";
+import { numberTag } from "@/lib/i18n/store";
+import { useMessages } from "@/lib/i18n/react";
 
 type Props = {
   usage: UsageInfo | undefined;
@@ -30,6 +32,7 @@ export function UsageMeter({
   estimate,
   streaming,
 }: Props) {
+  const m = useMessages();
   /* While a reply is being written, the previous turn's count is stale:
      the live estimate takes over. */
   const s = usageState(streaming ? undefined : usage, window, estimate);
@@ -37,20 +40,21 @@ export function UsageMeter({
   if (s.context === null && rate === null && !cost) return null;
 
   const pct = s.part === null ? null : Math.min(100, Math.round(s.part * 100));
+  const num = (n: number) => n.toLocaleString(numberTag());
   const titre = [
     s.context !== null
-      ? `Context ${s.estimated ? "estimated" : "measured"}: ${s.context.toLocaleString("en-US")} tokens${s.window ? ` of ${s.window.toLocaleString("en-US")}` : ""}`
+      ? m.chat.usage.context(s.estimated, num(s.context), s.window ? num(s.window) : null)
       : null,
     typeof usage?.input === "number"
-      ? `Input: ${usage.input.toLocaleString("en-US")}`
+      ? m.chat.usage.input(num(usage.input))
       : null,
     typeof usage?.output === "number"
-      ? `Output: ${usage.output.toLocaleString("en-US")}`
+      ? m.chat.usage.output(num(usage.output))
       : null,
-    cost ? `Turn cost: ${cost}` : null,
-    s.provider ? `Provider: ${s.provider}` : null,
+    cost ? m.chat.usage.cost(cost) : null,
+    s.provider ? m.chat.usage.provider(s.provider) : null,
     s.level !== "ok"
-      ? "The window is filling up: /compact replaces the thread with a summary."
+      ? m.chat.usage.filling
       : null,
   ]
     .filter(Boolean)

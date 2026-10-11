@@ -6,6 +6,7 @@ import {
   parseOpenRouterModels,
   searchModels,
   searchProviders,
+  byPopularity,
 } from "./catalog";
 import type { Model } from "@/lib/domain/types";
 
@@ -152,7 +153,7 @@ describe("searchModels", () => {
         data: [
           { id: "google/gemini-3.5-flash-lite", name: "Google: Gemini 3.5 Flash Lite", created: 1_700_000_500 },
           { id: "deepseek/deepseek-v4.1-flash", name: "DeepSeek: DeepSeek V4.1 Flash", created: 1_700_000_600 },
-          { id: "acp:gemini/gemini-flash-lite", name: "Gemini Flash Lite", created: 1_700_000_700 },
+          { id: "acp:copilot/gemini-flash-lite", name: "Gemini Flash Lite", created: 1_700_000_700 },
         ],
       }),
     ];
@@ -191,5 +192,13 @@ describe("effortOptions", () => {
 
   test("offers nothing for a model that does not reason", () => {
     expect(effortOptions({ ...base, efforts: [], reasoningMandatory: false })).toEqual([]);
+  });
+});
+
+describe("byPopularity", () => {
+  const p = (id: string, modelCount = 1) => ({ id, name: id, modelCount }) as Parameters<typeof byPopularity>[0][number];
+  test("puts OpenAI, Anthropic, DeepSeek first, then the known vendors, then the rest by model count", () => {
+    const sorted = byPopularity([p("aion-labs", 6), p("deepseek"), p("amazon"), p("anthropic"), p("zzz", 9), p("openai"), p("google")]);
+    expect(sorted.map((x) => x.id)).toEqual(["openai", "anthropic", "deepseek", "google", "amazon", "zzz", "aion-labs"]);
   });
 });

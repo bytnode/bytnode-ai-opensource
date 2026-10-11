@@ -3,13 +3,18 @@
 import { useSyncExternalStore } from "react";
 import type { Settings } from "@/lib/domain/types";
 import { SETTINGS_KEY, SettingsRepository, defaultSettings } from "@/lib/storage/repositories";
+import type { Vault } from "@/lib/storage/secrets";
 import { BrowserStorage } from "@/lib/storage/storage";
 import { createStore } from "./store";
 import { onStorageChange } from "./sync";
 
 type State = { ready: boolean; settings: Settings };
 
-const repo = new SettingsRepository(new BrowserStorage());
+/* In the desktop window, the system's vault for the keys (`desktop/
+   preload.ts` → `lib/storage/secrets.ts`); in a browser, none. */
+const desktopVault = (): Vault | null => (typeof window === "undefined" ? null : ((window as typeof window & { bytnodeVault?: Vault }).bytnodeVault ?? null));
+
+const repo = new SettingsRepository(new BrowserStorage(), desktopVault());
 
 /* ⚠️ TWO TABS SHARE ONE STORAGE. Each tab used to keep its first read and
    save its own copy whole: a key or an exchange account deleted in one tab

@@ -1,4 +1,5 @@
 import { orderCandles } from "../shared/candle";
+import { currentLocale, numberTag } from "@/lib/i18n/store";
 
 /* ---------------------------------------------------------------------------
    What the Watchlist tab tells about the chosen asset under its chart,
@@ -142,11 +143,28 @@ export function readInsight(response: unknown, price: number | undefined): Insig
   return out;
 }
 
-/** A large amount, short: 1.24 B, 612.4 M, 48.2 K. */
+/** The steps of a short amount, biggest first. Chinese counts by ten
+    thousands (万) and hundred millions (亿), not by thousands. */
+const WESTERN: Array<[number, string]> = [
+  [1e12, "T"],
+  [1e9, "B"],
+  [1e6, "M"],
+  [1e3, "K"],
+];
+const CHINESE: Array<[number, string]> = [
+  [1e12, "万亿"],
+  [1e8, "亿"],
+  [1e4, "万"],
+];
+
+/** A large amount, short, in the interface's language: 1.24 B, 612.4 M,
+    48.2 K (12.4亿 in Chinese). */
 export function compact(v: number | undefined): string {
   if (v === undefined || !Number.isFinite(v)) return "—";
   const a = Math.abs(v);
-  const [d, s] = a >= 1e12 ? [1e12, "T"] : a >= 1e9 ? [1e9, "B"] : a >= 1e6 ? [1e6, "M"] : a >= 1e3 ? [1e3, "K"] : [1, ""];
+  const zh = currentLocale() === "zh";
+  const [d, s] = (zh ? CHINESE : WESTERN).find(([step]) => a >= step) ?? [1, ""];
   const n = v / d;
-  return `${n.toLocaleString("en-US", { maximumFractionDigits: Math.abs(n) >= 100 ? 0 : Math.abs(n) >= 10 ? 1 : 2 })}${s ? ` ${s}` : ""}`;
+  const text = n.toLocaleString(numberTag(), { maximumFractionDigits: Math.abs(n) >= 100 ? 0 : Math.abs(n) >= 10 ? 1 : 2 });
+  return s ? `${text}${zh ? "" : " "}${s}` : text;
 }

@@ -113,3 +113,22 @@ describe("withLock", () => {
     expect(await fs.readFile(`${file}.lock`, "utf8")).toBe("someone-else");
   });
 });
+
+describe("removeLines", () => {
+  it("removes the picked lines, keeps the others in order, says how many went", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "store-rm-"));
+    try {
+      const s = pluginStore("p", dir);
+      for (const id of ["a", "b", "c"]) await s.append("runs.jsonl", { id });
+      expect(await s.removeLines<{ id: string }>("runs.jsonl", (e) => e.id === "b")).toBe(1);
+      expect(await s.lines("runs.jsonl")).toEqual([{ id: "a" }, { id: "c" }]);
+      expect(await s.removeLines<{ id: string }>("runs.jsonl", (e) => e.id === "zz")).toBe(0);
+      expect(await s.removeLines("runs.jsonl", () => true)).toBe(2);
+      expect(await s.lines("runs.jsonl")).toEqual([]);
+      await s.append("runs.jsonl", { id: "d" });
+      expect(await s.lines("runs.jsonl")).toEqual([{ id: "d" }]);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+});
