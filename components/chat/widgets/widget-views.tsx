@@ -20,6 +20,7 @@ import { useNow } from "@/lib/state/clock";
 import { useMessages } from "@/lib/i18n/react";
 import { numberTag } from "@/lib/i18n/store";
 import { usePluginData } from "@/components/plugins/use-plugin-data";
+import { useLiveQuotes } from "@/components/plugins/use-live-quotes";
 import { useAwakeInterval } from "@/components/plugins/view-activity";
 import { TabIcon } from "@/components/shell/tab-icons";
 import { pairOf, pct, priceText, type Row } from "@/components/plugins/watchlist/format";
@@ -126,7 +127,15 @@ function WatchlistWidget({ size, settings, onTone }: Props) {
   const m = useMessages();
   const { data, error, reload } = usePluginData<Row[]>("watchlist", "list", settings, {}, { keep: "latest" });
   useAwakeInterval(reload, 60_000);
-  const rows = (data ?? []).filter((r) => r.quote);
+  /* The prices live, as in the Watchlist tab. */
+  const live = useLiveQuotes((data ?? []).map((r) => r.symbol), settings);
+  const rows = (data ?? [])
+    .map((r) => {
+      const q = live.quotes.get(r.symbol);
+      /* A live quote wins unless the list's own is fresher. */
+      return q && (!r.quote || Date.parse(q.at) >= Date.parse(r.quote.at)) ? { ...r, quote: q, error: null } : r;
+    })
+    .filter((r) => r.quote);
   const first = rows[0];
   const candles = usePluginData<{ candles: Candle[] } | null>("watchlist", "candles", settings, { symbol: first?.symbol ?? "", interval: "1h", limit: 48 }, { keep: "exact" });
   useAwakeInterval(candles.reload, 300_000);

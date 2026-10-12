@@ -3,7 +3,7 @@
 import { useRef, useState, type CSSProperties } from "react";
 import { sortByMove, type Window } from "@/lib/plugins/watchlist/heat";
 import { withTick, type Candle, type Interval } from "@/lib/plugins/shared/candle";
-import type { CandleSeries, Listed, Priced } from "@/lib/plugins/shared/prices";
+import type { CandleSeries, Listed } from "@/lib/plugins/shared/prices";
 import { named } from "@/lib/plugins/watchlist/suggest";
 import { baseOf, type Quote } from "@/lib/plugins/shared/quote";
 import type { Insight } from "@/lib/plugins/watchlist/insight";
@@ -14,6 +14,7 @@ import { WATCHLIST_DEFAULT, WATCHLIST_MAX, WATCHLIST_MIN, clampWatchlistWidth, u
 import type { ViewProps } from "../views";
 import { ColumnHandle } from "../column-handle";
 import { act, usePluginData } from "../use-plugin-data";
+import { useLiveQuotes } from "../use-live-quotes";
 import { useAwakeInterval, useOnWake } from "../view-activity";
 import type { Row } from "./format";
 import { ListPane } from "./list-pane";
@@ -29,13 +30,15 @@ import "./watchlist.css";
    asset on the right (one sheet): its price live, its moves over four
    windows, its chart, and the whole list as a heat map painted on the GPU.
 
-   Three readings, three paces, all asleep with the tab: the chosen asset's
-   price every 5 s (and it replaces that asset's row everywhere, so the
-   list, the heat map and the sheet never disagree), its candles every
-   minute (the live price moves the last one between two readings), the
-   whole list every 30 s — every asset every 5 s would spend the user's
-   BytNode quota for prices nobody is looking at. What is told about the
-   asset under its chart (`insight`, one BytNode call) every minute.
+   The prices are LIVE: every asset of the list is streamed from BytNode's
+   WebSocket through the app's server (`../use-live-quotes.ts`), and a
+   live quote replaces its row's everywhere, so the list, the heat map and
+   the sheet never disagree. The rest is read, all asleep with the tab:
+   the list itself every 30 s (its order, its notes, an asset BytNode does
+   not cover priced on an exchange), the chosen asset's candles every
+   minute (the live price moves the last one between two readings), what
+   is told about it under its chart (`insight`, BytNode's REST snapshot)
+   every minute.
 
    Coming back to an asset shows what was read for it at once (every
    answer is kept, `../use-plugin-data.ts`) and refreshes it silently.
@@ -47,7 +50,6 @@ import "./watchlist.css";
 --------------------------------------------------------------------------- */
 
 const LIST_MS = 30_000;
-const LIVE_MS = 5_000;
 const CANDLES_MS = 60_000;
 const CANDLES = 300;
 const INSIGHT_MS = 60_000;
@@ -75,10 +77,8 @@ export function WatchlistView({ settings, params }: ViewProps) {
   const chosen = listed?.find((r) => r.symbol === picked) ?? (focus ? listed?.find((r) => baseOf(r.symbol) === baseOf(focus)) : undefined) ?? listed?.[0] ?? null;
   const symbol = chosen?.symbol ?? "";
 
-  /* The chosen asset, live. A reading for another asset (the previous
-     one, still on screen while the new one loads) is not used. */
-  const live = usePluginData<Priced | null>("watchlist", "price", settings, { symbol });
-  useAwakeInterval(live.reload, LIVE_MS);
+  /* Every asset, live. */
+  const live = useLiveQuotes(listed?.map((r) => r.symbol) ?? [], settings);
   const series = usePluginData<CandleSeries | null>("watchlist", "candles", settings, { symbol, interval, limit: CANDLES }, { keep: "exact" });
   useAwakeInterval(series.reload, CANDLES_MS);
   const facts = usePluginData<InsightReading>("watchlist", "insight", settings, { symbol }, { keep: "exact" });
@@ -97,12 +97,15 @@ export function WatchlistView({ settings, params }: ViewProps) {
   const calendar = usePluginData<{ events: CalendarEvent[] }>("calendar", "week", settings, { from, days: COMING_DAYS }, { keep: "exact" });
   useAwakeInterval(calendar.reload, EVENTS_MS);
   const coming = calendar.data && symbol ? comingFor(calendar.data.events, baseOf(symbol), Date.parse(from)) : null;
-  const liveQuote: Quote | null = live.data && live.data.symbol === symbol && !("error" in live.data) ? live.data : null;
+  const liveQuote: Quote | null = live.quotes.get(symbol) ?? null;
 
-  /* The live quote replaces its row's — unless the row's is fresher (a
-     live quote kept from an earlier visit, while the new one loads). */
-  const fresher = (r: Row) => liveQuote && r.symbol === liveQuote.symbol && (!r.quote || Date.parse(liveQuote.at) >= Date.parse(r.quote.at));
-  const rows = listed?.map((r) => (fresher(r) ? { ...r, quote: liveQuote, error: null } : r)) ?? null;
+  /* A live quote replaces its row's — unless the row's is fresher. */
+  const fresher = (r: Row, q: Quote | undefined): q is Quote => !!q && (!r.quote || Date.parse(q.at) >= Date.parse(r.quote.at));
+  const rows =
+    listed?.map((r) => {
+      const q = live.quotes.get(r.symbol);
+      return fresher(r, q) ? { ...r, quote: q, error: null } : r;
+    }) ?? null;
   const asset = rows?.find((r) => r.symbol === symbol) ?? null;
   const shown = sortByMove(rows ?? [], win, byMove);
   const current = series.data && series.data.symbol === symbol && series.data.interval === interval ? series.data : null;
@@ -156,14 +159,13 @@ export function WatchlistView({ settings, params }: ViewProps) {
           technicalsMessage={signalsNow && "error" in signalsNow ? signalsNow.error : (signals.error ?? null)}
           coming={coming}
           loading={list.loading && !list.data}
-          problem={problem ?? list.error ?? null}
+          problem={problem ?? list.error ?? (live.state === "unavailable" ? live.problem : null)}
           onWindow={setWin}
           onInterval={setChartInterval}
           onPick={choose}
           onMenu={menu.open}
           onReload={() => {
             list.reload();
-            live.reload();
             series.reload();
             facts.reload();
             signals.reload();

@@ -6,6 +6,7 @@ import type { PluginContext, PluginDefinition } from "./contract";
 import { PROMPT_LIMIT, PluginRuntime, type RuntimeEnv } from "./runtime";
 import type { PluginStore } from "./store";
 import { manifest } from "./test-fixture";
+import { readingForAgent } from "@/lib/bytnode/reader";
 
 const tool = (name: string, policy?: Tool["policy"]): Tool => ({
   name,
@@ -37,6 +38,23 @@ const plugin = (id: string, setup: PluginDefinition["setup"], requires: string[]
 const off = (...ids: string[]): PluginsState => Object.fromEntries(ids.map((id) => [id, { enabled: false, config: {}, agentIds: null }]));
 
 describe("PluginRuntime: starting", () => {
+  it("runs a plugin's tool as an AI agent's reading (BytNode through MCP), its actions as the app's", async () => {
+    const seen: Record<string, boolean> = {};
+    const rt = new PluginRuntime(
+      [
+        plugin("watchlist", (ctx) => {
+          ctx.tool({ ...tool("WatchlistShow"), execute: async () => ok(String((seen.tool = readingForAgent()))) });
+          ctx.api("list", async () => (seen.action = readingForAgent()));
+        }),
+      ],
+      env(),
+    );
+    await rt.apply({});
+    await rt.tools(null)[0].execute({}, {} as never);
+    expect(seen.tool).toBe(true);
+    expect(readingForAgent()).toBe(false);
+  });
+
   it("starts in dependency order and collects the tools", async () => {
     const order: string[] = [];
     const rt = new PluginRuntime(

@@ -3,25 +3,32 @@ import { currentLocale, numberTag } from "@/lib/i18n/store";
 
 /* ---------------------------------------------------------------------------
    What the Watchlist tab tells about the chosen asset under its chart,
-   read from ONE `get_market_data` call (`CORE_FIELDS` + `PRESSURE_FIELDS`): the day's range
-   and volume (24 hourly klines, whose `taker_buy` gives the buyers' share),
-   the market cap (`tokenomics`), the funding (`funding_next`, a fraction
-   per 8 h), the open interest (`oi_snapshots.oi_total`, in the ASSET's
-   units — BytNode sums the venues' contracts, so it is priced here) with
-   the longs' share (`ls_ratio@1h.part_long`), and the day's liquidations
-   (`liq_cumulative`, 5-minute windows over 1 440 minutes). And where the
-   price may be pulled, from the same call: the nearest liquidation
-   clusters above and below (`heatmap`: fractional distance and
-   `attraction` = density / distance²), the order book's imbalance
-   (`orderbook.imbalance`, (bid − ask) / (bid + ask)) and the buyers' share
-   of the last five minutes (`buysell_ratio.buy_ratio`). Every figure is
-   optional: a pair BytNode covers only in part shows what there is.
+   read from BytNode's REST API in two calls: ONE `/v1/snapshot`
+   (`SNAPSHOT_FIELDS`) — the day's range and volume (24 hourly klines,
+   whose `buy_volume_spot` gives the buyers' share of the spot volume), the
+   market cap (`tokenomics`), the next funding (`funding_next`, in % per
+   8 h), the open interest (`oi_history@1h`, `oi_total` in the ASSET's units
+   — BytNode sums the venues' contracts, so it is priced here), where the
+   price may be pulled (`heatmap_clusters`: the nearest liquidation
+   clusters above and below, fractional distance and `attraction` =
+   density / distance²), the order book's imbalance within ±1 %
+   (`orderbook`, (bid − ask) / (bid + ask)) and the buyers' share of the
+   last five minutes (`buysell_ratio.buy_ratio`) — and the day's
+   liquidations (`/v1/liquidations/cumulative/history`, 5-minute buckets:
+   each keeps its own 5-minute window, so the 288 of a day add up; the
+   one-minute rows of a sliding window would count each liquidation five
+   times). Every figure is optional: a pair BytNode covers only in part
+   shows what there is. The longs' share is no longer served (BytNode
+   retired its long/short ratio); it shows when an answer carries one.
    Pure, tested.
 --------------------------------------------------------------------------- */
 
-export const CORE_FIELDS = { klines_1h: 24, tokenomics: true, funding_next: true, oi_snapshots: true, ls_ratio: true, liq_cumulative: 1440 } as const;
-/** The pull's fields: asked with the core ones, dropped if a pair refuses them. */
-export const PRESSURE_FIELDS = { heatmap: true, orderbook: true, buysell_ratio: true } as const;
+/** The `/v1/snapshot` query: each field and its depth. */
+export const SNAPSHOT_FIELDS = { "klines@1h": 24, tokenomics: 1, funding_next: 1, "oi_history@1h": 1, heatmap_clusters: 1, orderbook: 1, buysell_ratio: 1 } as const;
+/** The day's liquidations: 5-minute buckets over 24 h. */
+export const LIQUIDATIONS = { timeframe: "5m", limit: 288 } as const;
+/** Where the liquidations are put for `readInsight`, beside the snapshot's fields. */
+export const LIQUIDATIONS_FIELD = "liquidations_cumulative@5m";
 
 export type Insight = {
   range?: { low: number; high: number };
@@ -79,63 +86,68 @@ function latest(v: unknown): Record<string, unknown> | undefined {
   if (!Array.isArray(v)) return undefined;
   const rows = v.filter(isRecord);
   if (!rows.length) return undefined;
-  const t = (r: Record<string, unknown>) => Date.parse(String(r.timestamp ?? r.bucket ?? "")) || num(r.timestamp) || 0;
+  const t = (r: Record<string, unknown>) => Date.parse(String(r.time ?? r.timestamp ?? r.bucket ?? "")) || num(r.timestamp) || 0;
   return rows.reduce((a, b) => (t(b) > t(a) ? b : a));
 }
 
 export function readInsight(response: unknown, price: number | undefined): Insight {
   const out: Insight = {};
 
-  const klines = under(response, "klines_1h");
+  const klines = under(response, "klines@1h");
   if (Array.isArray(klines)) {
     const bars = orderCandles(klines).slice(-24);
     if (bars.length) {
       out.range = { low: Math.min(...bars.map((b) => b.l)), high: Math.max(...bars.map((b) => b.h)) };
       out.volumeUsd = bars.reduce((s, b) => s + b.v * b.c, 0);
-      const buy = klines.filter(isRecord).slice(-24).reduce((s, r) => s + (num(r.taker_buy) ?? 0), 0);
-      const vol = bars.reduce((s, b) => s + b.v, 0);
-      if (buy > 0 && vol > 0) out.buyShare = Math.min(1, buy / vol);
+      const rows = new Set(bars.map((b) => b.t));
+      const day = klines.filter(isRecord).filter((r) => rows.has(Date.parse(String(r.time ?? ""))));
+      const buy = day.reduce((s, r) => s + (num(r.buy_volume_spot) ?? 0), 0);
+      const spot = day.reduce((s, r) => s + (num(r.volume_spot) ?? 0), 0);
+      if (buy > 0 && spot > 0) out.buyShare = Math.min(1, buy / spot);
     }
   }
 
   const token = latest(under(response, "tokenomics"));
   if (token) {
-    out.marketCap = num(token.market_cap);
-    out.fdv = num(token.fdv);
+    out.marketCap = num(token.market_cap_usd);
+    out.fdv = num(token.fdv_usd);
     const circ = num(token.circulating_supply);
     const cap = num(token.max_supply) ?? num(token.total_supply);
     if (circ && cap) out.supplyShare = Math.min(1, circ / cap);
   }
 
   const funding = latest(under(response, "funding_next"));
-  const rate = num(funding?.estimated_rate);
+  const rate = num(funding?.estimated_rate_pct);
   if (rate !== undefined) {
-    out.funding = rate * 100;
-    out.fundingApr = num(funding?.apr);
-    if (typeof funding?.settlement_at === "string") out.fundingAt = funding.settlement_at;
+    out.funding = rate;
+    out.fundingApr = num(funding?.apr_pct);
+    if (typeof funding?.time === "string") out.fundingAt = funding.time;
   }
 
-  const oi = num(latest(under(response, "oi_snapshots"))?.oi_total);
+  const oi = num(latest(under(response, "oi_history@1h"))?.oi_total);
   if (oi !== undefined && price) out.oiUsd = oi * price;
 
-  const ls = latest(under(response, "ls_ratio@1h") ?? under(response, "ls_ratio"));
-  const part = num(ls?.part_long);
+  const part = num(latest(under(response, "ls_ratio@1h") ?? under(response, "ls_ratio"))?.part_long);
   if (part !== undefined) out.longShare = part;
 
-  const liq = under(response, "liq_cumulative");
+  const liq = under(response, LIQUIDATIONS_FIELD);
   const liqRows = Array.isArray(liq) ? liq.filter(isRecord) : isRecord(liq) ? [liq] : [];
   if (liqRows.length) {
     out.liqLongUsd = liqRows.reduce((s, r) => s + (num(r.long_usd) ?? 0), 0);
     out.liqShortUsd = liqRows.reduce((s, r) => s + (num(r.short_usd) ?? 0), 0);
   }
 
-  const heat = latest(under(response, "heatmap"));
+  const heat = latest(under(response, "heatmap_clusters"));
   const du = num(heat?.dist_up);
   const dd = num(heat?.dist_down);
   if (du !== undefined && du > 0) out.magnetUp = { dist: du, pull: num(heat?.attraction_up) ?? 0 };
   if (dd !== undefined && dd > 0) out.magnetDown = { dist: dd, pull: num(heat?.attraction_down) ?? 0 };
 
-  const imbalance = num(latest(under(response, "orderbook"))?.imbalance);
+  const book = latest(under(response, "orderbook"));
+  const ranges = Array.isArray(book?.ranges) ? book.ranges.filter(isRecord) : [];
+  /* The range closest to ±1 %: near enough to the price to matter. */
+  const near = ranges.reduce<Record<string, unknown> | undefined>((a, r) => (!a || Math.abs((num(r.range_pct) ?? 99) - 1) < Math.abs((num(a.range_pct) ?? 99) - 1) ? r : a), undefined);
+  const imbalance = num(near?.imbalance);
   if (imbalance !== undefined) out.bookImbalance = Math.max(-1, Math.min(1, imbalance));
 
   const buy = num(latest(under(response, "buysell_ratio"))?.buy_ratio);

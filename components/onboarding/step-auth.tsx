@@ -224,10 +224,10 @@ export function BytnodeKey({ value, error, onChange }: KeyProps) {
       link={{ href: BYTNODE_CONSOLE_KEYS, label: t.bytnodeLink }}
       verify={async (key) => {
         const res = await fetch("/api/bytnode/key", { headers: { "x-bytnode-key": key } });
-        const json = (await res.json()) as { ok?: boolean; tools?: string[]; error?: { message?: string } };
-        const n = json.tools?.length ?? 0;
+        const json = (await res.json()) as { ok?: boolean; pairs?: number; error?: { message?: string } };
+        const n = json.pairs ?? 0;
         return res.ok && json.ok
-          ? { ok: true, label: t.dataTools(n) }
+          ? { ok: true, label: t.dataPairs(n) }
           : { ok: false, message: json.error?.message ?? t.keyRefused };
       }}
       onChange={onChange}

@@ -4,8 +4,11 @@ import type { JsonSchema, Tool } from "@/lib/tools/types";
 import { fail, ok, errorText } from "@/lib/tools/types";
 
 /* ---------------------------------------------------------------------------
-   BytNode, the data source: a remote MCP server (Streamable HTTP),
-   authenticated by the X-API-KEY header.
+   BytNode, the data source OF THE AI AGENTS: a remote MCP server
+   (Streamable HTTP), authenticated by the X-API-KEY header. The app's own
+   code (views, jobs, widgets, the key check) reads BytNode's REST API and
+   WebSocket instead (`lib/bytnode/`); a plugin's tool reads through here
+   when an agent calls it (`lib/bytnode/reader.ts`).
 
    The tools it exposes are DISCOVERED at connection (`tools/list`) and
    shown to the agents under their own names, with their descriptions — the
@@ -110,8 +113,10 @@ export function contentToText(content: unknown): string {
     double-quoted property name… at position 40002"). */
 export async function readBytnodeTool(apiKey: string, name: string, args: Record<string, unknown>, signal: AbortSignal): Promise<{ ok: true; text: string } | { ok: false; message: string }> {
   const key = apiKey.trim();
-  const s = await session(key);
   try {
+    /* Inside the try: a refused key fails at the connection, and must read
+       as BytNode's refusal, not as some other source's error. */
+    const s = await session(key);
     const res = await s.client.callTool({ name, arguments: args }, undefined, { signal, timeout: CALL_TIMEOUT });
     const r = res as { content?: unknown; isError?: boolean; structuredContent?: unknown };
     const text = r.content !== undefined ? contentToText(r.content) : JSON.stringify(r.structuredContent ?? r);
@@ -140,17 +145,6 @@ export function wrapBytnodeTools(apiKey: string, infos: McpToolInfo[]): Tool[] {
     policy: { readOnly: true, subagent: true },
     execute: (args, ctx) => callBytnodeTool(apiKey, info.name, args, ctx.signal),
   }));
-}
-
-/** Checks a key: the connection succeeds and the tool list arrives. */
-export async function checkBytnodeKey(apiKey: string): Promise<{ ok: true; tools: string[] } | { ok: false; message: string }> {
-  try {
-    const tools = await bytnodeTools(apiKey);
-    return { ok: true, tools: tools.map((t) => t.name) };
-  } catch (e) {
-    drop(apiKey.trim());
-    return { ok: false, message: describeBytnodeError(e) };
-  }
 }
 
 /** The HTTP status the MCP transport attached to its error, if any. */

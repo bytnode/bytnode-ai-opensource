@@ -9,6 +9,9 @@ import { EMPTY_PERMISSIONS, type Permissions } from "./permissions";
 
 const fake: { ex: Partial<Exchange> & Record<string, unknown> } = { ex: {} };
 vi.mock("@/lib/tools/exchange/client", () => ({ clientFor: async () => fake.ex }));
+const bytnode = vi.hoisted(() => ({ restGet: vi.fn(), restPost: vi.fn(), readBytnodeTool: vi.fn() }));
+vi.mock("@/lib/bytnode/rest", () => ({ POST_PATHS: new Set(["/v1/indicators"]), restGet: bytnode.restGet, restPost: bytnode.restPost }));
+vi.mock("@/lib/mcp/bytnode", () => ({ readBytnodeTool: bytnode.readBytnodeTool }));
 
 const { liveOps, readTrades } = await import("./host-ops");
 
@@ -17,12 +20,12 @@ const trade = (id: string, symbol: string, ago: number, side = "buy") => ({ id, 
 
 const account: ExchangeAccount = { id: "acc-1", exchange: "binance", label: "Binance main", apiKey: "k", secret: "s", password: "", testnet: true };
 
-function ops(permissions: Partial<Permissions>, accounts = ["acc-1"]) {
+function ops(permissions: Partial<Permissions>, accounts = ["acc-1"], bytnodeKey = "") {
   return liveOps({
     id: "u-journal",
     grant: { permissions: { ...EMPTY_PERMISSIONS, ...permissions }, accounts, digest: "d", at: "" },
     store: {} as PluginStore,
-    keys: () => ({ bytnodeKey: "", accounts: [account] }),
+    keys: () => ({ bytnodeKey, accounts: [account] }),
     notify: async () => {},
     confirm: async () => ({}) as never,
     hasView: true,
@@ -100,5 +103,38 @@ describe("ctx.exchange.read", () => {
     await expect(readMethod(ex, "createOrder", [])).rejects.toThrow(/not a reading method/);
     await expect(readMethod(ex, "fetch", ["https://x"])).rejects.toThrow(/not a reading method/);
     await expect(readMethod(ex, "fetchLedger", [])).rejects.toThrow(/has no fetchLedger/);
+  });
+});
+
+describe("ctx.bytnode", () => {
+  it("reads a REST route with the user's key and gives the whole envelope", async () => {
+    bytnode.restGet.mockResolvedValue({ ok: true, data: [1], body: { status: "ok", data: [1], next: null } });
+    const r = await ops({ bytnode: true }, [], "cb_test_k")("bytnode", ["/v1/klines", { symbol: "BTCUSDT", timeframe: "1h", limit: 5 }]);
+    expect(r).toEqual({ status: "ok", data: [1], next: null });
+    expect(bytnode.restGet).toHaveBeenCalledWith("cb_test_k", "/v1/klines", { symbol: "BTCUSDT", timeframe: "1h", limit: 5 });
+  });
+
+  it("POSTs to /v1/indicators with the arguments as body", async () => {
+    bytnode.restPost.mockResolvedValue({ ok: true, data: {}, body: { status: "ok", data: {} } });
+    const body = { symbol: "BTCUSDT", timeframe: "1h", indicators: [{ id: "rsi", type: "rsi", period: 14 }] };
+    await ops({ bytnode: true }, [], "k")("bytnode", ["/v1/indicators", body]);
+    expect(bytnode.restPost).toHaveBeenCalledWith("k", "/v1/indicators", body);
+  });
+
+  it("refuses what is not a BytNode route, and a query that is not flat", async () => {
+    const run = ops({ bytnode: true }, [], "k");
+    await expect(run("bytnode", ["/v1/../mcp", {}])).rejects.toThrow(/Not a BytNode route/);
+    await expect(run("bytnode", ["/admin", {}])).rejects.toThrow(/Not a BytNode route/);
+    await expect(run("bytnode", ["/v1/klines", { symbol: { a: 1 } }])).rejects.toThrow(/must be a text/);
+  });
+
+  it("still answers the old form (an MCP tool's name)", async () => {
+    bytnode.readBytnodeTool.mockResolvedValue({ ok: true, text: '{"data":{"x":1}}' });
+    expect(await ops({ bytnode: true }, [], "k")("bytnode", ["get_market_data", { symbol: "BTCUSDT" }])).toEqual({ data: { x: 1 } });
+  });
+
+  it("needs the permission and a key", async () => {
+    await expect(ops({}, [], "k")("bytnode", ["/v1/symbols", {}])).rejects.toThrow();
+    await expect(ops({ bytnode: true }, [], "")("bytnode", ["/v1/symbols", {}])).rejects.toThrow(/No BytNode key/);
   });
 });

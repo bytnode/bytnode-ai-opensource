@@ -1,10 +1,10 @@
 import { definePlugin } from "../core/contract";
-import { readBytnodeTool } from "@/lib/mcp/bytnode";
+import { restGet, restPost } from "@/lib/bytnode/rest";
 import { isInterval, readKlines } from "../shared/candle";
-import { CORE_FIELDS, PRESSURE_FIELDS, readInsight } from "./insight";
+import { LIQUIDATIONS, LIQUIDATIONS_FIELD, SNAPSHOT_FIELDS, readInsight } from "./insight";
 import { INDICATORS, RESULTS, readTechnicals } from "./technicals";
 import { bytnodeSymbol, normalizeSymbol } from "../shared/quote";
-import { bytnodePairs, candles, isQuote, quote, quotes } from "../shared/prices";
+import { bytnodePairs, candles, isQuote, quotes } from "../shared/prices";
 import { EMPTY, editWatchlist, watchlistPrompt, type Watchlist } from "./list";
 import { watchlistManifest } from "./manifest";
 import type { WatchlistService } from "./service";
@@ -17,8 +17,6 @@ import { watchlistShowTool } from "./watchlist-show";
    calendar. Every change announces `watchlist:changed`. */
 
 const FILE = "watchlist.json";
-/** A live price is at most this old: the view reads it every 5 s. */
-const LIVE_MS = 4_000;
 
 export const watchlistPlugin = definePlugin({
   manifest: watchlistManifest,
@@ -44,13 +42,8 @@ export const watchlistPlugin = definePlugin({
         return { ...x, quote: p && isQuote(p) ? p : null, error: p && !isQuote(p) ? p.error : null };
       });
     });
-    /* The asset the view shows, live: its quote every few seconds, and
-       its candles for the chart. */
-    ctx.api("price", async (params, { transport, signal }) => {
-      const symbol = normalizeSymbol(String(params.symbol ?? ""));
-      if (!symbol) return null;
-      return quote(symbol, { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal }, LIVE_MS);
-    });
+    /* The chosen asset's candles for the chart (its live price, streamed
+       to the view, moves the last one). */
     ctx.api("candles", async (params, { transport, signal }) => {
       const symbol = normalizeSymbol(String(params.symbol ?? ""));
       if (!symbol) return null;
@@ -58,25 +51,23 @@ export const watchlistPlugin = definePlugin({
       const limit = typeof params.limit === "number" ? params.limit : 300;
       return candles(symbol, interval, limit, { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal });
     });
-    /* What the view tells about the asset under its chart: one BytNode
-       call; the open interest is priced with the last hourly close. */
+    /* What the view tells about the asset under its chart: BytNode's
+       snapshot and the day's liquidations, read together (REST); the
+       open interest is priced with the last hourly close. */
     ctx.api("insight", async (params, { transport, signal }) => {
       const symbol = normalizeSymbol(String(params.symbol ?? ""));
       if (!symbol) return null;
       const key = transport.bytnodeKey?.trim();
       if (!key) return { symbol, error: "These figures come from BytNode: add your key in Settings → Auth." };
-      /* The pull's fields are extras: a pair that refuses them still gets
-         its key figures, asked again without them. */
-      let res = await readBytnodeTool(key, "get_market_data", { symbol: bytnodeSymbol(symbol), ...CORE_FIELDS, ...PRESSURE_FIELDS }, signal);
-      if (!res.ok) res = await readBytnodeTool(key, "get_market_data", { symbol: bytnodeSymbol(symbol), ...CORE_FIELDS }, signal);
-      if (!res.ok) return { symbol, error: res.message };
-      try {
-        const parsed: unknown = JSON.parse(res.text);
-        const last = readKlines(parsed, "klines_1h").at(-1);
-        return { symbol, insight: readInsight(parsed, last?.c) };
-      } catch {
-        return { symbol, error: `BytNode's figures for ${symbol} could not be read.` };
-      }
+      const sym = bytnodeSymbol(symbol);
+      const [snap, liq] = await Promise.all([
+        restGet<Record<string, unknown>>(key, "/v1/snapshot", { symbol: sym, ...SNAPSHOT_FIELDS }, signal),
+        restGet<unknown[]>(key, "/v1/liquidations/cumulative/history", { symbol: sym, ...LIQUIDATIONS }, signal),
+      ]);
+      if (!snap.ok) return { symbol, error: snap.message };
+      const data = { ...(snap.data ?? {}), ...(liq.ok && Array.isArray(liq.data) ? { [LIQUIDATIONS_FIELD]: liq.data } : {}) };
+      const last = readKlines(data, "klines@1h").at(-1);
+      return { symbol, insight: readInsight(data, last?.c) };
     });
     /* The asset's technical signals on the chart's interval: one call. */
     ctx.api("technicals", async (params, { transport, signal }) => {
@@ -85,13 +76,10 @@ export const watchlistPlugin = definePlugin({
       const interval = isInterval(params.interval) ? params.interval : "1h";
       const key = transport.bytnodeKey?.trim();
       if (!key) return { symbol, interval, error: "Signals come from BytNode: add your key in Settings → Auth." };
-      const res = await readBytnodeTool(key, "get_market_indicators", { symbol: bytnodeSymbol(symbol), timeframe: interval, results: RESULTS, indicators: INDICATORS }, signal);
-      if (!res.ok) return { symbol, interval, error: /symbol|symbole|not supported|inconnu|unknown/i.test(res.message) ? `BytNode computes signals on its perpetual pairs only — not on ${symbol}.` : res.message };
-      try {
-        return { symbol, interval, technicals: readTechnicals(JSON.parse(res.text)) };
-      } catch {
-        return { symbol, interval, error: `BytNode's signals for ${symbol} could not be read.` };
-      }
+      const res = await restPost(key, "/v1/indicators", { symbol: bytnodeSymbol(symbol), timeframe: interval, results: RESULTS, indicators: INDICATORS }, signal);
+      if (!res.ok) return { symbol, interval, error: res.code === "invalid_symbol" ? `BytNode does not compute signals on ${symbol}.` : res.message };
+      if (res.data === null || res.data === undefined) return { symbol, interval, error: `BytNode does not compute signals on ${symbol}.` };
+      return { symbol, interval, technicals: readTechnicals(res.data) };
     });
     /* What the add field proposes: BytNode's pairs only (ranked in the
        browser, `suggest.ts`). */

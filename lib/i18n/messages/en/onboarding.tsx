@@ -144,7 +144,7 @@ export const onboarding = {
     bytnodeLabel: "BytNode key",
     bytnodeHint: "Starts with cb_. Required: without it, the agents have no market data.",
     bytnodeLink: "Create or copy my key in the BytNode console",
-    dataTools: (n: number) => (n === 1 ? "1 data tool" : `${n} data tools`),
+    dataPairs: (n: number) => (n === 1 ? "1 pair covered" : `${n} pairs covered`),
     keyRefused: "Key refused.",
     unreachable: "Could not reach the service.",
     recognised: (label: string) => (label ? `Key recognised: ${label}.` : "Key recognised."),

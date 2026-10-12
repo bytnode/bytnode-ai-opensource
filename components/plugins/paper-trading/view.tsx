@@ -11,6 +11,7 @@ import { ItemMenu, useItemMenu } from "../item-menu";
 import { callPlugin } from "@/lib/plugins/client";
 import { act, usePluginData, viewTransport } from "../use-plugin-data";
 import { useAwakeInterval, useOnWake } from "../view-activity";
+import { useLiveQuotes } from "../use-live-quotes";
 import { useReportExport } from "../use-report-export";
 import type { Listed, Priced } from "@/lib/plugins/shared/prices";
 import { Books } from "./books";
@@ -52,7 +53,6 @@ import "./paper-trading.css";
 
 const REFRESH = 15_000;
 const BOOKS_MS = 30_000;
-const QUOTE_MS = 5_000;
 
 export function PaperTradingView({ settings, params }: ViewProps) {
   const m = useMessages();
@@ -77,11 +77,12 @@ export function PaperTradingView({ settings, params }: ViewProps) {
   const report = useReportExport("paper-trading", settings, { portfolio: id });
 
   /* The pair in the ticket, which the market block shows too; its price
-     every 5 s; BytNode's pairs, read once and again when the tab wakes. */
+     live (streamed, ../use-live-quotes.ts); BytNode's pairs, read once and again when the tab wakes. */
   const [symbol, setSymbol] = useState("BTC/USDT");
-  const quote = usePluginData<Priced>("paper-trading", "quote", settings, { symbol });
-  useAwakeInterval(quote.reload, QUOTE_MS);
-  const live = quote.data && quote.data.symbol === symbol ? quote.data : null;
+  const stream = useLiveQuotes([symbol], settings);
+  const streamed = stream.quotes.get(symbol);
+  const failed = stream.errors.get(symbol);
+  const live: Priced | null = streamed ?? (failed ? { symbol, error: failed } : null);
   const pairsData = usePluginData<Listed[]>("paper-trading", "pairs", settings, {}, { keep: "latest" });
   useOnWake(pairsData.reload);
   const pairs = Array.isArray(pairsData.data) && pairsData.data.length ? pairsData.data : null;
@@ -202,7 +203,7 @@ export function PaperTradingView({ settings, params }: ViewProps) {
         <Sheet
           data={data}
           loading={state.loading}
-          problem={problem ?? state.error ?? null}
+          problem={problem ?? state.error ?? (stream.state === "unavailable" ? stream.problem : null)}
           many={(list?.length ?? 0) > 1}
           tradeClosed={closed}
           exportButton={report.button(!data)}

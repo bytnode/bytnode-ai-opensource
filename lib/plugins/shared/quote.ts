@@ -42,14 +42,17 @@ export function normalizeSymbol(raw: string): string | null {
 /** The base asset of a pair: `BTC/USDT` → `BTC`. */
 export const baseOf = (symbol: string): string => symbol.split("/")[0].toUpperCase();
 
-/** BytNode's `price_change` block, found wherever the response puts it:
-    `{ price, timestamp, changes: { "1h", "4h", "1d", "1w", … } }`. */
+/** BytNode's price change, found wherever the response puts it: the REST
+    route's `{ time, price, changes_pct: { "1h", "4h", "1d", "1w", … } }`
+    (the MCP's too), or the older `{ price, timestamp, changes }`. */
 export function readPriceChange(response: unknown, symbol: string, now: Date): Quote | null {
-  const found = find(response, (o) => num(o.price) !== undefined && isRecord(o.changes));
+  const found = find(response, (o) => num(o.price) !== undefined && (isRecord(o.changes_pct) || isRecord(o.changes)));
   if (!found) return null;
-  const changes = found.changes as Record<string, unknown>;
-  const ts = num(found.timestamp);
-  const at = typeof found.timestamp === "string" && !Number.isFinite(Number(found.timestamp)) ? found.timestamp : ts ? new Date(ts > 1e12 ? ts : ts * 1000).toISOString() : now.toISOString();
+  const changes = (isRecord(found.changes_pct) ? found.changes_pct : found.changes) as Record<string, unknown>;
+  const stamp = found.time ?? found.timestamp;
+  const ts = num(stamp);
+  const iso = typeof stamp === "string" && !Number.isFinite(Number(stamp)) ? Date.parse(stamp) : NaN;
+  const at = Number.isFinite(iso) ? new Date(iso).toISOString() : ts ? new Date(ts > 1e12 ? ts : ts * 1000).toISOString() : now.toISOString();
   return {
     symbol,
     price: num(found.price) as number,
@@ -80,10 +83,14 @@ function find(v: unknown, test: (o: Record<string, unknown>) => boolean, depth =
   return null;
 }
 
-/** BytNode's funding rate for a pair (`funding_next.estimated_rate`, a
-    fraction per 8 h), in %. */
+/** BytNode's next funding rate for a pair, in % per 8 h: the REST route's
+    `estimated_rate_pct` (already in %), or the older `estimated_rate` (a
+    fraction). */
 export function readFunding(response: unknown): number | undefined {
-  const found = find(response, (o) => num(o.estimated_rate) !== undefined);
-  const rate = found ? num(found.estimated_rate) : undefined;
+  const found = find(response, (o) => num(o.estimated_rate_pct) !== undefined || num(o.estimated_rate) !== undefined);
+  if (!found) return undefined;
+  const pct = num(found.estimated_rate_pct);
+  if (pct !== undefined) return pct;
+  const rate = num(found.estimated_rate);
   return rate === undefined ? undefined : rate * 100;
 }

@@ -1,12 +1,12 @@
 /* ---------------------------------------------------------------------------
    The chosen asset's technical signals, on the chart's interval: ONE
-   `get_market_indicators` call (`INDICATORS`, the last `RESULTS` closed
-   bars) — RSI 14, EMA 50 and 200, ATR 14, MACD 12/26/9 — read into what
-   the tab says: the RSI's zone, the trend against the two averages, the
-   volatility as a share of the price, and which side the MACD is on and
-   for how many bars. BytNode computes them on Binance USDT-M perpetuals
-   only; the answer is `{ indicators: { <id>: { values: [...] | {k: [...]} } } }`,
-   oldest first.
+   `POST /v1/indicators` (BytNode's REST API; `INDICATORS`, the last
+   `RESULTS` bars) — RSI 14, EMA 50 and 200, ATR 14, MACD 12/26/9 — read
+   into what the tab says: the RSI's zone, the trend against the two
+   averages, the volatility as a share of the price, and which side the
+   MACD is on and for how many bars. BytNode computes them on the same
+   candles as `/v1/klines`; the answer's `data` is
+   `{ indicators: { <id>: { values: [...] | {k: [...]} } } }`, oldest first.
    Pure, tested.
 --------------------------------------------------------------------------- */
 

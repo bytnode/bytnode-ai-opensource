@@ -134,7 +134,7 @@ export const onboarding: Messages["onboarding"] = {
     bytnodeLabel: "BytNode 密钥",
     bytnodeHint: "以 cb_ 开头。必填：没有它，智能体就没有市场数据。",
     bytnodeLink: "在 BytNode 控制台创建或复制我的密钥",
-    dataTools: (n: number) => `${n} 个数据工具`,
+    dataPairs: (n: number) => `覆盖 ${n} 个交易对`,
     keyRefused: "密钥被拒绝。",
     unreachable: "无法连接到服务。",
     recognised: (label: string) => (label ? `密钥已识别：${label}。` : "密钥已识别。"),

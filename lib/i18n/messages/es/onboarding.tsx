@@ -138,7 +138,7 @@ export const onboarding: Messages["onboarding"] = {
     bytnodeLabel: "Clave de BytNode",
     bytnodeHint: "Empieza por cb_. Obligatoria: sin ella, los agentes no tienen datos de mercado.",
     bytnodeLink: "Crear o copiar mi clave en la consola de BytNode",
-    dataTools: (n: number) => (n === 1 ? "1 herramienta de datos" : `${n} herramientas de datos`),
+    dataPairs: (n: number) => (n === 1 ? "1 par cubierto" : `${n} pares cubiertos`),
     keyRefused: "Clave rechazada.",
     unreachable: "No se pudo conectar con el servicio.",
     recognised: (label: string) => (label ? `Clave reconocida: ${label}.` : "Clave reconocida."),

@@ -1,7 +1,8 @@
 /* ---------------------------------------------------------------------------
    Candles, as the plugins use them: a series of OHLCV bars read from
-   BytNode's klines (`{timestamp, open, high, low, close, volume, …}`,
-   under `klines_<interval>` wherever the response nests it) or from an
+   BytNode's klines (`{time, open, high, low, close, volume_total, …}`:
+   the REST route's `data`, or under `klines@<interval>` wherever an MCP
+   answer nests it) or from an
    exchange's `fetchOHLCV` rows, and kept alive between two readings by
    the last price.
    Pure, tested.
@@ -44,7 +45,7 @@ export function toCandle(row: unknown): Candle | null {
     [t, o, h, l, c, v] = [timeOf(row[0]), num(row[1]), num(row[2]), num(row[3]), num(row[4]), num(row[5])];
   } else if (isRecord(row)) {
     t = timeOf(row.timestamp ?? row.open_time ?? row.time ?? row.t ?? row.bucket);
-    [o, h, l, c, v] = [num(row.open ?? row.o), num(row.high ?? row.h), num(row.low ?? row.l), num(row.close ?? row.c), num(row.volume ?? row.v)];
+    [o, h, l, c, v] = [num(row.open ?? row.o), num(row.high ?? row.h), num(row.low ?? row.l), num(row.close ?? row.c), num(row.volume ?? row.volume_total ?? row.volume_spot ?? row.v)];
   } else return null;
   if (t === undefined || o === undefined || h === undefined || l === undefined || c === undefined) return null;
   return { t, o, h: Math.max(h, o, c), l: Math.min(l, o, c), c, v: v ?? 0 };
@@ -60,11 +61,14 @@ export function orderCandles(rows: unknown[]): Candle[] {
   return [...byTime.values()].sort((a, b) => a.t - b.t);
 }
 
-/** BytNode's klines under `key` (`klines_1h`…), wherever the response puts
-    them; an empty list when there are none. */
+/** BytNode's klines under `key` (`klines@1h`, or the older `klines_1h`),
+    wherever the response puts them; an empty list when there are none. */
 export function readKlines(response: unknown, key: string): Candle[] {
-  const found = find(response, key, 0);
-  return Array.isArray(found) ? orderCandles(found) : [];
+  for (const k of new Set([key, key.replace("@", "_"), key.replace("_", "@")])) {
+    const found = find(response, k, 0);
+    if (Array.isArray(found)) return orderCandles(found);
+  }
+  return [];
 }
 
 function find(v: unknown, key: string, depth: number): unknown {

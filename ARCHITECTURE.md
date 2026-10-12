@@ -35,7 +35,8 @@ Vitest. Everything in the repository — code, comments, prompts, skills, docs �
  conversations), the agent loop                  plugin runtime, ACP sessions
  for key agents                                        │
                                                        ├──▶ OpenRouter (models, by key)
-                                                       ├──▶ BytNode MCP server (market data)
+                                                       ├──▶ BytNode MCP server (the AI agents' market data)
+                                                       ├──▶ BytNode REST API + WebSocket (the app's market data)
                                                        ├──▶ exchanges (ccxt)
                                                        └──▶ subscription agents (subprocesses, ACP)
                                                                  └──▶ local MCP server (our tools)
@@ -209,6 +210,21 @@ notifications, confirmations for orders, scheduled jobs, events, optional servic
 `~/.bytnode-ai/plugins/<id>/` (atomic writes, cross-process lock). Two runtimes exist: one in
 the Next server (with background work, while a browser tab keeps a session alive) and one per MCP
 server (tools only, for subscription agents).
+
+**BytNode: two readers, two roads** (2026-10-11). The AI agents read BytNode through its MCP
+server (`lib/mcp/bytnode.ts`). Everything else — a plugin's view, its background jobs, the
+widgets, the key check — reads its REST API (`lib/bytnode/rest.ts`: candles, funding, the pairs,
+the snapshot, indicators) and, for live prices, its WebSocket (`lib/bytnode/live.ts`: ONE
+connection per key in the Next server, the `trades.spot.<SYM>` channels, the pairs held while
+something wants them and let go a minute after). A plugin's tool runs the same code as its view,
+so the runtime marks a tool's execution as an agent's (`asAgent`, `lib/bytnode/reader.ts`) and the
+price layer (`lib/plugins/shared/prices.ts`) picks its road from that mark. There is no ticker on
+the WebSocket: the live price is the last trade, and the changes over 1 h / 4 h / 24 h / 7 d are
+worked out against a `/v1/price-change` reading taken every ten minutes. A view gets its prices
+pushed (`/api/market/live`, NDJSON, `components/plugins/use-live-quotes.ts`) instead of reading
+them again and again; a WebSocket refused at the handshake (a plan without live access) is told in
+plain English and the prices fall back on that REST reading. Plugins written by agents call
+`ctx.bytnode("/v1/…", params)` (REST); the older form with an MCP tool's name still works.
 
 **Views** are React components in `components/plugins/`, shown as tabs by the shell
 (`components/shell/`). Open tabs stay mounted; the ones behind are hidden and asleep.

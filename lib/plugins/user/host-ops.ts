@@ -2,6 +2,7 @@ import type { Exchange } from "ccxt";
 import type { Confirmation } from "@/lib/domain/plugins";
 import type { ExchangeAccount } from "@/lib/domain/types";
 import { ALWAYS_ASK } from "@/lib/tools/names";
+import { POST_PATHS, restGet, restPost, type RestParams } from "@/lib/bytnode/rest";
 import { readBytnodeTool } from "@/lib/mcp/bytnode";
 import { clientFor } from "@/lib/tools/exchange/client";
 import { describeExchangeError } from "@/lib/tools/exchange/errors";
@@ -54,6 +55,19 @@ const str = (v: unknown, what: string, max = 500): string => {
   if (v.length > max) throw new Error(`${what} is too long (${max} characters at most).`);
   return v.trim();
 };
+
+/** A plugin's query for a BytNode route: plain values only (an object or a
+    list in a query string means nothing to the API). */
+function restParams(args: Record<string, unknown>): RestParams {
+  const out: RestParams = {};
+  for (const [k, v] of Object.entries(args)) {
+    if (v === null || v === undefined) continue;
+    if (typeof v !== "string" && typeof v !== "number" && typeof v !== "boolean") throw new Error(`BytNode's query parameter ${k} must be a text, a number or true/false.`);
+    /* An explicit false is sent as such (an empty value is left out). */
+    out[k] = v === false ? "false" : v;
+  }
+  return out;
+}
 
 function need(what: keyof Permissions, ok: boolean): void {
   if (ok) return;
@@ -238,8 +252,20 @@ export function liveOps(deps: LiveDeps): (op: string, args: unknown[]) => Promis
         need("bytnode", p.bytnode);
         const key = deps.keys()?.bytnodeKey;
         if (!key) throw new Error("No BytNode key is available right now (BytNode-AI closed, or no key in the settings).");
-        const tool = str(a[0], "The BytNode tool", 80);
-        const res = await readBytnodeTool(key, tool, (a[1] ?? {}) as Record<string, unknown>, AbortSignal.timeout(60_000));
+        const target = str(a[0], "The BytNode route", 120);
+        const args = (a[1] ?? {}) as Record<string, unknown>;
+        /* A route (`/v1/klines`): BytNode's REST API, the answer's whole
+           envelope (`data`, `next`, `unavailable`…). */
+        if (target.startsWith("/")) {
+          if (!/^\/v1\/[a-z0-9/_.-]+$/i.test(target) || target.includes("..")) throw new Error(`Not a BytNode route: ${target} (expected /v1/…).`);
+          const res = POST_PATHS.has(target) ? await restPost(key, target, args) : await restGet(key, target, restParams(args));
+          if (!res.ok) throw new Error(res.message);
+          return res.body;
+        }
+        /* ⚠️ DEPRECATED: an MCP tool's name (`get_market_data`), the form
+           written before the REST API. Kept so the plugins already written
+           still work; new ones name a route. */
+        const res = await readBytnodeTool(key, target, args, AbortSignal.timeout(60_000));
         if (!res.ok) throw new Error(res.message);
         try {
           return JSON.parse(res.text) as unknown;

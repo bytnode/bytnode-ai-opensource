@@ -616,13 +616,13 @@ html[data-theme="light"] .wlv-sheet {
   font-size: 40px;
   line-height: 1;
   letter-spacing: -0.03em;
-  animation: wlv-tick 700ms var(--ease) both;
+  animation: wlv-tick 300ms var(--ease) both;
 }
 
 /* A new price comes in: it lights up, then settles. */
 @keyframes wlv-tick {
   from {
-    opacity: 0.45;
+    opacity: 0.7;
   }
 }
 

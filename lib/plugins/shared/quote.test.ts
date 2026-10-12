@@ -20,8 +20,13 @@ describe("readPriceChange", () => {
       change24h: 2.4,
       change7d: -5.1,
       source: "bytnode",
-      at: "2026-09-23T11:59:58Z",
+      at: "2026-09-23T11:59:58.000Z",
     });
+  });
+
+  it("reads the REST route's data (`changes_pct`, `time`)", () => {
+    const data = { time: "2026-10-11T19:30:00.000Z", price: 83708.9, changes_pct: { "1m": 0.03, "1h": -0.19, "4h": 0.66, "1d": 0.8, "1w": -2.05 } };
+    expect(readPriceChange(data, "BTC/USDT", now)).toEqual({ symbol: "BTC/USDT", price: 83708.9, change1h: -0.19, change4h: 0.66, change24h: 0.8, change7d: -2.05, source: "bytnode", at: "2026-10-11T19:30:00.000Z" });
   });
 
   it("accepts epoch timestamps and missing changes", () => {
@@ -37,6 +42,7 @@ describe("readPriceChange", () => {
   });
 
   it("reads the funding rate in %", () => {
+    expect(readFunding({ time: "t", estimated_rate_pct: 0.0039, apr_pct: 4.27 })).toBeCloseTo(0.0039, 10);
     expect(readFunding({ data: { funding_next: { estimated_rate: 0.0001, apr: 10.95 } } })).toBeCloseTo(0.01, 10);
     expect(readFunding({})).toBeUndefined();
   });
