@@ -77,7 +77,8 @@ function world(probe: string | null = null) {
   return { deps, sockets, advance, timers };
 }
 
-const trade = (sym: string, price: number, time = "2026-10-12T10:00:00.000Z") => ({ channel: `trades.spot.${sym}`, time, seq: 1, data: [{ time, id: "1", side: "buy", price, quantity: 1, usd_value: price }] });
+/** A frame as the contract (asyncapi 4.3) has it. */
+const trade = (sym: string, price: number, time = "2026-10-12T10:00:00.000Z") => ({ channel: `trades.spot.${sym}`, server_time: time, seq: 1, data: [{ time, id: "0123456789abcdef", side: "buy", price, quantity: 1, value_usd: price }] });
 
 describe("lastTrade", () => {
   it("takes the latest trade of a frame", () => {
@@ -192,8 +193,34 @@ describe("LiveFeed", () => {
     const s = w.sockets[0];
     s.open();
     expect(s.sent[0].channels).toEqual(["trades.spot.FOOUSDT"]);
-    s.receive({ op: "error", code: "invalid_channel", message: "unknown" });
+    s.receive({ op: "error", server_time: "2026-10-15T10:00:00.000Z", error: { code: "invalid_channel", message: "unknown" } });
     expect(s.sent[1].channels).toEqual(["trades.spot.BTCUSDT"]);
+  });
+
+  it("stops when the plan refuses the channel's family (the error object nested, contract 3.0.0)", () => {
+    const w = world();
+    const feed = new LiveFeed("k", w.deps);
+    feed.watch("BTCUSDT");
+    const s = w.sockets[0];
+    s.open();
+    s.receive({ op: "error", server_time: "2026-10-15T10:00:00.000Z", error: { code: "plan_family", message: "Channel 'trades.spot.BTCUSDT' is not in your plan." } });
+    expect(feed.state).toBe("unavailable");
+    expect(feed.problem).toMatch(/plan does not include this data.*not in your plan/);
+    expect(s.closed).not.toBeNull();
+  });
+
+  it("takes a key refused on an open session (4001) for a refusal, not a drop", async () => {
+    const w = world("Key refused by BytNode: it is missing, invalid or revoked. Check it on bytnode.com.");
+    const feed = new LiveFeed("k", w.deps);
+    feed.watch("BTCUSDT");
+    w.sockets[0].open();
+    w.sockets[0].drop(4001, "authentication refused");
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(feed.state).toBe("unavailable");
+    expect(feed.problem).toMatch(/Key refused/);
+    w.advance(60_000);
+    expect(w.sockets).toHaveLength(1);
   });
 
   it("comes back after a drop, and at once after the six-hour cut", () => {

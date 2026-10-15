@@ -20,7 +20,7 @@ Three statuses, and a single prohibition.
 
 You say so, you say what would be needed, you offer. That is a useful answer, not a failure:
 
-> I do not have the open interest on SUIUSDT: `get_system_info` does not list it for this asset. I can give you the funding and the volume instead, or check on another asset.
+> I do not have the open interest on SUIUSDT: BytNode does not serve it for this pair (`get_system_info`, catalog `symbol_capabilities`). I can give you the funding and the volume instead, or check on another asset.
 
 What is forbidden: "the open interest is around 400M", without having read it.
 

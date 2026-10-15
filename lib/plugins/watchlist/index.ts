@@ -76,7 +76,7 @@ export const watchlistPlugin = definePlugin({
       const interval = isInterval(params.interval) ? params.interval : "1h";
       const key = transport.bytnodeKey?.trim();
       if (!key) return { symbol, interval, error: "Signals come from BytNode: add your key in Settings → Auth." };
-      const res = await restPost(key, "/v1/indicators", { symbol: bytnodeSymbol(symbol), timeframe: interval, results: RESULTS, indicators: INDICATORS }, signal);
+      const res = await restPost(key, "/v1/indicators", { symbol: bytnodeSymbol(symbol), timeframe: interval, limit: RESULTS, indicators: INDICATORS }, signal);
       if (!res.ok) return { symbol, interval, error: res.code === "invalid_symbol" ? `BytNode does not compute signals on ${symbol}.` : res.message };
       if (res.data === null || res.data === undefined) return { symbol, interval, error: `BytNode does not compute signals on ${symbol}.` };
       return { symbol, interval, technicals: readTechnicals(res.data) };

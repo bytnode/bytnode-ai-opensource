@@ -9,7 +9,7 @@ import { detectColumns, rowsOf, toCsv, toMillis, type Row } from "./csv";
 /* ---------------------------------------------------------------------------
    SaveMarketData: BytNode data to a file, without going through the model.
 
-   Calls a BytNode tool (`get_history`, `get_market_data`…) with its
+   Calls a BytNode tool (`get_market_data`, `get_market_indicators`) with its
    arguments, finds the table in the response, writes it as CSV in the
    workspace and hands the model only a summary: columns, number of rows,
    first and last date. Two thousand candles no longer go through the
@@ -24,9 +24,9 @@ export const saveMarketDataTool: Tool<Args> = {
   name: "SaveMarketData",
   policy: { gated: false, subagent: true },
   description:
-    "Queries a BytNode data tool (`get_history`, `get_market_data`, `get_market_indicators`…) and saves the resulting table as CSV in the workspace, without it going through the conversation. " +
+    "Queries a BytNode data tool (`get_market_data` — history with `since_ms`/`until_ms` —, `get_market_indicators`) and saves the resulting table as CSV in the workspace, without it going through the conversation. " +
     "Use it as soon as there are more than a few dozen rows (candle history, indicator series): you receive a summary (columns, number of rows, period) and the file is ready for Chart, Backtest or a pandas script. " +
-    "`tool` and `args` are exactly those you would pass to the BytNode tool (see `get_system_info` for the parameters). `append: true` appends to an existing CSV (same columns) instead of replacing it.",
+    "`tool` and `args` are exactly those you would pass to the BytNode tool (its own description gives the parameters). `append: true` appends to an existing CSV (same columns) instead of replacing it.",
   parameters: {
     type: "object",
     properties: {

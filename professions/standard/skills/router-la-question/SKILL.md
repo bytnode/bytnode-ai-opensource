@@ -13,20 +13,20 @@ Your flaw as a generalist: you know the subject, so you answer without looking. 
 
 | The question concerns… | The tool |
 |---|---|
-| What exists (assets, data families, freshness) | `get_system_info` — do it once at the start of the conversation if you do not know |
-| Current price, volume, change | `get_market_data` |
-| A series over time (candles, history) | `get_history` — and if it is more than a few dozen rows: `SaveMarketData` to a CSV |
+| What exists (pairs, catalogs, freshness) | `get_system_info` — do it once at the start of the conversation if you do not know |
+| Current price, volume, change, funding, open interest | `get_market_data` (`price_change`, `klines`, `funding_next`, `oi`…) |
+| A series over time (candles, history) | `get_market_data` with `since_ms` / `until_ms` — and if it is more than a few dozen rows: `SaveMarketData` to a CSV |
 | Computed technical indicators | `get_market_indicators` |
-| Sentiment, fear/greed, positioning | `get_market_emotions` |
+| Sentiment, fear/greed, positioning | `get_market_data` (`fear_greed`, `funding_next`, `oi`, `liquidations_cumulative`) |
 | News, context outside the market | `WebSearch` then `WebFetch` — dated and attributed |
 | Showing the user an evolution | `Chart` on the CSV |
 | What was decided or observed before | `Memory search` |
 
-The exact names and parameters come from `get_system_info`: do not guess a signature.
+BytNode has three tools and no others. The exact fields and parameters are in `get_market_data`'s own description and parameters, the pairs and catalogs in `get_system_info`: do not guess a name.
 
 ## Three typical questions
 
-**"Where is the market at?"** → `get_market_data` on the main assets + `get_market_emotions`. Answer: prices, 24h / 7d changes, one line of reading. Not a report.
+**"Where is the market at?"** → `get_market_data` on the main assets (`price_change`) + `fear_greed` and `global_market`. Answer: prices, 24h / 7d changes, one line of reading. Not a report.
 
 **"Why is it falling?"** → first check that the fall is abnormal (`piege-de-la-narration` if you have the Analyst profession; otherwise: compare it to the volatility of the last 30 days). Then search, saying what is established and what is hypothesis.
 
@@ -34,7 +34,7 @@ The exact names and parameters come from `get_system_info`: do not guess a signa
 
 ## When a piece of data does not exist
 
-`get_system_info` lists the available assets and families. If the user asks for an absent asset, say so and propose the closest one — do not silently substitute one asset for another.
+`get_system_info` lists the served pairs (and, with `catalogs=["symbol_capabilities"]`, what one pair serves). If the user asks for an absent asset, say so and propose the closest one — do not silently substitute one asset for another.
 
 If BytNode is not connected, say so from the first quantified question: without a source, you do not give market numbers.
 

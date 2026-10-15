@@ -26,7 +26,7 @@ If any of these cases exceeds the maximum drawdown, the size or the leverage is 
 
 ## Correlation
 
-Before opening a position, the question: what happens if the whole portfolio moves in the same direction? Measure the 30d correlation between assets (with BytNode's `get_history`); two positions at 0.9 correlation are one position of double size.
+Before opening a position, the question: what happens if the whole portfolio moves in the same direction? Measure the 30d correlation between assets (daily candles from BytNode: `get_market_data`, `klines` with `since_ms`); two positions at 0.9 correlation are one position of double size.
 
 ## What we write in the strategy
 

@@ -5,15 +5,18 @@
    into what the tab says: the RSI's zone, the trend against the two
    averages, the volatility as a share of the price, and which side the
    MACD is on and for how many bars. BytNode computes them on the same
-   candles as `/v1/klines`; the answer's `data` is
-   `{ indicators: { <id>: { values: [...] | {k: [...]} } } }`, oldest first.
+   candles as `/v1/klines/history`; the body asks `limit` values per
+   indicator, and the answer's `data` is `{ indicators: { <id>: { values:
+   [{time, value} | {time, macd, signal, histogram}] } } }`, MOST RECENT
+   FIRST (contract 4.x; the body's `results` and the bare number lists
+   oldest first are gone — the latter is still read).
    Pure, tested.
 --------------------------------------------------------------------------- */
 
 export const RESULTS = 30;
 
-/** Ids follow BytNode's scheme: `<type>_fast|_mid|_slow`, or the bare type
-    for the single-instance ones (`macd`). */
+/** Our own names for the results (BytNode keys `data.indicators` by them;
+    1-64 letters, digits, `_`, `-`, `.`). */
 export const INDICATORS = [
   { id: "rsi_mid", type: "rsi", period: 14 },
   { id: "ema_mid", type: "ema", period: 50 },
@@ -33,6 +36,8 @@ export type Technicals = {
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const nums = (v: unknown): number[] => (Array.isArray(v) ? v.filter((x): x is number => typeof x === "number" && Number.isFinite(x)) : []);
+
+const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
 
 /** An indicator's entry, wherever the response nests it. */
 function entry(v: unknown, id: string, depth = 0): Record<string, unknown> | undefined {
@@ -55,15 +60,29 @@ function entry(v: unknown, id: string, depth = 0): Record<string, unknown> | und
 
 const last = (xs: number[]) => (xs.length ? xs[xs.length - 1] : undefined);
 
+/** One output of an indicator, oldest first: rows `{time, <output>}` (put
+    in time order, the API sends the most recent first), or the former bare
+    lists (a number list, or `{<output>: [...]}`), already oldest first. */
+function series(values: unknown, output: string): number[] {
+  if (isRecord(values)) return nums(values[output]);
+  if (!Array.isArray(values)) return [];
+  if (!values.some(isRecord)) return nums(values);
+  const at = (r: Record<string, unknown>) => Date.parse(String(r.time ?? "")) || 0;
+  return values
+    .filter(isRecord)
+    .sort((a, b) => at(a) - at(b))
+    .map((r) => num(r[output]))
+    .filter((x): x is number => x !== undefined);
+}
+
 export function readTechnicals(response: unknown): Technicals {
   const out: Technicals = {};
-  const scalar = (id: string) => last(nums(entry(response, id)?.values));
+  const scalar = (id: string) => last(series(entry(response, id)?.values, "value"));
   out.rsi = scalar("rsi_mid");
   out.ema50 = scalar("ema_mid");
   out.ema200 = scalar("ema_slow");
   out.atr = scalar("atr_mid");
-  const macd = entry(response, "macd")?.values;
-  const hist = isRecord(macd) ? nums(macd.histogram) : [];
+  const hist = series(entry(response, "macd")?.values, "histogram");
   const h = last(hist);
   if (h !== undefined) {
     let bars = 0;

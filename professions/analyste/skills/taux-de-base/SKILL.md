@@ -13,11 +13,11 @@ You reason by salience: what is striking seems significant to you. A funding at 
 
 ```python
 import pandas as pd
-s = pd.read_csv("data/btc_funding.csv", parse_dates=["time"]).set_index("time")["funding"]
+s = pd.read_csv("data/btc_funding.csv", parse_dates=["time"]).set_index("time").sort_index()["rate_pct"]  # BytNode funding_rate: % per 8h
 x = s.iloc[-1]
 pct = (s < x).mean()
 n = (s.tail(365) >= x).sum()
-print(f"valeur {x:.5f} — percentile {100*pct:.0f} %, atteinte {n} fois sur les 365 dernières observations")
+print(f"valeur {x:.4f} % — percentile {100*pct:.0f} %, atteinte {n} fois sur les 365 dernières observations")
 ```
 
 What gets written:

@@ -11,8 +11,8 @@ A backtest without a plan written in advance always finds what one wants to see 
 
 ```
 ## Data
-Assets; timeframe; source (BytNode `get_history`); total period available.
-Required fields: OHLCV at minimum; funding and OI if perp; BytNode indicators if used.
+Assets; timeframe; source (BytNode `get_market_data`, `klines` over `since_ms` / `until_ms`, saved with `SaveMarketData`); total period available within the plan's history depth.
+Required fields: OHLCV at minimum; `funding_rate` and `oi` if perp; BytNode indicators (`get_market_indicators`) if used.
 
 ## Split
 - Calibration (in-sample): e.g. the oldest 2/3.
@@ -24,7 +24,7 @@ The period must contain at least one bull market, one bear market and one range.
 Fees: maker …%, taker …% (real values of the targeted exchange).
 Slippage: …% per order, higher on altcoins and under stress.
 Funding on perps: real, taken from the history, not an average.
-Execution: at the close of the next candle, never at the signal candle.
+Execution: at the open of the next candle, never at the signal candle.
 
 ## Metrics (all of them, not only the return)
 - Annualised return and maximum drawdown → Calmar ratio.

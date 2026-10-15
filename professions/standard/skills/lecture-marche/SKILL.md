@@ -9,14 +9,12 @@ To answer "where is BTC at?", "how is the market doing?", "what is going on with
 
 ## The data to take (BytNode)
 
-In this order, for the requested asset (or BTC and ETH if "the market"):
+`get_market_data` on the requested asset (`symbol=BTCUSDT`, or BTC and ETH if "the market"). A call has one `timeframe`, so two calls per asset:
 
-1. `get_market_data` — price, 24h and 7d change, 24h volume.
-2. Derivatives — funding, open interest and its change, 24h liquidations.
-3. Sentiment — `get_market_emotions`: fear/greed index, positioning.
-4. `get_history` over 30 days in daily — to locate the price within its recent range (high, low, middle).
+1. With `timeframe=1d`: `price_change` (price, rolling 1d and 1w changes), `klines=30` (the last 30 daily candles — to locate the price within its recent range and compare the last day's volume to the average), `funding_next` (estimated funding, % per 8h), `oi=8` (open interest and its change over a week), `fear_greed` (market-wide sentiment).
+2. With `timeframe=1h`: `liquidations_cumulative=24` (longs vs shorts liquidated, USD per hour, over 24h).
 
-If a family is not open, skip it and say so in one line.
+If a field is outside the plan (`out_of_plan_fields`, or a 403 that names it), skip it and say so in one line.
 
 ## The reading
 

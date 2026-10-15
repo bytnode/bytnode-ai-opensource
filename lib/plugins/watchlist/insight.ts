@@ -7,24 +7,28 @@ import { currentLocale, numberTag } from "@/lib/i18n/store";
    (`SNAPSHOT_FIELDS`) — the day's range and volume (24 hourly klines,
    whose `buy_volume_spot` gives the buyers' share of the spot volume), the
    market cap (`tokenomics`), the next funding (`funding_next`, in % per
-   8 h), the open interest (`oi_history@1h`, `oi_total` in the ASSET's units
-   — BytNode sums the venues' contracts, so it is priced here), where the
-   price may be pulled (`heatmap_clusters`: the nearest liquidation
-   clusters above and below, fractional distance and `attraction` =
+   8 h), the open interest (`oi@1h`, `oi` in the ASSET's units — BytNode
+   sums the venues' contracts, so it is priced here), where the price may
+   be pulled (`heatmap_clusters`: the nearest liquidation clusters above
+   and below, `dist_*_ratio` = fractional distance and `attraction` =
    density / distance²), the order book's imbalance within ±1 %
-   (`orderbook`, (bid − ask) / (bid + ask)) and the buyers' share of the
-   last five minutes (`buysell_ratio.buy_ratio`) — and the day's
+   (`orderbook@1m`, the latest closed minute, `imbalance_ratio` =
+   (bid − ask) / (bid + ask)) and the buyers' share of the last five
+   minutes (`buy_sell_ratio@5m`, `buy_ratio`) — and the day's
    liquidations (`/v1/liquidations/cumulative/history`, 5-minute buckets:
    each keeps its own 5-minute window, so the 288 of a day add up; the
    one-minute rows of a sliding window would count each liquidation five
    times). Every figure is optional: a pair BytNode covers only in part
    shows what there is. The longs' share is no longer served (BytNode
    retired its long/short ratio); it shows when an answer carries one.
+   Field names follow contract 4.x (`oi_history`, `buysell_ratio`, `oi_total`,
+   `dist_up`, `imbalance` were renamed; a snapshot naming an unknown field
+   is refused whole, 422 `unknown_field`).
    Pure, tested.
 --------------------------------------------------------------------------- */
 
 /** The `/v1/snapshot` query: each field and its depth. */
-export const SNAPSHOT_FIELDS = { "klines@1h": 24, tokenomics: 1, funding_next: 1, "oi_history@1h": 1, heatmap_clusters: 1, orderbook: 1, buysell_ratio: 1 } as const;
+export const SNAPSHOT_FIELDS = { "klines@1h": 24, tokenomics: 1, funding_next: 1, "oi@1h": 1, heatmap_clusters: 1, "orderbook@1m": 1, "buy_sell_ratio@5m": 1 } as const;
 /** The day's liquidations: 5-minute buckets over 24 h. */
 export const LIQUIDATIONS = { timeframe: "5m", limit: 288 } as const;
 /** Where the liquidations are put for `readInsight`, beside the snapshot's fields. */
@@ -124,7 +128,7 @@ export function readInsight(response: unknown, price: number | undefined): Insig
     if (typeof funding?.time === "string") out.fundingAt = funding.time;
   }
 
-  const oi = num(latest(under(response, "oi_history@1h"))?.oi_total);
+  const oi = num(latest(under(response, "oi@1h"))?.oi);
   if (oi !== undefined && price) out.oiUsd = oi * price;
 
   const part = num(latest(under(response, "ls_ratio@1h") ?? under(response, "ls_ratio"))?.part_long);
@@ -138,19 +142,19 @@ export function readInsight(response: unknown, price: number | undefined): Insig
   }
 
   const heat = latest(under(response, "heatmap_clusters"));
-  const du = num(heat?.dist_up);
-  const dd = num(heat?.dist_down);
+  const du = num(heat?.dist_up_ratio);
+  const dd = num(heat?.dist_down_ratio);
   if (du !== undefined && du > 0) out.magnetUp = { dist: du, pull: num(heat?.attraction_up) ?? 0 };
   if (dd !== undefined && dd > 0) out.magnetDown = { dist: dd, pull: num(heat?.attraction_down) ?? 0 };
 
-  const book = latest(under(response, "orderbook"));
+  const book = latest(under(response, "orderbook@1m"));
   const ranges = Array.isArray(book?.ranges) ? book.ranges.filter(isRecord) : [];
   /* The range closest to ±1 %: near enough to the price to matter. */
   const near = ranges.reduce<Record<string, unknown> | undefined>((a, r) => (!a || Math.abs((num(r.range_pct) ?? 99) - 1) < Math.abs((num(a.range_pct) ?? 99) - 1) ? r : a), undefined);
-  const imbalance = num(near?.imbalance);
+  const imbalance = num(near?.imbalance_ratio);
   if (imbalance !== undefined) out.bookImbalance = Math.max(-1, Math.min(1, imbalance));
 
-  const buy = num(latest(under(response, "buysell_ratio"))?.buy_ratio);
+  const buy = num(latest(under(response, "buy_sell_ratio@5m"))?.buy_ratio);
   if (buy !== undefined) out.flowBuyShare = Math.max(0, Math.min(1, buy));
   return out;
 }

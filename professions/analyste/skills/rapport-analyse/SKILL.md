@@ -18,7 +18,7 @@ Overall confidence: low / moderate / high — and why, in one sentence.
 
 ## Data (BytNode, <time>)
 Table: price, 24h / 7d / 30d change, volume vs 30d average, funding, OI (+7d change),
-24h liquidations, 7d ETF flows (if available), sentiment. One row per data point, with unit.
+24h liquidations, ETF holdings or 7d flows (if available — flows come from the web), sentiment. One row per data point, with unit.
 
 ## Trend by horizon
 The table from `analyse-tendance` (structure / position / impulse / participation / verdict)

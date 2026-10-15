@@ -81,7 +81,7 @@ technical design is in [architecture.md](architecture.md).
 | Finance | `SaveMarketData`, `Chart`, `Backtest`, `Memory` | Backtest gated |
 | Organisation | `TodoWrite` (task list shown in the thread), `Skill` (load a method sheet) | free |
 | Delegation | `Workflow` (sub-agents) | gated |
-| BytNode | `get_system_info`, `get_market_data`, `get_history`, `get_market_indicators`, `get_market_emotions`… discovered live over MCP | never gated (read-only) |
+| BytNode | `get_system_info`, `get_market_data` (latest values, or history with `since_ms`/`until_ms`), `get_market_indicators` — discovered live over MCP | never gated (read-only) |
 | Exchange | see §6 | read free, actions always asked |
 
 Every tool call's arguments are validated against the tool's JSON Schema before permission and
@@ -183,8 +183,9 @@ execution; an ill-formed call goes back to the model with the reason, without bo
 
 - BytNode key checked in settings; BytNode tools discovered at connection time and given to every
   agent (both engines).
-- Agents follow the `source-bytnode` method: `get_system_info` first, then snapshot, history,
-  indicators, sentiment; date every figure; distinguish data from inference.
+- Agents follow the `source-bytnode` method: `get_system_info` first, then `get_market_data`
+  (latest values or a history window) and `get_market_indicators`; date every figure; distinguish
+  data from inference.
 - **Plan-aware guidance** (main agents only): when data is outside the user's plan, the agent
   answers with what it has, then names the first plan that provides it (Free, Traders,
   Financial, Startup, Enterprise) — once, never pushy.

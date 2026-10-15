@@ -39,14 +39,17 @@ export function query(params: RestParams = {}): string {
 }
 
 /** A refusal in plain English, from the status, the edge's reason and the
-    engine's own message. */
+    engine's own message. `X-Deny-Reason` carries the public `error.code`
+    since contract 3.0.0 (`invalid_api_key`, `plan_family`, …); its value
+    and the body's code are read alike. */
 export function describeRestError(status: number, reason: string | null, code: string, message: string): string {
   const said = message.trim();
-  if (status === 401 || reason === "key") return "Key refused by BytNode: it is missing, invalid or revoked. Check it on bytnode.com.";
-  if (reason === "websocket" || code === "plan_websocket") return "Your BytNode plan has no live (WebSocket) connection.";
-  if (reason === "family" || code === "plan_family") return `Your BytNode plan does not include this data.${said ? ` (${said})` : ""}`;
-  if (reason === "depth" || code === "history_depth") return `This history goes beyond your BytNode plan.${said ? ` (${said})` : ""}`;
-  if (reason === "quota" || code === "quota_exceeded") return "Your BytNode plan's monthly quota is used up.";
+  const is = (...codes: string[]) => codes.includes(code) || (reason !== null && codes.includes(reason));
+  if (status === 401 || is("missing_api_key", "invalid_api_key")) return "Key refused by BytNode: it is missing, invalid or revoked. Check it on bytnode.com.";
+  if (is("plan_websocket")) return "Your BytNode plan has no live (WebSocket) connection.";
+  if (is("plan_family")) return `Your BytNode plan does not include this data.${said ? ` (${said})` : ""}`;
+  if (is("history_depth")) return `This history goes beyond your BytNode plan.${said ? ` (${said})` : ""}`;
+  if (is("quota_exceeded")) return "Your BytNode plan's monthly quota is used up.";
   if (status === 429) return "BytNode refused the request: too many requests at once. Try again in a moment.";
   if (status === 422 || status === 404) return said ? `BytNode refused the request: ${said}` : `BytNode refused the request (HTTP ${status}).`;
   if (status >= 500) return `BytNode answered with an error (HTTP ${status}). Try again in a moment.`;

@@ -28,7 +28,7 @@ Everything in **UTC**. Crypto markets do not close: there is no "closing time" t
 
 ## The current candle
 
-The last candle returned by a history is **still forming**: its `close` is the current price, its `high`, its `low` and its `volume` are partial. It will still move.
+The candle in progress is **still forming**: its `close` is the current price, its `high`, its `low` and its `volume` are partial. It will still move. BytNode serves closed candles (`is_closed`) unless you ask `live=true`, which adds the one in progress (`is_closed: false`); an exchange's OHLCV usually ends with it.
 
 - For a calculation (average, indicator, backtest): excluded. An incomplete candle distorts the last point of every indicator.
 - For a current price: usable, while saying it is in progress.

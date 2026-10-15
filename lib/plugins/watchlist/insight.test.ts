@@ -9,24 +9,26 @@ describe("readInsight", () => {
     symbol: "ETHUSDT",
     data: {
       "klines@1h": [
-        { time: T(2), open: 10, high: 12, low: 9, close: 11, volume_spot: 40, buy_volume_spot: 30, sell_volume_spot: 10, volume_futures: 60, volume_total: 100 },
-        { time: T(1), open: 9, high: 10, low: 8, close: 10, volume_spot: 20, buy_volume_spot: 6, sell_volume_spot: 14, volume_futures: 30, volume_total: 50 },
+        { time: T(2), open: 10, high: 12, low: 9, close: 11, volume: 100, volume_spot: 40, buy_volume_spot: 30, sell_volume_spot: 10, volume_futures: 60, is_closed: true },
+        { time: T(1), open: 9, high: 10, low: 8, close: 10, volume: 50, volume_spot: 20, buy_volume_spot: 6, sell_volume_spot: 14, volume_futures: 30, is_closed: true },
       ],
-      tokenomics: { time: T(2), circulating_supply: 120, total_supply: 120, max_supply: null, price: 11, market_cap_usd: 1320, fdv_usd: 1320 },
+      tokenomics: { time: T(2), circulating_supply: 120, total_supply: 120, max_supply: null, price_usd: 11, priced_at: T(2), market_cap_usd: 1320, fdv_usd: 1320 },
       funding_next: { time: "2026-09-24T08:00:00.000Z", estimated_rate_pct: 0.01, apr_pct: 10.95, is_past: false },
-      "oi_history@1h": [{ time: "2026-09-24T00:00:00.000Z", oi_total: 1000, is_closed: true }],
+      "oi@1h": [{ time: "2026-09-24T00:00:00.000Z", oi: 1000, sample_count: 60, is_closed: true }],
       "ls_ratio@1h": [{ part_long: 0.62, ratio: 1.63 }],
-      heatmap_clusters: { time: T(2), density_up: 5, dist_up: 0.012, density_down: 9, dist_down: 0.02, attraction_up: 34722, attraction_down: 22500 },
-      orderbook: {
-        time: T(2),
-        is_closed: true,
-        ranges: [
-          { range_pct: 0.25, imbalance: 0.5 },
-          { range_pct: 1, imbalance: 0.2 },
-          { range_pct: 5, imbalance: -0.4 },
-        ],
-      },
-      buysell_ratio: { buy_volume: 55, sell_volume: 45, buy_ratio: 0.55 },
+      heatmap_clusters: { time: T(2), density_up: 5, dist_up_ratio: 0.012, density_down: 9, dist_down_ratio: 0.02, attraction_up: 34722, attraction_down: 22500 },
+      "orderbook@1m": [
+        {
+          time: T(2),
+          is_closed: true,
+          ranges: [
+            { range_pct: 0.25, imbalance_ratio: 0.5 },
+            { range_pct: 1, imbalance_ratio: 0.2 },
+            { range_pct: 5, imbalance_ratio: -0.4 },
+          ],
+        },
+      ],
+      "buy_sell_ratio@5m": [{ time: T(2), buy_volume: 55, sell_volume: 45, buy_ratio: 0.55, sample_count: 5, is_closed: true }],
       "liquidations_cumulative@5m": [
         { time: "2026-09-23T10:05:00.000Z", long_usd: 100, short_usd: 20, total_usd: 120 },
         { time: "2026-09-23T10:10:00.000Z", long_usd: 50, short_usd: 30, total_usd: 80 },

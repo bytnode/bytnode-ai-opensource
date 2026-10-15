@@ -32,12 +32,12 @@ beforeEach(() => {
     if (path === "/v1/symbols") return { ok: true, data: SYMBOLS, body: {} };
     if (path === "/v1/price-change") return { ok: true, data: PRICE_CHANGE, body: {} };
     if (path === "/v1/funding/next") return { ok: true, data: { time: "t", estimated_rate_pct: 0.0039, apr_pct: 4.27 }, body: {} };
-    if (path === "/v1/klines")
+    if (path === "/v1/klines/history")
       return {
         ok: true,
         data: [
-          { time: "2026-10-12T09:00:00.000Z", open: 2, high: 3, low: 1, close: 2, volume_total: 10 },
-          { time: "2026-10-12T08:00:00.000Z", open: 1, high: 2, low: 1, close: 2, volume_total: 5 },
+          { time: "2026-10-12T09:00:00.000Z", open: 2, high: 3, low: 1, close: 2, volume: 10, is_closed: true },
+          { time: "2026-10-12T08:00:00.000Z", open: 1, high: 2, low: 1, close: 2, volume: 5, is_closed: true },
         ],
         body: {},
       };
@@ -77,8 +77,19 @@ describe("the app's road", () => {
       [Date.parse("2026-10-12T08:00:00.000Z"), 5],
       [Date.parse("2026-10-12T09:00:00.000Z"), 10],
     ]);
-    expect(rest.restGet).toHaveBeenCalledWith(k, "/v1/klines", { symbol: "BTCUSDT", timeframe: "1h", limit: 10 });
+    expect(rest.restGet).toHaveBeenCalledWith(k, "/v1/klines/history", { symbol: "BTCUSDT", timeframe: "1h", limit: 10 });
     expect(await fundingRate("BTC/USDT", { bytnodeKey: k })).toBeCloseTo(0.0039);
+  });
+
+  it("reads candles up to the plan's history window when the limit goes past it", async () => {
+    const k = key();
+    const fallback = rest.restGet.getMockImplementation()!;
+    rest.restGet.mockImplementation(async (kk: string, path: string, params: Record<string, unknown>) =>
+      path === "/v1/klines/history" && params.limit ? { ok: false, status: 403, code: "history_depth", message: "This history goes beyond your BytNode plan." } : fallback(kk, path, params),
+    );
+    const c = await candles("BTC/USDT", "1d", 400, { bytnodeKey: k });
+    expect("candles" in c && c.candles).toHaveLength(2);
+    expect(rest.restGet).toHaveBeenLastCalledWith(k, "/v1/klines/history", { symbol: "BTCUSDT", timeframe: "1d" });
   });
 });
 
@@ -90,6 +101,13 @@ describe("an agent's road", () => {
     expect(mcp.readBytnodeTool).toHaveBeenCalledWith(expect.any(String), "get_market_data", { symbol: "BTCUSDT", price_change: true }, expect.anything());
     expect(rest.restGet).not.toHaveBeenCalled();
     expect(feed.lease).not.toHaveBeenCalled();
+  });
+
+  it("says a plan's refusal, and leaves a pair BytNode does not serve to the exchanges", async () => {
+    mcp.readBytnodeTool.mockResolvedValue({ ok: false, message: "Error (HTTP 403): Your plan does not include this data family." });
+    expect(await asAgent(() => quote("ETH/USDT", { bytnodeKey: key() }))).toMatchObject({ error: expect.stringMatching(/HTTP 403/) });
+    mcp.readBytnodeTool.mockResolvedValue({ ok: false, message: "Error (HTTP 422): The symbol is not served." });
+    expect(await asAgent(() => quote("PEPE/USDT", { bytnodeKey: key() }))).toMatchObject({ error: expect.stringMatching(/BytNode does not cover it/) });
   });
 
   it("asks candles with the MCP's klines + timeframe", async () => {

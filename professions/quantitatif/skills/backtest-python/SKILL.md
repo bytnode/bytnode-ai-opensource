@@ -23,7 +23,7 @@ def stop_distance(df: pd.DataFrame, atr: int = 14) -> pd.Series:
     return 2 * tr
 ```
 
-then `Backtest(data="data/btc_4h.csv", strategy="strategies/sma_cross.py", params={"fast": 10, "slow": 50}, periods_per_year=2190)`. The data comes from `SaveMarketData`. Rerun with the parameters at ±20% and ±50% for sensitivity (`validation-statistique`).
+then `Backtest(data="data/btc_4h.csv", strategy="strategies/sma_cross.py", params={"fast": 10, "slow": 50}, periods_per_year=2190)`. The data comes from `SaveMarketData`. For funding, the engine reads a `funding` column as a FRACTION per candle: BytNode's `funding_rate` gives `rate_pct`, in % per 8h window — divide by 100 and put it on the candle that holds the window's `period_end_at` (0 elsewhere). Rerun with the parameters at ±20% and ±50% for sensitivity (`validation-statistique`).
 
 The skeleton below is used **only** when the strategy does not fit into `signal` / `stop_distance` (pyramiding, intra-candle stops, size depending on current capital): then, event-driven, by hand.
 

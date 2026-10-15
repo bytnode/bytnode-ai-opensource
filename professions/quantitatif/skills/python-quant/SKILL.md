@@ -26,7 +26,7 @@ rng = np.random.default_rng(SEED)
 
 def load(asset: str, timeframe: str) -> pd.DataFrame:
     """Reads data/<asset>_<timeframe>.csv written from BytNode (see below)."""
-    df = pd.read_csv(f"data/{asset}_{timeframe}.csv", parse_dates=["ts"]).set_index("ts").sort_index()
+    df = pd.read_csv(f"data/{asset}_{timeframe}.csv", parse_dates=["time"]).set_index("time").sort_index()
     return check(df)
 
 def check(df: pd.DataFrame) -> pd.DataFrame:
@@ -50,11 +50,10 @@ if __name__ == "__main__":
 
 ## BytNode data → CSV
 
-BytNode is read through your tools (`get_history`, `get_market_data`…), not from Python. The chain:
-1. Call `get_history` for the asset, the timeframe and the period; the response is text/JSON.
-2. Write it with `Write` to `data/<asset>_<timeframe>.csv` (columns `ts,open,high,low,close,volume`, plus `funding`, `oi` if present; `ts` in ISO 8601 UTC).
-3. The script reads the CSV. Note in `out/…/results.json` the retrieval date and the bounds of the series.
-If the requested history exceeds what BytNode returns in one call, split by periods and concatenate; check for the absence of duplicates at the join.
+BytNode is read through your tools (`get_market_data`, `get_market_indicators`), not from Python. The chain:
+1. `SaveMarketData(tool="get_market_data", args={"symbol": "BTCUSDT", "timeframe": "1d", "klines": true, "since_ms": …, "until_ms": …}, output="data/BTC_1d.csv")` — the history of the asset, the timeframe and the period, written as CSV without going through the conversation (columns `time,open,high,low,close,volume,…`, `time` in ISO 8601 UTC, rows in chronological order). Funding (`funding_rate`: `rate_pct`, % per 8h) and open interest (`oi`) go to their own files: merge them on `time` in the script.
+2. The script reads the CSV. Note in `out/…/results.json` the retrieval date and the bounds of the series.
+BytNode never cuts a period silently: read the summary. If a period does not fit in one call (the error gives the step that would, or `ranges` says `truncated` with `next_until_ms`), split it into periods, oldest first, with `append: true`; then sort and check for the absence of duplicates at the joins.
 
 ## Rules
 

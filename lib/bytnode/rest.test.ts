@@ -14,12 +14,12 @@ describe("query", () => {
 
 describe("describeRestError", () => {
   it("tells each refusal in plain English", () => {
-    expect(describeRestError(401, "key", "invalid_api_key", "")).toMatch(/Key refused/);
-    expect(describeRestError(403, "family", "plan_family", "Open from Traders.")).toMatch(/plan does not include.*Open from Traders/);
-    expect(describeRestError(403, "depth", "history_depth", "limit 24 at most")).toMatch(/beyond your BytNode plan/);
-    expect(describeRestError(403, "websocket", "plan_websocket", "")).toMatch(/no live/);
-    expect(describeRestError(429, "quota", "quota_exceeded", "")).toMatch(/monthly quota/);
-    expect(describeRestError(429, "rate", "rate_limited", "")).toMatch(/too many requests/);
+    expect(describeRestError(401, "invalid_api_key", "invalid_api_key", "")).toMatch(/Key refused/);
+    expect(describeRestError(403, "plan_family", "plan_family", "Open from Traders.")).toMatch(/plan does not include.*Open from Traders/);
+    expect(describeRestError(403, null, "history_depth", "limit 24 at most")).toMatch(/beyond your BytNode plan/);
+    expect(describeRestError(403, "plan_websocket", "", "")).toMatch(/no live/);
+    expect(describeRestError(429, "quota_exceeded", "", "")).toMatch(/monthly quota/);
+    expect(describeRestError(429, "rate_limited", "rate_limited", "")).toMatch(/too many requests/);
     expect(describeRestError(422, null, "invalid_symbol", "Unknown symbol FOO.")).toBe("BytNode refused the request: Unknown symbol FOO.");
     expect(describeRestError(503, null, "service_unavailable", "")).toMatch(/HTTP 503/);
   });
@@ -27,12 +27,13 @@ describe("describeRestError", () => {
 
 describe("restGet / restPost", () => {
   it("sends the key in X-API-KEY and opens the envelope", async () => {
-    const fetchMock = vi.fn(async () => reply(200, { status: "ok", data_type: "klines", data: [{ time: "t" }], next: { before_ms: 1 } }));
+    const next = "/v1/klines/history?symbol=BTCUSDT&limit=2&timeframe=1h&before_ms=1&order=desc";
+    const fetchMock = vi.fn(async () => reply(200, { status: "ok", data_type: "klines_history", data: [{ time: "t" }], next }));
     vi.stubGlobal("fetch", fetchMock);
-    const res = await restGet("cb_test_x", "/v1/klines", { symbol: "BTCUSDT", timeframe: "1h", limit: 2 });
-    expect(res).toEqual({ ok: true, data: [{ time: "t" }], body: { status: "ok", data_type: "klines", data: [{ time: "t" }], next: { before_ms: 1 } } });
+    const res = await restGet("cb_test_x", "/v1/klines/history", { symbol: "BTCUSDT", timeframe: "1h", limit: 2 });
+    expect(res).toEqual({ ok: true, data: [{ time: "t" }], body: { status: "ok", data_type: "klines_history", data: [{ time: "t" }], next } });
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe(`${BYTNODE_API_URL}/v1/klines?symbol=BTCUSDT&timeframe=1h&limit=2`);
+    expect(url).toBe(`${BYTNODE_API_URL}/v1/klines/history?symbol=BTCUSDT&timeframe=1h&limit=2`);
     expect((init.headers as Record<string, string>)["X-API-KEY"]).toBe("cb_test_x");
   });
 
@@ -44,8 +45,8 @@ describe("restGet / restPost", () => {
   });
 
   it("reads the edge's reason and the engine's code", async () => {
-    vi.stubGlobal("fetch", async () => reply(403, { status: "error", error: { code: "history_depth", message: "At most 24 candles." } }, { "x-deny-reason": "depth" }));
-    const res = await restGet("k", "/v1/klines", { symbol: "BTCUSDT", timeframe: "1h", limit: 300 });
+    vi.stubGlobal("fetch", async () => reply(403, { status: "error", error: { code: "history_depth", message: "At most 24 candles." } }, { "x-deny-reason": "history_depth" }));
+    const res = await restGet("k", "/v1/klines/history", { symbol: "BTCUSDT", timeframe: "1h", limit: 300 });
     expect(res).toMatchObject({ ok: false, status: 403, code: "history_depth" });
     expect(!res.ok && res.message).toMatch(/beyond your BytNode plan.*At most 24/);
   });

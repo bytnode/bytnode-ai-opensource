@@ -120,9 +120,10 @@ async function appQuote(symbol: string, key: string, signal: AbortSignal): Promi
 
 async function agentQuote(symbol: string, key: string, signal: AbortSignal): Promise<Quote | { error: string } | null> {
   const res = await readBytnodeTool(key, "get_market_data", { symbol: bytnodeSymbol(symbol), price_change: true }, signal);
-  /* A refused key or an unreachable BytNode is said as such; a pair
-     BytNode does not cover goes on to the exchanges. */
-  if (!res.ok) return /refused|unreachable|quota|rate limit/i.test(res.message) ? { error: res.message } : null;
+  /* A refused key, a plan's refusal (the MCP says "Error (HTTP 401|403|429):
+     …") or an unreachable BytNode is said as such; a pair BytNode does not
+     cover (422 `invalid_symbol`) goes on to the exchanges. */
+  if (!res.ok) return /HTTP (401|403|429)\b|refused|unreachable|quota|rate limit/i.test(res.message) ? { error: res.message } : null;
   try {
     return readPriceChange(JSON.parse(res.text), symbol, new Date());
   } catch {
@@ -243,9 +244,21 @@ export type CandleSeries = { symbol: string; interval: Interval; candles: Candle
 const CANDLES_MS = 15_000;
 const series = new Map<string, { at: number; value: Promise<{ bars: Candle[] } | { error: string }> }>();
 
-/** BytNode's last `n` bars of a pair, by the reader's road: `/v1/klines`
-    (most recent first, put back in order) or the MCP's
-    `get_market_data(klines, timeframe)`. */
+/** The app's road for `n` bars: `/v1/klines/history` (closed candles, most
+    recent first; `/v1/klines` itself serves ONE candle and refuses `limit`).
+    A `limit` past the plan's history window is a 403 `history_depth`; the
+    same read without it stops at the window instead, so the chart shows
+    what the plan allows. */
+async function restCandles(key: string, symbol: string, interval: Interval, n: number): Promise<{ bars: Candle[] } | { error: string }> {
+  const params = { symbol: bytnodeSymbol(symbol), timeframe: interval };
+  let res = await restGet(key, "/v1/klines/history", { ...params, limit: n });
+  if (!res.ok && res.code === "history_depth") res = await restGet(key, "/v1/klines/history", params);
+  if (!res.ok) return { error: res.message };
+  return { bars: Array.isArray(res.data) ? orderCandles(res.data) : [] };
+}
+
+/** BytNode's last `n` bars of a pair, by the reader's road: REST
+    (`restCandles`) or the MCP's `get_market_data(klines, timeframe)`. */
 function bytnodeCandles(symbol: string, interval: Interval, n: number, key: string, signal: AbortSignal): Promise<{ bars: Candle[] } | { error: string }> {
   if (readingForAgent()) {
     return readBytnodeTool(key, "get_market_data", { symbol: bytnodeSymbol(symbol), klines: n, timeframe: interval }, signal).then((res) => {
@@ -260,10 +273,7 @@ function bytnodeCandles(symbol: string, interval: Interval, n: number, key: stri
   const id = `${key}|${symbol}|${interval}|${n}`;
   const hit = series.get(id);
   if (hit && Date.now() - hit.at < CANDLES_MS) return hit.value;
-  const value = restGet(key, "/v1/klines", { symbol: bytnodeSymbol(symbol), timeframe: interval, limit: n }).then((res) => {
-    if (!res.ok) return { error: res.message };
-    return { bars: Array.isArray(res.data) ? orderCandles(res.data) : [] };
-  });
+  const value = restCandles(key, symbol, interval, n);
   series.set(id, { at: Date.now(), value });
   void value.then((v) => {
     if ("error" in v && series.get(id)?.value === value) series.delete(id);

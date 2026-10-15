@@ -9,7 +9,7 @@ Crypto is a high-beta risk asset: it amplifies what global liquidity does. An an
 
 ## The grid
 
-For each factor: the current value, its recent direction, and what it does to risk assets *right now* (the relationship can reverse: check over the last 3 months with `get_history` if BytNode covers macro, otherwise WebSearch, official sources first — central banks, statistical offices, reference financial press).
+For each factor: the current value, its recent direction, and what it does to risk assets *right now* (the relationship can reverse: check over the last 3 months with BytNode — `get_market_data` with `since_ms` on `macro` (FRED series), `macro_intraday` (DXY, US 10Y, VIX, S&P 500, Nasdaq…) or `macro_net_liquidity`; the series are listed by `get_system_info(catalogs=["macro_series", "macro_intraday_series"])` — otherwise WebSearch, official sources first — central banks, statistical offices, reference financial press).
 
 | Factor | What we look at | Usual reading |
 |---|---|---|
@@ -19,7 +19,7 @@ For each factor: the current value, its recent direction, and what it does to ri
 | Liquidity | Central bank balance sheets, bank reserves, financial conditions | Expanding liquidity = supportive ground |
 | Risk appetite | Nasdaq, small caps, high-yield credit spreads, VIX | Risk-on/risk-off; crypto follows the Nasdaq with a beta > 1 |
 | Gold | Trend, recent correlation with BTC | When both rise: "debasement" narrative; when they diverge: crypto behaves as a risk asset, not a haven |
-| Crypto-specific flows | Spot ETF flows (BytNode), stablecoins issued/redeemed | Sustained inflows = structural demand |
+| Crypto-specific flows | Spot ETF flows (web; BytNode's `etf_fundamentals` gives the quarterly holdings per issuer), stablecoins issued/redeemed | Sustained inflows = structural demand |
 
 ## The calendar
 

@@ -21,7 +21,7 @@ import { describeRestError } from "./rest";
    (`bytnode_api/services/stream`): the key in the `X-API-KEY` header of
    the handshake (never in the URL), a session of at most six hours (close
    4010: back at once), the plan's cap on simultaneous connections (close
-   4003 "limit…"), pings answered by the runtime itself.
+   4003; 4001 / 4002 = the key refused), pings answered by the runtime itself.
 
    A connection refused at the handshake (no live access on the plan, a
    wrong key) is told in plain English (`problem`, from a plain GET on the
@@ -339,8 +339,10 @@ export class LiveFeed {
       this.ticks.clear();
       this.answered();
       if (this.closed) return;
-      if (!opened) return void this.failed(true, null);
-      if (ev.code === 4003 && /limit/i.test(ev.reason)) {
+      /* 4001 / 4002: the key refused (or gone) on a session already open —
+         told and retried like a handshake refusal. */
+      if (!opened || ev.code === 4001 || ev.code === 4002) return void this.failed(true, null);
+      if (ev.code === 4003) {
         this.notBefore = this.deps.now() + LIMIT_RETRY_MS;
         this.setState("unavailable", "BytNode refused the live connection: your plan's number of simultaneous live connections is reached (another app or script uses them).");
       } else {
@@ -381,7 +383,7 @@ export class LiveFeed {
     if (!isRecord(m)) return;
     if (typeof m.channel === "string") {
       const sym = symOf(m.channel);
-      const tick = sym ? lastTrade(m.data, timeOf(m.time) ?? this.deps.now()) : null;
+      const tick = sym ? lastTrade(m.data, timeOf(m.server_time ?? m.time) ?? this.deps.now()) : null;
       if (!tick) return;
       const before = this.ticks.get(sym);
       if (before && before.at > tick.at) return;
@@ -405,13 +407,16 @@ export class LiveFeed {
       return;
     }
     if (m.op === "error") {
-      const code = typeof m.code === "string" ? m.code : "";
+      /* `{op, server_time, error: {code, message, …}}`: the REST error
+         object, unchanged (contract 3.0.0; the frame was flat before). */
+      const err = isRecord(m.error) ? m.error : m;
+      const code = typeof err.code === "string" ? err.code : "";
       const was = this.pending;
       this.answered();
       if (code === "plan_family" || code === "plan_websocket") {
         this.notBefore = this.deps.now() + REFUSED_RETRY_MS;
         this.drop(1000, "refused");
-        this.setState("unavailable", describeRestError(403, null, code, typeof m.message === "string" ? m.message : ""));
+        this.setState("unavailable", describeRestError(403, null, code, typeof err.message === "string" ? err.message : ""));
         this.reconcile();
         return;
       }

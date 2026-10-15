@@ -61,12 +61,12 @@ def controle(csv: str, pas: str = "4h") -> None:
 | **Long gaps** (> 6 candles) | do not fill: cut the history or treat the segments separately. A ten-hour `ffill` creates a false flat price, hence a false low volatility |
 | **Inconsistent OHLC** | remove those rows, count them; beyond 0.1%, change source |
 | **Jump > 8 σ** | check by hand: real dislocation (to keep, that is the market) or data error (to remove). Never clip silently |
-| **Zero volume** | often a trading halt: exclude from volume calculations, do not exclude from price |
+| **Zero volume** | often a trading halt: exclude from volume calculations, do not exclude from price. BytNode leaves an unknown volume empty (NaN), never 0: count those apart |
 | **Prolonged flat price** | symptom of a `ffill` already applied upstream or of a frozen market: suspect, to flag |
 
 ## Two crypto-specific traps
 
-- **The current candle** is incomplete: remove it before any calculation (`horodatage`).
+- **The current candle** is incomplete: remove it before any calculation (`horodatage`). BytNode's history serves closed candles; a row with `is_closed` false (from `live=true`, or an exchange's OHLCV) goes.
 - **Rebases and contract changes** (redenominations, ticker migrations) produce a jump that is not a market move. An isolated > 8 σ jump on an altcoin is often that.
 
 ## The summary to cite

@@ -109,9 +109,9 @@ describe("ctx.exchange.read", () => {
 describe("ctx.bytnode", () => {
   it("reads a REST route with the user's key and gives the whole envelope", async () => {
     bytnode.restGet.mockResolvedValue({ ok: true, data: [1], body: { status: "ok", data: [1], next: null } });
-    const r = await ops({ bytnode: true }, [], "cb_test_k")("bytnode", ["/v1/klines", { symbol: "BTCUSDT", timeframe: "1h", limit: 5 }]);
+    const r = await ops({ bytnode: true }, [], "cb_test_k")("bytnode", ["/v1/klines/history", { symbol: "BTCUSDT", timeframe: "1h", limit: 5 }]);
     expect(r).toEqual({ status: "ok", data: [1], next: null });
-    expect(bytnode.restGet).toHaveBeenCalledWith("cb_test_k", "/v1/klines", { symbol: "BTCUSDT", timeframe: "1h", limit: 5 });
+    expect(bytnode.restGet).toHaveBeenCalledWith("cb_test_k", "/v1/klines/history", { symbol: "BTCUSDT", timeframe: "1h", limit: 5 });
   });
 
   it("POSTs to /v1/indicators with the arguments as body", async () => {

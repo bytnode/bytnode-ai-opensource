@@ -7,11 +7,12 @@ description: Establish an asset's trend over three horizons from BytNode series 
 
 ## The data
 
-For the asset, with `get_history`:
+For the asset, candles from `get_market_data` (`klines` with `since_ms` / `until_ms` and the `timeframe`; through `SaveMarketData` when it is more than a few dozen rows):
 - **Daily over 180 days** — the long horizon.
 - **4 hours over 30 days** — the medium horizon.
 - **1 hour over 5 days** — the short horizon.
-Plus, as a snapshot and as a recent series: funding, open interest, liquidations (derivatives); net exchange flows and supply in profit (on-chain); implied volatility (options); indicators from `get_market_indicators` (20/50/200 moving averages, ATR, RSI) rather than recomputed.
+If the plan's history depth refuses a horizon, the error says so: work with what is served and say it.
+Plus, as a current value and as a recent series: `funding_rate` / `funding_next`, `oi`, `liquidations_cumulative` (derivatives); `cvd`, `buy_sell_ratio` (order flow); for BTC `btc_mvrv`, `btc_nvt`, `btc_active_addresses`, for ETH `eth_supply`, `eth_staking` (on-chain); `options_iv` (BTC, ETH); indicators from `get_market_indicators` (20/50/200 moving averages, ATR, RSI) rather than recomputed.
 
 ## Per horizon: four questions
 
@@ -33,7 +34,7 @@ A horizon × verdict table:
 Then:
 - **Alignment**: do the three horizons go in the same direction? A short against the long is a correction until the medium flips.
 - **Divergences**: price rising with OI falling (covering, no fresh buying); price at a new high with a lower RSI; extreme funding against the move.
-- **On-chain**: flows towards exchanges (potential selling pressure) or out of exchanges; high supply in profit (profit-taking risk).
+- **On-chain**: valuation zone (MVRV, NVT), network activity (active addresses), for ETH net issuance and staking. Exchange flows are not in BytNode: if they matter, a dated web source.
 
 ## The scenarios
 
