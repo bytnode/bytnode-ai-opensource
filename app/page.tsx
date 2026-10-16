@@ -16,9 +16,9 @@ import { accountKeyNote, useAccount } from "@/lib/account/account";
 import { useLanguage } from "@/lib/i18n/react";
 
 /* The single page: until the settings are read, nothing — the background
-   is enough. In the desktop app, signed out of the BytNode account: the
-   sign-in page and nothing else (user request, 2026-10-09; the npm app has
-   no account and skips it). Then the full wizard if the app is not
+   is enough. Signed out of the BytNode account: the sign-in page and
+   nothing else (user request, 2026-10-09; in a browser too since
+   2026-10-12). Then the full wizard if the app is not
    configured, otherwise the app: the tab bar, the conversations, the
    plugins' views. */
 

@@ -5,10 +5,11 @@ import { fail, ok, errorText } from "@/lib/tools/types";
 
 /* ---------------------------------------------------------------------------
    BytNode, the data source OF THE AI AGENTS: a remote MCP server
-   (Streamable HTTP), authenticated by the X-API-KEY header. The app's own
-   code (views, jobs, widgets, the key check) reads BytNode's REST API and
-   WebSocket instead (`lib/bytnode/`); a plugin's tool reads through here
-   when an agent calls it (`lib/bytnode/reader.ts`).
+   (Streamable HTTP), authenticated by the X-API-KEY header — the user's
+   key, on the user's quota. The app's own code (the built-in plugins'
+   views, jobs and tools, the widgets, the key check) reads BytNode's REST
+   API and WebSocket instead (`lib/bytnode/`), with the app's credential
+   for the plugins (`lib/bytnode/app-pass.ts`, no quota spent).
 
    The tools it exposes are DISCOVERED at connection (`tools/list`) and
    shown to the agents under their own names, with their descriptions — the

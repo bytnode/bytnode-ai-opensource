@@ -223,9 +223,9 @@ function General({ settings, onUpdate }: { settings: Settings; onUpdate: (p: Par
   );
 }
 
-/* The desktop app's BytNode account: who is signed in, and signing out —
-   which brings the sign-in page back and keeps everything on this
-   computer (agents, conversations, keys). Absent in a browser. */
+/* The BytNode account: who is signed in, and signing out — which brings
+   the sign-in page back and keeps everything on this computer (agents,
+   conversations, keys). */
 function AccountSection() {
   const account = useAccount();
   const t = useMessages().settings.account;
@@ -260,8 +260,8 @@ function Auth({ settings, onUpdate }: { settings: Settings; onUpdate: (p: Partia
       <p className="st-lede">{m.settings.auth.lede}</p>
       {/* One block per service (user request): BytNode and OpenRouter
           apart, then the exchanges, then the channels things are sent to. */}
-      {/* The desktop app makes its own BytNode key at sign-in: no field
-          (2026-10-09), unless it has none. The npm app keeps it. */}
+      {/* The app makes its own BytNode key at sign-in: no field
+          (2026-10-09; in a browser too since 2026-10-12), unless it has none. */}
       {(!accountBridge() || !keys.bytnode.trim()) && (
         <Section title="BytNode">
           <div className="st-form ob-form">

@@ -10,6 +10,7 @@ import { watchlistManifest } from "./manifest";
 import type { WatchlistService } from "./service";
 import { watchlistEditTool } from "./watchlist-edit";
 import { watchlistShowTool } from "./watchlist-show";
+import { APP_PASS } from "@/lib/bytnode/pass-id";
 
 /* The watchlist: one list for the whole app, on disk
    (`plugins/watchlist/watchlist.json`), read by the agents' prompt, the
@@ -35,7 +36,7 @@ export const watchlistPlugin = definePlugin({
       const items = await read();
       const priced = await quotes(
         items.map((x) => x.symbol),
-        { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal },
+        { bytnodeKey: APP_PASS, accounts: transport.exchangeAccounts, signal },
       );
       return items.map((x) => {
         const p = priced.get(x.symbol);
@@ -49,16 +50,15 @@ export const watchlistPlugin = definePlugin({
       if (!symbol) return null;
       const interval = isInterval(params.interval) ? params.interval : "1h";
       const limit = typeof params.limit === "number" ? params.limit : 300;
-      return candles(symbol, interval, limit, { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal });
+      return candles(symbol, interval, limit, { bytnodeKey: APP_PASS, accounts: transport.exchangeAccounts, signal });
     });
     /* What the view tells about the asset under its chart: BytNode's
        snapshot and the day's liquidations, read together (REST); the
        open interest is priced with the last hourly close. */
-    ctx.api("insight", async (params, { transport, signal }) => {
+    ctx.api("insight", async (params, { signal }) => {
       const symbol = normalizeSymbol(String(params.symbol ?? ""));
       if (!symbol) return null;
-      const key = transport.bytnodeKey?.trim();
-      if (!key) return { symbol, error: "These figures come from BytNode: add your key in Settings → Auth." };
+      const key = APP_PASS;
       const sym = bytnodeSymbol(symbol);
       const [snap, liq] = await Promise.all([
         restGet<Record<string, unknown>>(key, "/v1/snapshot", { symbol: sym, ...SNAPSHOT_FIELDS }, signal),
@@ -70,30 +70,28 @@ export const watchlistPlugin = definePlugin({
       return { symbol, insight: readInsight(data, last?.c) };
     });
     /* The asset's technical signals on the chart's interval: one call. */
-    ctx.api("technicals", async (params, { transport, signal }) => {
+    ctx.api("technicals", async (params, { signal }) => {
       const symbol = normalizeSymbol(String(params.symbol ?? ""));
       if (!symbol) return null;
       const interval = isInterval(params.interval) ? params.interval : "1h";
-      const key = transport.bytnodeKey?.trim();
-      if (!key) return { symbol, interval, error: "Signals come from BytNode: add your key in Settings → Auth." };
-      const res = await restPost(key, "/v1/indicators", { symbol: bytnodeSymbol(symbol), timeframe: interval, limit: RESULTS, indicators: INDICATORS }, signal);
+      const res = await restPost(APP_PASS, "/v1/indicators", { symbol: bytnodeSymbol(symbol), timeframe: interval, limit: RESULTS, indicators: INDICATORS }, signal);
       if (!res.ok) return { symbol, interval, error: res.code === "invalid_symbol" ? `BytNode does not compute signals on ${symbol}.` : res.message };
       if (res.data === null || res.data === undefined) return { symbol, interval, error: `BytNode does not compute signals on ${symbol}.` };
       return { symbol, interval, technicals: readTechnicals(res.data) };
     });
     /* What the add field proposes: BytNode's pairs only (ranked in the
        browser, `suggest.ts`). */
-    ctx.api("symbols", async (_params, { transport, signal }) => bytnodePairs(transport.bytnodeKey, signal));
+    ctx.api("symbols", async (_params, { signal }) => bytnodePairs(APP_PASS, signal));
     /* The view's edits. An asset added from the view must be one BytNode
        covers — the field offers nothing else, and this holds it server
        side too; the others come back in `invalid`. One already followed
        passes (a note is edited through `add`). (The agents' tool is not
        bound by it.) */
-    ctx.api("edit", async (params, { transport, signal }) => {
+    ctx.api("edit", async (params, { signal }) => {
       let refused: string[] = [];
       let add = Array.isArray(params.add) ? params.add.map(String) : undefined;
       if (add?.length) {
-        const covered = new Set((await bytnodePairs(transport.bytnodeKey, signal)).map((x) => x.symbol));
+        const covered = new Set((await bytnodePairs(APP_PASS, signal)).map((x) => x.symbol));
         const followed = new Set((await read()).map((x) => x.symbol));
         refused = add.filter((s) => {
           const symbol = normalizeSymbol(s) ?? "";

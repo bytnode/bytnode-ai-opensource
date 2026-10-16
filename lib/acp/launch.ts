@@ -242,6 +242,8 @@ const STRIPPED_ENV = [
   "XAI_API_KEY",
   "GROK_API_KEY",
   "MISTRAL_API_KEY",
+  /* The desktop's secret for its server (`lib/bytnode/app-pass.ts`). */
+  "BYTNODE_AI_MAIN_SECRET",
 ];
 
 export function subscriptionEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {

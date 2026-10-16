@@ -57,7 +57,7 @@ type Props = {
   steps: StepId[];
   initial: WizardDraft;
   onDone: (draft: WizardDraft) => void;
-  /** The desktop app's first setup: the BytNode key made at sign-in, or
+  /** The first setup: the BytNode key made at sign-in, or
       why none could be (`lib/account/account.ts`). */
   accountKey?: AccountKeyNote;
 };
@@ -81,10 +81,12 @@ export function Wizard({ steps, initial, onDone, accountKey = null }: Props) {
   const [active, setActive] = useState(0);
   const [reached, setReached] = useState<number[]>([0]);
 
-  /* The BytNode key is not asked in the desktop app (made at sign-in);
-     only when that failed, and always in the npm app. */
-  const desktop = accountBridge() !== null;
-  const askBytnode = !desktop || accountKey?.kind === "failed" || !draft.keys.bytnode.trim();
+  /* The BytNode key is not asked: it is made at sign-in (desktop app and
+     browser alike); only when that failed. */
+  const signedIn = accountBridge() !== null;
+  const askBytnode = !signedIn || accountKey?.kind === "failed" || !draft.keys.bytnode.trim();
+  /* The keys are locked in the system's vault in the desktop app only. */
+  const vaulted = typeof window !== "undefined" && "bytnodeVault" in window;
   const keys = draft.keys;
   const setKeys = (k: ApiKeys) => setDraft({ ...draft, keys: k });
   const setProfile = (patch: Partial<Profile>) => setDraft({ ...draft, profile: { ...draft.profile, ...patch } });
@@ -153,7 +155,7 @@ export function Wizard({ steps, initial, onDone, accountKey = null }: Props) {
           >
             <div className="fr-card">
               <aside className="fr-guide">
-                <Speech line={say(step, draft.profile.firstName.trim(), desktop, m)} play={reached.includes(i)} ready={Object.keys(errors).length === 0} />
+                <Speech line={say(step, draft.profile.firstName.trim(), vaulted, m)} play={reached.includes(i)} ready={Object.keys(errors).length === 0} />
               </aside>
 
               <div className="fr-step">

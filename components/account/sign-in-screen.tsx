@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { accountBridge, accountErrorText, refreshAccount, setUpAccount, profileFromAccount, type AccountState } from "@/lib/account/account";
 import { useMessages } from "@/lib/i18n/react";
 import { currentSettings, updateSettings } from "@/lib/state/settings";
@@ -9,8 +9,9 @@ import "@/components/onboarding/onboarding.css";
 import "./sign-in.css";
 
 /* ---------------------------------------------------------------------------
-   The desktop app's first page (user request, 2026-10-09): sign in with
-   the BytNode account, through the browser.
+   The app's first page (user request, 2026-10-09; in a browser too since
+   2026-10-12): sign in with the BytNode account, through the browser — in
+   the desktop app the system's browser, in a browser a new tab.
 
    « Sign in with the browser » opens bytnode.com/auth/desktop: already
    signed in there, one click (« Open BytNode-AI ») and the browser hands
@@ -31,12 +32,17 @@ export function SignInScreen({ state }: { state: Extract<AccountState, { signedI
   const m = useMessages();
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [hover, setHover] = useState(false);
+  /* « Open the page again » starts a new sign-in and cancels the one
+     before: that one's answer (cancelled) must not reset the page. */
+  const attempt = useRef(0);
 
   const signIn = async () => {
     const bridge = accountBridge();
     if (!bridge) return;
+    const mine = ++attempt.current;
     setPhase({ kind: "waiting" });
     const r = await bridge.signIn();
+    if (mine !== attempt.current) return;
     if (!r.ok) {
       setPhase(r.cancelled ? { kind: "idle" } : { kind: "failed", message: r.message });
       return;

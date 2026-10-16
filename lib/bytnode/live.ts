@@ -1,3 +1,4 @@
+import { APP_PASS, appPass, dropAppPass } from "./app-pass";
 import { describeRestError } from "./rest";
 
 /* ---------------------------------------------------------------------------
@@ -22,6 +23,10 @@ import { describeRestError } from "./rest";
    the handshake (never in the URL), a session of at most six hours (close
    4010: back at once), the plan's cap on simultaneous connections (close
    4003; 4001 / 4002 = the key refused), pings answered by the runtime itself.
+   The app's feed is `liveFeed(APP_PASS)`: each connection opens with the
+   app's credential (`lib/bytnode/app-pass.ts`), on BytNode's own host only
+   (`appWsUrl`) — not the user's key, so it is not one of the plan's
+   connections.
 
    A connection refused at the handshake (no live access on the plan, a
    wrong key) is told in plain English (`problem`, from a plain GET on the
@@ -32,6 +37,12 @@ import { describeRestError } from "./rest";
 --------------------------------------------------------------------------- */
 
 export const BYTNODE_WS_URL = process.env.BYTNODE_WS_URL ?? "wss://ws.bytnode.com/ws";
+
+/** Where the app's credential goes: BytNode's own host — an override
+    (`BYTNODE_WS_URL`) only outside a production build (`process.env.NODE_ENV`
+    written out: the build fixes it, the environment cannot change it). */
+export const appWsUrl = (env: Record<string, string | undefined> = process.env, production = process.env.NODE_ENV === "production"): string =>
+  production ? "wss://ws.bytnode.com/ws" : (env.BYTNODE_WS_URL ?? "wss://ws.bytnode.com/ws");
 
 export type Tick = { price: number; at: number };
 
@@ -52,6 +63,12 @@ export type FeedDeps = {
   connect: (url: string, key: string) => SocketLike;
   /** Why the handshake was refused, in plain English; null when unknown. */
   probe: (url: string, key: string) => Promise<string | null>;
+  /** The key to open with, when the feed's key stands for one that must be
+      had first (the app's credential, `lib/bytnode/app-pass.ts`); null:
+      the feed's key itself. */
+  credential?: (key: string) => Promise<{ ok: true; token: string } | { ok: false; message: string }> | null;
+  /** A key the server refused: not to be used again. */
+  forget?: (key: string) => void;
   now: () => number;
   setTimer: (fn: () => void, ms: number) => unknown;
   clearTimer: (t: unknown) => void;
@@ -66,6 +83,8 @@ const BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000];
 /** After a refusal (plan, key, the connection cap): not before. */
 const REFUSED_RETRY_MS = 5 * 60_000;
 const LIMIT_RETRY_MS = 60_000;
+/** The app's credential could not be had: tried again after this. */
+const PASS_RETRY_MS = 30_000;
 /** A request the server has not answered in this time: the connection is
     taken for dead and opened again. */
 const REQUEST_MS = 10_000;
@@ -112,6 +131,10 @@ export class LiveFeed {
   /** Pairs the server will not stream (an unknown channel). */
   private readonly refused = new Set<string>();
   private pending: { op: "subscribe" | "unsubscribe"; sym: string } | null = null;
+  /** The key the connection was last opened with. */
+  private used = "";
+  /** The key to open with is being had. */
+  private resolving = false;
   private attempt = 0;
   private notBefore = 0;
   private reconnectTimer: unknown = null;
@@ -298,7 +321,7 @@ export class LiveFeed {
   }
 
   private open() {
-    if (this.reconnectTimer) return;
+    if (this.reconnectTimer || this.resolving) return;
     const wait = this.notBefore - this.deps.now();
     if (wait > 0) {
       this.reconnectTimer = this.deps.setTimer(() => {
@@ -308,9 +331,24 @@ export class LiveFeed {
       return;
     }
     if (this.stateNow !== "unavailable") this.setState("connecting", null);
+    const credential = this.deps.credential?.(this.key) ?? null;
+    if (!credential) return this.connectWith(this.key);
+    this.resolving = true;
+    void credential.then((r) => {
+      this.resolving = false;
+      if (this.closed || this.socket) return;
+      if (r.ok) return this.connectWith(r.token);
+      this.notBefore = this.deps.now() + PASS_RETRY_MS;
+      this.setState("unavailable", r.message);
+      this.reconcile();
+    });
+  }
+
+  private connectWith(key: string) {
+    this.used = key;
     let socket: SocketLike;
     try {
-      socket = this.deps.connect(this.url, this.key);
+      socket = this.deps.connect(this.url, key);
     } catch (e) {
       this.failed(false, e instanceof Error ? e.message : String(e));
       return;
@@ -364,7 +402,10 @@ export class LiveFeed {
       this.reconcile();
       return;
     }
-    void this.deps.probe(this.url, this.key).then((why) => {
+    const used = this.used;
+    void this.deps.probe(this.url, used).then((why) => {
+      /* The app's credential refused: not sent again for a while. */
+      if (why && used !== this.key) this.deps.forget?.(used);
       /* A connection opened meanwhile (the probe can be slow) wins. */
       if (this.closed || this.socket) return;
       if (why) this.notBefore = this.deps.now() + REFUSED_RETRY_MS;
@@ -471,6 +512,8 @@ async function probeNode(url: string, key: string): Promise<string | null> {
 const nodeDeps: FeedDeps = {
   connect: connectNode,
   probe: probeNode,
+  credential: (key) => (key === APP_PASS ? appPass() : null),
+  forget: dropAppPass,
   now: Date.now,
   setTimer: (fn, ms) => {
     const t = setTimeout(fn, ms);
@@ -497,7 +540,7 @@ export function liveFeed(apiKey: string): LiveFeed {
         feeds.delete(k);
       }
     }
-    feed = new LiveFeed(key, nodeDeps);
+    feed = new LiveFeed(key, nodeDeps, key === APP_PASS ? appWsUrl() : BYTNODE_WS_URL);
     feeds.set(key, feed);
   }
   return feed;

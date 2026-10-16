@@ -13,6 +13,7 @@ import { precheck } from "./precheck";
 import { DEFAULT_GROUP, adoptLoose, addGroup, curveDays, groupNamed, movePlan, planCurve, renameGroup, seedGroups, type DcaGroup } from "./groups";
 import { candles, isQuote, quotes } from "../shared/prices";
 import type { Candle } from "../shared/candle";
+import { APP_PASS } from "@/lib/bytnode/pass-id";
 
 /* ---------------------------------------------------------------------------
    Recurring purchases.
@@ -99,7 +100,7 @@ export const dcaPlugin = definePlugin({
       if (plan.destination === "paper") {
         const desk = paper();
         if (!desk) return { purchase: { ...base, mode: "paper", status: "failed", detail: PAPER_OFF }, notice: { title: `DCA (paper) not possible: ${plan.symbol}`, body: PAPER_OFF, level: "error" } };
-        const r = await desk.buy({ symbol: plan.symbol, quoteAmount: plan.quoteAmount, note: `DCA ${plan.id}` }, { bytnodeKey: session.bytnodeKey, accounts: session.exchangeAccounts, signal });
+        const r = await desk.buy({ symbol: plan.symbol, quoteAmount: plan.quoteAmount, note: `DCA ${plan.id}` }, { bytnodeKey: APP_PASS, accounts: session.exchangeAccounts, signal });
         if ("error" in r || !r.fill) {
           const detail = "error" in r ? r.error : "The paper order did not fill.";
           return { purchase: { ...base, mode: "paper", status: "failed", detail }, notice: { title: `DCA (paper) failed: ${plan.symbol}`, body: detail, level: "error" } };
@@ -220,7 +221,7 @@ export const dcaPlugin = definePlugin({
        Read apart from the state (BytNode's quota): once a minute. */
     ctx.api("prices", async (_params, { transport, signal }) => {
       const symbols = [...new Set((await plans()).map((p) => p.symbol))];
-      const got = await quotes(symbols, { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal });
+      const got = await quotes(symbols, { bytnodeKey: APP_PASS, accounts: transport.exchangeAccounts, signal });
       const prices: Record<string, number> = {};
       for (const s of symbols) {
         const q = got.get(s);
@@ -237,7 +238,7 @@ export const dcaPlugin = definePlugin({
       if (!days.length) return { series: [] };
       const closes: Record<string, Candle[]> = {};
       for (const symbol of [...new Set(chosen.map((p) => p.symbol))]) {
-        const r = await candles(symbol, "1d", days.length + 1, { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal });
+        const r = await candles(symbol, "1d", days.length + 1, { bytnodeKey: APP_PASS, accounts: transport.exchangeAccounts, signal });
         if ("candles" in r) closes[symbol] = r.candles;
       }
       return { series: planCurve(chosen, bought, closes, days) };

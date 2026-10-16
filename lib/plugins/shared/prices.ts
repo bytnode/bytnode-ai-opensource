@@ -1,28 +1,29 @@
 import type { Ticker } from "ccxt";
 import type { ExchangeAccount } from "@/lib/domain/types";
 import { liveFeed, type Tick } from "@/lib/bytnode/live";
-import { readingForAgent } from "@/lib/bytnode/reader";
 import { restGet } from "@/lib/bytnode/rest";
-import { readBytnodeTool } from "@/lib/mcp/bytnode";
 import { clientFor } from "@/lib/tools/exchange/client";
 import { describeExchangeError } from "@/lib/tools/exchange/errors";
-import { orderCandles, readKlines, type Candle, type Interval } from "./candle";
+import { orderCandles, type Candle, type Interval } from "./candle";
 import { bytnodeSymbol, readFunding, readPriceChange, type Quote } from "./quote";
 
 /* ---------------------------------------------------------------------------
-   Prices for the plugins — BytNode first, by the reader's road.
+   Prices for the plugins — BytNode first.
 
-   Two readers (`lib/bytnode/reader.ts`):
-     - the APP (a view, a widget, a background job): BytNode's REST API for
-       what is at rest (candles, the funding, the pairs) and its WebSocket
-       for the live price (`lib/bytnode/live.ts`, the last trade). The
-       changes over a window are worked out live against a REST reading of
-       `/v1/price-change` taken every `REFERENCE_MS`: the window's starting
-       price is that reading's price over (1 + its change), and the live
-       change is the live price against it. Without a live price (the
-       connection refused, or not there yet), the REST reading itself;
-     - an AI AGENT (a plugin's tool it called): BytNode's MCP tools, as its
-       own reads (`get_market_data`, `get_system_info`).
+   BytNode's REST API for what is at rest (candles, the funding, the pairs)
+   and its WebSocket for the live price (`lib/bytnode/live.ts`, the last
+   trade). The changes over a window are worked out live against a REST
+   reading of `/v1/price-change` taken every `REFERENCE_MS`: the window's
+   starting price is that reading's price over (1 + its change), and the
+   live change is the live price against it. Without a live price (the
+   connection refused, or not there yet), the REST reading itself.
+
+   `bytnodeKey` says whose key reads: `APP_PASS` for the built-in plugins
+   (their views, jobs AND tools: an agent calling a plugin's tool spends
+   no quota, owner decision 2026-10-16; `lib/bytnode/app-pass.ts`), the
+   user's own key for a plugin written by an agent (`ctx.quote`). The
+   caches are per key.
+
    A pair BytNode does not cover is read on the exchange of one of the
    user's accounts that lists it (the price, the 24 h change; candles,
    funding the same way). Never a price from memory: without a source, the
@@ -33,14 +34,11 @@ export type PriceSources = { bytnodeKey?: string; accounts?: ExchangeAccount[]; 
 
 export type Priced = Quote | { symbol: string; error: string };
 
-const CACHE_MS = 10_000;
-const cache = new Map<string, { at: number; value: Priced }>();
-
 export const isQuote = (p: Priced): p is Quote => !("error" in p);
 
 const iso = (ms: number) => new Date(ms).toISOString();
 
-/* --- the app's road: REST + WebSocket ----------------------------------- */
+/* --- BytNode: REST + WebSocket ------------------------------------------- */
 
 /** How old the REST reading the live changes are worked out against may be. */
 export const REFERENCE_MS = 10 * 60_000;
@@ -104,7 +102,7 @@ export async function coveredSet(key: string, signal?: AbortSignal): Promise<Set
 /** A pair, live: its last trade on the WebSocket with the changes worked
     out against the REST reading; that reading alone when there is no live
     price; null when BytNode does not cover the pair. */
-async function appQuote(symbol: string, key: string, signal: AbortSignal): Promise<Quote | { error: string } | null> {
+async function bytnodeQuote(symbol: string, key: string, signal: AbortSignal): Promise<Quote | { error: string } | null> {
   const covered = await coveredSet(key, signal);
   const sym = bytnodeSymbol(symbol);
   if (covered && !covered.has(sym)) return null;
@@ -114,21 +112,6 @@ async function appQuote(symbol: string, key: string, signal: AbortSignal): Promi
   if (!("error" in ref)) return tick ? withLive(ref, tick) : ref;
   if (tick) return { symbol, price: tick.price, source: "bytnode", at: iso(tick.at) };
   return ref;
-}
-
-/* --- an agent's road: MCP ------------------------------------------------ */
-
-async function agentQuote(symbol: string, key: string, signal: AbortSignal): Promise<Quote | { error: string } | null> {
-  const res = await readBytnodeTool(key, "get_market_data", { symbol: bytnodeSymbol(symbol), price_change: true }, signal);
-  /* A refused key, a plan's refusal (the MCP says "Error (HTTP 401|403|429):
-     …") or an unreachable BytNode is said as such; a pair BytNode does not
-     cover (422 `invalid_symbol`) goes on to the exchanges. */
-  if (!res.ok) return /HTTP (401|403|429)\b|refused|unreachable|quota|rate limit/i.test(res.message) ? { error: res.message } : null;
-  try {
-    return readPriceChange(JSON.parse(res.text), symbol, new Date());
-  } catch {
-    return null;
-  }
 }
 
 /* --- the exchanges ------------------------------------------------------- */
@@ -148,23 +131,16 @@ async function fromExchange(symbol: string, accounts: ExchangeAccount[]): Promis
   return null;
 }
 
-/** A pair's price. The app's reading is live (the WebSocket's last trade,
-    `maxAge` does not apply); an agent's is kept a few seconds, so a view
-    and a tool asking together read BytNode once. */
-export async function quote(symbol: string, sources: PriceSources, maxAge = CACHE_MS): Promise<Priced> {
+/** A pair's price, live (the WebSocket's last trade): nothing is kept here
+    — the live feed and the REST reading hold what is shared. */
+export async function quote(symbol: string, sources: PriceSources): Promise<Priced> {
   const key = sources.bytnodeKey?.trim() ?? "";
-  const agent = readingForAgent();
-  const id = `${agent ? "agent" : "app"}|${symbol}|${key ? "b" : "-"}|${(sources.accounts ?? []).map((a) => a.id).join(",")}`;
-  if (agent) {
-    const hit = cache.get(id);
-    if (hit && Date.now() - hit.at < Math.min(maxAge, CACHE_MS)) return hit.value;
-  }
   const signal = sources.signal ?? AbortSignal.timeout(60_000);
   let value: Priced | null = null;
   let bytnodeError: string | null = null;
   try {
     if (key) {
-      const r = agent ? await agentQuote(symbol, key, signal) : await appQuote(symbol, key, signal);
+      const r = await bytnodeQuote(symbol, key, signal);
       if (r && "error" in r) bytnodeError = r.error;
       else value = r;
     }
@@ -176,7 +152,6 @@ export async function quote(symbol: string, sources: PriceSources, maxAge = CACH
     symbol,
     error: bytnodeError ? bytnodeError : key ? `No price for ${symbol}: BytNode does not cover it and no exchange account lists it.` : `No price for ${symbol}: no BytNode key, and no exchange account lists it.`,
   };
-  if (agent) cache.set(id, { at: Date.now(), value });
   return value;
 }
 
@@ -194,17 +169,8 @@ export async function quotes(symbols: string[], sources: PriceSources): Promise<
 const FUNDING_MS = 5 * 60_000;
 const fundings = new Map<string, { at: number; value: Promise<number | undefined> }>();
 
-/** BytNode's next funding forecast for a pair, by the reader's road. */
-async function bytnodeFunding(symbol: string, key: string, signal: AbortSignal): Promise<number | undefined> {
-  if (readingForAgent()) {
-    const res = await readBytnodeTool(key, "get_market_data", { symbol: bytnodeSymbol(symbol), funding_next: true }, signal);
-    if (!res.ok) return undefined;
-    try {
-      return readFunding(JSON.parse(res.text));
-    } catch {
-      return undefined;
-    }
-  }
+/** BytNode's next funding forecast for a pair. */
+async function bytnodeFunding(symbol: string, key: string): Promise<number | undefined> {
   const id = `${key}|${symbol}`;
   const hit = fundings.get(id);
   if (hit && Date.now() - hit.at < FUNDING_MS) return hit.value;
@@ -219,10 +185,9 @@ async function bytnodeFunding(symbol: string, key: string, signal: AbortSignal):
 /** The funding rate of a perpetual, in % per 8 h: BytNode, else the
     exchange of an account. */
 export async function fundingRate(symbol: string, sources: PriceSources): Promise<number | undefined> {
-  const signal = sources.signal ?? AbortSignal.timeout(60_000);
   const key = sources.bytnodeKey?.trim();
   if (key) {
-    const rate = await bytnodeFunding(symbol, key, signal);
+    const rate = await bytnodeFunding(symbol, key);
     if (rate !== undefined) return rate;
   }
   for (const account of sources.accounts ?? []) {
@@ -257,19 +222,8 @@ async function restCandles(key: string, symbol: string, interval: Interval, n: n
   return { bars: Array.isArray(res.data) ? orderCandles(res.data) : [] };
 }
 
-/** BytNode's last `n` bars of a pair, by the reader's road: REST
-    (`restCandles`) or the MCP's `get_market_data(klines, timeframe)`. */
-function bytnodeCandles(symbol: string, interval: Interval, n: number, key: string, signal: AbortSignal): Promise<{ bars: Candle[] } | { error: string }> {
-  if (readingForAgent()) {
-    return readBytnodeTool(key, "get_market_data", { symbol: bytnodeSymbol(symbol), klines: n, timeframe: interval }, signal).then((res) => {
-      if (!res.ok) return { error: res.message };
-      try {
-        return { bars: readKlines(JSON.parse(res.text), `klines@${interval}`) };
-      } catch {
-        return { error: `BytNode's candles for ${symbol} could not be read.` };
-      }
-    });
-  }
+/** BytNode's last `n` bars of a pair (`restCandles`), kept a few seconds. */
+function bytnodeCandles(symbol: string, interval: Interval, n: number, key: string): Promise<{ bars: Candle[] } | { error: string }> {
   const id = `${key}|${symbol}|${interval}|${n}`;
   const hit = series.get(id);
   if (hit && Date.now() - hit.at < CANDLES_MS) return hit.value;
@@ -284,13 +238,12 @@ function bytnodeCandles(symbol: string, interval: Interval, n: number, key: stri
 /** The last `limit` bars of a pair: BytNode's klines, else the exchange of
     an account that lists it. */
 export async function candles(symbol: string, interval: Interval, limit: number, sources: PriceSources): Promise<CandleSeries> {
-  const signal = sources.signal ?? AbortSignal.timeout(60_000);
   const n = Math.max(10, Math.min(1000, Math.round(limit)));
   let bytnodeError: string | null = null;
   try {
     const key = sources.bytnodeKey?.trim();
     if (key) {
-      const res = await bytnodeCandles(symbol, interval, n, key, signal);
+      const res = await bytnodeCandles(symbol, interval, n, key);
       if ("error" in res) bytnodeError = res.error;
       else if (res.bars.length) return { symbol, interval, candles: res.bars, source: "bytnode" };
     }
@@ -332,27 +285,16 @@ function toListed(rows: unknown): Listed[] {
 /** The pairs BytNode covers, with their names — the only assets the
     watchlist's field offers. Stablecoin pairs are left out. A few minutes
     of cache: the list barely moves. Empty without a key, or when BytNode
-    cannot be read (and then not cached). The app reads `/v1/symbols`; an
-    agent, `get_system_info`. */
+    cannot be read (and then not cached): `/v1/symbols`. */
 export function bytnodePairs(bytnodeKey: string | undefined, signal?: AbortSignal): Promise<Listed[]> {
   const key = bytnodeKey?.trim();
   if (!key) return Promise.resolve([]);
-  const agent = readingForAgent();
-  const id = `${agent ? "agent" : "app"}|${key}`;
+  const id = key;
   const hit = listed.get(id);
   if (hit && Date.now() - hit.at < LISTED_MS) return hit.value;
   /* Shared by the callers of the moment: no caller's signal cancels it. */
   void signal;
   const value = (async (): Promise<Listed[]> => {
-    if (agent) {
-      const res = await readBytnodeTool(key, "get_system_info", { include_status: false }, AbortSignal.timeout(30_000));
-      if (!res.ok) return [];
-      try {
-        return toListed((JSON.parse(res.text) as { symbols?: unknown }).symbols);
-      } catch {
-        return [];
-      }
-    }
     const res = await restGet(key, "/v1/symbols");
     return res.ok ? toListed(res.data) : [];
   })();

@@ -1,3 +1,4 @@
+import { APP_PASS } from "@/lib/bytnode/pass-id";
 import { liveFeed, type LiveFeed } from "@/lib/bytnode/live";
 import { normalizeSymbol, bytnodeSymbol } from "@/lib/plugins/shared/quote";
 import { coveredSet, isQuote, quote, referenceQuote, withLive } from "@/lib/plugins/shared/prices";
@@ -28,10 +29,11 @@ const QUIET_MS = 30_000;
 const MAX_SYMBOLS = 60;
 
 export async function GET(req: Request) {
-  const { bytnodeKey, exchangeAccounts } = readTransport(req.headers);
+  const { exchangeAccounts } = readTransport(req.headers);
   const raw = new URL(req.url).searchParams.get("symbols") ?? "";
   const symbols = [...new Set(raw.split(",").map((s) => normalizeSymbol(s)).filter((s): s is string => !!s))].slice(0, MAX_SYMBOLS);
-  const key = bytnodeKey.trim();
+  /* The app's credential, not the user's key: a view's prices spend no quota. */
+  const key = APP_PASS;
   const encoder = new TextEncoder();
   const cleanup: Array<() => void> = [];
   let open = true;
@@ -84,7 +86,6 @@ export async function GET(req: Request) {
         for (const symbol of symbols) if (Date.now() - (priced.get(symbol) ?? 0) >= QUIET_MS) void reading(symbol);
       }, QUIET_MS);
       cleanup.push(() => clearInterval(quiet));
-      if (!key) return;
 
       /* Then every trade of a pair BytNode covers, at most every
          EVERY_MS per pair. */

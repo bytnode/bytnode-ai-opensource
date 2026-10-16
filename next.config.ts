@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  /* `npm run dev-zero` runs a second `next dev` beside the usual one: Next
+     takes a lock in its build folder, so that one gets its own. */
+  distDir: process.env.BYTNODE_AI_DIST_DIR || ".next",
   reactStrictMode: true,
   /* The `next dev` badge goes to the left: the bottom-right corner belongs
      to the meter (context, rate, cost). */

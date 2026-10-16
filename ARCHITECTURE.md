@@ -211,14 +211,29 @@ notifications, confirmations for orders, scheduled jobs, events, optional servic
 the Next server (with background work, while a browser tab keeps a session alive) and one per MCP
 server (tools only, for subscription agents).
 
-**BytNode: two readers, two roads** (2026-10-11). The AI agents read BytNode through its MCP
-server (`lib/mcp/bytnode.ts`). Everything else — a plugin's view, its background jobs, the
-widgets, the key check — reads its REST API (`lib/bytnode/rest.ts`: candles, funding, the pairs,
-the snapshot, indicators) and, for live prices, its WebSocket (`lib/bytnode/live.ts`: ONE
-connection per key in the Next server, the `trades.spot.<SYM>` channels, the pairs held while
-something wants them and let go a minute after). A plugin's tool runs the same code as its view,
-so the runtime marks a tool's execution as an agent's (`asAgent`, `lib/bytnode/reader.ts`) and the
-price layer (`lib/plugins/shared/prices.ts`) picks its road from that mark. There is no ticker on
+**BytNode: two readers, two keys** (2026-10-11, keys 2026-10-16). The AI agents read BytNode
+through its MCP server (`lib/mcp/bytnode.ts`) with the user's key, on the user's quota — and so do
+the plugins written by an agent (`ctx.bytnode`, `ctx.quote`). Everything else — the built-in
+plugins' views, background jobs AND tools, the widgets — reads its REST API (`lib/bytnode/rest.ts`:
+candles, funding, the pairs, the snapshot, indicators) and, for live prices, its WebSocket
+(`lib/bytnode/live.ts`: the `trades.spot.<SYM>` channels, the pairs held while something wants
+them and let go a minute after) with the **app's credential**, not the user's key: no quota spent,
+nothing in the user's console (owner decision). There is no secret app key: the credential
+(`bne_…`, `lib/bytnode/engine-credential.ts`) is derived from the user's own account session, and
+bytnode.com, which keeps only the session's SHA-256, derives the same string and provisions it on
+the engine like an API key, revoked with the session. The engine opens it on the plugins' reads
+only (`lib/bytnode/app-reads.ts`, which the app also checks before sending), never more than a plan
+gives. It lives in the server's memory only (never on disk, never sent to the page) and goes to
+BytNode's own hosts only (`appApiUrl` / `appWsUrl`: an override is honoured outside a production
+build only). Code reading for the app passes `APP_PASS` (`lib/bytnode/pass-id.ts`) where a key goes;
+a key coming from outside is cleaned of that name (`userKey`). The server gets it from the page's
+heartbeat in a browser (the session in `x-bytnode-session` on `POST /api/session`, only the derived
+credential kept), from the desktop's main process otherwise (the credential only, `POST
+/api/bytnode/session`, with the secret `BYTNODE_AI_MAIN_SECRET` it started the server with — the
+session never leaves the main process). A subscription agent's MCP server holds no credential: its
+plugin tools' reads are relayed by the Next server (`POST /api/bytnode/read`, link secret in its env,
+`lib/bytnode/app-relay.ts`), which checks them against the same list and answers with the data;
+it has no live feed (REST readings only). There is no ticker on
 the WebSocket: the live price is the last trade, and the changes over 1 h / 4 h / 24 h / 7 d are
 worked out against a `/v1/price-change` reading taken every ten minutes. A view gets its prices
 pushed (`/api/market/live`, NDJSON, `components/plugins/use-live-quotes.ts`) instead of reading
@@ -364,8 +379,8 @@ BytNode-AI (Electron main process, desktop/main.ts)
   them with safeStorage (DPAPI, Keychain, libsecret) into `secrets.vault` in the profile. Keys left
   in plain storage by an older version move in at the next read; no real vault (Linux without a
   keyring) = as in the browser.
-- **The BytNode account** (`desktop/account.ts`, pure part `desktop/account-flow.ts`, page side
-  `lib/account/account.ts`): the desktop app opens on a sign-in page (`components/account/
+- **The BytNode account** (`desktop/account.ts`, the sign-in itself `lib/account/sign-in.ts`, pure part
+  `lib/account/flow.ts`, page side `lib/account/account.ts`): the desktop app opens on a sign-in page (`components/account/
   sign-in-screen.tsx`) until it is signed in. « Sign in with the browser » opens
   `bytnode.com/auth/desktop?challenge&port&state` (PKCE S256 + a loopback listener on 127.0.0.1,
   RFC 8252 — no URL scheme); the page, signed in there, confirms with one click and sends a one-time
@@ -376,8 +391,14 @@ BytNode-AI (Electron main process, desktop/main.ts)
   profile filled where empty. Signed in = a session is stored, so the app opens offline; online, it
   is checked at start (`GET /api/desktop/me`, 401 → back to the sign-in page). Settings → General →
   « BytNode account » signs out (the session is revoked, local data stays). The server side is
-  `app_web` (`backend/src/modules/desktop-auth`, `frontend/app/auth/desktop`). The npm app has no
-  bridge and no sign-in page.
+  `app_web` (`backend/src/modules/desktop-auth`, `frontend/app/auth/desktop`).
+  **In a browser** (`next dev`, the npm app; since 2026-10-12) the same sign-in, the same gate:
+  with no preload bridge, `lib/account/browser.ts` plays its part. « Sign in » opens a tab inside
+  the click, the app's server runs the very same `startSignIn` (`app/api/account/sign-in`: POST
+  starts it and gives the address, GET waits for the outcome, DELETE cancels;
+  `lib/account/server-runs.ts` keeps the runs on `globalThis`), and the page keeps the session in
+  its own storage (`agentchat:account`) with its other keys, sending it in `x-bytnode-session` only
+  to `app/api/account/key` and `app/api/account/session`. A new browser profile starts signed out.
 - **From zero** (`desktop/fresh.ts`): `BytNode-AI --fresh`, or File → Start Over from Zero, opens
   the app as a new user gets it — a new browser profile, a new data folder, an empty home for the
   server and the agents it starts (so Claude, Codex… show signed out), the PATH's agents ignored,

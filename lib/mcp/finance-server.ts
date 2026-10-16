@@ -3,6 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { Tool, ToolContext } from "@/lib/tools/types";
 import { allTools } from "@/lib/tools/registry";
+import { userKey } from "@/lib/bytnode/pass-id";
 import { parseAccountsHeader } from "@/lib/tools/exchange/accounts";
 import { parsePluginIds } from "@/lib/tools/transport";
 import { startToolsRuntime } from "@/lib/plugins/host";
@@ -35,7 +36,7 @@ import { serveCall } from "./serve-call";
 
 const workspace = process.env.BYTNODE_AI_WORKSPACE ?? process.cwd();
 const projectRoot = process.env.BYTNODE_AI_PROJECT_ROOT ?? process.cwd();
-const bytnodeKey = process.env.BYTNODE_AI_BYTNODE_KEY ?? "";
+const bytnodeKey = userKey(process.env.BYTNODE_AI_BYTNODE_KEY ?? "");
 const depth = process.env.BYTNODE_AI_DEPTH === "1" ? 1 : 0;
 /* The agent's exchange accounts, if it has any: then the exchange tools
    are served too. */

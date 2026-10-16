@@ -1,7 +1,6 @@
 import type { AppNotification, Confirmation, PluginConfig, PluginManifest, PluginNeed, PluginStatus, PluginsState, PluginView } from "@/lib/domain/plugins";
 import type { Tool } from "@/lib/tools/types";
 import { resolvePolicy } from "@/lib/tools/policy";
-import { asAgent } from "@/lib/bytnode/reader";
 import { CLOCK_STORE, Clock } from "./clock";
 import type { ApiHandler, ConfirmationRequest, NotificationInput, PluginContext, PluginDefinition, PromptRender, PromptTarget, Session } from "./contract";
 import { EventBus } from "./events";
@@ -235,9 +234,9 @@ export class PluginRuntime {
         if (env.reservedNames.has(t.name)) throw new Error(`The tool name ${t.name} belongs to the core.`);
         const owner = this.ownerOf(t.name);
         if (owner) throw new Error(`The tool name ${t.name} is already taken by ${owner}.`);
-        /* A tool is an AI agent's call: what it reads of BytNode goes
-           through MCP, not the app's REST and WebSocket (`lib/bytnode/reader.ts`). */
-        instance.tools.set(t.name, { ...t, execute: (args, c) => asAgent(() => t.execute(args, c)) });
+        /* A built-in plugin's tool reads BytNode like its view, with the
+           app's credential (no quota spent: `lib/bytnode/app-pass.ts`). */
+        instance.tools.set(t.name, t);
       },
       prompt: (render) => void instance.prompts.push(render),
       skills: (dir) => void instance.skills.push(dir),

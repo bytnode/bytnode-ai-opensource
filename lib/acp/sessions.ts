@@ -2,6 +2,7 @@ import type { McpServer, PermissionOption, RequestPermissionRequest, RequestPerm
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { LINK_ENV, passLink } from "@/lib/bytnode/app-pass";
 import { BYTNODE_MCP_URL, bytnodeTools } from "@/lib/mcp/bytnode";
 import { financeServerArgs } from "@/lib/mcp/server-launch";
 import type { ConfirmVerdict } from "@/lib/mcp/serve-call";
@@ -441,6 +442,10 @@ const mcpServersFor = ({ workspace, bytnodeKey, exchangeAccounts, plugins, agent
             { name: "BYTNODE_AI_READY_ID", value: depth.ready.id },
           ]
         : [];
+  /* The plugins' tools read BytNode for the app, not with the agent's key:
+     that server holds no credential and relays those reads through us
+     (`POST /api/bytnode/read`, `lib/bytnode/app-relay.ts`). */
+  const link = passLink();
   const servers: McpServer[] = [
     {
       name: "bytnode-ai",
@@ -462,6 +467,12 @@ const mcpServersFor = ({ workspace, bytnodeKey, exchangeAccounts, plugins, agent
         /* The agent-written plugins the user's browser approved — the key
            itself never leaves this process (`lib/plugins/user/approval.ts`). */
         { name: VERIFIED_GRANTS_ENV, value: JSON.stringify(verifiedGrantSigs()) },
+        ...(link
+          ? [
+              { name: LINK_ENV.url, value: link.url },
+              { name: LINK_ENV.token, value: link.token },
+            ]
+          : []),
         /* In the desktop app `process.execPath` is its Electron binary, a
            Node only with this variable — said explicitly: an agent may not
            pass its own environment on to the servers it starts. */

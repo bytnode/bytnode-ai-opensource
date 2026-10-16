@@ -1,18 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-/* The two roads of the price layer: the app reads BytNode's REST API and
-   WebSocket, an AI agent (a plugin's tool) its MCP tools. Nothing real is
+/* The price layer reads BytNode's REST API and WebSocket, with the key it
+   is given: the app's credential for the built-in plugins (views, jobs and tools
+   alike), the user's key for a plugin written by an agent. Nothing real is
    called. */
 
 const rest = vi.hoisted(() => ({ restGet: vi.fn() }));
-const mcp = vi.hoisted(() => ({ readBytnodeTool: vi.fn() }));
 const feed = vi.hoisted(() => ({ last: vi.fn(), waitFor: vi.fn(), lease: vi.fn() }));
+const feeds = vi.hoisted(() => ({ keys: [] as string[] }));
 
 vi.mock("@/lib/bytnode/rest", () => ({ restGet: rest.restGet }));
-vi.mock("@/lib/mcp/bytnode", () => ({ readBytnodeTool: mcp.readBytnodeTool }));
-vi.mock("@/lib/bytnode/live", () => ({ liveFeed: () => feed }));
+vi.mock("@/lib/bytnode/live", () => ({ liveFeed: (k: string) => (feeds.keys.push(k), feed) }));
 
-const { asAgent } = await import("@/lib/bytnode/reader");
+const { APP_PASS } = await import("@/lib/bytnode/pass-id");
 const { candles, fundingRate, quote, withLive } = await import("./prices");
 
 const SYMBOLS = [{ symbol: "BTCUSDT", base_asset: "BTC", name: "Bitcoin" }];
@@ -24,7 +24,7 @@ const key = () => `cb_test_${++n}`;
 
 beforeEach(() => {
   rest.restGet.mockReset();
-  mcp.readBytnodeTool.mockReset();
+  feeds.keys = [];
   feed.last.mockReset();
   feed.waitFor.mockReset();
   feed.lease.mockReset();
@@ -45,7 +45,7 @@ beforeEach(() => {
   });
 });
 
-describe("the app's road", () => {
+describe("BytNode: REST and the live feed", () => {
   it("prices live: the WebSocket's last trade, the changes worked out against the REST reading", async () => {
     feed.last.mockReturnValue({ price: 110, at: Date.parse("2026-10-12T10:00:05.000Z") });
     const q = await quote("BTC/USDT", { bytnodeKey: key() });
@@ -53,7 +53,6 @@ describe("the app's road", () => {
     /* 24 h ago: 100 / 1.25 = 80 → 110 is +37.5 %. */
     expect("change24h" in q && q.change24h).toBeCloseTo(37.5);
     expect(feed.lease).toHaveBeenCalledWith("BTCUSDT", expect.any(Number));
-    expect(mcp.readBytnodeTool).not.toHaveBeenCalled();
   });
 
   it("falls back on the REST reading when no live price comes", async () => {
@@ -93,28 +92,34 @@ describe("the app's road", () => {
   });
 });
 
-describe("an agent's road", () => {
-  it("prices through the MCP tools, never REST or the WebSocket", async () => {
-    mcp.readBytnodeTool.mockResolvedValue({ ok: true, text: JSON.stringify({ mode: "latest", data: { price_change: PRICE_CHANGE } }) });
-    const q = await asAgent(() => quote("BTC/USDT", { bytnodeKey: key() }));
-    expect(q).toMatchObject({ price: 100, change24h: 25 });
-    expect(mcp.readBytnodeTool).toHaveBeenCalledWith(expect.any(String), "get_market_data", { symbol: "BTCUSDT", price_change: true }, expect.anything());
-    expect(rest.restGet).not.toHaveBeenCalled();
-    expect(feed.lease).not.toHaveBeenCalled();
+describe("whose key reads", () => {
+  it("the app's credential, for a built-in plugin (its view, job or tool): REST and the live feed on it", async () => {
+    feed.last.mockReturnValue({ price: 110, at: Date.parse("2026-10-12T10:00:05.000Z") });
+    const q = await quote("BTC/USDT", { bytnodeKey: APP_PASS });
+    expect(q).toMatchObject({ price: 110, source: "bytnode" });
+    expect(rest.restGet).toHaveBeenCalledWith(APP_PASS, "/v1/price-change", { symbol: "BTCUSDT" });
+    expect(feeds.keys).toEqual([APP_PASS]);
   });
 
-  it("says a plan's refusal, and leaves a pair BytNode does not serve to the exchanges", async () => {
-    mcp.readBytnodeTool.mockResolvedValue({ ok: false, message: "Error (HTTP 403): Your plan does not include this data family." });
-    expect(await asAgent(() => quote("ETH/USDT", { bytnodeKey: key() }))).toMatchObject({ error: expect.stringMatching(/HTTP 403/) });
-    mcp.readBytnodeTool.mockResolvedValue({ ok: false, message: "Error (HTTP 422): The symbol is not served." });
-    expect(await asAgent(() => quote("PEPE/USDT", { bytnodeKey: key() }))).toMatchObject({ error: expect.stringMatching(/BytNode does not cover it/) });
+  it("the user's key, for a plugin written by an agent", async () => {
+    const k = key();
+    feed.last.mockReturnValue(undefined);
+    feed.waitFor.mockResolvedValue(undefined);
+    await candles("BTC/USDT", "1h", 2, { bytnodeKey: k });
+    expect(rest.restGet).toHaveBeenCalledWith(k, "/v1/klines/history", expect.anything());
+    expect(rest.restGet).not.toHaveBeenCalledWith(APP_PASS, expect.anything(), expect.anything());
   });
 
-  it("asks candles with the MCP's klines + timeframe", async () => {
-    mcp.readBytnodeTool.mockResolvedValue({ ok: true, text: JSON.stringify({ data: { "klines@4h": [{ time: "2026-10-12T08:00:00.000Z", open: 1, high: 2, low: 1, close: 2 }] } }) });
-    const c = await asAgent(() => candles("BTC/USDT", "4h", 50, { bytnodeKey: key() }));
-    expect(c).toMatchObject({ source: "bytnode" });
-    expect(mcp.readBytnodeTool).toHaveBeenCalledWith(expect.any(String), "get_market_data", { symbol: "BTCUSDT", klines: 50, timeframe: "4h" }, expect.anything());
+  it("a refusal is said as such, and a pair BytNode does not cover goes to the exchanges", async () => {
+    const k = key();
+    const fallback = rest.restGet.getMockImplementation()!;
+    rest.restGet.mockImplementation(async (kk: string, path: string, params: Record<string, unknown>) =>
+      path === "/v1/price-change" ? { ok: false, status: 401, code: "no_app_access", message: "Not signed in to BytNode: sign in to read market data." } : fallback(kk, path, params),
+    );
+    feed.last.mockReturnValue(undefined);
+    feed.waitFor.mockResolvedValue(undefined);
+    expect(await quote("BTC/USDT", { bytnodeKey: k })).toMatchObject({ error: expect.stringMatching(/Not signed in to BytNode/) });
+    expect(await quote("PEPE/USDT", { bytnodeKey: k })).toMatchObject({ error: expect.stringMatching(/BytNode does not cover it/) });
   });
 });
 

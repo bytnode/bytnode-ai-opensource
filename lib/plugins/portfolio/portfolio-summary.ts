@@ -6,6 +6,7 @@ import { summarize } from "./aggregate";
 import { priceBook, readAccounts } from "./collect";
 import { moneyIn } from "./money";
 import { summaryLines } from "./present";
+import { APP_PASS } from "@/lib/bytnode/pass-id";
 
 /* PortfolioSummary: every account the agent may read, one figure. */
 
@@ -26,7 +27,7 @@ export function portfolioSummaryTool(defaultCurrency: () => string): Tool<Args> 
       const accounts = ctx.exchangeAccounts ?? [];
       if (accounts.length === 0) return fail("No exchange account is attached to this agent.");
       const reads = await readAccounts(accounts);
-      const [book, money] = await Promise.all([priceBook(reads, { bytnodeKey: ctx.bytnodeKey, accounts, signal: ctx.signal }), moneyIn(args.currency, defaultCurrency())]);
+      const [book, money] = await Promise.all([priceBook(reads, { bytnodeKey: APP_PASS, accounts, signal: ctx.signal }), moneyIn(args.currency, defaultCurrency())]);
       const s = summarize(reads, book);
       const at = new Date();
       const value = (usd: number) => `${(usd * money.perUsd).toLocaleString("en-US", { maximumFractionDigits: 2 })} ${money.currency}`;

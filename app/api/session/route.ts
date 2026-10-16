@@ -2,6 +2,8 @@ import { normalizeSettings } from "@/lib/storage/repositories";
 import { readyRuntime, syncSession } from "@/lib/plugins/host";
 import { reloadUserPlugins } from "@/lib/plugins/core/active";
 import { approvalKey } from "@/lib/plugins/user/approval";
+import { rememberOrigin, SESSION_HEADER, setAccountSession } from "@/lib/bytnode/app-pass";
+import { selfOrigin } from "@/lib/server/origin";
 
 /* ---------------------------------------------------------------------------
    The open tab speaks: its settings, for the background.
@@ -16,6 +18,11 @@ import { approvalKey } from "@/lib/plugins/user/approval";
    starts is registered, and while it is alive a request without it — or
    with another — is refused. Otherwise an agent's script could hand the
    background its own settings (accounts, keys).
+
+   In a browser, the tab also hands its BytNode account session
+   (`x-bytnode-session`): the server derives the app's BytNode credential
+   from it and keeps only that (`lib/bytnode/app-pass.ts`). The desktop
+   app's tab has none — its main process hands the credential over.
 --------------------------------------------------------------------------- */
 export async function POST(req: Request) {
   const holder = approvalKey();
@@ -30,6 +37,8 @@ export async function POST(req: Request) {
     return Response.json({ error: { message: "Unreadable request body." } }, { status: 400 });
   }
   const s = normalizeSettings(raw);
+  setAccountSession("page", req.headers.get(SESSION_HEADER));
+  rememberOrigin(selfOrigin(req.url));
   await syncSession({
     openrouterKey: s.keys.openrouter,
     bytnodeKey: s.keys.bytnode,

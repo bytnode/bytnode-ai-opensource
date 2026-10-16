@@ -47,6 +47,7 @@
     "prepack": "tsx scripts/prepack.ts",
     "smoke:pack": "node scripts/smoke-pack.mjs",
     "vierge": "node scripts/vierge.mjs",
+    "dev-zero": "tsx scripts/dev-zero.ts",
     "desktop": "tsx scripts/desktop.ts run",
     "desktop:dir": "tsx scripts/desktop.ts dir",
     "desktop:dist": "tsx scripts/desktop.ts dist"

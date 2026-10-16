@@ -5,6 +5,7 @@ import { normalizeSymbol } from "../shared/quote";
 import type { Shelf } from "./desk";
 import { CASH, type OrderType, type PaperMarket, type Side } from "./engine";
 import { SIMULATED, fillLine, num, orderLine, signed, usdt } from "./present";
+import { APP_PASS } from "@/lib/bytnode/pass-id";
 
 /* PaperOrder: a simulated order, shaped like PlaceOrder (market or limit;
    amount or quoteAmount; futures with leverage and reduce-only). Free to
@@ -43,7 +44,7 @@ export function paperOrderTool(shelf: Shelf): Tool<Args> {
       const picked = await shelf.pick(args.portfolio);
       if ("error" in picked) return fail(picked.error);
       const { side, type, amount, quoteAmount, price, leverage, reduceOnly } = args;
-      const r = await picked.desk.place({ symbol, side, type, amount, quoteAmount, price, leverage, reduceOnly, market: args.market ?? "spot" },{ bytnodeKey: ctx.bytnodeKey, accounts: ctx.exchangeAccounts, signal: ctx.signal });
+      const r = await picked.desk.place({ symbol, side, type, amount, quoteAmount, price, leverage, reduceOnly, market: args.market ?? "spot" },{ bytnodeKey: APP_PASS, accounts: ctx.exchangeAccounts, signal: ctx.signal });
       if ("error" in r) return fail(`Paper order refused: ${r.error}`);
       const { order, fill } = r;
       const status = fill ? `Filled: ${fillLine(fill)}.` : `Open, waiting for ${symbol} to reach ${num(order.price ?? 0)}; its funds are held.`;

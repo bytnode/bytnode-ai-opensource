@@ -4,6 +4,7 @@ import type { AppNotification, Confirmation, PluginStatus } from "@/lib/domain/p
 import type { ToolPolicy } from "@/lib/tools/types";
 import type { Settings } from "@/lib/domain/types";
 import { transportHeaders, type Transport } from "@/lib/tools/transport";
+import { ACCOUNT_STORAGE_KEY } from "@/lib/account/browser";
 import type { UserPluginInfo } from "./user/types";
 
 /* ---------------------------------------------------------------------------
@@ -71,8 +72,20 @@ const approvalHeader = (): Record<string, string> => {
   return key ? { "x-bytnode-approval": key } : {};
 };
 
+/** The BytNode account session this browser keeps (`lib/account/browser.ts`):
+    the server derives the app's BytNode credential from it. None in the
+    desktop app, whose main process keeps it. */
+const accountHeader = (): Record<string, string> => {
+  try {
+    const token = (JSON.parse(localStorage.getItem(ACCOUNT_STORAGE_KEY) ?? "null") as { token?: unknown } | null)?.token;
+    return typeof token === "string" && token.startsWith("bnd_") ? { "x-bytnode-session": token } : {};
+  } catch {
+    return {};
+  }
+};
+
 export async function syncSession(settings: Settings): Promise<PluginStatus[]> {
-  const res = await fetch("/api/session", { method: "POST", headers: { "content-type": "application/json", ...approvalHeader() }, body: JSON.stringify(settings) });
+  const res = await fetch("/api/session", { method: "POST", headers: { "content-type": "application/json", ...approvalHeader(), ...accountHeader() }, body: JSON.stringify(settings) });
   return (await json<{ status: PluginStatus[] }>(res)).status;
 }
 

@@ -3,6 +3,7 @@ import { fail, ok } from "@/lib/tools/types";
 import { tableCard } from "../shared/cards";
 import type { Shelf } from "./desk";
 import { SIMULATED, num, portfolioLines, signed, usdt } from "./present";
+import { APP_PASS } from "@/lib/bytnode/pass-id";
 
 /* PaperPortfolio: a simulated portfolio at the current prices — cash,
    holdings, futures positions, open orders, realized and unrealized
@@ -24,7 +25,7 @@ export function paperPortfolioTool(shelf: Shelf): Tool<{ portfolio?: string }> {
       const picked = await shelf.pick(args.portfolio);
       if ("error" in picked) return fail(picked.error);
       const others = (await shelf.list()).filter((b) => b.id !== picked.book.id).map((b) => b.name);
-      const look = await picked.desk.look({ bytnodeKey: ctx.bytnodeKey, accounts: ctx.exchangeAccounts, signal: ctx.signal });
+      const look = await picked.desk.look({ bytnodeKey: APP_PASS, accounts: ctx.exchangeAccounts, signal: ctx.signal });
       const v = look.valuation;
       const rows = [
         ...v.holdings.map((h) => [h.asset, "spot", num(h.amount), h.value !== undefined ? usdt(h.value) : "no price"]),

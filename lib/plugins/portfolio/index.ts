@@ -19,6 +19,7 @@ import { addBalances, savingsByDay, tradingPart } from "./savings";
 import { STABLES } from "./aggregate";
 import { addGroup, editGroup, removeGroup, type AccountGroup } from "./groups";
 import { accountsKey, holdingsKey, holdingsOf, Warm } from "./warm";
+import { APP_PASS } from "@/lib/bytnode/pass-id";
 
 /* The consolidated portfolio: two read-only tools, a daily snapshot of the
    total while the app is open (a job on the core's clock), and the view's
@@ -55,7 +56,7 @@ export const portfolioPlugin = definePlugin({
       async run({ session, signal }) {
         if (session.exchangeAccounts.length === 0) return "No exchange account: nothing to record.";
         const reads = await readAccounts(session.exchangeAccounts);
-        const s = summarize(reads, await priceBook(reads, { bytnodeKey: session.bytnodeKey, accounts: session.exchangeAccounts, signal }));
+        const s = summarize(reads, await priceBook(reads, { bytnodeKey: APP_PASS, accounts: session.exchangeAccounts, signal }));
         await ctx.store.append(SNAPSHOTS, snapshotOf(s, new Date()), MAX_SNAPSHOTS);
         return `Total ${s.totalUsd.toFixed(2)} USD across the live accounts.`;
       },
@@ -65,9 +66,9 @@ export const portfolioPlugin = definePlugin({
        export and the preload asked at once share ONE read of the exchanges. */
     const reads = new Warm<{ summary: ReturnType<typeof summarize>; at: string }>(MINUTE);
     const read = (transport: Pick<Transport, "bytnodeKey" | "exchangeAccounts">) =>
-      reads.get(accountsKey(transport.exchangeAccounts ?? [], transport.bytnodeKey ?? ""), async () => {
+      reads.get(accountsKey(transport.exchangeAccounts ?? [], APP_PASS), async () => {
         const r = await readAccounts(transport.exchangeAccounts);
-        return { summary: summarize(r, await priceBook(r, { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal: NEVER })), at: new Date().toISOString() };
+        return { summary: summarize(r, await priceBook(r, { bytnodeKey: APP_PASS, accounts: transport.exchangeAccounts, signal: NEVER })), at: new Date().toISOString() };
       });
     const current = async (wanted: unknown, transport: Pick<Transport, "bytnodeKey" | "exchangeAccounts">) => {
       const [{ summary, at }, money] = await Promise.all([read(transport), moneyIn(wanted, currency())]);
@@ -168,7 +169,7 @@ export const portfolioPlugin = definePlugin({
       const closes: Record<string, Candle[]> = {};
       await Promise.all(
         assets.map(async (asset) => {
-          const r = await candles(`${asset}/USDT`, "1d", days + 1, { bytnodeKey: transport.bytnodeKey, accounts, signal });
+          const r = await candles(`${asset}/USDT`, "1d", days + 1, { bytnodeKey: APP_PASS, accounts, signal });
           if ("candles" in r) closes[asset] = r.candles;
         }),
       );
@@ -201,14 +202,14 @@ export const portfolioPlugin = definePlugin({
     };
     const backfills = new Warm<Awaited<ReturnType<typeof rebuild>>>(60 * MINUTE);
     const backfillOf = (holdings: Holdings, days: number, transport: Pick<Transport, "bytnodeKey" | "exchangeAccounts">) =>
-      holdings.length ? backfills.get(`${accountsKey(transport.exchangeAccounts ?? [], transport.bytnodeKey ?? "")}|${days}|${holdingsKey(holdings)}`, () => rebuild(holdings, days, transport)) : rebuild(holdings, days, transport);
+      holdings.length ? backfills.get(`${accountsKey(transport.exchangeAccounts ?? [], APP_PASS)}|${days}|${holdingsKey(holdings)}`, () => rebuild(holdings, days, transport)) : rebuild(holdings, days, transport);
 
     /* The preload (user request): as soon as the set of accounts changes —
        one added, removed, its keys replaced — and once when the app opens,
        the accounts are read and the year of history rebuilt, in the
        background. The tab and the widget then open on them at once. Nothing
        otherwise: an unchanged set costs no exchange call and no BytNode
-       quota. Checked every minute, while a tab is open. */
+       read. Checked every minute, while a tab is open. */
     let preloaded = "";
     ctx.job({
       id: "preload",
@@ -221,7 +222,7 @@ export const portfolioPlugin = definePlugin({
           preloaded = "";
           return "No exchange account: nothing to preload.";
         }
-        const key = accountsKey(accounts, session.bytnodeKey);
+        const key = accountsKey(accounts, APP_PASS);
         if (key === preloaded) return "Already preloaded.";
         preloaded = key;
         const transport = { bytnodeKey: session.bytnodeKey, exchangeAccounts: accounts };

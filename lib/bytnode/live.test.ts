@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IDLE_MS, LiveFeed, lastTrade, type FeedDeps, type SocketLike } from "./live";
+import { IDLE_MS, LiveFeed, appWsUrl, lastTrade, type FeedDeps, type SocketLike } from "./live";
 
 class FakeSocket implements SocketLike {
   readyState = 0;
@@ -283,5 +283,62 @@ describe("LiveFeed", () => {
     const late = feed.waitFor("ETHUSDT", 2_500);
     w.advance(2_500);
     expect(await late).toBeUndefined();
+  });
+});
+
+describe("LiveFeed on a key had first (the app's credential)", () => {
+  const flush = async () => {
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+  };
+
+  it("opens with the key it is given each time, never with the name that stands for it", async () => {
+    const w = world();
+    const passes = ["apt_one", "apt_two"];
+    const feed = new LiveFeed("app", { ...w.deps, credential: (k) => (k === "app" ? Promise.resolve({ ok: true as const, token: passes.shift()! }) : null) });
+    feed.watch("BTCUSDT");
+    expect(w.sockets).toHaveLength(0);
+    expect(feed.state).toBe("connecting");
+    await flush();
+    expect(w.sockets.map((s) => s.key)).toEqual(["apt_one"]);
+    w.sockets[0].open();
+    w.sockets[0].drop(4010);
+    await flush();
+    expect(w.sockets.map((s) => s.key)).toEqual(["apt_one", "apt_two"]);
+  });
+
+  it("says why when there is no key to be had, and tries again later", async () => {
+    const w = world();
+    let calls = 0;
+    const feed = new LiveFeed("app", { ...w.deps, credential: () => (calls++, Promise.resolve({ ok: false as const, message: "Not signed in to BytNode: sign in to read market data." })) });
+    feed.watch("BTCUSDT");
+    await flush();
+    expect(feed.state).toBe("unavailable");
+    expect(feed.problem).toMatch(/Not signed in/);
+    expect(w.sockets).toHaveLength(0);
+    w.advance(10_000);
+    await flush();
+    expect(calls).toBe(1);
+    w.advance(30_000);
+    await flush();
+    expect(calls).toBe(2);
+  });
+
+  it("forgets a key the server refused", async () => {
+    const w = world("Key refused by BytNode: it is missing, invalid or revoked. Check it on bytnode.com.");
+    const forgotten: string[] = [];
+    const feed = new LiveFeed("app", { ...w.deps, credential: () => Promise.resolve({ ok: true as const, token: "apt_old" }), forget: (k) => void forgotten.push(k) });
+    feed.watch("BTCUSDT");
+    await flush();
+    w.sockets[0].drop(1006);
+    await flush();
+    expect(forgotten).toEqual(["apt_old"]);
+  });
+});
+
+describe("appWsUrl", () => {
+  it("is BytNode's own host in a production build, whatever the environment says", () => {
+    expect(appWsUrl({ BYTNODE_WS_URL: "ws://127.0.0.1:9999/ws" }, true)).toBe("wss://ws.bytnode.com/ws");
+    expect(appWsUrl({ BYTNODE_WS_URL: "ws://127.0.0.1:9999/ws" }, false)).toBe("ws://127.0.0.1:9999/ws");
+    expect(appWsUrl({}, false)).toBe("wss://ws.bytnode.com/ws");
   });
 });

@@ -13,6 +13,7 @@ import { bytnodePairs } from "../shared/prices";
 import { normalizeSymbol } from "../shared/quote";
 import { alertsManifest } from "./manifest";
 import { readAll, type Sources } from "./read";
+import { APP_PASS } from "@/lib/bytnode/pass-id";
 
 /* Alerts: the user's conditions on the market, checked by a job on the
    core's clock in one grouped reading, fired into the notification center
@@ -92,7 +93,7 @@ export const alertsPlugin = definePlugin({
       return `${active.length} alert(s) checked, ${fired.length} fired${failing.length ? `, ${failing.length} cannot be checked` : ""}.`;
     };
 
-    ctx.job({ id: "check", title: "Alerts", every: String(ctx.config().every), run: ({ session, signal }) => check({ bytnodeKey: session.bytnodeKey, accounts: session.exchangeAccounts, signal }, session) });
+    ctx.job({ id: "check", title: "Alerts", every: String(ctx.config().every), run: ({ session, signal }) => check({ bytnodeKey: APP_PASS, accounts: session.exchangeAccounts, signal }, session) });
 
     const hasCalendar = () => calendar() !== undefined;
     const listing = async () => ({ alerts: await read(), triggers: await ctx.store.lines<Trigger>(TRIGGERS) });
@@ -150,7 +151,7 @@ export const alertsPlugin = definePlugin({
       return { paused };
     });
     /* The pairs the form offers: BytNode's. */
-    ctx.api("pairs", async (_params, { transport, signal }) => bytnodePairs(transport.bytnodeKey, signal));
+    ctx.api("pairs", async (_params, { signal }) => bytnodePairs(APP_PASS, signal));
     /* What a condition reads now on a pair, while the user writes it. */
     ctx.api("preview", async (params, { transport, signal }) => {
       const condition = parseCondition(String(params.condition ?? ""));
@@ -163,7 +164,7 @@ export const alertsPlugin = definePlugin({
       if (!symbol) throw new Error(onList ? "The watchlist is empty." : `Not a pair: "${raw}".`);
       if (onPosition(condition)) return { symbol, error: "Read on the position at the first check." };
       const accountId = typeof params.accountId === "string" ? params.accountId : undefined;
-      const reading = await readAll([{ symbol, condition, accountId }], { bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal }, calendar());
+      const reading = await readAll([{ symbol, condition, accountId }], { bytnodeKey: APP_PASS, accounts: transport.exchangeAccounts, signal }, calendar());
       const read = reading(symbol, accountId);
       return { symbol, ...evaluate(condition, read, new Date()), value: currentValue(condition, read) };
     });

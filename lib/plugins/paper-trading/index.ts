@@ -19,6 +19,7 @@ import { paperPortfolioTool } from "./paper-portfolio";
 import { paperResetTool } from "./paper-reset";
 import { SIMULATED, exportSections, fillLine, orderLine, paperPrompt } from "./present";
 import type { PaperService } from "./service";
+import { APP_PASS } from "@/lib/bytnode/pass-id";
 
 /* Paper trading: the simulated portfolios (`books.ts` — several, each with
    its name, the first the default), their four tools, the prompt section,
@@ -92,7 +93,7 @@ export const paperTradingPlugin = definePlugin({
       if ("error" in p) throw new Error(p.error);
       return p;
     };
-    const sourcesOf = (transport: { bytnodeKey: string; exchangeAccounts: PriceSources["accounts"] }, signal: AbortSignal): PriceSources => ({ bytnodeKey: transport.bytnodeKey, accounts: transport.exchangeAccounts, signal });
+    const sourcesOf = (transport: { bytnodeKey: string; exchangeAccounts: PriceSources["accounts"] }, signal: AbortSignal): PriceSources => ({ bytnodeKey: APP_PASS, accounts: transport.exchangeAccounts, signal });
 
     ctx.tool(paperOrderTool(shelf));
     ctx.tool(paperCancelTool(shelf));
@@ -130,7 +131,7 @@ export const paperTradingPlugin = definePlugin({
           const desk = deskOf(b, books.length > 1);
           const book = await desk.read();
           if (!book.orders.some((o) => o.status === "open") && book.positions.length === 0) continue;
-          const look = await desk.look({ bytnodeKey: session.bytnodeKey, accounts: session.exchangeAccounts, signal });
+          const look = await desk.look({ bytnodeKey: APP_PASS, accounts: session.exchangeAccounts, signal });
           errors.push(...look.priceErrors);
           if (look.events.length) said.push(`${b.name}: ${look.events.map((e) => e.kind).join(", ")}`);
         }
@@ -199,7 +200,7 @@ export const paperTradingPlugin = definePlugin({
     });
     /* What the ticket offers: every pair BytNode covers that the paper
        portfolios can trade — quoted in USDT. One cached BytNode call. */
-    ctx.api("pairs", async (_params, { transport, signal }) => (await bytnodePairs(transport.bytnodeKey, signal)).filter((p) => p.symbol.endsWith(`/${CASH}`)));
+    ctx.api("pairs", async (_params, { signal }) => (await bytnodePairs(APP_PASS, signal)).filter((p) => p.symbol.endsWith(`/${CASH}`)));
     /* The market chart of the pair in the ticket. */
     ctx.api("candles", async (params, { transport, signal }) => {
       const symbol = normalizeSymbol(String(params.symbol ?? ""));

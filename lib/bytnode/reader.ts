@@ -1,6 +1,11 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 /* ---------------------------------------------------------------------------
+   ⚠️ NO LONGER USED (2026-10-16): a built-in plugin's tool now reads BytNode
+   like its view, with the app's pass (`lib/bytnode/app-pass.ts`), so
+   nothing marks an agent's reading any more. Kept until the owner deletes
+   it.
+
    Who is reading BytNode: an AI agent, or the app.
 
    The rule (2026-10-11): the AI agents read BytNode through its MCP server;

@@ -1,4 +1,5 @@
 import type { AgentConfig, ExchangeAccount, Settings } from "@/lib/domain/types";
+import { userKey } from "@/lib/bytnode/pass-id";
 import { allowedAccounts, encodeAccountsHeader, parseAccountsHeader } from "./exchange/accounts";
 
 /* ---------------------------------------------------------------------------
@@ -79,7 +80,7 @@ export function transportHeaders(t: Partial<Transport>): Record<string, string> 
 export function readTransport(headers: { get(name: string): string | null }): Transport {
   return {
     openrouterKey: headers.get(HEADER.openrouter)?.trim() ?? "",
-    bytnodeKey: headers.get(HEADER.bytnode)?.trim() ?? "",
+    bytnodeKey: userKey(headers.get(HEADER.bytnode)?.trim() ?? ""),
     exchangeAccounts: parseAccountsHeader(headers.get(HEADER.exchanges)),
     plugins: decodePlugins(headers.get(HEADER.plugins)),
   };

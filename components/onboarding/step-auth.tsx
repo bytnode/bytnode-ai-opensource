@@ -9,8 +9,8 @@ import { useMessages } from "@/lib/i18n/react";
 
 /* The bricks of the models' step (`wizard.tsx`) and of the settings'
    Authentication tab: the subscriptions, the OpenRouter and BytNode keys.
-   The BytNode key is not asked in the desktop app, which makes its own at
-   sign-in (`lib/account/account.ts`). */
+   The BytNode key is not asked: the app makes its own at sign-in
+   (`lib/account/account.ts`). */
 
 /* --- Subscriptions -------------------------------------------------------- */
 

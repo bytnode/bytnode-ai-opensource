@@ -4,15 +4,18 @@ import { useSyncExternalStore } from "react";
 import type { Profile } from "@/lib/domain/types";
 import { createStore } from "@/lib/state/store";
 import { currentMessages } from "@/lib/i18n/store";
+import { BrowserStorage } from "@/lib/storage/storage";
+import { ACCOUNT_STORAGE_KEY, createBrowserBridge, windowTab } from "./browser";
 
 /* ---------------------------------------------------------------------------
    The BytNode account, as the page sees it (user request, 2026-10-09).
 
-   Only the desktop app has one: its preload hands `bytnodeAccount`
-   (`desktop/account.ts`), which signs in through the browser and keeps the
-   session in the main process. In a browser (`npx bytnode-ai`) there is no
-   bridge, `useAccount()` is `null` and nothing changes — the npm app is
-   left as it was, on purpose.
+   The desktop app's preload hands `bytnodeAccount` (`desktop/account.ts`),
+   which signs in through the browser and keeps the session in the main
+   process. In a browser (`next dev`, `npx bytnode-ai`) the same sign-in
+   runs on the app's server, the page keeping the session
+   (`./browser.ts`; since 2026-10-12 — before, the browser had no account
+   and asked for a BytNode key by hand).
 
    Signed out, the app shows its sign-in page and nothing else
    (`components/account/sign-in-screen.tsx`). Signing in also prepares the
@@ -37,10 +40,26 @@ export type AccountBridge = {
   onChange(listener: (state: AccountState) => void): () => void;
 };
 
-export const accountBridge = (): AccountBridge | null =>
-  typeof window === "undefined" ? null : ((window as typeof window & { bytnodeAccount?: AccountBridge }).bytnodeAccount ?? null);
+let inBrowser: ReturnType<typeof createBrowserBridge> | null = null;
 
-/* `undefined` until read (the server render); `null`: no account here (a browser). */
+/** The desktop app's bridge, or the browser's own. `null` only on the server. */
+export const accountBridge = (): AccountBridge | null => {
+  if (typeof window === "undefined") return null;
+  const desktop = (window as typeof window & { bytnodeAccount?: AccountBridge }).bytnodeAccount;
+  if (desktop) return desktop;
+  if (!inBrowser) {
+    const bridge = createBrowserBridge({ storage: new BrowserStorage(), fetch: (input, init) => fetch(input, init), openTab: windowTab });
+    /* Signed in or out in another tab of the app. */
+    window.addEventListener("storage", (e) => {
+      if (e.key === ACCOUNT_STORAGE_KEY || e.key === null) bridge.changedElsewhere();
+    });
+    inBrowser = bridge;
+    void bridge.check();
+  }
+  return inBrowser;
+};
+
+/* `undefined` until read (the server render). */
 const store = createStore<AccountState | null | undefined>(undefined, () => {
   const bridge = accountBridge();
   if (!bridge) return null;
@@ -48,8 +67,8 @@ const store = createStore<AccountState | null | undefined>(undefined, () => {
   return bridge.state() ?? { signedIn: false, reason: null };
 });
 
-/** The account: `undefined` before the first client read, `null` outside
-    the desktop app, its state otherwise. */
+/** The account: `undefined` before the first client read, its state
+    otherwise (`null` is left for a page with no bridge at all). */
 export function useAccount(): AccountState | null | undefined {
   return useSyncExternalStore(store.subscribe, store.get, store.getServer);
 }

@@ -5,6 +5,7 @@ import { n8, signedPct } from "../shared/format";
 import { isQuote, quotes } from "../shared/prices";
 import { normalizeSymbol } from "../shared/quote";
 import type { WatchItem } from "./list";
+import { APP_PASS } from "@/lib/bytnode/pass-id";
 
 /* WatchlistShow: the list, priced — BytNode first, the exchange otherwise,
    each figure with its source and its time. */
@@ -32,7 +33,7 @@ export function watchlistShowTool(read: () => Promise<WatchItem[]>): Tool<Args> 
       if (wanted.length === 0) return ok(`None of these is in the watchlist. It holds: ${all.map((x) => x.symbol).join(", ")}.`);
       const priced = await quotes(
         wanted.map((x) => x.symbol),
-        { bytnodeKey: ctx.bytnodeKey, accounts: ctx.exchangeAccounts, signal: ctx.signal },
+        { bytnodeKey: APP_PASS, accounts: ctx.exchangeAccounts, signal: ctx.signal },
       );
       const rows = wanted.map((x) => {
         const p = priced.get(x.symbol)!;

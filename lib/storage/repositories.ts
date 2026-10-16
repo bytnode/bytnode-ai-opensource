@@ -2,6 +2,7 @@ import type { AgentConfig, Conversation, ExchangeAccount, Profile, Settings, Tel
 import type { PluginConfig, PluginSettings, PluginsState } from "@/lib/domain/plugins";
 import { DEFAULT_PROFESSION, isProfessionId } from "@/lib/professions/catalog";
 import { DEFAULT_LOCALE, isLocale } from "@/lib/i18n/locales";
+import { userKey } from "@/lib/bytnode/pass-id";
 import { hasSecrets, mergeSecrets, splitSecrets, type Vault } from "./secrets";
 import type { Storage } from "./storage";
 
@@ -180,7 +181,7 @@ export function normalizeSettings(raw: unknown): Settings {
     authMode: raw.authMode === "subscription" || raw.authMode === "keys" ? raw.authMode : str(keys.openrouter) ? "keys" : "subscription",
     keys: {
       openrouter: str(keys.openrouter),
-      bytnode: str(keys.bytnode),
+      bytnode: userKey(str(keys.bytnode)),
       exchanges: Array.isArray(keys.exchanges) ? keys.exchanges.map(normalizeExchangeAccount).filter((a): a is ExchangeAccount => a !== null) : [],
       telegram: Array.isArray(keys.telegram) ? keys.telegram.map(normalizeTelegramBot).filter((b): b is TelegramBot => b !== null) : [],
     },

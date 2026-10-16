@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BYTNODE_API_URL, describeRestError, query, restGet, restPost } from "./rest";
+
+const pass = vi.hoisted(() => ({ appPass: vi.fn(), dropAppPass: vi.fn(), appRelay: vi.fn(() => null as { url: string; token: string } | null) }));
+vi.mock("./app-pass", () => ({ APP_PASS: "bytnode-ai:app-pass", LINK_HEADER: "x-bytnode-app-read", appPass: pass.appPass, dropAppPass: pass.dropAppPass, appRelay: pass.appRelay }));
+
+const { BYTNODE_API_URL, appApiUrl, describeRestError, query, restGet, restPost } = await import("./rest");
+const { APP_PASS } = await import("./app-pass");
 
 const reply = (status: number, body: unknown, headers: Record<string, string> = {}) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } });
 
@@ -76,5 +81,74 @@ describe("restGet / restPost", () => {
     });
     const res = await restGet("k", "/v1/symbols");
     expect(!res.ok && res.message).toMatch(/unreachable: getaddrinfo ENOTFOUND/);
+  });
+});
+
+const CREDENTIAL = "bne_983yqjU_oxqsZqxXv0vaIN3azMbL4Dciuv2_VMzqYnU";
+const urlOf = (fetchMock: ReturnType<typeof vi.fn>, i = 0) => (fetchMock.mock.calls[i] as unknown as [string, RequestInit])[0];
+const initOf = (fetchMock: ReturnType<typeof vi.fn>, i = 0) => (fetchMock.mock.calls[i] as unknown as [string, RequestInit])[1];
+
+describe("the app's credential", () => {
+  it("is sent in X-API-KEY in place of the name that stands for it, to BytNode's host, never after a redirect", async () => {
+    pass.appPass.mockResolvedValue({ ok: true, token: CREDENTIAL });
+    const fetchMock = vi.fn(async () => reply(200, { status: "ok", data: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await restGet(APP_PASS, "/v1/symbols")).toMatchObject({ ok: true });
+    expect(urlOf(fetchMock)).toBe(`${appApiUrl()}/v1/symbols`);
+    expect((initOf(fetchMock).headers as Record<string, string>)["X-API-KEY"]).toBe(CREDENTIAL);
+    expect(initOf(fetchMock).redirect).toBe("error");
+  });
+
+  it("refused (not provisioned yet, or revoked): set aside, not sent again at once", async () => {
+    pass.appPass.mockReset();
+    pass.dropAppPass.mockReset();
+    pass.appPass.mockResolvedValue({ ok: true, token: CREDENTIAL });
+    const fetchMock = vi.fn(async () => reply(401, { status: "error", error: { code: "invalid_api_key", message: "" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await restGet(APP_PASS, "/v1/symbols")).toMatchObject({ ok: false, status: 401 });
+    expect(pass.dropAppPass).toHaveBeenCalledWith(CREDENTIAL);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("not to be had: said, and BytNode is not called", async () => {
+    pass.appPass.mockResolvedValue({ ok: false, message: "Not signed in to BytNode: sign in to read market data." });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await restGet(APP_PASS, "/v1/symbols")).toEqual({ ok: false, status: 401, code: "no_app_access", message: "Not signed in to BytNode: sign in to read market data." });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("opens only the plugins' reads: anything else is refused before it is sent", async () => {
+    pass.appPass.mockResolvedValue({ ok: true, token: CREDENTIAL });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await restGet(APP_PASS, "/v1/klines", { symbol: "BTCUSDT" })).toMatchObject({ ok: false, status: 403, code: "not_an_app_read" });
+    expect(await restPost(APP_PASS, "/v1/symbols", {})).toMatchObject({ ok: false, code: "not_an_app_read" });
+    expect(await restGet(APP_PASS, "/v1/indicators")).toMatchObject({ ok: false, code: "not_an_app_read" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("in an agent's MCP server: relayed through BytNode-AI, which holds the credential", async () => {
+    pass.appPass.mockReset();
+    pass.appRelay.mockReturnValue({ url: "http://127.0.0.1:3777/api/bytnode/read", token: "link-secret" });
+    const fetchMock = vi.fn(async () => reply(200, { ok: true, data: [1], body: { status: "ok", data: [1] } }));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      expect(await restGet(APP_PASS, "/v1/funding/next", { symbol: "BTCUSDT" })).toEqual({ ok: true, data: [1], body: { status: "ok", data: [1] } });
+      expect(urlOf(fetchMock)).toBe("http://127.0.0.1:3777/api/bytnode/read");
+      expect((initOf(fetchMock).headers as Record<string, string>)["x-bytnode-app-read"]).toBe("link-secret");
+      expect(JSON.parse(String(initOf(fetchMock).body))).toEqual({ method: "GET", path: "/v1/funding/next", params: { symbol: "BTCUSDT" } });
+      expect(pass.appPass).not.toHaveBeenCalled();
+      fetchMock.mockResolvedValueOnce(reply(200, { ok: false, status: 429, code: "rate_limited", message: "Too many." }));
+      expect(await restGet(APP_PASS, "/v1/symbols")).toEqual({ ok: false, status: 429, code: "rate_limited", message: "Too many." });
+    } finally {
+      pass.appRelay.mockReturnValue(null);
+    }
+  });
+
+  it("goes to BytNode's own host in a production build, whatever the environment says", () => {
+    expect(appApiUrl({ BYTNODE_API_URL: "http://127.0.0.1:9999" }, true)).toBe("https://api.bytnode.com");
+    expect(appApiUrl({ BYTNODE_API_URL: "http://127.0.0.1:9999/" }, false)).toBe("http://127.0.0.1:9999");
+    expect(appApiUrl({}, false)).toBe("https://api.bytnode.com");
   });
 });
