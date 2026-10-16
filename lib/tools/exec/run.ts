@@ -87,10 +87,7 @@ export function run(command: string, args: string[], opts: RunOptions): Promise<
     }
     /* A process group of its own on macOS / Linux, so that stopping the
        command stops what it launched too (`process-groups.ts`). */
-    const env: NodeJS.ProcessEnv = { ...process.env, ...opts.env };
-    /* Never the desktop's secret for its server (`lib/bytnode/app-pass.ts`). */
-    delete env.BYTNODE_AI_MAIN_SECRET;
-    const child = spawn(command, args, { cwd: opts.cwd, env, windowsHide: true, ...groupSpawnOptions(), stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(command, args, { cwd: opts.cwd, env: { ...process.env, ...opts.env }, windowsHide: true, ...groupSpawnOptions(), stdio: ["ignore", "pipe", "pipe"] });
     trackGroup(child);
     const max = opts.maxBytes ?? DEFAULT_MAX;
     const stdout = new HeadTail(max);

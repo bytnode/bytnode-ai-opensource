@@ -30,7 +30,7 @@ export const settings: Messages["settings"] = {
   },
 
   auth: {
-    lede: "Vos clés restent sur cet ordinateur et ne voyagent qu’avec vos propres requêtes. Dans l’application de bureau, elles sont gardées dans le coffre de votre système.",
+    lede: "Vos clés restent sur cet ordinateur et ne voyagent qu’avec vos propres requêtes.",
     bytnodeRequired: "Obligatoire : sans clé BytNode, les agents n’ont aucune donnée de marché.",
     exchanges: "Exchanges",
   },

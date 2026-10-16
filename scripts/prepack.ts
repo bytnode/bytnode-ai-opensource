@@ -13,7 +13,7 @@ import { releaseBuild } from "./release-build";
 
 const root = process.cwd();
 
-/* The build itself is shared with the desktop app (`release-build.ts`). */
+/* The build itself: `release-build.ts`. */
 releaseBuild(root, "prepack");
 
 const npm = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { cwd: root, encoding: "utf8", shell: process.platform === "win32" });

@@ -48,8 +48,8 @@ It is published on npm as `bytnode-ai`.
 
 ## First launch
 
-In the desktop app, a sign-in page comes first: « Sign in with the browser » connects the BytNode
-account (bytnode.com/auth/desktop), which fills the profile and makes the app's BytNode key. Then a
+A sign-in page comes first: « Sign in with the browser » connects the BytNode account
+(bytnode.com/auth/desktop), which fills the profile and makes the app's BytNode key. Then a
 guided setup on the page itself: the app's companion on the left explains each step in a speech
 bubble, the step sits on the right.
 

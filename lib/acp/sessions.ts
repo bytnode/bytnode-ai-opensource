@@ -473,10 +473,6 @@ const mcpServersFor = ({ workspace, bytnodeKey, exchangeAccounts, plugins, agent
               { name: LINK_ENV.token, value: link.token },
             ]
           : []),
-        /* In the desktop app `process.execPath` is its Electron binary, a
-           Node only with this variable — said explicitly: an agent may not
-           pass its own environment on to the servers it starts. */
-        ...(process.env.ELECTRON_RUN_AS_NODE === "1" ? [{ name: "ELECTRON_RUN_AS_NODE", value: "1" }] : []),
         ...parent,
       ],
     },

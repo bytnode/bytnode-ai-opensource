@@ -1,23 +1,21 @@
-import type { AccountBridge, AccountState, DesktopAccount, KeyResult, SignInResult } from "./account";
+import type { AccountBridge, AccountState, BytnodeAccount, KeyResult, SignInResult } from "./account";
 import type { Storage } from "@/lib/storage/storage";
 
 /* ---------------------------------------------------------------------------
-   The BytNode account of the app in a browser (`next dev`, `npx bytnode-ai`)
-   — the same sign-in as the desktop app (user request, 2026-10-12: « la
-   même méthode de connexion en SSO que l'application desk », not a key to
-   fetch by hand from the console).
+   The BytNode account of the app in the browser (`next dev`, `npx
+   bytnode-ai`): a single sign-on with bytnode.com (user request,
+   2026-10-12), not a key to fetch by hand from the console.
 
-   The desktop app's main process hands the page `bytnodeAccount`; a browser
-   has none, so this bridge plays its part with the app's server:
+   This bridge works with the app's server:
    - « Sign in » opens a tab at once (still inside the click, or the browser
      blocks it), asks the server to start the sign-in
-     (`app/api/account/sign-in`: listener, PKCE, exchange — the very code of
-     the desktop app, `lib/account/sign-in.ts`), sends the tab to
-     bytnode.com, then waits for the outcome and closes the tab;
+     (`app/api/account/sign-in`: listener, PKCE, exchange,
+     `lib/account/sign-in.ts`), sends the tab to bytnode.com, then waits
+     for the outcome and closes the tab;
    - the session `bnd_…` is kept in this browser's storage, with the app's
-     other keys — a new browser profile starts signed out, like a new
-     desktop profile — and sent to the server only for the account's own
-     calls (the key made for the app, the check, the sign-out).
+     other keys — a new browser profile starts signed out — and sent to
+     the server only for the account's own calls (the key made for the
+     app, the check, the sign-out).
 --------------------------------------------------------------------------- */
 
 export const ACCOUNT_STORAGE_KEY = "agentchat:account";
@@ -34,7 +32,7 @@ export type BrowserBridgeDeps = {
   pause?: (ms: number) => Promise<void>;
 };
 
-type Stored = { token: string; account: DesktopAccount };
+type Stored = { token: string; account: BytnodeAccount };
 
 const RETRY_MS = 2_000;
 
@@ -136,8 +134,7 @@ export function createBrowserBridge(deps: BrowserBridgeDeps): AccountBridge & { 
         tab.close();
         if (typeof window !== "undefined") window.focus();
         /* Not announced: the sign-in page sets the app up first (its key,
-           the profile), then reads the account again — as with the
-           desktop app. */
+           the profile), then reads the account again. */
         return { ok: true, account: session.account };
       }
       /* The tab stays: bytnode.com tells there what went wrong. */

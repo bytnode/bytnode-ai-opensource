@@ -9,9 +9,8 @@ import "@/components/onboarding/onboarding.css";
 import "./sign-in.css";
 
 /* ---------------------------------------------------------------------------
-   The app's first page (user request, 2026-10-09; in a browser too since
-   2026-10-12): sign in with the BytNode account, through the browser — in
-   the desktop app the system's browser, in a browser a new tab.
+   The app's first page (user request, 2026-10-09): sign in with the
+   BytNode account, in a new tab of the browser.
 
    « Sign in with the browser » opens bytnode.com/auth/desktop: already
    signed in there, one click (« Open BytNode-AI ») and the browser hands

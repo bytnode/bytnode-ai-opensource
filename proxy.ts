@@ -15,7 +15,7 @@ import { crossSiteReason } from "@/lib/server/origin";
 const MAX_BODY = 85 * 1024 * 1024;
 
 export function proxy(request: NextRequest) {
-  const reason = crossSiteReason(request.headers, { port: process.env.PORT, windowPort: process.env.BYTNODE_AI_WINDOW_PORT });
+  const reason = crossSiteReason(request.headers, { port: process.env.PORT });
   if (reason) return NextResponse.json({ error: { message: `Request refused: ${reason}.` } }, { status: 403 });
   const length = Number(request.headers.get("content-length") ?? 0);
   if (length > MAX_BODY) {

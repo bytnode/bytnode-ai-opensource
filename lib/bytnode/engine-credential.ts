@@ -11,7 +11,7 @@ import { createHash, createHmac } from "node:crypto";
    Revoked with the session. It opens nothing on bytnode.com: that needs the
    session itself, and SHA-256 does not run backwards.
 
-   Pure, Node only (the desktop's main process uses it too).
+   Pure, Node only.
 --------------------------------------------------------------------------- */
 
 export const ENGINE_PREFIX = "bne_";

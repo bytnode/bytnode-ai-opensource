@@ -90,10 +90,10 @@ export function errorOf(body: unknown, status: number): { code: string; message:
   };
 }
 
-export type DesktopAccount = { email: string; name: string | null; avatarUrl: string | null };
+export type BytnodeAccount = { email: string; name: string | null; avatarUrl: string | null };
 
 /** The account as the API returns it (`{ email, name, avatar_url }`). */
-export function accountOf(raw: unknown): DesktopAccount | null {
+export function accountOf(raw: unknown): BytnodeAccount | null {
   const o = raw as { email?: unknown; name?: unknown; avatar_url?: unknown } | null;
   if (!o || typeof o.email !== "string" || !o.email) return null;
   return {

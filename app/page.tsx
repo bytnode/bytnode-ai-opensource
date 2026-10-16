@@ -42,8 +42,8 @@ export default function Page() {
     return (
       <Wizard
         /* You (name, a few words, the look), your AI, Telegram, then your
-           exchanges — the last two can be skipped (2026-10-09). The desktop
-           app's account already filled the name and e-mail. */
+           exchanges — the last two can be skipped (2026-10-09). The BytNode
+           account already filled the name and e-mail. */
         steps={["you", "ai", "channels", "exchanges"]}
         initial={{
           profile: settings.profile,

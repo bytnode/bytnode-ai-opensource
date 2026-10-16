@@ -73,8 +73,7 @@ const approvalHeader = (): Record<string, string> => {
 };
 
 /** The BytNode account session this browser keeps (`lib/account/browser.ts`):
-    the server derives the app's BytNode credential from it. None in the
-    desktop app, whose main process keeps it. */
+    the server derives the app's BytNode credential from it. */
 const accountHeader = (): Record<string, string> => {
   try {
     const token = (JSON.parse(localStorage.getItem(ACCOUNT_STORAGE_KEY) ?? "null") as { token?: unknown } | null)?.token;

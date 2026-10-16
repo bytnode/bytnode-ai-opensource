@@ -47,9 +47,6 @@ import { useEffect, useRef, type RefObject } from "react";
    `prefers-reduced-motion`. Without WebGL 2 the canvas never goes live and
    the CSS mark stays (`.fc-avatar:has(canvas.is-live)` hides it).
 
-   The desktop app's icon is this companion, drawn once in SVG
-   (`desktop/resources/icon.svg`): change its look here, redraw it there.
-
    ⚠️ ONE CONTEXT PER CANVAS, FOR LIFE: never `loseContext()` on unmount —
    React's dev double-mount would hand the next mount a dead context. The
    program is cached per canvas.

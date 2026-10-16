@@ -216,10 +216,6 @@ export function npmCli({ platform = process.platform, execPath = process.execPat
   const p = win ? path.win32 : path.posix;
   const script = ["node_modules", "npm", "bin", "npm-cli.js"];
   const nodeDir = p.dirname(execPath);
-  /* The desktop app ships its own npm (`desktop/main.ts`): its binary has
-     no npm beside it, and the user may have no Node at all. */
-  const shipped = env.BYTNODE_AI_NPM_CLI?.trim();
-  if (shipped && exists(/*turbopackIgnore: true*/ shipped)) return { command: execPath, args: [shipped] };
   const candidates = win
     ? [p.join(nodeDir, ...script), ...(env.APPDATA ? [p.join(env.APPDATA, "npm", ...script)] : [])]
     : [p.join(nodeDir, "..", "lib", ...script), p.join(nodeDir, "..", "libexec", "lib", ...script)];
@@ -242,8 +238,6 @@ const STRIPPED_ENV = [
   "XAI_API_KEY",
   "GROK_API_KEY",
   "MISTRAL_API_KEY",
-  /* The desktop's secret for its server (`lib/bytnode/app-pass.ts`). */
-  "BYTNODE_AI_MAIN_SECRET",
 ];
 
 export function subscriptionEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
@@ -345,16 +339,12 @@ const shq = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
     and the agent's own variables would be lost. `env -u` exists in GNU and
     BSD `env` alike. The window stays open at the end, so the user reads
     how it went. */
-export function posixTerminalLine(command: string, args: string[], extraEnv: Record<string, string> = {}, runAsNode = process.env.ELECTRON_RUN_AS_NODE === "1"): string {
+export function posixTerminalLine(command: string, args: string[], extraEnv: Record<string, string> = {}): string {
   const env = [
     "env",
     ...STRIPPED_ENV.flatMap((k) => ["-u", k]),
     "NO_COLOR=1",
     "FORCE_COLOR=0",
-    /* In the desktop app, `process.execPath` is the app's Electron binary,
-       which is Node only with this variable (`desktop/server.ts`) — and the
-       terminal's shell never inherits it. */
-    ...(runAsNode ? ["ELECTRON_RUN_AS_NODE=1"] : []),
     ...Object.entries(extraEnv).map(([k, v]) => shq(`${k}=${v}`)),
   ].join(" ");
   const run = [command, ...args].map(shq).join(" ");

@@ -1,4 +1,4 @@
-/* The BytNode account of the desktop app: its sign-in page
+/* The BytNode account of the app: its sign-in page
    (`components/account/`) and what signing in sets up (`lib/account/`). */
 export const account = {
   welcome: "Welcome to BytNode-AI",
@@ -14,7 +14,7 @@ export const account = {
   keyLimit: "Your account already has 10 BytNode keys, so none could be made for this app. Paste one of yours, or revoke one in the BytNode console.",
   keyFailed: (detail: string) => `No BytNode key could be made for this app (${detail}). Paste one of yours.`,
 
-  /* The app's own errors while signing in (`desktop/account.ts` writes
+  /* The app's own errors while signing in (`lib/account/sign-in.ts` writes
      them in English; `accountErrorText` reads them back). What bytnode.com
      answers itself is shown as it comes. */
   errors: {

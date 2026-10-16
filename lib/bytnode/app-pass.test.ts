@@ -3,12 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 /* The app's BytNode credential: derived from the account session, kept in
    memory, provisioned on the engine by bytnode.com. Nothing real is called. */
 
-vi.hoisted(() => {
-  /* As the desktop's main process starts the server. */
-  process.env.BYTNODE_AI_MAIN_SECRET = "main-secret";
-});
-
-const { appPass, appRelay, dropAppPass, isMainSecret, isPassLink, passLink, rememberOrigin, resetAppPass, setAccountSession, LINK_ENV } = await import("./app-pass");
+const { appPass, appRelay, dropAppPass, isPassLink, passLink, rememberOrigin, resetAppPass, setAccountSession, LINK_ENV } = await import("./app-pass");
 const { credentialOf, engineCredential, isEngineCredential } = await import("./engine-credential");
 const { APP_PASS, userKey } = await import("./pass-id");
 const { isAppRead } = await import("./app-reads");
@@ -37,20 +32,19 @@ describe("the engine credential", () => {
 
 describe("appPass", () => {
   it("the credential of the page's session; the session itself is not kept", async () => {
-    setAccountSession("page", SESSION);
+    setAccountSession(SESSION);
     expect(await appPass()).toEqual({ ok: true, token: CREDENTIAL });
     const slot = (globalThis as unknown as Record<symbol, unknown>)[Symbol.for("bytnode-ai.app-pass")];
     expect(JSON.stringify(slot)).not.toContain(SESSION);
   });
 
-  it("the desktop's credential wins over a page's; signed out = none", async () => {
+  it("a new session replaces the last one; signed out = none", async () => {
     vi.useFakeTimers();
-    setAccountSession("page", "bnd_page_session_00000000");
-    setAccountSession("main", CREDENTIAL);
+    setAccountSession(SESSION);
     expect(await appPass()).toEqual({ ok: true, token: CREDENTIAL });
-    setAccountSession("main", null);
+    setAccountSession("bnd_page_session_00000000");
     expect(await appPass()).toEqual({ ok: true, token: engineCredential("bnd_page_session_00000000") });
-    setAccountSession("page", null);
+    setAccountSession(null);
     const pending = appPass();
     await vi.advanceTimersByTimeAsync(5_000);
     expect(await pending).toEqual({ ok: false, message: expect.stringMatching(/Not signed in to BytNode/) });
@@ -62,19 +56,19 @@ describe("appPass", () => {
     await vi.advanceTimersByTimeAsync(5_000);
     expect(await first).toMatchObject({ ok: false });
     expect(await appPass()).toMatchObject({ ok: false });
-    setAccountSession("page", SESSION);
+    setAccountSession(SESSION);
     expect(await appPass()).toEqual({ ok: true, token: CREDENTIAL });
   });
 
   it("waits for the page's first heartbeat", async () => {
     const pending = appPass();
-    setAccountSession("page", SESSION);
+    setAccountSession(SESSION);
     expect(await pending).toEqual({ ok: true, token: CREDENTIAL });
   });
 
   it("a page that stops speaking is forgotten", async () => {
     vi.useFakeTimers();
-    setAccountSession("page", SESSION, Date.now() - 151_000);
+    setAccountSession(SESSION, Date.now() - 151_000);
     const pending = appPass();
     await vi.advanceTimersByTimeAsync(5_000);
     expect(await pending).toMatchObject({ ok: false });
@@ -82,7 +76,7 @@ describe("appPass", () => {
 
   it("refused by BytNode: not sent again for a while, then again", async () => {
     vi.useFakeTimers();
-    setAccountSession("main", CREDENTIAL);
+    setAccountSession(CREDENTIAL);
     dropAppPass(CREDENTIAL);
     expect(await appPass()).toEqual({ ok: false, message: expect.stringMatching(/does not recognise/) });
     vi.advanceTimersByTime(16_000);
@@ -92,25 +86,20 @@ describe("appPass", () => {
   it("in an agent's MCP server: no credential at all, its reads are relayed", async () => {
     vi.stubEnv(LINK_ENV.url, "http://127.0.0.1:3777/api/bytnode/read");
     vi.stubEnv(LINK_ENV.token, "link-secret");
-    setAccountSession("main", CREDENTIAL);
+    setAccountSession(CREDENTIAL);
     expect(appRelay()).toEqual({ url: "http://127.0.0.1:3777/api/bytnode/read", token: "link-secret" });
     expect(await appPass()).toMatchObject({ ok: false });
   });
 });
 
 describe("what may speak to this server", () => {
-  it("the link secret of this server, and the desktop's secret, only", () => {
+  it("the link secret of this server, only", () => {
     rememberOrigin("http://127.0.0.1:3777");
     const link = passLink()!;
     expect(link.url).toBe("http://127.0.0.1:3777/api/bytnode/read");
     expect(isPassLink(link.token)).toBe(true);
     expect(isPassLink("nope")).toBe(false);
     expect(isPassLink(null)).toBe(false);
-    expect(isMainSecret("anything")).toBe(false);
-    expect(isMainSecret("main-secret")).toBe(true);
-    expect(isMainSecret("")).toBe(false);
-    /* Taken out of the environment: nothing the server starts inherits it. */
-    expect(process.env.BYTNODE_AI_MAIN_SECRET).toBeUndefined();
   });
 
   it("never a key from outside named like the app's credential", () => {

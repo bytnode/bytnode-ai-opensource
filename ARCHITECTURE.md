@@ -19,7 +19,7 @@ Vitest. Everything in the repository — code, comments, prompts, skills, docs �
 7. [Exchange trading](#exchange-trading)
 8. [State and data](#state-and-data)
 9. [Packaging](#packaging)
-10. [The desktop app](#the-desktop-app)
+10. [The BytNode account](#the-bytnode-account)
 11. [Source layout](#source-layout)
 12. [Configuration](#configuration)
 13. [Development](#development)
@@ -227,10 +227,8 @@ gives. It lives in the server's memory only (never on disk, never sent to the pa
 BytNode's own hosts only (`appApiUrl` / `appWsUrl`: an override is honoured outside a production
 build only). Code reading for the app passes `APP_PASS` (`lib/bytnode/pass-id.ts`) where a key goes;
 a key coming from outside is cleaned of that name (`userKey`). The server gets it from the page's
-heartbeat in a browser (the session in `x-bytnode-session` on `POST /api/session`, only the derived
-credential kept), from the desktop's main process otherwise (the credential only, `POST
-/api/bytnode/session`, with the secret `BYTNODE_AI_MAIN_SECRET` it started the server with — the
-session never leaves the main process). A subscription agent's MCP server holds no credential: its
+heartbeat (the session in `x-bytnode-session` on `POST /api/session`, only the derived credential
+kept). A subscription agent's MCP server holds no credential: its
 plugin tools' reads are relayed by the Next server (`POST /api/bytnode/read`, link secret in its env,
 `lib/bytnode/app-relay.ts`), which checks them against the same list and answers with the data;
 it has no live feed (REST readings only). There is no ticker on
@@ -320,109 +318,34 @@ The app is published on npm as `bytnode-ai`.
   is excluded.
 
 The build itself (clean `next build`, external names restored, finance server bundled, this
-machine's path blanked) is `scripts/release-build.ts`, shared with the desktop app.
+machine's path blanked) is `scripts/release-build.ts`.
 
 ---
 
-## The desktop app
+## The BytNode account
 
-The same app in its own window, installed like any desktop program (Electron). Nothing in the app
-changes: the window shows the same Next server the `bytnode-ai` command starts, on the same
-`~/.bytnode-ai` data folder.
+The app opens on a sign-in page (`components/account/sign-in-screen.tsx`) until it is signed in
+to a BytNode account. The sign-in itself is `lib/account/sign-in.ts` (server), its pure part
+`lib/account/flow.ts`, the page side `lib/account/account.ts` and `lib/account/browser.ts`.
 
-```
-BytNode-AI (Electron main process, desktop/main.ts)
-  ├─ starts:  BytNode-AI.exe as Node (ELECTRON_RUN_AS_NODE=1) → next start, 127.0.0.1:<free port>
-  └─ shows:   a window on http://127.0.0.1:23777  ──(Chromium --host-rules)──▶ the real port
-```
+« Sign in with the browser » opens a tab inside the click; the app's server starts the sign-in
+(`app/api/account/sign-in`: POST starts it and gives the address, GET waits for the outcome,
+DELETE cancels; `lib/account/server-runs.ts` keeps the runs on `globalThis`) and the tab goes to
+`bytnode.com/auth/desktop?challenge&port&state` (PKCE S256 + a loopback listener on 127.0.0.1,
+RFC 8252 — no URL scheme; the path name is bytnode.com's own). The page, signed in there, confirms
+with one click and sends a one-time code back to `http://127.0.0.1:<port>/callback`; the server
+exchanges it (`POST /api/auth/desktop/token`) for a session of its own (`bnd_…`, revocable). The
+page keeps the session in its own storage (`agentchat:account`) with its other keys, and sends it
+in `x-bytnode-session` only to `app/api/account/key`, `app/api/account/session` and the heartbeat
+(`POST /api/session`, where the app's BytNode credential is derived from it). A new browser
+profile starts signed out.
 
-- **One binary.** The app ships no Node: its Electron binary is one when `ELECTRON_RUN_AS_NODE=1`
-  is set (`desktop/server.ts`). The server gets it, and so does every process it starts with
-  `process.execPath` (a subscription agent's script, the finance MCP server, npm), which inherit
-  it; `lib/acp/sessions.ts` also puts it in the MCP server's environment, and
-  `posixTerminalLine` in a sign-in terminal's line.
-- **A fixed origin** (`desktop/window-origin.ts`). Everything the app keeps (keys, agents,
-  conversations) is in `localStorage`, which belongs to an origin, port included. The server
-  takes a free port at each launch; the window always uses `127.0.0.1:23777`, mapped to it by a
-  Chromium switch set before the app is ready. The server accepts that Host
-  (`BYTNODE_AI_WINDOW_PORT`, `proxy.ts`) and gives its children its real address
-  (`BYTNODE_AI_SELF_ORIGIN`, `selfOrigin`). A custom scheme answered by the main process was
-  tried first and dropped: through it, a request the window abandoned kept running on the server
-  (Stop did not stop a command).
-- **No Node on the machine.** Installing a subscription agent needs npm, and npm's install
-  scripts need a `node`: the build copies npm beside the app (`scripts/desktop-after-pack.cjs`,
-  passed as `BYTNODE_AI_NPM_CLI`, read first by `npmCli`), and the server's PATH ends with a
-  `node` shim running the app's binary (`desktop/node-shim.ts`); a Node the user installed comes
-  first.
-- **No console windows** (Windows). The app's binary is a windowed program with no console: a
-  console program an agent's own code starts from it without `windowsHide` got a terminal window
-  of its own, on screen (Codex's `codex.js` → `codex.exe`, at every status check). Every Node the
-  app runs loads `desktop/hide-windows.cjs` first (`NODE_OPTIONS=--require`), which makes hidden
-  the default for `child_process`.
-- **The user's PATH.** Started from the Dock or a desktop menu, macOS and Linux give an app a bare
-  PATH; the main process asks the user's login shell for its own (`desktop/shell-path.ts`).
-- **What the browser gave.** Links to the web open in the user's browser, the app's own files
-  in a window of their own, anything else is refused (`linkTarget`); screen capture
-  (`setDisplayMediaRequestHandler`), notifications, the text right-click menu, the application
-  menu (macOS needs it for copy and paste), the window's size and place (`window-state.ts`), one
-  copy at a time (a second would run the scheduler twice).
-- **No system title bar** (`desktop/frame.ts`): the app's tab bar is the title bar, as in Edge.
-  The window's buttons are drawn over its right end (a transparent window controls overlay, their
-  ink following the page's theme through the preload, `desktop/preload.ts`) or the traffic lights
-  at its left (macOS); its empty parts move the window. These rules are injected by the main
-  process (`insertCSS`), the web app is unchanged; everything inside the bar is `no-drag`, or its
-  clicks would be swallowed.
-- **The keys in the system's vault** (`desktop/vault.ts`): the OpenRouter and BytNode keys and the
-  exchange accounts' secrets never reach the window's plain storage. `SettingsRepository` takes an
-  optional vault (`lib/storage/secrets.ts`): it writes the settings without them and puts them back
-  on reading; the preload hands the page `bytnodeVault` (synchronous), and the main process encrypts
-  them with safeStorage (DPAPI, Keychain, libsecret) into `secrets.vault` in the profile. Keys left
-  in plain storage by an older version move in at the next read; no real vault (Linux without a
-  keyring) = as in the browser.
-- **The BytNode account** (`desktop/account.ts`, the sign-in itself `lib/account/sign-in.ts`, pure part
-  `lib/account/flow.ts`, page side `lib/account/account.ts`): the desktop app opens on a sign-in page (`components/account/
-  sign-in-screen.tsx`) until it is signed in. « Sign in with the browser » opens
-  `bytnode.com/auth/desktop?challenge&port&state` (PKCE S256 + a loopback listener on 127.0.0.1,
-  RFC 8252 — no URL scheme); the page, signed in there, confirms with one click and sends a one-time
-  code back to `http://127.0.0.1:<port>/callback`; the main process exchanges it
-  (`POST /api/auth/desktop/token`) for a session of its own (`bnd_…`, revocable), kept encrypted in
-  `account.vault` in the profile and never handed to the page. Then, before the app opens: a BytNode
-  key made for it when there is none (`POST /api/desktop/api-key`, « BytNode-AI desktop »), the
-  profile filled where empty. Signed in = a session is stored, so the app opens offline; online, it
-  is checked at start (`GET /api/desktop/me`, 401 → back to the sign-in page). Settings → General →
-  « BytNode account » signs out (the session is revoked, local data stays). The server side is
-  `app_web` (`backend/src/modules/desktop-auth`, `frontend/app/auth/desktop`).
-  **In a browser** (`next dev`, the npm app; since 2026-10-12) the same sign-in, the same gate:
-  with no preload bridge, `lib/account/browser.ts` plays its part. « Sign in » opens a tab inside
-  the click, the app's server runs the very same `startSignIn` (`app/api/account/sign-in`: POST
-  starts it and gives the address, GET waits for the outcome, DELETE cancels;
-  `lib/account/server-runs.ts` keeps the runs on `globalThis`), and the page keeps the session in
-  its own storage (`agentchat:account`) with its other keys, sending it in `x-bytnode-session` only
-  to `app/api/account/key` and `app/api/account/session`. A new browser profile starts signed out.
-- **From zero** (`desktop/fresh.ts`): `BytNode-AI --fresh`, or File → Start Over from Zero, opens
-  the app as a new user gets it — a new browser profile, a new data folder, an empty home for the
-  server and the agents it starts (so Claude, Codex… show signed out), the PATH's agents ignored,
-  no updates — without touching the real setup. Sessions live in the temp folder; the previous ones
-  are removed at the next start.
-- **Updates** (`desktop/updates.ts`, electron-updater): the packaged app reads
-  `https://ai.bytnode.com/download/desktop/latest*.yml` at start and every six hours, downloads in
-  the background and offers to restart. macOS refuses to swap an app that has no Developer ID
-  signature: there, the check fails quietly.
-
-**Building.** `npm run desktop:dist` = the release build + the main process bundled
-(`dist-desktop/app/main.cjs`) + the icon rendered from `desktop/resources/icon.svg` +
-`next.config.ts` compiled to `next.config.mjs` (read as TypeScript, `next start` needs SWC, which
-the installer leaves out with sharp, source maps and Next's development runtimes), then
-electron-builder (`electron-builder.yml`, no asar: the server reads its own files and hands paths
-to child processes). The result is checked like the npm archive (no key, no personal file, no path
-of the build machine, nothing missing) and deleted if it fails. An installer is built on its own
-system; the `desktop` workflow builds Windows, macOS (Apple Silicon and Intel, two runners) and
-Linux, by hand or on a `desktop-v*` tag, and leaves one `desktop-release` artifact with the
-macOS update files merged (`scripts/desktop-merge-yml.mjs`). Nothing is published by a build:
-the files are put online by hand, under `/download/desktop/` (their names carry no version, so
-the download page links to them for good). Without a certificate, Windows installers are
-unsigned and macOS apps are signed ad hoc; `CSC_LINK` / `APPLE_ID`… turn real signing and
-notarization on.
+Then, before the app opens: a BytNode key made for it when there is none (`POST
+/api/desktop/api-key`), the profile filled where empty. Signed in = a session is stored, so the
+app opens offline; online, it is checked at start (`GET /api/desktop/me`, 401 → back to the
+sign-in page). Settings → General → « BytNode account » signs out (the session is revoked, local
+data stays). The server side is `app_web` (`backend/src/modules/desktop-auth`,
+`frontend/app/auth/desktop`).
 
 ---
 
@@ -457,8 +380,7 @@ lib/
   publish/           package checks and versioning
 professions/         prompts and skills
 bin/                 the launcher
-desktop/             the desktop app's main process (Electron)
-scripts/             release build, prepack, desktop build, smoke test, first-launch helper
+scripts/             release build, prepack, smoke test, first-launch helpers
 proxy.ts             refuses cross-site requests to /api
 ```
 
@@ -479,12 +401,8 @@ All optional, read from the server's environment.
 | `OPENROUTER_PROVIDER_ORDER` | — | an explicit provider order (wins over the sort) |
 | `OPENROUTER_ALLOW_FALLBACKS` | `1` | `0` forbids any other provider |
 
-The desktop app also reads `BYTNODE_AI_NO_UPDATES=1` (no update check), `BYTNODE_AI_DESKTOP_PROFILE`
-(another browser profile folder) and, in development, `BYTNODE_AI_DESKTOP_URL` (show a running
-server instead of starting one), `BYTNODE_AI_ACCOUNT_URL` / `BYTNODE_AI_ACCOUNT_API` (sign in
-against a local app_web, e.g. `http://localhost:3000` / `http://localhost:4000/api`, instead of
-bytnode.com). It sets `BYTNODE_AI_WINDOW_PORT`, `BYTNODE_AI_SELF_ORIGIN` and
-`BYTNODE_AI_NPM_CLI` for its server.
+In development, `BYTNODE_AI_ACCOUNT_URL` / `BYTNODE_AI_ACCOUNT_API` sign in against a local
+app_web (e.g. `http://localhost:3000` / `http://localhost:4000/api`) instead of bytnode.com.
 
 Provider routing matters: OpenRouter serves one model through several providers, and the same turn
 measured 3 s, 34 s or 98 s depending on which one answered (`lib/server/provider-routing.ts`).
@@ -502,22 +420,20 @@ npm run dev          # http://localhost:3777
 |---|---|
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint, with the React Compiler rules |
-| `npm test` | Vitest on `lib/` and `desktop/` |
+| `npm test` | Vitest on `lib/` |
 | `npx vitest run lib/tools/paths.test.ts` | one test file (`-t "name"` for one test) |
 | `npm run build` | production build |
 | `npm run smoke:pack` | the package as a user gets it: pack, install in a temp folder, start, query |
 | `npm pack --dry-run` | clean build + archive check |
 | `npm run vierge` | first-launch state: temporary data, no agent found, fresh port |
-| `npm run desktop` | the desktop app on the last `npm run build` (`-- --dev-url http://127.0.0.1:3777` on a running `npm run dev`) |
-| `npm run desktop:dir` | desktop release build, unpacked (`dist-desktop/release/*-unpacked`) |
-| `npm run desktop:dist` | desktop release build + this system's installers |
+| `npm run dev-zero` | the live code from zero on port 3999: its own `next dev`, data folder, empty home and browser profile |
 
 **Before a change is done**, `typecheck`, `lint` and `test` must be clean. CI runs them, plus
 `smoke:pack`, on Windows, macOS and Linux.
 
 **Conventions**
 
-- Tests sit next to their module in `lib/` and `desktop/` (`*.test.ts`, Node environment). Pure logic is split
+- Tests sit next to their module in `lib/` (`*.test.ts`, Node environment). Pure logic is split
   into its own module so it can be tested without a browser or a network.
 - Never call a real model, BytNode or exchange from a test: use a fake OpenRouter
   (`OPENROUTER_BASE_URL`) or the fake exchange.

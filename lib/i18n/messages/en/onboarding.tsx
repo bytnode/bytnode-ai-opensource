@@ -36,8 +36,7 @@ export const onboarding = {
         `${firstName ? `Hi ${firstName}! ` : "Hi! "}I'm BytNode-AI, your market agent. Let's set things up together. First, tell me what to call you and a few words about you, so every agent knows who it works for.`,
       ai: "Now, let's choose what powers me. If you already pay for Claude, ChatGPT, Copilot or Grok, sign in and I'll run on that subscription. No subscription? An OpenRouter key works too.",
       channels: "Want me to reach you away from your computer? Connect a Telegram bot and I'll send you alerts and scheduled reports as they happen. You can skip this and add it later in Settings.",
-      exchanges: (desktop: boolean) =>
-        `Last thing: if you like, link your exchange accounts so I can follow your balances and trades. Your API keys stay on this computer${desktop ? ", locked in your system's vault" : ""}: nothing is sent to us or exposed online, and we never see your exchange data. I'll always ask you before an order.`,
+      exchanges: "Last thing: if you like, link your exchange accounts so I can follow your balances and trades. Your API keys stay on this computer: nothing is sent to us or exposed online, and we never see your exchange data. I'll always ask you before an order.",
     },
     errors: {
       firstName: "Tell me your first name to continue.",

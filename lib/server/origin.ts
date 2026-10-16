@@ -33,18 +33,12 @@ export type OriginOptions = {
   /** The port the server listens on (`process.env.PORT`, set by `next
       start` / `next dev`). Unknown: any port is accepted. */
   port?: string | number;
-  /** The port the desktop app's window reaches it on, when another
-      (`BYTNODE_AI_WINDOW_PORT`, `desktop/window-origin.ts`): the window's
-      Chromium maps it to the real one, so its Host names that port. */
-  windowPort?: string | number;
 };
 
 /** The server's own origin, for its child processes to call it back (a
-    subscription agent's MCP server). The request's, except in the desktop
-    app, where the window's port is not one a child can reach
-    (`BYTNODE_AI_SELF_ORIGIN`). Pure. */
-export function selfOrigin(requestUrl: string, env: Record<string, string | undefined> = process.env): string {
-  return env.BYTNODE_AI_SELF_ORIGIN?.trim() || new URL(requestUrl).origin;
+    subscription agent's MCP server): the request's. Pure. */
+export function selfOrigin(requestUrl: string): string {
+  return new URL(requestUrl).origin;
 }
 
 /** `host[:port]` split, the port defaulting to 80 (the app serves http). */
@@ -63,8 +57,7 @@ export function crossSiteReason(headers: Headers, opts: OriginOptions = {}): str
     const h = splitHost(host);
     if (!h || !LOOPBACK_NAMES.has(h.name)) return `host ${host}`;
     const known = opts.port !== undefined && opts.port !== "";
-    const windowPort = opts.windowPort !== undefined && opts.windowPort !== "" ? String(opts.windowPort) : null;
-    if (known && h.port !== String(opts.port) && h.port !== windowPort) return `host ${host}`;
+    if (known && h.port !== String(opts.port)) return `host ${host}`;
   }
   if (!origin) return null;
   if (origin === "null") return "opaque origin";

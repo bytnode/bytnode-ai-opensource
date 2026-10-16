@@ -31,7 +31,7 @@ export const settings = {
   },
 
   auth: {
-    lede: "Your keys stay on this computer and only travel with your own requests. In the desktop app, they are kept in your system's vault.",
+    lede: "Your keys stay on this computer and only travel with your own requests.",
     bytnodeRequired: "Required: without a BytNode key, the agents have no market data.",
     exchanges: "Exchanges",
   },

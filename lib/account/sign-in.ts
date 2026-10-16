@@ -1,16 +1,12 @@
 import http from "node:http";
 import os from "node:os";
-import { accountOf, deviceName, doneUrl, errorOf, pkcePair, randomState, readCallback, signInUrl, type AccountUrls, type DesktopAccount } from "./flow";
+import { accountOf, deviceName, doneUrl, errorOf, pkcePair, randomState, readCallback, signInUrl, type AccountUrls, type BytnodeAccount } from "./flow";
 
 /* ---------------------------------------------------------------------------
-   The BytNode account's sign-in and calls, server side. Shared by the two
-   ways the app runs (user request, 2026-10-12: the same sign-in in the
-   browser as in the desktop app):
-   - the desktop app: its main process (`desktop/account.ts`) keeps the
-     session in the OS vault and hands the page the account over IPC;
-   - a browser (`next dev`, `npx bytnode-ai`): the app's server
-     (`app/api/account/*`) does the sign-in, the page keeps the session
-     with its other keys (`lib/account/browser.ts`).
+   The BytNode account's sign-in and calls, server side (user request,
+   2026-10-12): the app's server (`app/api/account/*`) does the sign-in,
+   the page keeps the session with its other keys
+   (`lib/account/browser.ts`).
 
    One sign-in = a listener on 127.0.0.1 (a free port, for its time only),
    bytnode.com/auth/desktop opened with the PKCE challenge, the one-time
@@ -18,7 +14,7 @@ import { accountOf, deviceName, doneUrl, errorOf, pkcePair, randomState, readCal
    addresses, PKCE, the callback — is `flow.ts`.
 --------------------------------------------------------------------------- */
 
-export type AccountSession = { token: string; account: DesktopAccount };
+export type AccountSession = { token: string; account: BytnodeAccount };
 
 export type SignInOutcome = { ok: true; session: AccountSession } | { ok: false; cancelled: boolean; message: string };
 
@@ -26,7 +22,7 @@ export type SignInOutcome = { ok: true; session: AccountSession } | { ok: false;
     deleted) — the app signs out. */
 export type KeyOutcome = { ok: true; secret: string } | { ok: false; code: string; message: string; revoked: boolean };
 
-export type MeOutcome = { kind: "ok"; account: DesktopAccount } | { kind: "revoked"; message: string } | { kind: "unknown" };
+export type MeOutcome = { kind: "ok"; account: BytnodeAccount } | { kind: "revoked"; message: string } | { kind: "unknown" };
 
 /** How long the browser has to come back. */
 export const SIGN_IN_TIMEOUT = 10 * 60_000;

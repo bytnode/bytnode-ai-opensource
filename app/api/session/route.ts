@@ -19,10 +19,9 @@ import { selfOrigin } from "@/lib/server/origin";
    with another — is refused. Otherwise an agent's script could hand the
    background its own settings (accounts, keys).
 
-   In a browser, the tab also hands its BytNode account session
-   (`x-bytnode-session`): the server derives the app's BytNode credential
-   from it and keeps only that (`lib/bytnode/app-pass.ts`). The desktop
-   app's tab has none — its main process hands the credential over.
+   The tab also hands its BytNode account session (`x-bytnode-session`):
+   the server derives the app's BytNode credential from it and keeps only
+   that (`lib/bytnode/app-pass.ts`).
 --------------------------------------------------------------------------- */
 export async function POST(req: Request) {
   const holder = approvalKey();
@@ -37,7 +36,7 @@ export async function POST(req: Request) {
     return Response.json({ error: { message: "Unreadable request body." } }, { status: 400 });
   }
   const s = normalizeSettings(raw);
-  setAccountSession("page", req.headers.get(SESSION_HEADER));
+  setAccountSession(req.headers.get(SESSION_HEADER));
   rememberOrigin(selfOrigin(req.url));
   await syncSession({
     openrouterKey: s.keys.openrouter,

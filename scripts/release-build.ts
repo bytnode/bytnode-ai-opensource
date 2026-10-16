@@ -1,7 +1,6 @@
-/* The release build shared by the npm package (`prepack.ts`) and the
-   desktop app (`desktop.ts`): a clean `next build`, the external packages'
-   aliases restored, the finance MCP server bundled, this machine's path
-   blanked. Both ship the same `.next`; what differs is the box around it.
+/* The release build of the npm package (`prepack.ts`): a clean `next
+   build`, the external packages' aliases restored, the finance MCP server
+   bundled, this machine's path blanked.
    ⚠️ EVERYTHING HERE WRITES TO STDERR (see prepack.ts: `npm pack --json`). */
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";

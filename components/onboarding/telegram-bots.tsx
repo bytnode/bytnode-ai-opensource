@@ -19,7 +19,7 @@ import { SecretInput } from "./exchange-accounts";
    The form walks through it — open @BotFather, paste the token (checked
    with Telegram: the bot's name comes back), send /start to the bot, and
    its chat is found by itself (`/api/telegram`). "Test" sends a first
-   message. The token is a secret: the system's vault in the desktop app.
+   message. The token is a secret, kept with the app's other keys.
 --------------------------------------------------------------------------- */
 
 type Props = {

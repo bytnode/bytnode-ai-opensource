@@ -81,12 +81,10 @@ export function Wizard({ steps, initial, onDone, accountKey = null }: Props) {
   const [active, setActive] = useState(0);
   const [reached, setReached] = useState<number[]>([0]);
 
-  /* The BytNode key is not asked: it is made at sign-in (desktop app and
-     browser alike); only when that failed. */
+  /* The BytNode key is not asked: it is made at sign-in; only when that
+     failed. */
   const signedIn = accountBridge() !== null;
   const askBytnode = !signedIn || accountKey?.kind === "failed" || !draft.keys.bytnode.trim();
-  /* The keys are locked in the system's vault in the desktop app only. */
-  const vaulted = typeof window !== "undefined" && "bytnodeVault" in window;
   const keys = draft.keys;
   const setKeys = (k: ApiKeys) => setDraft({ ...draft, keys: k });
   const setProfile = (patch: Partial<Profile>) => setDraft({ ...draft, profile: { ...draft.profile, ...patch } });
@@ -155,7 +153,7 @@ export function Wizard({ steps, initial, onDone, accountKey = null }: Props) {
           >
             <div className="fr-card">
               <aside className="fr-guide">
-                <Speech line={say(step, draft.profile.firstName.trim(), vaulted, m)} play={reached.includes(i)} ready={Object.keys(errors).length === 0} />
+                <Speech line={say(step, draft.profile.firstName.trim(), m)} play={reached.includes(i)} ready={Object.keys(errors).length === 0} />
               </aside>
 
               <div className="fr-step">
@@ -328,12 +326,12 @@ function Speech({ line, play, ready }: { line: string; play: boolean; ready: boo
 
 /** What the companion says at each step: the purpose, and the one thing
     worth knowing. Short on purpose. */
-function say(step: StepId, firstName: string, desktop: boolean, m: Messages): string {
+function say(step: StepId, firstName: string, m: Messages): string {
   const t = m.onboarding.wizard.say;
   if (step === "you") return t.you(firstName);
   if (step === "ai") return t.ai;
   if (step === "channels") return t.channels;
-  return t.exchanges(desktop);
+  return t.exchanges;
 }
 
 export type StepErrors = Partial<Record<"firstName" | "openrouter" | "subscription" | "bytnode" | "name" | "providerId", string>>;

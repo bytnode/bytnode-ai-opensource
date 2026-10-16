@@ -66,11 +66,8 @@ Be aware of these limits:
 - **An agent with an unrestricted shell can reach beyond BytNode-AI's tools.** The confirmation
   covers the money tools BytNode-AI serves; an agent running commands on the whole disk could, in
   principle, use exchange keys some other way. Keep agents with exchange accounts in workspace scope.
-- **In the desktop app, your keys are in your system's vault** (Windows DPAPI, the macOS Keychain,
-  libsecret on Linux): encrypted for your user account, useless if the file is copied elsewhere. A
-  program running in your own session can still ask for them. On a Linux with no keyring, and
-  **in the browser (the `bytnode-ai` command), your keys are stored unencrypted** (`localStorage`):
-  anyone with access to your account or your browser profile can read them.
+- **Your keys are stored unencrypted in your browser** (`localStorage`): anyone with access to your
+  account or your browser profile can read them.
 - **Web content can mislead an agent.** A page it reads may contain instructions meant to steer it.
   Keep approvals on when agents browse.
 - **Scheduled tasks run on their own** while the app is open, with the permissions of their agent.
@@ -81,7 +78,7 @@ Be aware of these limits:
 
 | Data | Where it lives |
 |---|---|
-| Model, BytNode and exchange keys | desktop app: the system's vault (`secrets.vault`, encrypted); browser: `localStorage`. Sent only with your own requests to the local server |
+| Model, BytNode and exchange keys | your browser's `localStorage`. Sent only with your own requests to the local server |
 | Settings and conversations | your browser's `localStorage` |
 | Workspaces, installed agents, skills, plugin data | `~/.bytnode-ai/` on your disk (`BYTNODE_AI_HOME` to move it) |
 

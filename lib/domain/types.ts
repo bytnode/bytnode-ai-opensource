@@ -37,7 +37,7 @@ export type ExchangeAccount = {
 /** A Telegram bot the scheduled tasks' reports and the alerts can be sent
     to (`lib/server/telegram.ts`). Made by @BotFather; `chatId` is the
     user's chat with it, found when they send it /start. The token is a
-    secret (the system's vault in the desktop app). */
+    secret, kept with the app's other keys. */
 export type TelegramBot = {
   id: string;
   name: string;

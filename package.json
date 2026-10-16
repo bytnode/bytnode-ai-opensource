@@ -11,7 +11,6 @@
   "bin": {
     "bytnode-ai": "bin/bytnode-ai.mjs"
   },
-  "main": "dist-desktop/app/main.cjs",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
@@ -47,10 +46,7 @@
     "prepack": "tsx scripts/prepack.ts",
     "smoke:pack": "node scripts/smoke-pack.mjs",
     "vierge": "node scripts/vierge.mjs",
-    "dev-zero": "tsx scripts/dev-zero.ts",
-    "desktop": "tsx scripts/desktop.ts run",
-    "desktop:dir": "tsx scripts/desktop.ts dir",
-    "desktop:dist": "tsx scripts/desktop.ts dist"
+    "dev-zero": "tsx scripts/dev-zero.ts"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.4.0",
@@ -60,7 +56,6 @@
     "@resvg/resvg-js": "^2.6.2",
     "@vscode/ripgrep": "^1.18.0",
     "ccxt": "^4.5.78",
-    "electron-updater": "^6.8.9",
     "fast-glob": "^3.3.3",
     "next": "16.3.5",
     "pdf-parse": "^2.4.5",
@@ -78,8 +73,6 @@
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "@types/turndown": "^5.0.6",
-    "electron": "^44.6.0",
-    "electron-builder": "^26.15.3",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.6",
     "typescript": "^5.9.3",

@@ -32,15 +32,6 @@ describe("brokenInstall", () => {
 describe("npmCli (windows)", () => {
   const win = { platform: "win32" as NodeJS.Platform, env: { PATHEXT: ".COM;.EXE;.CMD" } };
 
-  it("takes the npm the desktop app ships first", () => {
-    const execPath = "C:\\Users\\u\\AppData\\Local\\Programs\\BytNode-AI\\BytNode-AI.exe";
-    const shipped = "C:\\Users\\u\\AppData\\Local\\Programs\\BytNode-AI\\resources\\npm\\bin\\npm-cli.js";
-    const env = { ...win.env, BYTNODE_AI_NPM_CLI: shipped };
-    expect(npmCli({ ...win, env, execPath, exists: has(shipped) })).toEqual({ command: execPath, args: [shipped] });
-    /* Gone (a broken install): the usual search. */
-    expect(npmCli({ ...win, env, execPath, exists: has() })).toEqual({ command: "npm", args: [], shell: true });
-  });
-
   it("takes the npm-cli.js next to node (official installer)", () => {
     const execPath = "C:\\Program Files\\nodejs\\node.exe";
     const script = "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js";
@@ -137,11 +128,6 @@ describe("the sign-in terminal, macOS / Linux", () => {
     expect(line).toMatch(/^env -u ANTHROPIC_API_KEY /);
     expect(line).toContain("-u XAI_API_KEY");
     expect(line).toContain(`'GROK_MODE=it'\\''s' '/opt/grok' 'login';`);
-  });
-
-  it("keeps the desktop app's binary a Node in the terminal", () => {
-    expect(posixTerminalLine("/Applications/BytNode-AI.app/Contents/MacOS/BytNode-AI", ["cli.js"], {}, true)).toContain("FORCE_COLOR=0 ELECTRON_RUN_AS_NODE=1 '/Applications/");
-    expect(posixTerminalLine("/usr/bin/node", ["cli.js"], {}, false)).not.toContain("ELECTRON_RUN_AS_NODE");
   });
 
   it("quotes an AppleScript string", () => {

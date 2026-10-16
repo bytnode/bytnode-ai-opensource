@@ -1,7 +1,6 @@
 import { beginRun, cancelRun, readRun } from "@/lib/account/server-runs";
 
-/* The BytNode account's sign-in, for the app in a browser (the desktop app
-   does it in its main process): POST starts one and gives the bytnode.com
+/* The BytNode account's sign-in: POST starts one and gives the bytnode.com
    address the page opens in a tab; GET ?id= waits for the browser to come
    back (25 s at most, the page asks again); DELETE ?id= cancels it.
    `lib/account/browser.ts` is the page's side. */

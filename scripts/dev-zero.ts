@@ -3,7 +3,7 @@
    command, on 3999, and EVERYTHING from zero — not only the browser).
 
    Its own `next dev`, beside the usual one on 3777 (which stays untouched),
-   with the session from zero of the desktop app (`desktop/fresh.ts`):
+   in a session from zero (`fresh-env.ts`):
    - a new data folder (installed agents, plugins, workspaces);
    - an empty home for the server and the agents it starts (Claude, Codex…
      show signed out), the agents on the PATH ignored;
@@ -17,7 +17,7 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { freshEnv, startFresh } from "../desktop/fresh";
+import { freshEnv, startFresh } from "./fresh-env";
 
 const root = process.cwd();
 const PORT = 3999;

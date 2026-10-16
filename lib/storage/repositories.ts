@@ -3,7 +3,6 @@ import type { PluginConfig, PluginSettings, PluginsState } from "@/lib/domain/pl
 import { DEFAULT_PROFESSION, isProfessionId } from "@/lib/professions/catalog";
 import { DEFAULT_LOCALE, isLocale } from "@/lib/i18n/locales";
 import { userKey } from "@/lib/bytnode/pass-id";
-import { hasSecrets, mergeSecrets, splitSecrets, type Vault } from "./secrets";
 import type { Storage } from "./storage";
 
 export const SETTINGS_KEY = "agentchat:settings";
@@ -192,43 +191,21 @@ export function normalizeSettings(raw: unknown): Settings {
   };
 }
 
-/* With a `vault` (the desktop window), the keys are never written in the
-   plain storage: they go to the system's vault and come back on reading
-   (`secrets.ts`). */
 export class SettingsRepository {
-  constructor(
-    private storage: Storage,
-    private vault: Vault | null = null,
-  ) {}
+  constructor(private storage: Storage) {}
 
   load(): Settings {
     const raw = this.storage.get(SETTINGS_KEY);
-    if (raw === null) return this.withSecrets(defaultSettings());
-    let s: Settings;
+    if (raw === null) return defaultSettings();
     try {
-      s = normalizeSettings(JSON.parse(raw));
+      return normalizeSettings(JSON.parse(raw));
     } catch {
-      return this.withSecrets(defaultSettings());
+      return defaultSettings();
     }
-    return this.withSecrets(s);
-  }
-
-  private withSecrets(s: Settings): Settings {
-    const bag = this.vault?.get() ?? null;
-    if (!bag) return s;
-    const merged = mergeSecrets(s, bag);
-    /* Keys still in plain storage (written before the vault): moved in. */
-    if (hasSecrets(s)) this.save(merged);
-    return merged;
   }
 
   /** False when the settings could not be written (quota, access refused). */
   save(settings: Settings): boolean {
-    if (this.vault) {
-      const { stripped, bag } = splitSecrets(settings);
-      if (this.vault.set(bag)) return this.storage.set(SETTINGS_KEY, JSON.stringify(stripped));
-      /* The vault refused: kept as before rather than lost. */
-    }
     return this.storage.set(SETTINGS_KEY, JSON.stringify(settings));
   }
 }

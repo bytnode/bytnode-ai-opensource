@@ -18,15 +18,6 @@ connect. **Read the [safety notice](SAFETY.md) before running it.**
 
 ## Run
 
-### Desktop app
-
-Download the installer for your system from [ai.bytnode.com/download](https://ai.bytnode.com/download)
-(Windows, macOS, Linux), open it, and start BytNode-AI like any other app. No Node.js needed. It
-updates itself.
-
-The installers are not signed yet. On Windows, click **More info → Run anyway** the first time; on
-macOS, open **System Settings → Privacy & Security** and click **Open Anyway**.
-
 ### From npm
 
 Install [Node.js](https://nodejs.org) (20.19 or newer), then run:
@@ -54,10 +45,6 @@ npm run dev
 ```
 
 The app opens at http://localhost:3777 and reloads as you edit.
-
-The desktop app from source: `npm run build`, then `npm run desktop` (or, on a running
-`npm run dev`, `npm run desktop -- --dev-url http://127.0.0.1:3777`). `npm run desktop:dist`
-builds this system's installer into `dist-desktop/release/`.
 
 ## Community and support
 

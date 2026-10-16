@@ -30,7 +30,7 @@ export const settings: Messages["settings"] = {
   },
 
   auth: {
-    lede: "Tus claves se quedan en este ordenador y solo viajan con tus propias solicitudes. En la aplicación de escritorio se guardan en el almacén seguro de tu sistema.",
+    lede: "Tus claves se quedan en este ordenador y solo viajan con tus propias solicitudes.",
     bytnodeRequired: "Obligatoria: sin una clave de BytNode, los agentes no tienen datos de mercado.",
     exchanges: "Exchanges",
   },

@@ -21,12 +21,8 @@ export { APP_PASS };
    It lives in this process's memory only: never written to disk, never sent
    to the page; it is sent to BytNode's own hosts only (`appApiUrl`).
 
-   Where the session comes from:
-     - the app in a browser: the page keeps it, and sends it with its
-       heartbeat (`POST /api/session`, header `x-bytnode-session`);
-     - the desktop app: its main process keeps it and hands this server the
-       CREDENTIAL only (`POST /api/bytnode/session`, with the secret it gave
-       this server in `BYTNODE_AI_MAIN_SECRET`): the session never reaches it.
+   Where the session comes from: the page keeps it, and sends it with its
+   heartbeat (`POST /api/session`, header `x-bytnode-session`).
    A subscription agent's MCP server (another process: the plugins' tools)
    holds no credential: it RELAYS its reads through this server
    (`POST /api/bytnode/read`, with the link secret it was started with),
@@ -49,7 +45,6 @@ const REFUSED_MS = 15_000;
 
 export const SESSION_HEADER = "x-bytnode-session";
 export const LINK_HEADER = "x-bytnode-app-read";
-export const MAIN_HEADER = "x-bytnode-main";
 /** The env of an MCP server started for a subscription agent. */
 export const LINK_ENV = { url: "BYTNODE_AI_APP_READ_URL", token: "BYTNODE_AI_APP_READ_TOKEN" } as const;
 
@@ -58,50 +53,34 @@ const REFUSED = "BytNode does not recognise this app's sign-in yet: try again in
 
 type State = {
   page: { credential: string; at: number } | null;
-  main: string | null;
   refused: { credential: string; until: number } | null;
   /** A wait for the session ended with none: not waited for again before. */
   signedOutUntil: number;
   waiters: Set<() => void>;
   origin: string | null;
   link: string;
-  /** The desktop main process's secret, read once. */
-  mainSecret: string;
 };
 
 /* On the server's global: a hot reload must not drop the session. */
 const SLOT = Symbol.for("bytnode-ai.app-pass");
 const state = (): State => {
   const g = globalThis as unknown as Record<symbol, State | undefined>;
-  return (g[SLOT] ??= { page: null, main: null, refused: null, signedOutUntil: 0, waiters: new Set(), origin: null, link: randomBytes(32).toString("hex"), mainSecret: takeMainSecret() });
+  return (g[SLOT] ??= { page: null, refused: null, signedOutUntil: 0, waiters: new Set(), origin: null, link: randomBytes(32).toString("hex") });
 };
 
-/** The desktop's secret, taken OUT of the environment: nothing this server
-    starts (an agent, a command, a plugin's process) inherits it. */
-function takeMainSecret(): string {
-  const value = process.env.BYTNODE_AI_MAIN_SECRET?.trim() ?? "";
-  delete process.env.BYTNODE_AI_MAIN_SECRET;
-  return value;
-}
-/* At load, before anything is started. */
-state();
-
-/** The credential the app reads with: the desktop's, else the page's. */
+/** The credential the app reads with: the page's, while it speaks. */
 function current(now = Date.now()): string | null {
   const s = state();
-  if (s.main) return s.main;
   if (s.page && now - s.page.at <= PAGE_TTL_MS) return s.page.credential;
   return null;
 }
 
-/** The session (or, from the desktop, its credential) as the page (`page`)
-    or the desktop's main process (`main`) has it now; `null` = signed out.
-    Only the derived credential is kept. */
-export function setAccountSession(source: "page" | "main", token: string | null, now = Date.now()): void {
+/** The session as the page has it now; `null` = signed out. Only the
+    derived credential is kept. */
+export function setAccountSession(token: string | null, now = Date.now()): void {
   const s = state();
   const credential = credentialOf(token);
-  if (source === "main") s.main = credential;
-  else s.page = credential ? { credential, at: now } : null;
+  s.page = credential ? { credential, at: now } : null;
   for (const w of [...s.waiters]) w();
 }
 
@@ -115,8 +94,7 @@ export function rememberOrigin(origin: string): void {
     when the address is not known yet. */
 export function passLink(): { url: string; token: string } | null {
   const s = state();
-  const origin = process.env.BYTNODE_AI_SELF_ORIGIN?.trim() || s.origin;
-  return origin ? { url: `${origin}/api/bytnode/read`, token: s.link } : null;
+  return s.origin ? { url: `${s.origin}/api/bytnode/read`, token: s.link } : null;
 }
 
 /** The relay this process reads through (an MCP server started for a
@@ -135,10 +113,6 @@ const sameSecret = (given: string, expected: string) => {
 
 /** True when `given` is this server's link secret. */
 export const isPassLink = (given: string | null) => sameSecret(given ?? "", state().link);
-
-/** True when `given` is the secret the desktop's main process started this
-    server with. */
-export const isMainSecret = (given: string | null) => sameSecret(given ?? "", state().mainSecret);
 
 function waitForCredential(ms: number): Promise<string | null> {
   const now = current();
@@ -183,6 +157,6 @@ export function dropAppPass(token: string): void {
 /** Forgets everything (tests). */
 export function resetAppPass(): void {
   const s = state();
-  Object.assign(s, { page: null, main: null, refused: null, signedOutUntil: 0, origin: null });
+  Object.assign(s, { page: null, refused: null, signedOutUntil: 0, origin: null });
   s.waiters.clear();
 }

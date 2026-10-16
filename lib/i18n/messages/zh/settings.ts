@@ -30,7 +30,7 @@ export const settings: Messages["settings"] = {
   },
 
   auth: {
-    lede: "你的密钥只保存在这台电脑上，只随你自己的请求发送。在桌面应用中，它们保存在系统的安全存储里。",
+    lede: "你的密钥只保存在这台电脑上，只随你自己的请求发送。",
     bytnodeRequired: "必填：没有 BytNode 密钥，智能体就没有市场数据。",
     exchanges: "交易所",
   },

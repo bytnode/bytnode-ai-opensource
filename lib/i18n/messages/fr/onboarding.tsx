@@ -32,8 +32,7 @@ export const onboarding: Messages["onboarding"] = {
         `${firstName ? `Bonjour ${firstName} ! ` : "Bonjour ! "}Je suis BytNode-AI, votre agent de marché. Configurons tout ça ensemble. D’abord, dites-moi comment vous appeler et quelques mots sur vous, pour que chaque agent sache pour qui il travaille.`,
       ai: "Maintenant, choisissons ce qui me fait fonctionner. Si vous payez déjà Claude, ChatGPT, Copilot ou Grok, connectez-vous et je tournerai sur cet abonnement. Pas d’abonnement ? Une clé OpenRouter fonctionne aussi.",
       channels: "Vous voulez que je puisse vous joindre loin de votre ordinateur ? Connectez un bot Telegram et je vous enverrai les alertes et les rapports planifiés au moment où ils arrivent. Vous pouvez passer cette étape et l’ajouter plus tard dans les Réglages.",
-      exchanges: (desktop: boolean) =>
-        `Dernière chose : si vous le souhaitez, liez vos comptes d’exchange pour que je suive vos soldes et vos trades. Vos clés API restent sur cet ordinateur${desktop ? ", à l’abri dans le coffre de votre système" : ""} : rien ne nous est envoyé ni exposé en ligne, et nous ne voyons jamais les données de vos exchanges. Je vous demanderai toujours avant un ordre.`,
+      exchanges: "Dernière chose : si vous le souhaitez, liez vos comptes d’exchange pour que je suive vos soldes et vos trades. Vos clés API restent sur cet ordinateur : rien ne nous est envoyé ni exposé en ligne, et nous ne voyons jamais les données de vos exchanges. Je vous demanderai toujours avant un ordre.",
     },
     errors: {
       firstName: "Indiquez votre prénom pour continuer.",

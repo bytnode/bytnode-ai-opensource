@@ -17,5 +17,5 @@
     "paths": { "@/*": ["./*"] }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts", ".next-zero/types/**/*.ts", ".next-zero/dev/types/**/*.ts"],
-  "exclude": ["node_modules", "dist-desktop"]
+  "exclude": ["node_modules"]
 }
